@@ -4,7 +4,7 @@ PROJECT_BRIEF          = "YEAR OF THE DEPEND ADULT UNDERGARMENT"
 #PROJECT_ICON           = assets/favicon.ico
 #PROJECT_LOGO           = assets/logo.svg
 
-INPUT                  = readme.md include src docs/coverage.dox #tests
+INPUT                  = readme.md include src docs/coverage.dox
 IMAGE_PATH             = assets
 EXCLUDE_PATTERNS       = build/*
 RECURSIVE              = YES
