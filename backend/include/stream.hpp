@@ -17,8 +17,9 @@ public:
         std::string path, std::string name, std::string type = {},
         bool loop = true
     );
-    static stream_type identify(std::string path);
-    static std::string type_name(stream_type type);
+    static stream_type identify(const std::string& path);
+    static std::string type_name(const stream_type type);
+    static std::string pipeline_name(const stream_pipeline pipeline);
 
     void dump(std::ostream out, bool connections = false) const;
 
