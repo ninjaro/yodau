@@ -3,9 +3,12 @@
 
 #include <cxxopts.hpp>
 
+#include "stream_manager.hpp"
+
 namespace yodau::cli {
 class cli_client {
 public:
+    explicit cli_client(backend::stream_manager& mgr);
     int run();
 
 private:
@@ -24,6 +27,8 @@ private:
     void cmd_list_lines(const std::vector<std::string>& args);
     void cmd_add_line(const std::vector<std::string>& args);
     void cmd_set_line(const std::vector<std::string>& args);
+
+    backend::stream_manager& stream_mgr;
 };
 }
 

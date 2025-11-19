@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-int yodau::backend::cli_client::run() {
+int yodau::cli::cli_client::run() {
     std::string line;
     while (true) {
         std::cout << "yodau> " << std::flush;
@@ -24,7 +24,7 @@ int yodau::backend::cli_client::run() {
 }
 
 std::vector<std::string>
-yodau::backend::cli_client::tokenize(const std::string& line) {
+yodau::cli::cli_client::tokenize(const std::string& line) {
     std::vector<std::string> tokens;
     std::istringstream stream(line);
     std::string token;
@@ -34,7 +34,7 @@ yodau::backend::cli_client::tokenize(const std::string& line) {
     return tokens;
 }
 
-void yodau::backend::cli_client::dispatch_command(
+void yodau::cli::cli_client::dispatch_command(
     const std::string& cmd, const std::vector<std::string>& args
 ) {
     static const std::unordered_map<
@@ -55,7 +55,7 @@ void yodau::backend::cli_client::dispatch_command(
     (this->*method)(args);
 }
 
-cxxopts::ParseResult yodau::backend::cli_client::parse_with_cxxopts(
+cxxopts::ParseResult yodau::cli::cli_client::parse_with_cxxopts(
     const std::string& cmd, const std::vector<std::string>& args,
     cxxopts::Options& options
 ) {
@@ -70,7 +70,7 @@ cxxopts::ParseResult yodau::backend::cli_client::parse_with_cxxopts(
     return options.parse(argc, argv_ptr);
 }
 
-void yodau::backend::cli_client::cmd_list_streams(
+void yodau::cli::cli_client::cmd_list_streams(
     const std::vector<std::string>& args
 ) {
     cxxopts::Options options("list_streams", "List all streams");
@@ -80,7 +80,7 @@ void yodau::backend::cli_client::cmd_list_streams(
     (void)result;
 }
 
-void yodau::backend::cli_client::cmd_add_stream(
+void yodau::cli::cli_client::cmd_add_stream(
     const std::vector<std::string>& args
 ) {
     cxxopts::Options options("add_stream", "Add a new stream");
@@ -106,7 +106,7 @@ void yodau::backend::cli_client::cmd_add_stream(
     }
 }
 
-void yodau::backend::cli_client::cmd_start_stream(
+void yodau::cli::cli_client::cmd_start_stream(
     const std::vector<std::string>& args
 ) {
     cxxopts::Options options("start_stream", "Start a stream");
@@ -128,7 +128,7 @@ void yodau::backend::cli_client::cmd_start_stream(
     }
 }
 
-void yodau::backend::cli_client::cmd_stop_stream(
+void yodau::cli::cli_client::cmd_stop_stream(
     const std::vector<std::string>& args
 ) {
     cxxopts::Options options("stop_stream", "Stop a stream");
@@ -150,7 +150,7 @@ void yodau::backend::cli_client::cmd_stop_stream(
     }
 }
 
-void yodau::backend::cli_client::cmd_list_lines(
+void yodau::cli::cli_client::cmd_list_lines(
     const std::vector<std::string>& args
 ) {
     cxxopts::Options options("list_lines", "List all lines in a stream");
@@ -160,7 +160,7 @@ void yodau::backend::cli_client::cmd_list_lines(
     (void)result;
 }
 
-void yodau::backend::cli_client::cmd_add_line(
+void yodau::cli::cli_client::cmd_add_line(
     const std::vector<std::string>& args
 ) {
     cxxopts::Options options("add_line", "Add a new line to a stream");
@@ -185,15 +185,15 @@ void yodau::backend::cli_client::cmd_add_line(
     }
 }
 
-void yodau::backend::cli_client::cmd_set_line(
+void yodau::cli::cli_client::cmd_set_line(
     const std::vector<std::string>& args
 ) {
     cxxopts::Options options("set_line", "Set a new line to a stream");
     options.allow_unrecognised_options();
-    options.add_option()
-        ("h,help", "Print help")
-        ("stream" "Stream name", cxxopts::value<std::string>())
-    ("line", "Line name", cxxopts::value<std::string>());
+    options
+        .add_options()("h,help", "Print help")("stream", "Stream name", cxxopts::value<std::string>())(
+            "line", "Line name", cxxopts::value<std::string>()
+        );
     options.parse_positional({ "stream", "line" });
     try {
         auto result = parse_with_cxxopts("set_line", args, options);

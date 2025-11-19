@@ -71,6 +71,50 @@ commonly packaged versions of the above utilities.
 
 ### Building the Application
 
+There are two common build configurations: a headless build with only the CLI tools,
+and a full desktop build with the Qt-based application.
+
+#### CLI-only build (no Qt required)
+
+This configuration builds the core library and the CLI frontend without any Qt or KDE
+dependencies. It is suitable for headless servers or minimal environments.
+
+```bash
+cmake -B build-cli \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_GUI=OFF
+cmake --build build-cli
+````
+
+This produces:
+
+* `build-cli/libyodau.a` — the static backend library
+* `build-cli/yodau_cli` — the CLI shell for configuring and inspecting streams and lines
+
+The exact set of commands and their semantics is described in more detail in
+[cli-readme](backend/readme.md).
+
+#### Desktop application (Qt GUI + CLI)
+
+This configuration builds both the CLI and the Qt-based desktop application. Tests are
+enabled by default and can be disabled with `-DBUILD_TESTS=OFF` if desired.
+
+```bash
+cmake -B build \
+  -DCMAKE_CXX_COMPILER=clang++ \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_GUI=ON \
+  -DBUILD_TESTS=ON
+cmake --build build
+```
+
+This produces:
+
+* `build/yodau` — the Qt desktop application
+* `build/yodau_cli` — the CLI shell, linked against the same backend as the GUI
+
+## Screenshots
+
 ## Documentation and Contributing
 
 To build and run tests, enable debug mode, or generate coverage reports:

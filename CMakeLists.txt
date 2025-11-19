@@ -113,11 +113,13 @@ endif ()
 set(libyodau_headers
         backend/include/stream_manager.hpp
         backend/include/stream.hpp
+        backend/include/geometry.hpp
 )
 
 set(libyodau_sources
         backend/src/stream_manager.cpp
         backend/src/stream.cpp
+        backend/src/geometry.cpp
 )
 
 add_library(libyodau STATIC
