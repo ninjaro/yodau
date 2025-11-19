@@ -3,7 +3,7 @@
 
 #include <cxxopts.hpp>
 
-namespace yodau::backend {
+namespace yodau::cli {
 class cli_client {
 public:
     int run();

@@ -104,11 +104,13 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 set(libyodau_headers
-        backend/include/stream_detect.hpp
+        backend/include/stream_manager.hpp
+        backend/include/stream.hpp
 )
 
 set(libyodau_sources
-        backend/src/stream_detect.cpp
+        backend/src/stream_manager.cpp
+        backend/src/stream.cpp
 )
 
 add_library(libyodau STATIC
@@ -235,7 +237,7 @@ if (NOT ANDROID AND BUILD_TESTS)
 
     if (GTest_FOUND)
         set(libyodau_test_sources
-                backend/tests/stream_detect_tests.cpp
+                backend/tests/stream_manager_tests.cpp
         )
 
         add_executable(libyodau_unittests

@@ -1,0 +1,1 @@
+#include "include/main_window_tests.hpp"
