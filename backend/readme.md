@@ -10,11 +10,10 @@ Each stream has:
 * `path` – device path, file path, or URL.
 * `type` – one of `local | file | http | rtsp`.
   If `type` is not provided, it is inferred from `path`:
-
-    * `/dev/video*` → `local`
-    * `rtsp://...`   → `rtsp`
-    * `http://...` or `https://...` → `http`
-    * everything else → `file`
+    * `local` : `/dev/video*`
+    * `rtsp` : `rtsp://...`
+    * `http` : `http://...` or `https://...`
+    * everything else is `file`
 * `loop` – `1` or `0`. For file streams, tells whether playback should loop.
 * `active` – `1` or `0`. Indicates whether this stream is currently started (running).
 

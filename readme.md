@@ -23,23 +23,48 @@ come.<sup><a href="#ref-0">[0]</a></sup> Where is my muse.
 
 ### Requirements
 
-The implementation and experiments in this work have been carried out with the following toolchain. Functionally
-equivalent alternatives will usually work, although no strict lower bounds on versions are guaranteed.
+The current implementation and experimental runs have been built with the following toolchain. Functionally equivalent
+replacements usually work; exact minimum versions are not rigorously specified.
 
-* **C++23** compiler — a conforming implementation of ISO/IEC 14882:2024(E) (“C++23”), providing the standard library
+#### General toolchain
+
+- **CMake ≥ 3.28** — used as the meta-build system and configuration front-end for all targets in the
+  project.<sup><a href="#ref-10">[10]</a></sup>
+- **C++23 compiler** — a conforming implementation of ISO/IEC 14882:2024(E) (“C++23”), providing the standard library
   facilities used by the project.<sup><a href="#ref-4">[4]</a></sup>
 
-* **cxxopts** — a lightweight C++ command-line option parser used for configuration of the CLI tools; any reasonably
+#### Core library (`libyodau`)
+
+- ...
+- Static C++23 backend reused by both the CLI and the desktop application.
+- All public headers live under `backend/include/` and are intended to be usable without Qt or KDE present at compile
+  time.
+
+#### CLI tools (`yodau_cli`)
+
+- **cxxopts** — a lightweight C++ command-line option parser used for configuration of the CLI tools; any reasonably
   recent release of the library should be sufficient.<sup><a href="#ref-5">[5]</a></sup>
+- The CLI links only against `libyodau` and the C++ standard library; no Qt or KDE components are required for headless
+  deployments.
 
-* **GoogleTest (GTest)** — Google’s C++ testing and mocking framework, used for the unit test suite and basic regression
-  checks.<sup><a href="#ref-6">[6]</a></sup>
+#### Desktop application (`yodau`)
 
-* **lcov** — tooling to collect and visualise line-coverage information from the test runs, typically in conjunction
+- **Qt 6 (Core, Widgets)** — provides the main event loop, application object, and classic desktop-style widget UI for
+  the multi-stream viewer.<sup><a href="#ref-11">[11]</a></sup>
+- **Qt 6 Test module** — used for the GUI test harness when unit tests are enabled via
+  `-DBUILD_TESTS=ON`.<sup><a href="#ref-11">[11]</a></sup>
+- *(Optional)* **KDE Frameworks 6 and KDEGames 6** — when built with `-DKDE=ON`, the application links against a small
+  subset of KDE Frameworks 6 (CoreAddons, I18n, XmlGui, ConfigWidgets, WidgetsAddons, KIO) and the KDEGames 6 library
+  for tighter integration with KDE desktops.<sup><a href="#ref-12">[12]</a>, <a href="#ref-13">[13]</a></sup>
+
+#### Auxiliary tooling (documentation and coverage)
+
+- **GoogleTest (GTest)** — Google’s C++ testing and mocking framework, used for the C++ unit test
+  suite.<sup><a href="#ref-6">[6]</a></sup>
+- **lcov** — tooling to collect and visualise line-coverage information from the test runs, typically in conjunction
   with `gcov` or similar backends.<sup><a href="#ref-7">[7]</a></sup>
-
-* **doxygen** and **graphviz** — documentation and graph-visualisation tools used together to generate the API reference
-  and structural diagrams from the annotated source code.<sup><a href="#ref-8">[8]</a>, <a href="#ref-9">[9]</a></sup>
+- **doxygen and graphviz** — documentation and graph-visualisation tools used together to generate the API reference and
+  structural diagrams from the annotated source code.<sup><a href="#ref-8">[8]</a>, <a href="#ref-9">[9]</a></sup>
 
 Exact version numbers are intentionally left vague; the project currently builds with mainstream C++23 toolchains and
 commonly packaged versions of the above utilities.
@@ -52,7 +77,12 @@ To build and run tests, enable debug mode, or generate coverage reports:
 
 1. **Build with Debug and Coverage:**
    ```bash
-   $ cmake -B build CMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DCOVERAGE=ON
+   $ cmake -B build \
+      -DCMAKE_CXX_COMPILER=clang++ \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DBUILD_TESTS=ON \
+      -DENABLE_COVERAGE=ON
+   $ cmake --build build
    ```
 2. **Generate Coverage Report and HTML:**
    ```bash
@@ -105,3 +135,17 @@ Nov. 2025. [Online]. Available: [https://github.com/linux-test-project/lcov](htt
 <a id="ref-9"></a>[9] J. Ellson, E. Gansner, E. Koutsofios, S. C. North, and G. Woodhull, “Graphviz—Open Source
 Graph Drawing Tools,” in *Graph Drawing (GD 2001)*, P. Mutzel, M. Jünger, and S. Leipert, Eds., Lecture Notes in
 Computer Science, vol. 2265. Berlin, Germany: Springer, 2002, pp. 483–484.
+
+<a id="ref-10"></a>[10] Kitware, CMake [Software]. CMake project website, accessed Nov. 2025. [Online].
+Available: https://cmake.org/
+
+<a id="ref-11"></a>[11] The Qt Company, Qt 6 Documentation [Online]. Qt 6 essentials and module references (including
+QtCore, QtWidgets, and QtTest), accessed Nov. 2025. Available: [https://doc.qt.io/qt-6/](https://doc.qt.io/qt-6/)
+
+<a id="ref-12"></a>[12] KDE Community, KDE Frameworks 6 [Software]. KDE Frameworks 6 source info and release notes,
+accessed Nov. 2025. [Online].
+Available: [https://kde.org/info/kde-frameworks-6.0.0/](https://kde.org/info/kde-frameworks-6.0.0/)
+
+<a id="ref-13"></a>[13] KDE Community, KDEGames / libkdegames [Software]. Common code and data library for many KDE
+games, with CMake integration via the KDEGames6 target, accessed Nov. 2025. [Online].
+Available: [https://api.kde.org/legacy/libkdegames/html/](https://api.kde.org/legacy/libkdegames/html/)

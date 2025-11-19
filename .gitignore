@@ -43,6 +43,7 @@ cmake-build*/
 build*/
 doc/
 cov/
+*.sh
 
 CMakeLists.txt.user
 CMakeLists.txt.user.*
