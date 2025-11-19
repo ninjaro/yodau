@@ -1,8 +1,8 @@
 PROJECT_NAME           = "YODAU"
 PROJECT_NUMBER         = 1.0
 PROJECT_BRIEF          = "YEAR OF THE DEPEND ADULT UNDERGARMENT"
-#PROJECT_ICON           = assets/favicon.ico
-#PROJECT_LOGO           = assets/logo.svg
+PROJECT_ICON           = assets/bug.ico
+PROJECT_LOGO           = assets/bug.svg
 
 INPUT                  = readme.md include src docs/coverage.dox
 IMAGE_PATH             = assets

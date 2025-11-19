@@ -72,36 +72,36 @@ See the [security policy](.github/SECURITY.md) for full details.
 
 This project is open-source and available under the MIT License.
 
-## References
+## Not-DFW Footnotes
 
-<a id="ref-0">[0]</a> D. F. Wallace, *Infinite Jest*, 1st ed. Boston, MA, USA: Little, Brown and Company, 1996, pp.
+<a id="ref-0"></a>[0] D. F. Wallace, *Infinite Jest*, 1st ed. Boston, MA, USA: Little, Brown and Company, 1996, pp.
 17–27.
 
-<a id="ref-1">[1]</a> L. Reed, “I’m Waiting for the Man,” in *The Velvet Underground & Nico* [LP]. New York, NY, USA:
+<a id="ref-1"></a>[1] L. Reed, “I’m Waiting for the Man,” in *The Velvet Underground & Nico* [LP]. New York, NY, USA:
 Verve Records, 1967, track 2.
 
-<a id="ref-2">[2]</a> A. Warhol and J. Palmer, *Empire* [Film]. USA: Andy Warhol Films, 1964, 485 min., black-and-white,
+<a id="ref-2"></a>[2] A. Warhol and J. Palmer, *Empire* [Film]. USA: Andy Warhol Films, 1964, 485 min., black-and-white,
 silent.
 
-<a id="ref-3">[3]</a> M. Beatty, *Ecstasy in Berlin, 1926* [Video]. USA: Bleu Productions, 2004, 45 min.,
+<a id="ref-3"></a>[3] M. Beatty, *Ecstasy in Berlin, 1926* [Video]. USA: Bleu Productions, 2004, 45 min.,
 black-and-white and tinted, silent with music; DVD release, 2005.
 
-<a id="ref-4">[4]</a> ISO/IEC, *ISO/IEC 14882:2024 — Programming Languages — C++*. Geneva, Switzerland:
+<a id="ref-4"></a>[4] ISO/IEC, *ISO/IEC 14882:2024 — Programming Languages — C++*. Geneva, Switzerland:
 International Organization for Standardization, 2024.
 
-<a id="ref-5">[5]</a> J. Arroyo, *cxxopts* [Software]. GitHub repository, “jarro2783/cxxopts”, accessed Nov. 2025.
+<a id="ref-5"></a>[5] J. Arroyo, *cxxopts* [Software]. GitHub repository, “jarro2783/cxxopts”, accessed Nov. 2025.
 [Online]. Available: [https://github.com/jarro2783/cxxopts](https://github.com/jarro2783/cxxopts)
 
-<a id="ref-6">[6]</a> Google, *GoogleTest: Google Testing and Mocking Framework* [Software]. GitHub repository,
+<a id="ref-6"></a>[6] Google, *GoogleTest: Google Testing and Mocking Framework* [Software]. GitHub repository,
 “google/googletest”, accessed Nov. 2025. [Online].
 Available: [https://github.com/google/googletest](https://github.com/google/googletest)
 
-<a id="ref-7">[7]</a> Linux Test Project, *LCOV* [Software]. GitHub repository, “linux-test-project/lcov”, accessed
+<a id="ref-7"></a>[7] Linux Test Project, *LCOV* [Software]. GitHub repository, “linux-test-project/lcov”, accessed
 Nov. 2025. [Online]. Available: [https://github.com/linux-test-project/lcov](https://github.com/linux-test-project/lcov)
 
-<a id="ref-8">[8]</a> D. van Heesch, *Doxygen* [Software]. Doxygen project website, accessed Nov. 2025.
+<a id="ref-8"></a>[8] D. van Heesch, *Doxygen* [Software]. Doxygen project website, accessed Nov. 2025.
 [Online]. Available: [https://www.doxygen.nl/](https://www.doxygen.nl/)
 
-<a id="ref-9">[9]</a> J. Ellson, E. Gansner, E. Koutsofios, S. C. North, and G. Woodhull, “Graphviz—Open Source
+<a id="ref-9"></a>[9] J. Ellson, E. Gansner, E. Koutsofios, S. C. North, and G. Woodhull, “Graphviz—Open Source
 Graph Drawing Tools,” in *Graph Drawing (GD 2001)*, P. Mutzel, M. Jünger, and S. Leipert, Eds., Lecture Notes in
 Computer Science, vol. 2265. Berlin, Germany: Springer, 2002, pp. 483–484.

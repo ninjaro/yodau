@@ -129,6 +129,8 @@ target_compile_features(libyodau PUBLIC cxx_std_23)
 
 add_executable(yodau_cli
         backend/src/main.cpp
+        backend/src/cli_client.cpp
+        backend/include/cli_client.hpp
 )
 
 target_include_directories(yodau_cli
