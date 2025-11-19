@@ -2,6 +2,9 @@
 
 #include <iostream>
 
+yodau::cli::cli_client::cli_client(backend::stream_manager& mgr)
+    : stream_mgr(mgr) { }
+
 int yodau::cli::cli_client::run() {
     std::string line;
     while (true) {

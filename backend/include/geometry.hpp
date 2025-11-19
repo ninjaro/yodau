@@ -29,6 +29,12 @@ using line_ptr = std::shared_ptr<line const>;
 
 line_ptr
 make_line(std::vector<point> points, std::string name, bool closed = false);
+
+std::vector<point> parse_points(const std::string& points_str);
+
+std::string normalize_str(std::string_view str);
+float parse_float(std::string_view num_str);
+
 }
 
 #endif // YODAU_BACKEND_GEOMETRY_HPP

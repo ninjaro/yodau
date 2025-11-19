@@ -1,7 +1,6 @@
 #include "stream.hpp"
 
 #include <ranges>
-#include <unordered_map>
 
 yodau::backend::stream::stream(
     std::string path, std::string name, std::string type, const bool loop
@@ -63,8 +62,10 @@ yodau::backend::stream::pipeline_name(const stream_pipeline pipeline) {
     return std::string(pipeline_names[idx]);
 }
 
+std::string yodau::backend::stream::get_name() const { return name; }
+
 void yodau::backend::stream::dump(
-    std::ostream out, const bool connections
+    std::ostream& out, const bool connections
 ) const {
     out << "Stream(name=" << name << ", path=" << path
         << ", type=" << type_name(type)

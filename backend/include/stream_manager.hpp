@@ -2,7 +2,6 @@
 #define YODAU_BACKEND_STREAM_MANAGER_HPP
 #include "stream.hpp"
 #include <functional>
-#include <vector>
 
 namespace yodau::backend {
 class stream_manager {
@@ -11,7 +10,9 @@ public:
 
     stream_manager();
 
-    void dump(std::ostream out) const;
+    void dump(std::ostream& out) const;
+    void dump_lines(std::ostream& out) const;
+    void dump_stream(std::ostream& out, bool connections = false) const;
 
     void set_local_stream_detector(local_stream_detector_fn detector);
     void refresh_local_streams();
@@ -20,8 +21,10 @@ public:
         const std::string& path, const std::string& name = {},
         const std::string& type = {}, bool loop = true
     );
-    line_ptr
-    add_line(std::string points, bool closed = false, std::string name = {});
+    line_ptr add_line(
+        const std::string& points, bool closed = false,
+        const std::string& name = {}
+    );
     void set_line(const std::string& stream_name, const std::string& line_name);
 
     std::vector<std::string> stream_names() const;

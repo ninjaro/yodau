@@ -1,10 +1,7 @@
 #ifndef YODAU_BACKEND_STREAM_HPP
 #define YODAU_BACKEND_STREAM_HPP
 #include "geometry.hpp"
-#include <memory>
-#include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace yodau::backend {
 enum stream_type { local, file, rtsp, http };
@@ -20,8 +17,9 @@ public:
     static stream_type identify(const std::string& path);
     static std::string type_name(const stream_type type);
     static std::string pipeline_name(const stream_pipeline pipeline);
+    std::string get_name() const;
 
-    void dump(std::ostream out, bool connections = false) const;
+    void dump(std::ostream& out, bool connections = false) const;
 
     void activate(stream_pipeline pipeline = stream_pipeline::automatic);
     stream_pipeline pipeline() const;
