@@ -156,10 +156,21 @@ target_link_libraries(yodau_cli
 if (BUILD_GUI)
     set(yodau_frontend_headers
             frontend/include/main_window.hpp
+            frontend/include/helpers/str_label.hpp
+            frontend/include/widgets/view_zone.hpp
+            frontend/include/widgets/carousel_view.hpp
+            frontend/include/widgets/grid_view.hpp
+            frontend/include/widgets/settings_panel.hpp
+            frontend/include/stream_controller.hpp
     )
 
     set(yodau_frontend_sources
             frontend/src/main_window.cpp
+            frontend/src/widgets/view_zone.cpp
+            frontend/src/widgets/carousel_view.cpp
+            frontend/src/widgets/grid_view.cpp
+            frontend/src/widgets/settings_panel.cpp
+            frontend/src/stream_controller.cpp
     )
 
     set(yodau_qt_libs

@@ -52,7 +52,7 @@ void yodau::backend::stream_manager::refresh_local_streams() {
     auto detected_streams = stream_detector();
     for (auto& detected_stream : detected_streams) {
         const auto name = detected_stream.get_name();
-        if (!streams.contains(name)) {
+        if (!streams.contains(name)) { // todo: update existing streams?
             streams.emplace(
                 name, std::make_shared<stream>(std::move(detected_stream))
             );

@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <memory>
 
+#include "helpers/str_label.hpp"
 #include "main_window.hpp"
 
 #ifdef KC_KDE
@@ -11,23 +12,23 @@
 #endif
 
 int main(int argc, char* argv[]) {
-    QApplication app(argc, argv);
+    const QApplication app(argc, argv);
 
 #ifdef KC_KDE
     KLocalizedString::setApplicationDomain("yodau");
 
     KAboutData about_data(
-        QStringLiteral("yodau"), QStringLiteral("yodau"), QStringLiteral("1.0"),
-        QStringLiteral("YEAR OF THE DEPEND ADULT UNDERGARMENT"),
-        KAboutLicense::MIT, QStringLiteral("(c) 2025, Yaroslav Riabtsev"),
-        QString(), QStringLiteral("https://github.com/ninjaro/yodau"),
-        QStringLiteral("yaroslav.riabtsev@rwth-aachen.de")
+        str_label("yodau"), str_label("yodau"), str_label("1.0"),
+        str_label("YEAR OF THE DEPEND ADULT UNDERGARMENT"), KAboutLicense::MIT,
+        str_label("(c) 2025, Yaroslav Riabtsev"), QString(),
+        str_label("https://github.com/ninjaro/yodau"),
+        str_label("yaroslav.riabtsev@rwth-aachen.de")
     );
 
     about_data.addAuthor(
-        QStringLiteral("Yaroslav Riabtsev"), QStringLiteral("Original author"),
-        QStringLiteral("yaroslav.riabtsev@rwth-aachen.de"),
-        QStringLiteral("https://github.com/ninjaro"), QStringLiteral("ninjaro")
+        str_label("Yaroslav Riabtsev"), str_label("Original author"),
+        str_label("yaroslav.riabtsev@rwth-aachen.de"),
+        str_label("https://github.com/ninjaro"), str_label("ninjaro")
     );
 
     KAboutData::setApplicationData(about_data);
@@ -37,13 +38,13 @@ int main(int argc, char* argv[]) {
     parser.process(app);
     about_data.processCommandLine(&parser);
 #else
-    QCoreApplication::setApplicationName(QStringLiteral("yodau"));
-    QCoreApplication::setOrganizationName(QStringLiteral("yodau"));
-    QCoreApplication::setApplicationVersion(QStringLiteral("1.0"));
+    QCoreApplication::setApplicationName(str_label("yodau"));
+    QCoreApplication::setOrganizationName(str_label("yodau"));
+    QCoreApplication::setApplicationVersion(str_label("1.0"));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(
-        QStringLiteral("A tool for card counting training.")
+        str_label("A tool for card counting training.")
     );
     parser.addHelpOption();
     parser.addVersionOption();
@@ -53,7 +54,7 @@ int main(int argc, char* argv[]) {
     auto window = std::make_unique<main_window>();
     window->show();
 
-    int result = QApplication::exec();
+    const int result = QApplication::exec();
     window.reset();
     return result;
 }

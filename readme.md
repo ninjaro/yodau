@@ -1,9 +1,9 @@
 ## Year of the Depend Adult Undergarment<sup><a href="#ref-0">[0]</a></sup>
 
-### Y.I.Riabtsev<sup>1</sup>
+#### Y.I.Riabtsev<sup>1</sup>
 
-<h3 align="right">DOI: [github.com/ninjaro/yodau](https://github.com/ninjaro/yodau)
-</h3>
+<div align="right">DOI?: <a href="https://ninjaro.github.io/yodau/">ninjaro/yodau</a>
+</div>
 
 ---
 <sup>1</sup> RWTH Aachen University, Aachen, North Rhine-Westphalia, Templergraben 55, 52056, Germany
@@ -20,9 +20,10 @@ and I do not want to kill anything tonight. She is probably at some factory-styl
 rooms where Warhol's ghosts play on a loop and Maria Beatty’s slow, anachronistic frames stain the plaster — images that
 barely move while the light on them changes<sup><a href="#ref-3">[3]</a></sup>. I half-remember that same roach crawling
 across the frozen frames of Andy’s *Empire*<sup><a href="#ref-2">[2]</a></sup>. Where was the woman who said she'd
-come.<sup><a href="#ref-0">[0]</a></sup> Where is my muse.
+come.<sup><a href="#ref-0">[0]</a></sup> Where is my muse. **Keywords:** cli, monitoring, surveillance, event-detection,
+multistream, cpp23, qt6, stream-viewer.
 
-**Keywords:** cli, monitoring, surveillance, event-detection, multistream, cpp23, qt6, stream-viewer.
+Index Terms—
 
 ### INFORMATION ABOUT THE AUTHORS
 
@@ -153,6 +154,24 @@ To build and run tests, enable debug mode, or generate coverage reports:
 For detailed documentation, see the [Documentation](https://ninjaro.github.io/yodau/) and for the latest
 coverage report, see [Coverage](https://ninjaro.github.io/yodau/cov/).
 
+## ACKNOWLEDGMENT
+
+This work started as my personal deviation from the Qt;Athon 2025 Round 2 brief Option #1, curated with
+Extenly.<sup><a href="#ref-15">[15]</a></sup>
+Thanks to the Qt;Athon organizers and Extenly for the prompt.
+I also thank the teammates who said “yes” to joining, but went unavailable/unreachable by the time I registered the
+team — the project ended up solo.
+
+## Conflict of Interest and Ethics
+
+Conflict of Interest: the author declares no financial or institutional conflicts, except a fully disclosed personal
+interest in the Qt;Athon 2025 prizes — a Steam Deck (512GB OLED), a 100€ Xbox gift card, and up to 4 hours of mentoring
+from a Qt expert, with runner-up prizes being Qt Certification Test attempts.<sup><a href="#ref-16">[16]</a></sup>
+This prize pool is the sole motivation for the project: I would rather win my Christmas shopping than do it myself.  
+Ethics Statement: development and testing used a mix of self-recorded and third-party video streams.
+All rights to third-party materials remain with their respective owners; no test media is redistributed with this
+project.
+
 ## Security Policy
 
 Please report any security issues using GitHub's private vulnerability reporting
@@ -210,3 +229,13 @@ Available: [https://kde.org/info/kde-frameworks-6.0.0/](https://kde.org/info/kde
 <a id="ref-13"></a>[13] KDE Community, KDEGames / libkdegames [Software]. Common code and data library for many KDE
 games, with CMake integration via the KDEGames6 target, accessed Nov. 2025. [Online].
 Available: [https://api.kde.org/legacy/libkdegames/html/](https://api.kde.org/legacy/libkdegames/html/)
+
+<a id="ref-14"></a>[14] IEEE, *IEEE Editorial Style Manual*, Sec. “Abstract and Footnotes,” consulted and disregarded,
+Nov. 2025. [Online].
+
+<a id="ref-15"></a>[15] Qt Group, “Qt;Athon 2025 Round 2 Project Briefs — Option #1: Multi-Camera Surveillance (
+Extenly),” competition instructions page, accessed Nov. 2025. [Online].  
+
+<a id="ref-16"></a>[16] Qt Group, “Qt;Athon 2025 Prizes,” competition page / official announcement (grand prize: Steam
+Deck 512GB OLED + 100€ Xbox gift card + Qt expert mentoring; runner-up prizes include Qt Certification Test attempts),
+accessed Nov. 2025. [Online].
