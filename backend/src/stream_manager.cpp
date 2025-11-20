@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <ranges>
 
-yodau::backend::stream_manager::stream_manager() = default;
+yodau::backend::stream_manager::stream_manager() { refresh_local_streams(); }
 
 void yodau::backend::stream_manager::dump(std::ostream& out) const {
     dump_stream(out);
@@ -33,21 +33,22 @@ void yodau::backend::stream_manager::set_local_stream_detector(
     local_stream_detector_fn detector
 ) {
     stream_detector = std::move(detector);
+    refresh_local_streams();
 }
 
 void yodau::backend::stream_manager::refresh_local_streams() {
-    if (!stream_detector) {
-        return;
-    }
 #ifdef __linux__
     for (size_t idx = 0;; ++idx) {
         std::string path = "/dev/video" + std::to_string(idx);
         if (!std::filesystem::exists(path)) {
             break;
         }
-        add_stream(path, "vide" + std::to_string(idx), "local");
+        add_stream(path, "video" + std::to_string(idx), "local");
     }
 #endif
+    if (!stream_detector) {
+        return;
+    }
     auto detected_streams = stream_detector();
     for (auto& detected_stream : detected_streams) {
         const auto name = detected_stream.get_name();

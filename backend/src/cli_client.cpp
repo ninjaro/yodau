@@ -5,7 +5,7 @@
 yodau::cli::cli_client::cli_client(backend::stream_manager& mgr)
     : stream_mgr(mgr) { }
 
-int yodau::cli::cli_client::run() {
+int yodau::cli::cli_client::run() const {
     std::string line;
     while (true) {
         std::cout << "yodau> " << std::flush;
@@ -17,7 +17,7 @@ int yodau::cli::cli_client::run() {
             continue;
         }
         const auto& cmd = tokens[0];
-        std::vector<std::string> args(tokens.begin() + 1, tokens.end());
+        std::vector args(tokens.begin() + 1, tokens.end());
         if (cmd == "quit" || cmd == "q" || cmd == "exit") {
             break;
         }
@@ -101,6 +101,7 @@ void yodau::cli::cli_client::cmd_list_streams(
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
+        std::cout << options.help() << std::endl;
     }
 }
 
@@ -138,6 +139,7 @@ void yodau::cli::cli_client::cmd_add_stream(
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
+        std::cout << options.help() << std::endl;
     }
 }
 
@@ -166,6 +168,7 @@ void yodau::cli::cli_client::cmd_start_stream(
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
+        std::cout << options.help() << std::endl;
     }
 }
 
@@ -194,6 +197,7 @@ void yodau::cli::cli_client::cmd_stop_stream(
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
+        std::cout << options.help() << std::endl;
     }
 }
 
@@ -215,6 +219,7 @@ void yodau::cli::cli_client::cmd_list_lines(
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
+        std::cout << options.help() << std::endl;
     }
 }
 
@@ -250,6 +255,7 @@ void yodau::cli::cli_client::cmd_add_line(
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
+        std::cout << options.help() << std::endl;
     }
 }
 
@@ -283,5 +289,6 @@ void yodau::cli::cli_client::cmd_set_line(
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
+        std::cout << options.help() << std::endl;
     }
 }

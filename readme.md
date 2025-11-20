@@ -1,11 +1,14 @@
 ## Year of the Depend Adult Undergarment<sup><a href="#ref-0">[0]</a></sup>
 
-[![codecov](https://codecov.io/gh/ninjaro/yodau/graph/badge.svg?token=HDR73FWZU9)](https://codecov.io/gh/ninjaro/yodau)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/d89ee6b07aaa43f39f2561ee9eab5e89)](https://app.codacy.com/gh/ninjaro/yodau/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![license](https://img.shields.io/github/license/ninjaro/yodau?color=e6e6e6)](https://github.com/ninjaro/yodau/blob/master/license)  
-[![Checks](https://github.com/ninjaro/yodau/actions/workflows/tests.yml/badge.svg)](https://github.com/ninjaro/yodau/actions/workflows/tests.yml)
-[![Deploy](https://github.com/ninjaro/yodau/actions/workflows/html.yml/badge.svg)](https://github.com/ninjaro/yodau/actions/workflows/html.yml)
-[![version](https://img.shields.io/github/v/release/ninjaro/yodau?include_prereleases)](https://github.com/ninjaro/yodau/releases/latest)
+### Y.I.Riabtsev<sup>1</sup>
+
+<h3 align="right">DOI: [github.com/ninjaro/yodau](https://github.com/ninjaro/yodau)
+</h3>
+
+---
+<sup>1</sup> RWTH Aachen University, Aachen, North Rhine-Westphalia, Templergraben 55, 52056, Germany
+
+---
 
 **Abstract.** She said she would come. I thought she'd come by nine. I pulled the Venetian blinds on the one window
 whose yellow light kept spilling across the floor and making it harder to just sit and wait. I could not quite focus:
@@ -18,6 +21,20 @@ rooms where Warhol's ghosts play on a loop and Maria Beatty’s slow, anachronis
 barely move while the light on them changes<sup><a href="#ref-3">[3]</a></sup>. I half-remember that same roach crawling
 across the frozen frames of Andy’s *Empire*<sup><a href="#ref-2">[2]</a></sup>. Where was the woman who said she'd
 come.<sup><a href="#ref-0">[0]</a></sup> Where is my muse.
+
+**Keywords:** cli, monitoring, surveillance, event-detection, multistream, cpp23, qt6, stream-viewer.
+
+### INFORMATION ABOUT THE AUTHORS
+
+| **Yaroslav I. Riabtsev** | <p align="left">[orcid.org/0000-0001-5530-3752](https://orcid.org/0000-0001-5530-3752). E-mail: [yaroslav.riabtsev@rwth-aachen.de](mailto:yaroslav.riabtsev@rwth-aachen.de).<br> Master’s student.</p> |
+|--------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+[![codecov](https://codecov.io/gh/ninjaro/yodau/graph/badge.svg?token=HDR73FWZU9)](https://codecov.io/gh/ninjaro/yodau)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/d89ee6b07aaa43f39f2561ee9eab5e89)](https://app.codacy.com/gh/ninjaro/yodau/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![license](https://img.shields.io/github/license/ninjaro/yodau?color=e6e6e6)](https://github.com/ninjaro/yodau/blob/master/license)  
+[![Checks](https://github.com/ninjaro/yodau/actions/workflows/tests.yml/badge.svg)](https://github.com/ninjaro/yodau/actions/workflows/tests.yml)
+[![Deploy](https://github.com/ninjaro/yodau/actions/workflows/html.yml/badge.svg)](https://github.com/ninjaro/yodau/actions/workflows/html.yml)
+[![version](https://img.shields.io/github/v/release/ninjaro/yodau?include_prereleases)](https://github.com/ninjaro/yodau/releases/latest)
 
 ## Setup and Installation
 

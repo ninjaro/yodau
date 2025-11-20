@@ -9,7 +9,7 @@ namespace yodau::cli {
 class cli_client {
 public:
     explicit cli_client(backend::stream_manager& mgr);
-    int run();
+    int run() const;
 
 private:
     static std::vector<std::string> tokenize(const std::string& line);
