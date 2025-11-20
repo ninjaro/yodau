@@ -116,7 +116,7 @@ yodau::backend::parse_points(const std::string& points_str) {
                 );
             }
             float x = parse_float(x_str);
-            float y = parse_float(x_str);
+            float y = parse_float(y_str);
             points.emplace_back(x, y);
         }
         start = end + 1;

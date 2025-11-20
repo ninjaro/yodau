@@ -1,5 +1,6 @@
 #include "stream_manager.hpp"
 
+#include <filesystem>
 #include <ranges>
 
 yodau::backend::stream_manager::stream_manager() = default;
@@ -8,7 +9,6 @@ void yodau::backend::stream_manager::dump(std::ostream& out) const {
     dump_stream(out);
     out << "\n";
     dump_lines(out);
-    out << "\n";
 }
 
 void yodau::backend::stream_manager::dump_lines(std::ostream& out) const {
@@ -39,6 +39,15 @@ void yodau::backend::stream_manager::refresh_local_streams() {
     if (!stream_detector) {
         return;
     }
+#ifdef __linux__
+    for (size_t idx = 0;; ++idx) {
+        std::string path = "/dev/video" + std::to_string(idx);
+        if (!std::filesystem::exists(path)) {
+            break;
+        }
+        add_stream(path, "vide" + std::to_string(idx), "local");
+    }
+#endif
     auto detected_streams = stream_detector();
     for (auto& detected_stream : detected_streams) {
         const auto name = detected_stream.get_name();
@@ -77,18 +86,19 @@ yodau::backend::line_ptr yodau::backend::stream_manager::add_line(
     return new_line;
 }
 
-void yodau::backend::stream_manager::set_line(
+yodau::backend::stream& yodau::backend::stream_manager::set_line(
     const std::string& stream_name, const std::string& line_name
 ) {
     const auto stream_it = streams.find(stream_name);
     if (stream_it == streams.end()) {
-        return;
+        throw std::runtime_error("stream not found: " + stream_name);
     }
     const auto line_it = lines.find(line_name);
     if (line_it == lines.end()) {
-        return;
+        throw std::runtime_error("line not found: " + line_name);
     }
     stream_it->second->connect_line(line_it->second);
+    return *stream_it->second;
 }
 
 std::vector<std::string> yodau::backend::stream_manager::stream_names() const {

@@ -25,7 +25,8 @@ public:
         const std::string& points, bool closed = false,
         const std::string& name = {}
     );
-    void set_line(const std::string& stream_name, const std::string& line_name);
+    stream&
+    set_line(const std::string& stream_name, const std::string& line_name);
 
     std::vector<std::string> stream_names() const;
     std::vector<std::string> line_names() const;
