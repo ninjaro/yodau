@@ -1,4 +1,4 @@
-#include "widgets/view_zone.hpp"
+#include "widgets/board.hpp"
 
 #include <QStackedWidget>
 #include <QVBoxLayout>
@@ -6,11 +6,11 @@
 #include "widgets/carousel_view.hpp"
 #include "widgets/grid_view.hpp"
 
-view_zone::view_zone(QWidget* parent)
+board::board(QWidget* parent)
     : QWidget(parent)
     , mode_stack(new QStackedWidget(this))
-    , grid(new grid_view(this))
-    , carousel(new carousel_view(this)) {
+    , grid(new grid_view(mode_stack))
+    , carousel(new carousel_view(mode_stack)) {
     mode_stack->addWidget(grid);
     mode_stack->addWidget(carousel);
     mode_stack->setCurrentWidget(grid);
@@ -18,11 +18,13 @@ view_zone::view_zone(QWidget* parent)
     const auto layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(mode_stack);
-    setLayout(layout);
+    // setLayout(layout);
 }
 
-void view_zone::show_grid() const { mode_stack->setCurrentWidget(grid); }
+void board::show_grid() { mode_stack->setCurrentWidget(grid); }
 
-void view_zone::show_carousel() const {
-    mode_stack->setCurrentWidget(carousel);
-}
+void board::show_carousel() { mode_stack->setCurrentWidget(carousel); }
+
+grid_view* board::grid_mode() const { return grid; }
+
+carousel_view* board::carousel_mode() const { return carousel; }

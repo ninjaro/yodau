@@ -9,7 +9,7 @@ using BaseMainWindow = KXmlGuiWindow;
 using BaseMainWindow = QMainWindow;
 #endif
 
-class view_zone;
+class board;
 class settings_panel;
 class QDockWidget;
 class QStackedWidget;
@@ -20,7 +20,7 @@ public:
     explicit main_window(QWidget* parent = nullptr);
 
 private:
-    view_zone* main_zone;
+    board* main_zone;
     settings_panel* settings;
 
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)

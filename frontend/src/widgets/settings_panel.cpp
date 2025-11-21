@@ -112,7 +112,7 @@ void settings_panel::clear_stream_entries() {
     update_add_enabled();
 }
 
-void settings_panel::append_event(QString text) const {
+void settings_panel::append_event(const QString& text) const {
     auto ts = QDateTime::currentDateTime().toString("HH:mm:ss");
     event_log_view->appendPlainText(QString("[%1] %2").arg(ts, text));
 }
@@ -143,7 +143,7 @@ void settings_panel::build_ui() {
     const auto root_layout = new QVBoxLayout(this);
     root_layout->setContentsMargins(8, 8, 8, 8);
     root_layout->addWidget(tabs);
-    setLayout(root_layout);
+    // setLayout(root_layout);
 
     add_tab = build_add_tab();
     streams_tab = build_streams_tab();
@@ -288,7 +288,7 @@ QWidget* settings_panel::build_streams_tab() {
             auto name = item->text(1);
             const auto show = item->checkState(0) == Qt::Checked;
             emit show_stream_changed(name, show);
-            auto ts = QDateTime::currentDateTime().toString("HH:mm:ss");
+            // QString ts = QDateTime::currentDateTime().toString("HH:mm:ss");
             append_event(QString("show in grid: %1 = %2")
                              .arg(name, show ? "true" : "false"));
         }

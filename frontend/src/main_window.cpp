@@ -1,10 +1,11 @@
 #include "main_window.hpp"
 
+#include "helpers/controller.hpp"
 #include "helpers/str_label.hpp"
-#include "stream_controller.hpp"
 #include "stream_manager.hpp"
+#include "widgets/board.hpp"
+#include "widgets/grid_view.hpp"
 #include "widgets/settings_panel.hpp"
-#include "widgets/view_zone.hpp"
 
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
 #include <QStackedWidget>
@@ -14,7 +15,7 @@
 
 main_window::main_window(QWidget* parent)
     : BaseMainWindow(parent)
-    , main_zone(new view_zone(this))
+    , main_zone(new board(this))
     , settings(new settings_panel(this))
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
     , zones_stack(new QStackedWidget(this))
@@ -47,27 +48,27 @@ main_window::main_window(QWidget* parent)
     auto* mgr = new yodau::backend::stream_manager();
     connect(this, &QObject::destroyed, this, [mgr]() { delete mgr; });
 
-    const auto* controller = new stream_controller(mgr, settings, this);
+    auto* ctrl = new controller(mgr, settings, main_zone, this);
 
     connect(
-        settings, &settings_panel::add_file_stream, controller,
-        &stream_controller::handle_add_file
+        settings, &settings_panel::add_file_stream, ctrl,
+        &controller::handle_add_file
     );
     connect(
-        settings, &settings_panel::add_local_stream, controller,
-        &stream_controller::handle_add_local
+        settings, &settings_panel::add_local_stream, ctrl,
+        &controller::handle_add_local
     );
     connect(
-        settings, &settings_panel::add_url_stream, controller,
-        &stream_controller::handle_add_url
+        settings, &settings_panel::add_url_stream, ctrl,
+        &controller::handle_add_url
     );
     connect(
-        settings, &settings_panel::detect_local_sources_requested, controller,
-        &stream_controller::handle_detect_local_sources
+        settings, &settings_panel::detect_local_sources_requested, ctrl,
+        &controller::handle_detect_local_sources
     );
     connect(
-        settings, &settings_panel::show_stream_changed, controller,
-        &stream_controller::handle_show_stream_changed
+        settings, &settings_panel::show_stream_changed, ctrl,
+        &controller::handle_show_stream_changed
     );
-    controller->handle_detect_local_sources();
+    ctrl->handle_detect_local_sources();
 }

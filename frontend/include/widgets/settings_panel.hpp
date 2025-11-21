@@ -30,19 +30,19 @@ public:
     void remove_stream_entry(const QString& name) const;
     void clear_stream_entries();
 
-    void append_event(QString text) const;
+    void append_event(const QString& text) const;
     void append_add_log(const QString& text) const;
 
     void set_local_sources(const QStringList& sources) const;
     void clear_add_inputs() const;
 
 signals:
-    void add_file_stream(QString path, QString name, bool loop);
-    void add_local_stream(QString source, QString name);
-    void add_url_stream(QString url, QString name);
+    void add_file_stream(const QString& path, const QString& name, bool loop);
+    void add_local_stream(const QString& source, const QString& name);
+    void add_url_stream(const QString& url, const QString& name);
 
     void detect_local_sources_requested();
-    void show_stream_changed(QString name, bool show);
+    void show_stream_changed(const QString& name, bool show);
 
 private:
     enum class input_mode { file, local, url };
