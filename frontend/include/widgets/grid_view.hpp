@@ -7,19 +7,24 @@
 #include <QWidget>
 
 class QGridLayout;
+class QScrollArea;
+class QVBoxLayout;
 class stream_cell;
 
 class grid_view final : public QWidget {
     Q_OBJECT
-
 public:
     explicit grid_view(QWidget* parent = nullptr);
 
     void add_stream(const QString& name);
+    // void set_active_stream(const QString& name);
     void remove_stream(const QString& name);
     bool has_stream(const QString& name) const;
 
     QStringList stream_names() const;
+
+    stream_cell* take_stream_cell(const QString& name);
+    void put_stream_cell(stream_cell* cell);
 
 signals:
     void stream_closed(const QString& name);
@@ -30,6 +35,8 @@ private:
     void close_requested(const QString& name);
     void enlarge_requested(const QString& name);
 
+    QScrollArea* scroll;
+    QWidget* grid_container;
     QGridLayout* grid_layout;
     QMap<QString, stream_cell*> tiles;
 };

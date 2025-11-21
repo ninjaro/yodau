@@ -39,6 +39,13 @@ void stream_cell::paintEvent(QPaintEvent* event) {
     opt.initFrom(this);
     QPainter p(this);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
+
+    // if (active) {
+    //     QColor hl = palette().color(QPalette::Highlight);
+    //     hl.setAlpha(40);
+    //     p.fillRect(rect(), hl);
+    // }
+
     QWidget::paintEvent(event);
 
     p.drawRect(rect().adjusted(0, 0, -1, -1));

@@ -7,8 +7,8 @@
 #include <QtGlobal>
 
 #include "widgets/board.hpp"
-#include "widgets/carousel_view.hpp"
 #include "widgets/grid_view.hpp"
+#include "widgets/stream_cell.hpp"
 
 controller::controller(
     yodau::backend::stream_manager* mgr, settings_panel* panel, board* zone,
@@ -18,9 +18,47 @@ controller::controller(
     , stream_mgr(mgr)
     , settings(panel)
     , main_zone(zone)
-    , grid(zone ? zone->grid_mode() : nullptr)
-    , carousel(zone ? zone->carousel_mode() : nullptr) {
+    , grid(zone ? zone->grid_mode() : nullptr) {
     init_from_backend();
+    if (settings && grid) {
+        settings->set_active_candidates(grid->stream_names());
+        settings->set_active_current(QString());
+    }
+    // if (main_zone) {
+    //     // connect(
+    //     //     main_zone, &board::active_shrink_requested, this,
+    //     //     [this](const QString&) { handle_back_to_grid(); }
+    //     // );
+    //     connect(
+    //         main_zone, &board::active_close_requested, this,
+    //         [this](const QString& name) {
+    //             if (settings) {
+    //                 settings->set_stream_checked(name, false);
+    //             } else if (main_zone) {
+    //                 main_zone->clear_active();
+    //             }
+    //         }
+    //     );
+    // }
+    if (settings && main_zone) {
+        connect(
+            settings, &settings_panel::active_stream_selected, this,
+            [this](const QString& name) {
+                if (!main_zone) {
+                    return;
+                }
+                active_name = name;
+                if (name.isEmpty()) {
+                    main_zone->clear_active();
+                } else {
+                    main_zone->set_active_stream(name);
+                }
+                // if (grid) {
+                //     grid->set_active_stream(name);
+                // }
+            }
+        );
+    }
 
     if (grid) {
         connect(
@@ -34,32 +72,6 @@ controller::controller(
         connect(
             grid, &grid_view::stream_enlarge, this,
             &controller::handle_enlarge_requested
-        );
-    }
-
-    if (carousel) {
-        connect(
-            carousel, &carousel_view::stream_closed, this,
-            [this](const QString& name) {
-                if (settings) {
-                    settings->set_stream_checked(name, false);
-                }
-            }
-        );
-
-        connect(
-            carousel, &carousel_view::stream_enlarge, this,
-            [this](const QString& name) {
-                if (!carousel || !main_zone) {
-                    return;
-                }
-
-                if (carousel->active_stream() == name) {
-                    handle_back_to_grid();
-                } else {
-                    handle_enlarge_requested(name);
-                }
-            }
         );
     }
 }
@@ -195,21 +207,25 @@ void controller::handle_show_stream_changed(
         return;
     }
 
-    const bool was_active = carousel && (carousel->active_stream() == name);
-
     if (show) {
         grid->add_stream(name);
-        if (carousel) {
-            carousel->add_stream(name);
-        }
     } else {
         grid->remove_stream(name);
-        if (carousel) {
-            carousel->remove_stream(name);
-            if (was_active && main_zone) {
-                main_zone->show_grid();
+        // active_name.clear();
+        if (!active_name.isEmpty() && active_name == name && main_zone) {
+            if (auto* cell = main_zone->take_active_cell()) {
+                cell->deleteLater();
+            }
+            active_name.clear();
+            if (settings) {
+                settings->set_active_current(QString());
             }
         }
+        // grid->set_active_stream(QString());
+    }
+
+    if (settings) {
+        settings->set_active_candidates(grid->stream_names());
     }
 }
 
@@ -220,33 +236,40 @@ void controller::handle_backend_event(const QString& text) {
 }
 
 void controller::handle_enlarge_requested(const QString& name) {
-    if (!carousel || !grid || !main_zone) {
+    if (!grid || !main_zone) {
         return;
     }
 
-    const auto names = grid->stream_names();
-
-    for (const auto& n : names) {
-        if (!carousel->has_stream(n)) {
-            carousel->add_stream(n);
-        }
+    if (!active_name.isEmpty() && active_name == name) {
+        handle_back_to_grid();
+        return;
     }
 
-    const auto car_names = carousel->stream_names();
-    for (const auto& n : car_names) {
-        if (!names.contains(n)) {
-            carousel->remove_stream(n);
-        }
+    active_name = name;
+
+    main_zone->set_active_stream(name);
+
+    if (settings) {
+        settings->set_active_current(name);
     }
 
-    carousel->set_active_stream(name);
-    main_zone->show_carousel();
+    // grid->set_active_stream(name);
 }
 
 void controller::handle_back_to_grid() {
+    active_name.clear();
+
     if (main_zone) {
-        main_zone->show_grid();
+        main_zone->clear_active();
     }
+
+    if (settings) {
+        settings->set_active_current(QString());
+    }
+
+    // if (grid) {
+    //     grid->set_active_stream(QString());
+    // }
 }
 
 void controller::handle_thumb_activate(const QString& name) {

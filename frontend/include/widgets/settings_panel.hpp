@@ -36,6 +36,9 @@ public:
     void set_local_sources(const QStringList& sources) const;
     void clear_add_inputs() const;
 
+    void set_active_candidates(const QStringList& names) const;
+    void set_active_current(const QString& name) const;
+
 signals:
     void add_file_stream(const QString& path, const QString& name, bool loop);
     void add_local_stream(const QString& source, const QString& name);
@@ -44,12 +47,15 @@ signals:
     void detect_local_sources_requested();
     void show_stream_changed(const QString& name, bool show);
 
+    void active_stream_selected(const QString& name);
+
 private:
     enum class input_mode { file, local, url };
 
     void build_ui();
     QWidget* build_add_tab();
     QWidget* build_streams_tab();
+    QWidget* build_active_tab();
 
     void set_mode(input_mode mode);
     void update_add_enabled() const;
@@ -93,6 +99,9 @@ private:
     QPlainTextEdit* event_log_view;
 
     QSet<QString> existing_names;
+
+    QWidget* active_tab { nullptr };
+    QComboBox* active_combo { nullptr };
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP

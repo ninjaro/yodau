@@ -2,9 +2,9 @@
 
 #include "helpers/controller.hpp"
 #include "helpers/str_label.hpp"
-#include "stream_manager.hpp"
+// #include "stream_manager.hpp"
 #include "widgets/board.hpp"
-#include "widgets/grid_view.hpp"
+// #include "widgets/grid_view.hpp"
 #include "widgets/settings_panel.hpp"
 
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)

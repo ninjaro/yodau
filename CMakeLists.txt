@@ -162,7 +162,6 @@ if (BUILD_GUI)
             frontend/include/helpers/controller.hpp
 
             frontend/include/widgets/board.hpp
-            frontend/include/widgets/carousel_view.hpp
             frontend/include/widgets/grid_view.hpp
             frontend/include/widgets/settings_panel.hpp
             frontend/include/widgets/stream_cell.hpp
@@ -175,7 +174,6 @@ if (BUILD_GUI)
             frontend/src/helpers/controller.cpp
 
             frontend/src/widgets/board.cpp
-            frontend/src/widgets/carousel_view.cpp
             frontend/src/widgets/grid_view.cpp
             frontend/src/widgets/settings_panel.cpp
             frontend/src/widgets/stream_cell.cpp

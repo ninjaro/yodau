@@ -85,7 +85,7 @@ void settings_panel::add_stream_entry(
 void settings_panel::set_stream_checked(
     const QString& name, const bool checked
 ) const {
-    QSignalBlocker blocker(streams_list);
+    // QSignalBlocker blocker(streams_list);
 
     for (int i = 0; i < streams_list->topLevelItemCount(); ++i) {
         const auto item = streams_list->topLevelItem(i);
@@ -139,6 +139,44 @@ void settings_panel::clear_add_inputs() const {
     update_add_enabled();
 }
 
+void settings_panel::set_active_candidates(const QStringList& names) const {
+    if (!active_combo) {
+        return;
+    }
+
+    const QString current = (active_combo->currentText() == str_label("none"))
+        ? QString()
+        : active_combo->currentText();
+
+    active_combo->blockSignals(true);
+    active_combo->clear();
+    active_combo->addItem(str_label("none"), QVariant());
+    for (const auto& n : names) {
+        active_combo->addItem(n);
+    }
+
+    if (!current.isEmpty() && names.contains(current)) {
+        active_combo->setCurrentText(current);
+    } else {
+        active_combo->setCurrentText(str_label("none"));
+    }
+    active_combo->blockSignals(false);
+}
+
+void settings_panel::set_active_current(const QString& name) const {
+    if (!active_combo) {
+        return;
+    }
+
+    active_combo->blockSignals(true);
+    if (name.isEmpty() || active_combo->findText(name) < 0) {
+        active_combo->setCurrentText(str_label("none"));
+    } else {
+        active_combo->setCurrentText(name);
+    }
+    active_combo->blockSignals(false);
+}
+
 void settings_panel::build_ui() {
     const auto root_layout = new QVBoxLayout(this);
     root_layout->setContentsMargins(8, 8, 8, 8);
@@ -147,9 +185,11 @@ void settings_panel::build_ui() {
 
     add_tab = build_add_tab();
     streams_tab = build_streams_tab();
+    active_tab = build_active_tab();
 
     tabs->addTab(add_tab, str_label("add stream"));
     tabs->addTab(streams_tab, str_label("streams"));
+    tabs->addTab(active_tab, str_label("active"));
 }
 
 QWidget* settings_panel::build_add_tab() {
@@ -299,6 +339,39 @@ QWidget* settings_panel::build_streams_tab() {
     event_log_view->setMinimumHeight(160);
     layout->addWidget(event_log_view);
 
+    w->setLayout(layout);
+    return w;
+}
+
+QWidget* settings_panel::build_active_tab() {
+    const auto w = new QWidget(this);
+    const auto layout = new QVBoxLayout(w);
+    layout->setSpacing(10);
+
+    const auto box = new QGroupBox(str_label("active stream"), w);
+    const auto box_layout = new QVBoxLayout(box);
+
+    active_combo = new QComboBox(box);
+    active_combo->setEditable(false);
+
+    active_combo->addItem(str_label("none"), QVariant());
+
+    box_layout->addWidget(active_combo);
+    box->setLayout(box_layout);
+    layout->addWidget(box);
+
+    connect(
+        active_combo, &QComboBox::currentTextChanged, this,
+        [this](const QString& text) {
+            if (text == str_label("none")) {
+                emit active_stream_selected(QString());
+            } else {
+                emit active_stream_selected(text);
+            }
+        }
+    );
+
+    layout->addStretch();
     w->setLayout(layout);
     return w;
 }

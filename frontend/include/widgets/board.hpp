@@ -3,26 +3,32 @@
 
 #include <QWidget>
 
-class QStackedWidget;
+class QVBoxLayout;
+class QWidget;
 class grid_view;
-class carousel_view;
+class stream_cell;
 
 class board final : public QWidget {
     Q_OBJECT
-
 public:
     explicit board(QWidget* parent = nullptr);
 
-    void show_grid();
-    void show_carousel();
+    grid_view* grid_mode() const;
 
-    [[nodiscard]] grid_view* grid_mode() const;
-    [[nodiscard]] carousel_view* carousel_mode() const;
+    void set_active_stream(const QString& name);
+    void clear_active();
+    stream_cell* take_active_cell();
+
+    // signals:
+    // void active_shrink_requested(const QString& name);
+    // void active_close_requested(const QString& name);
 
 private:
-    QStackedWidget* mode_stack { nullptr };
-    grid_view* grid { nullptr };
-    carousel_view* carousel { nullptr };
+    QWidget* active_container;
+    QVBoxLayout* active_layout;
+    stream_cell* active_tile;
+
+    grid_view* grid;
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_BOARD_HPP
+#endif

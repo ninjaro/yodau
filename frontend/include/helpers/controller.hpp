@@ -9,7 +9,6 @@
 class settings_panel;
 class board;
 class grid_view;
-class carousel_view;
 
 class controller final : public QObject {
     Q_OBJECT
@@ -44,7 +43,7 @@ private:
     settings_panel* settings { nullptr };
     board* main_zone { nullptr };
     grid_view* grid { nullptr };
-    carousel_view* carousel { nullptr };
+    QString active_name;
 };
 
 #endif // YODAU_FRONTEND_HELPERS_CONTROLLER_HPP

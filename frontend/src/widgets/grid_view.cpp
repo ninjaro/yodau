@@ -3,14 +3,32 @@
 
 #include <QGridLayout>
 #include <QLayoutItem>
+#include <QScrollArea>
+#include <QVBoxLayout>
 #include <QtMath>
+
+static constexpr int kMinTileW = 240;
+static constexpr int kMinTileH = 160;
 
 grid_view::grid_view(QWidget* parent)
     : QWidget(parent)
-    , grid_layout(new QGridLayout(this)) {
+    , scroll(new QScrollArea(this))
+    , grid_container(new QWidget(scroll))
+    , grid_layout(new QGridLayout(grid_container)) {
     grid_layout->setContentsMargins(6, 6, 6, 6);
     grid_layout->setSpacing(6);
-    // setLayout(grid_layout);
+
+    grid_container->setLayout(grid_layout);
+
+    scroll->setWidgetResizable(true);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setWidget(grid_container);
+
+    auto* outer = new QVBoxLayout(this);
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->addWidget(scroll);
+    setLayout(outer);
 }
 
 bool grid_view::has_stream(const QString& name) const {
@@ -19,13 +37,47 @@ bool grid_view::has_stream(const QString& name) const {
 
 QStringList grid_view::stream_names() const { return tiles.keys(); }
 
+stream_cell* grid_view::take_stream_cell(const QString& name) {
+    auto it = tiles.find(name);
+    if (it == tiles.end()) {
+        return nullptr;
+    }
+
+    stream_cell* cell = it.value();
+
+    tiles.erase(it);
+    grid_layout->removeWidget(cell);
+    cell->hide();
+
+    rebuild_layout();
+    return cell;
+}
+
+void grid_view::put_stream_cell(stream_cell* cell) {
+    if (!cell) {
+        return;
+    }
+
+    const QString name = cell->get_name();
+    if (tiles.contains(name)) {
+        return;
+    }
+
+    cell->setParent(grid_container);
+    tiles.insert(name, cell);
+    cell->show();
+
+    rebuild_layout();
+}
+
 void grid_view::add_stream(const QString& name) {
     if (name.isEmpty() || tiles.contains(name)) {
         return;
     }
 
-    auto* tile = new stream_cell(name, this);
-    tile->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    auto* tile = new stream_cell(name, grid_container);
+    tile->setMinimumSize(kMinTileW, kMinTileH);
+    tile->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
     connect(
         tile, &stream_cell::request_close, this, &grid_view::close_requested
@@ -37,6 +89,14 @@ void grid_view::add_stream(const QString& name) {
     tiles.insert(name, tile);
     rebuild_layout();
 }
+
+// void grid_view::set_active_stream(const QString& name) {
+//     for (auto it = tiles.begin(); it != tiles.end(); ++it) {
+//         auto* tile = it.value();
+//         const bool is_act = (!name.isEmpty() && it.key() == name);
+//         tile->set_active(is_act);
+//     }
+// }
 
 void grid_view::remove_stream(const QString& name) {
     const auto it = tiles.find(name);
@@ -54,23 +114,24 @@ void grid_view::remove_stream(const QString& name) {
 }
 
 void grid_view::close_requested(const QString& name) {
-    if (!tiles.contains(name)) {
-        return;
-    }
+    // if (!tiles.contains(name)) {
+    //     return;
+    // }
     remove_stream(name);
     emit stream_closed(name);
 }
 
 void grid_view::enlarge_requested(const QString& name) {
-    if (!tiles.contains(name)) {
-        return;
-    }
+    // if (!tiles.contains(name)) {
+    //     return;
+    // }
     emit stream_enlarge(name);
 }
 
 static int ceil_div(const int a, const int b) { return (a + b - 1) / b; }
 
 void grid_view::rebuild_layout() {
+    // todo fix layout
     while (grid_layout->count() > 0) {
         auto* item = grid_layout->takeAt(0);
         if (item->widget()) {
@@ -81,8 +142,11 @@ void grid_view::rebuild_layout() {
 
     const int n = static_cast<int>(tiles.size());
     if (n == 0) {
+        this->hide();
+        updateGeometry();
         return;
     }
+    this->show();
 
     const int cols = qCeil(qSqrt(static_cast<double>(n)));
     const int rows = ceil_div(n, cols);
@@ -103,5 +167,5 @@ void grid_view::rebuild_layout() {
         grid_layout->addWidget(tile, r, c);
     }
 
-    updateGeometry();
+    grid_container->updateGeometry();
 }
