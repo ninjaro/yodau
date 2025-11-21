@@ -1,5 +1,8 @@
 #include "main_window.hpp"
+
 #include "helpers/str_label.hpp"
+#include "stream_controller.hpp"
+#include "stream_manager.hpp"
 #include "widgets/settings_panel.hpp"
 #include "widgets/view_zone.hpp"
 
@@ -41,4 +44,30 @@ main_window::main_window(QWidget* parent)
     const auto top_toolbar = addToolBar(str_label("top"));
     top_toolbar->addAction(settings_action);
 #endif
+    auto* mgr = new yodau::backend::stream_manager();
+    connect(this, &QObject::destroyed, this, [mgr]() { delete mgr; });
+
+    const auto* controller = new stream_controller(mgr, settings, this);
+
+    connect(
+        settings, &settings_panel::add_file_stream, controller,
+        &stream_controller::handle_add_file
+    );
+    connect(
+        settings, &settings_panel::add_local_stream, controller,
+        &stream_controller::handle_add_local
+    );
+    connect(
+        settings, &settings_panel::add_url_stream, controller,
+        &stream_controller::handle_add_url
+    );
+    connect(
+        settings, &settings_panel::detect_local_sources_requested, controller,
+        &stream_controller::handle_detect_local_sources
+    );
+    connect(
+        settings, &settings_panel::show_stream_changed, controller,
+        &stream_controller::handle_show_stream_changed
+    );
+    controller->handle_detect_local_sources();
 }

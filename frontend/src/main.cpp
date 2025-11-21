@@ -10,7 +10,6 @@
 #include <KAboutData>
 #include <KLocalizedString>
 #endif
-
 int main(int argc, char* argv[]) {
     const QApplication app(argc, argv);
 
@@ -44,7 +43,7 @@ int main(int argc, char* argv[]) {
 
     QCommandLineParser parser;
     parser.setApplicationDescription(
-        str_label("A tool for card counting training.")
+        str_label("YEAR OF THE DEPEND ADULT UNDERGARMENT")
     );
     parser.addHelpOption();
     parser.addVersionOption();

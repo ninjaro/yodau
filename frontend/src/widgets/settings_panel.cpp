@@ -74,7 +74,7 @@ void settings_panel::add_stream_entry(
         }
     }
 
-    const auto item = new QTreeWidgetItem(streams_list);
+    const auto item = new QTreeWidgetItem();
     item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
     item->setCheckState(0, checked ? Qt::Checked : Qt::Unchecked);
     item->setText(1, name);

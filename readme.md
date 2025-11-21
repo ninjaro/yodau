@@ -2,8 +2,7 @@
 
 #### Y.I.Riabtsev<sup>1</sup>
 
-<div align="right">DOI?: <a href="https://ninjaro.github.io/yodau/">ninjaro/yodau</a>
-</div>
+<div align="right">DOC: <a href="https://ninjaro.github.io/yodau/">ninjaro/yodau</a></div>
 
 ---
 <sup>1</sup> RWTH Aachen University, Aachen, North Rhine-Westphalia, Templergraben 55, 52056, Germany
@@ -20,10 +19,11 @@ and I do not want to kill anything tonight. She is probably at some factory-styl
 rooms where Warhol's ghosts play on a loop and Maria Beatty’s slow, anachronistic frames stain the plaster — images that
 barely move while the light on them changes<sup><a href="#ref-3">[3]</a></sup>. I half-remember that same roach crawling
 across the frozen frames of Andy’s *Empire*<sup><a href="#ref-2">[2]</a></sup>. Where was the woman who said she'd
-come.<sup><a href="#ref-0">[0]</a></sup> Where is my muse. **Keywords:** cli, monitoring, surveillance, event-detection,
+come.<sup><a href="#ref-0">[0]</a></sup> Where is my muse.  
+**Keywords:** cli, monitoring, surveillance, event-detection,
 multistream, cpp23, qt6, stream-viewer.
 
-Index Terms—
+Index Terms—...todo
 
 ### INFORMATION ABOUT THE AUTHORS
 
@@ -53,7 +53,7 @@ replacements usually work; exact minimum versions are not rigorously specified.
 
 #### Core library (`libyodau`)
 
-- ...
+- ...todo
 - Static C++23 backend reused by both the CLI and the desktop application.
 - All public headers live under `backend/include/` and are intended to be usable without Qt or KDE present at compile
   time.

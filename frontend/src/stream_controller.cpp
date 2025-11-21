@@ -4,6 +4,7 @@
 #include "widgets/settings_panel.hpp"
 
 #include <QDateTime>
+#include <QtGlobal>
 
 stream_controller::stream_controller(
     yodau::backend::stream_manager* mgr, settings_panel* panel, QObject* parent
@@ -106,8 +107,17 @@ void stream_controller::handle_add_url(
 void stream_controller::handle_detect_local_sources() const {
     const auto ts = now_ts();
     stream_mgr->refresh_local_streams();
+    QStringList locals;
+    const auto backend_names = stream_mgr->stream_names();
+    for (const auto& n : backend_names) {
+        const auto qn = QString::fromStdString(n);
+        if (qn.startsWith("video")) {
+            locals << qn;
+        }
+    }
+    settings->set_local_sources(locals);
     settings->append_add_log(
-        QString("[%1] detect local sources requested").arg(ts)
+        QString("[%1] ok: detected %2 local sources").arg(ts).arg(locals.size())
     );
 }
 
