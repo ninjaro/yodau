@@ -40,6 +40,10 @@ public:
     void set_active_current(const QString& name) const;
 
     void add_template_candidate(const QString& name) const;
+    void set_active_line_closed(bool closed) const;
+
+    void reset_active_line_form();
+    QString active_template_current() const;
 signals:
     void add_file_stream(const QString& path, const QString& name, bool loop);
     void add_local_stream(const QString& source, const QString& name);
@@ -58,6 +62,7 @@ signals:
         const QString& template_name, const QColor& color
     );
     void active_edit_mode_changed(bool drawing_new);
+    void active_template_selected(const QString& template_name);
 
 private:
     enum class input_mode { file, local, url };

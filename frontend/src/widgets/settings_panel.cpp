@@ -192,7 +192,48 @@ void settings_panel::add_template_candidate(const QString& name) const {
     }
 
     active_template_combo->addItem(name);
+
+    if (active_template_combo->count() == 1) {
+        active_template_combo->setCurrentIndex(0);
+    }
+
     update_active_tools();
+}
+
+void settings_panel::set_active_line_closed(bool closed) const {
+    if (!active_line_closed_cb) {
+        return;
+    }
+    QSignalBlocker b(active_line_closed_cb);
+    active_line_closed_cb->setChecked(closed);
+}
+
+void settings_panel::reset_active_line_form() {
+    if (!active_line_name_edit || !active_line_closed_cb
+        || !active_line_color_btn) {
+        return;
+    }
+
+    active_line_name_edit->clear();
+
+    {
+        QSignalBlocker b(active_line_closed_cb);
+        active_line_closed_cb->setChecked(false);
+    }
+
+    active_line_color = Qt::red;
+    active_line_color_btn->setStyleSheet(
+        QString("background-color: %1;").arg(active_line_color.name())
+    );
+
+    emit active_line_params_changed(QString(), active_line_color, false);
+}
+
+QString settings_panel::active_template_current() const {
+    if (!active_template_combo) {
+        return {};
+    }
+    return active_template_combo->currentText().trimmed();
 }
 
 void settings_panel::build_ui() {
@@ -497,8 +538,19 @@ QWidget* settings_panel::build_active_tab() {
 
         active_template_combo = new QComboBox(active_templates_box);
         active_template_combo->setEditable(false);
-        active_template_combo->addItem(str_label("none"), QVariant());
+        // active_template_combo->addItem(str_label("none"), QVariant());
         v->addWidget(active_template_combo);
+
+        connect(
+            active_template_combo, &QComboBox::currentTextChanged, this,
+            [this](const QString& text) {
+                if (text.isEmpty()) {
+                    emit active_template_selected(QString());
+                } else {
+                    emit active_template_selected(text);
+                }
+            }
+        );
 
         active_template_color_btn
             = new QPushButton(str_label("color"), active_templates_box);
@@ -688,7 +740,7 @@ void settings_panel::update_active_tools() const {
     }
 
     const bool has_templates
-        = active_template_combo && active_template_combo->count() > 1;
+        = active_template_combo && active_template_combo->count() > 0;
 
     if (active_templates_box) {
         const bool show_tpl = has_active && has_templates && !drawing_mode;

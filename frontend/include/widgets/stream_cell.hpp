@@ -44,6 +44,9 @@ public:
     void add_persistent_line(const line_instance& line);
     void clear_persistent_lines();
 
+    void set_draft_preview(bool on);
+    bool is_draft_preview() const;
+
 signals:
     void request_close(const QString& name);
     void request_focus(const QString& name);
@@ -76,6 +79,7 @@ private:
     std::optional<QPointF> hover_point_pct;
 
     std::vector<line_instance> persistent_lines;
+    bool draft_preview { false };
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP

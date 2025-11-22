@@ -62,6 +62,7 @@ void stream_cell::set_draft_points_pct(const std::vector<QPointF>& pts) {
 void stream_cell::clear_draft() {
     draft_line_points_pct.clear();
     hover_point_pct.reset();
+    draft_preview = false;
     update();
 }
 
@@ -91,6 +92,13 @@ void stream_cell::clear_persistent_lines() {
     persistent_lines.clear();
     update();
 }
+
+void stream_cell::set_draft_preview(bool on) {
+    draft_preview = on;
+    update();
+}
+
+bool stream_cell::is_draft_preview() const { return draft_preview; }
 
 void stream_cell::paintEvent(QPaintEvent* event) {
     QStyleOption opt;
@@ -139,6 +147,7 @@ void stream_cell::paintEvent(QPaintEvent* event) {
     if (!draft_line_points_pct.empty()) {
         QPen pen(draft_line_color);
         pen.setWidthF(2.0);
+        pen.setStyle(Qt::DashLine);
         p.setPen(pen);
 
         QPolygonF poly;
@@ -323,14 +332,18 @@ QPointF stream_cell::to_pct(const QPointF& pos_px) const {
         = static_cast<float>(pos_px.x()) / static_cast<float>(width()) * 100.0f;
     float y = static_cast<float>(pos_px.y()) / static_cast<float>(height())
         * 100.0f;
-    if (x < 0.f)
+    if (x < 0.f) {
         x = 0.f;
-    if (x > 100.f)
+    }
+    if (x > 100.f) {
         x = 100.f;
-    if (y < 0.f)
+    }
+    if (y < 0.f) {
         y = 0.f;
-    if (y > 100.f)
+    }
+    if (y > 100.f) {
         y = 100.f;
+    }
     return { x, y };
 }
 

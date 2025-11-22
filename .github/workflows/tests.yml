@@ -11,6 +11,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up GCC 14
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: 14
+          platform: x64
+      # setup-gcc action: :contentReference[oaicite:1]{index=1}
+
       - uses: MarkusJx/googletest-installer@28c5d4102d9d57b46254be19a940bf038a9c850a
 
       - name: Install Qt 6
@@ -21,18 +29,16 @@ jobs:
           install-deps: 'true'
           cache: 'true'
 
-      # - name: Install backend deps
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y \
-      #       v4l2loopback-dkms \
-      #       libopencv-dev
-
       - name: Configure (Debug, non-KDE, tests ON, coverage OFF)
+        env:
+          CC: gcc-14
+          CXX: g++-14
         run: |
           cmake -S . -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc-14 \
+            -DCMAKE_CXX_COMPILER=g++-14 \
             -DKDE=OFF \
             -DBUILD_TESTS=ON \
             -DENABLE_COVERAGE=OFF \
