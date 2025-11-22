@@ -1,5 +1,6 @@
 #ifndef YODAU_FRONTEND_HELPERS_ICON_LOADER_HPP
 #define YODAU_FRONTEND_HELPERS_ICON_LOADER_HPP
+#include <QApplication>
 #include <QIcon>
 #include <QStyle>
 #include <initializer_list>

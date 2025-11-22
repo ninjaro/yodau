@@ -20,10 +20,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
 
+      - name: Set up GCC 14
+        uses: egor-tensin/setup-gcc@eaa888eb19115a521fa72b65cd94fe1f25bbcaac # v1
+        with:
+          version: 14
+          platform: x64
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: manual
@@ -36,17 +41,23 @@ jobs:
           install-deps: 'true'
           cache: 'true'
 
-      # - name: Install backend deps
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y \
+      - name: Install backend deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcxxopts-dev
       #       v4l2loopback-dkms \
       #       libopencv-dev
 
       - name: Configure (Debug, non-KDE, tests OFF, coverage OFF)
+        env:
+          CC: gcc-14
+          CXX: g++-14
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc-14 \
+            -DCMAKE_CXX_COMPILER=g++-14 \
             -DKDE=OFF \
             -DBUILD_TESTS=OFF \
             -DENABLE_COVERAGE=OFF \
@@ -56,4 +67,4 @@ jobs:
         run: cmake --build build --parallel "$(nproc)"
 
       - name: Run CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4

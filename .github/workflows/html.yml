@@ -3,7 +3,7 @@ name: Deploy
 on:
   push:
     branches:
-      - todomaster
+      - master
   workflow_dispatch:
 
 permissions:
@@ -19,8 +19,15 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Set up GCC 14
+        uses: egor-tensin/setup-gcc@eaa888eb19115a521fa72b65cd94fe1f25bbcaac # v1
+        with:
+          version: 14
+          platform: x64
+
       - uses: MarkusJx/googletest-installer@28c5d4102d9d57b46254be19a940bf038a9c850a
       - uses: ssciwr/doxygen-install@501e53b879da7648ab392ee226f5b90e42148449
         with:
@@ -38,18 +45,24 @@ jobs:
           install-deps: 'true'
           cache: 'true'
 
-      # - name: Install backend deps
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y \
+      - name: Install backend deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcxxopts-dev
       #       v4l2loopback-dkms \
       #       libopencv-dev
 
       - name: Configure (Debug, non-KDE, tests ON, coverage ON)
+        env:
+          CC: gcc-14
+          CXX: g++-14
         run: |
           cmake -S . -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc-14 \
+            -DCMAKE_CXX_COMPILER=g++-14 \
             -DKDE=OFF \
             -DBUILD_TESTS=ON \
             -DENABLE_COVERAGE=ON \
@@ -84,7 +97,7 @@ jobs:
         run: rm -rf build/
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: doc
 
@@ -97,4 +110,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

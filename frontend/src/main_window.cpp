@@ -7,6 +7,8 @@
 // #include "widgets/grid_view.hpp"
 #include "widgets/settings_panel.hpp"
 
+#include <QToolBar>
+
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
 #include <QStackedWidget>
 #else

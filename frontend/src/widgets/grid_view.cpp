@@ -37,6 +37,41 @@ bool grid_view::has_stream(const QString& name) const {
 
 QStringList grid_view::stream_names() const { return tiles.keys(); }
 
+void grid_view::add_stream(const QString& name) {
+    if (name.isEmpty() || tiles.contains(name)) {
+        return;
+    }
+
+    auto* tile = new stream_cell(name, grid_container);
+    tile->setMinimumSize(kMinTileW, kMinTileH);
+    tile->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+
+    connect(
+        tile, &stream_cell::request_close, this, &grid_view::close_requested
+    );
+    connect(
+        tile, &stream_cell::request_focus, this, &grid_view::enlarge_requested
+    );
+
+    tiles.insert(name, tile);
+    rebuild_layout();
+}
+
+void grid_view::remove_stream(const QString& name) {
+    const auto it = tiles.find(name);
+    if (it == tiles.end()) {
+        return;
+    }
+
+    auto* tile = it.value();
+    tiles.erase(it);
+
+    grid_layout->removeWidget(tile);
+    tile->deleteLater();
+
+    rebuild_layout();
+}
+
 stream_cell* grid_view::take_stream_cell(const QString& name) {
     auto it = tiles.find(name);
     if (it == tiles.end()) {
@@ -70,61 +105,20 @@ void grid_view::put_stream_cell(stream_cell* cell) {
     rebuild_layout();
 }
 
-void grid_view::add_stream(const QString& name) {
-    if (name.isEmpty() || tiles.contains(name)) {
-        return;
-    }
-
-    auto* tile = new stream_cell(name, grid_container);
-    tile->setMinimumSize(kMinTileW, kMinTileH);
-    tile->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-
-    connect(
-        tile, &stream_cell::request_close, this, &grid_view::close_requested
-    );
-    connect(
-        tile, &stream_cell::request_focus, this, &grid_view::enlarge_requested
-    );
-
-    tiles.insert(name, tile);
-    rebuild_layout();
-}
-
-// void grid_view::set_active_stream(const QString& name) {
-//     for (auto it = tiles.begin(); it != tiles.end(); ++it) {
-//         auto* tile = it.value();
-//         const bool is_act = (!name.isEmpty() && it.key() == name);
-//         tile->set_active(is_act);
-//     }
-// }
-
-void grid_view::remove_stream(const QString& name) {
+stream_cell* grid_view::peek_stream_cell(const QString& name) const {
     const auto it = tiles.find(name);
     if (it == tiles.end()) {
-        return;
+        return nullptr;
     }
-
-    auto* tile = it.value();
-    tiles.erase(it);
-
-    grid_layout->removeWidget(tile);
-    tile->deleteLater();
-
-    rebuild_layout();
+    return it.value();
 }
 
 void grid_view::close_requested(const QString& name) {
-    // if (!tiles.contains(name)) {
-    //     return;
-    // }
     remove_stream(name);
     emit stream_closed(name);
 }
 
 void grid_view::enlarge_requested(const QString& name) {
-    // if (!tiles.contains(name)) {
-    //     return;
-    // }
     emit stream_enlarge(name);
 }
 

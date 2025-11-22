@@ -7,10 +7,10 @@
 
 board::board(QWidget* parent)
     : QWidget(parent)
+    , grid(new grid_view(this))
     , active_container(new QWidget(this))
     , active_layout(new QVBoxLayout(active_container))
-    , active_tile(nullptr)
-    , grid(new grid_view(this)) {
+    , active_tile(nullptr) {
     active_layout->setContentsMargins(6, 6, 6, 6);
     active_layout->setSpacing(6);
     active_container->setLayout(active_layout);
@@ -28,6 +28,8 @@ board::board(QWidget* parent)
 }
 
 grid_view* board::grid_mode() const { return grid; }
+
+stream_cell* board::active_cell() const { return active_tile; }
 
 void board::set_active_stream(const QString& name) {
     if (!grid || name.isEmpty()) {
@@ -52,27 +54,11 @@ void board::set_active_stream(const QString& name) {
 
     cell->setParent(active_container);
     cell->set_active(true);
+
     cell->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     cell->show();
     active_layout->addWidget(cell);
     active_tile = cell;
-
-    // QObject::disconnect(
-    //     active_tile, &stream_cell::request_focus, this, nullptr
-    // );
-    // QObject::disconnect(
-    //     active_tile, &stream_cell::request_close, this, nullptr
-    // );
-
-    // connect(
-    //     active_tile, &stream_cell::request_focus, this,
-    //     [this](const QString& n) { emit active_shrink_requested(n); }
-    // );
-
-    // connect(
-    //     active_tile, &stream_cell::request_close, this,
-    //     [this](const QString& n) { emit active_close_requested(n); }
-    // );
 
     active_container->updateGeometry();
 }

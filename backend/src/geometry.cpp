@@ -92,7 +92,8 @@ yodau::backend::line_ptr yodau::backend::make_line(
 
 std::vector<yodau::backend::point>
 yodau::backend::parse_points(const std::string& points_str) {
-    std::string_view input { normalize_str(points_str) };
+    std::string normalized = normalize_str(points_str);
+    std::string_view input { normalized };
     std::vector<point> points;
     size_t start = 0;
     while (start < input.size()) {
