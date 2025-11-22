@@ -212,15 +212,10 @@ void controller::on_active_line_params_changed(
 void controller::on_active_line_save_requested(
     const QString& name, const bool closed
 ) {
-
-    if (settings) {
-        settings->append_active_log(
-            QString("save click: name='%1' closed=%2 active='%3'")
-                .arg(name)
-                .arg(closed ? "true" : "false")
-                .arg(active_name)
-        );
-    }
+    log_active(QString("save click: name='%1' closed=%2 active='%3'")
+                   .arg(name)
+                   .arg(closed ? "true" : "false")
+                   .arg(active_name));
 
     auto* cell = active_cell_checked("add line");
     if (!cell) {
@@ -229,24 +224,12 @@ void controller::on_active_line_save_requested(
 
     const auto pts = cell->draft_points_pct();
     if (pts.size() < 2) {
-        if (settings) {
-            settings->append_active_log(
-                "add line failed: need at least 2 points"
-            );
-        }
+        log_active("add line failed: need at least 2 points");
         return;
     }
 
-    QStringList parts;
-    parts.reserve(int(pts.size()));
-    for (const auto& p : pts) {
-        parts << QString("(%1,%2)").arg(p.x(), 0, 'f', 3).arg(p.y(), 0, 'f', 3);
-    }
-    const auto points_str = parts.join("; ");
-
-    if (settings) {
-        settings->append_active_log(QString("points_str = %1").arg(points_str));
-    }
+    const auto points_str = points_str_from_pct(pts);
+    log_active(QString("points_str = %1").arg(points_str));
 
     try {
         const auto lp = stream_mgr->add_line(
@@ -254,47 +237,9 @@ void controller::on_active_line_save_requested(
         );
 
         const auto final_name = QString::fromStdString(lp->name);
-
-        stream_cell::line_instance inst;
-        inst.template_name = final_name;
-        inst.color = draft_line_color;
-        inst.closed = closed;
-        inst.pts_pct = pts; // todo use lp->points
-
-        per_stream_lines[active_name].push_back(inst);
-        cell->add_persistent_line(inst);
-
-        templates[final_name] = tpl_line { pts, closed };
-
-        stream_mgr->set_line(
-            active_name.toStdString(), final_name.toStdString()
-        );
-
-        cell->clear_draft();
-        cell->set_draft_params(QString(), QColor(Qt::red), false);
-
-        draft_line_name.clear();
-        draft_line_color = Qt::red;
-        draft_line_closed = false;
-
-        if (settings) {
-            settings->reset_active_line_form();
-        }
-
-        if (settings) {
-            settings->add_template_candidate(final_name);
-            settings->reset_active_template_form();
-            settings->append_active_log(QString("line added: %1 (%2 points)")
-                                            .arg(final_name)
-                                            .arg(pts.size()));
-        }
-        sync_active_persistent();
+        apply_added_line(cell, final_name, pts, closed);
     } catch (const std::exception& e) {
-        if (settings) {
-            settings->append_active_log(
-                QString("add line failed: %1").arg(e.what())
-            );
-        }
+        log_active(QString("add line failed: %1").arg(e.what()));
     }
 }
 
@@ -584,33 +529,14 @@ void controller::sync_active_persistent() {
         return;
     }
 
-    if (auto* cell = main_zone->active_cell()) {
-        cell->set_persistent_lines(per_stream_lines.value(active_name));
-    }
+    sync_active_cell_lines();
 
     if (!settings) {
         return;
     }
 
-    QSet<QString> used;
-    const auto current_lines = per_stream_lines.value(active_name);
-    for (const auto& inst : current_lines) {
-        const auto tn = inst.template_name.trimmed();
-        if (!tn.isEmpty()) {
-            used.insert(tn);
-        }
-    }
-
-    QStringList candidates;
-    candidates.reserve(templates.size());
-    for (auto it = templates.begin(); it != templates.end(); ++it) {
-        const QString name = it.key();
-        if (!used.contains(name)) {
-            candidates << name;
-        }
-    }
-
-    settings->set_template_candidates(candidates);
+    const auto used = used_template_names_for_stream(active_name);
+    settings->set_template_candidates(template_candidates_excluding(used));
 }
 
 void controller::apply_template_preview(const QString& template_name) {
@@ -637,4 +563,96 @@ void controller::apply_template_preview(const QString& template_name) {
 
     cell->set_draft_params(template_name, c, tpl.closed);
     cell->set_draft_points_pct(tpl.pts_pct);
+}
+
+void controller::log_active(const QString& msg) const {
+    if (settings) {
+        settings->append_active_log(msg);
+    }
+}
+
+QString controller::points_str_from_pct(const std::vector<QPointF>& pts) {
+    QStringList parts;
+    parts.reserve(static_cast<int>(pts.size()));
+    for (const auto& p : pts) {
+        parts << QString("(%1,%2)").arg(p.x(), 0, 'f', 3).arg(p.y(), 0, 'f', 3);
+    }
+    return parts.join("; ");
+}
+
+void controller::apply_added_line(
+    stream_cell* cell, const QString& final_name,
+    const std::vector<QPointF>& pts, const bool closed
+) {
+    stream_cell::line_instance inst;
+    inst.template_name = final_name;
+    inst.color = draft_line_color;
+    inst.closed = closed;
+    inst.pts_pct = pts;
+
+    per_stream_lines[active_name].push_back(inst);
+    cell->add_persistent_line(inst);
+
+    templates[final_name] = tpl_line { pts, closed };
+
+    stream_mgr->set_line(active_name.toStdString(), final_name.toStdString());
+
+    cell->clear_draft();
+    cell->set_draft_params(QString(), QColor(Qt::red), false);
+
+    draft_line_name.clear();
+    draft_line_color = Qt::red;
+    draft_line_closed = false;
+
+    if (settings) {
+        settings->reset_active_line_form();
+        settings->add_template_candidate(final_name);
+        settings->reset_active_template_form();
+    }
+
+    log_active(
+        QString("line added: %1 (%2 points)").arg(final_name).arg(pts.size())
+    );
+
+    sync_active_persistent();
+}
+
+void controller::sync_active_cell_lines() const {
+    if (!main_zone) {
+        return;
+    }
+
+    if (auto* cell = main_zone->active_cell()) {
+        cell->set_persistent_lines(per_stream_lines.value(active_name));
+    }
+}
+
+QSet<QString>
+controller::used_template_names_for_stream(const QString& stream) const {
+    QSet<QString> used;
+
+    const auto current_lines = per_stream_lines.value(stream);
+    for (const auto& inst : current_lines) {
+        const auto tn = inst.template_name.trimmed();
+        if (!tn.isEmpty()) {
+            used.insert(tn);
+        }
+    }
+
+    return used;
+}
+
+QStringList
+controller::template_candidates_excluding(const QSet<QString>& used) const {
+    QStringList candidates;
+    candidates.reserve(templates.size());
+
+    for (auto it = templates.begin(); it != templates.end(); ++it) {
+        const QString name = it.key();
+        if (!used.contains(name)) {
+            candidates << name;
+        }
+    }
+
+    return candidates;
 }

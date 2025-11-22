@@ -83,6 +83,18 @@ private:
     void sync_active_persistent();
     void apply_template_preview(const QString& template_name);
 
+    void log_active(const QString& msg) const;
+
+    static QString points_str_from_pct(const std::vector<QPointF>& pts);
+
+    void apply_added_line(
+        stream_cell* cell, const QString& final_name,
+        const std::vector<QPointF>& pts, bool closed
+    );
+    void sync_active_cell_lines() const;
+    QSet<QString> used_template_names_for_stream(const QString& stream) const;
+    QStringList template_candidates_excluding(const QSet<QString>& used) const;
+
 private:
     // external
     yodau::backend::stream_manager* stream_mgr { nullptr };
