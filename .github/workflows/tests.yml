@@ -13,11 +13,10 @@ jobs:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
 
       - name: Set up GCC 14
-        uses: egor-tensin/setup-gcc@v1
+        uses: egor-tensin/setup-gcc@eaa888eb19115a521fa72b65cd94fe1f25bbcaac # v1.3
         with:
           version: 14
           platform: x64
-      # setup-gcc action: :contentReference[oaicite:1]{index=1}
 
       - uses: MarkusJx/googletest-installer@28c5d4102d9d57b46254be19a940bf038a9c850a
 
@@ -28,6 +27,14 @@ jobs:
           target: 'desktop'
           install-deps: 'true'
           cache: 'true'
+
+      - name: Install backend deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcxxopts-dev
+      #       v4l2loopback-dkms \
+      #       libopencv-dev
 
       - name: Configure (Debug, non-KDE, tests ON, coverage OFF)
         env:

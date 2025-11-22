@@ -14,9 +14,6 @@
 class settings_panel;
 class board;
 class grid_view;
-class QColor;
-
-// class stream_cell;
 
 class controller final : public QObject {
     Q_OBJECT
@@ -69,6 +66,7 @@ private:
     QMap<QString, tpl_line> templates;
     QMap<QString, std::vector<stream_cell::line_instance>> per_stream_lines;
     bool drawing_new_mode { true };
+    bool active_labels_enabled = true;
 
 private slots:
     void on_active_stream_selected(const QString& name);
@@ -82,6 +80,9 @@ private slots:
     void on_active_template_add_requested(
         const QString& template_name, const QColor& color
     );
+    void on_active_template_color_changed(const QColor& color);
+    void on_active_line_undo_requested();
+    void on_active_labels_enabled_changed(bool on);
 };
 
 #endif // YODAU_FRONTEND_HELPERS_CONTROLLER_HPP

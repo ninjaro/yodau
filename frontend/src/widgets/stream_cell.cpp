@@ -19,9 +19,10 @@ stream_cell::stream_cell(const QString& name, QWidget* parent)
     , focus_btn(nullptr)
     , name_label(nullptr) {
     build_ui();
+    setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    // setMinimumSize(120, 90);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    // setMinimumSize(120, 90);
 }
 
 const QString& stream_cell::get_name() const { return name; }
@@ -29,10 +30,18 @@ const QString& stream_cell::get_name() const { return name; }
 bool stream_cell::is_active() const { return active; }
 
 void stream_cell::set_active(const bool val) {
+    qDebug() << "set_active(" << val << ") for" << name
+             << "drawing=" << drawing_enabled << "parent="
+             << (parentWidget() ? parentWidget()->metaObject()->className()
+                                : "null");
     if (active == val) {
         return;
     }
     active = val;
+    if (!active) {
+        set_drawing_enabled(false);
+        clear_draft();
+    }
     update_icon();
     update();
 }
@@ -42,6 +51,7 @@ void stream_cell::set_drawing_enabled(const bool on) {
     if (!on) {
         hover_point_pct.reset();
     }
+    setMouseTracking(drawing_enabled);
     update();
 }
 
@@ -93,89 +103,37 @@ void stream_cell::clear_persistent_lines() {
     update();
 }
 
-void stream_cell::set_draft_preview(bool on) {
+void stream_cell::set_draft_preview(const bool on) {
     draft_preview = on;
     update();
 }
 
 bool stream_cell::is_draft_preview() const { return draft_preview; }
 
+void stream_cell::set_labels_enabled(const bool on) {
+    if (labels_enabled == on) {
+        return;
+    }
+    labels_enabled = on;
+    update();
+}
+
 void stream_cell::paintEvent(QPaintEvent* event) {
     QStyleOption opt;
     opt.initFrom(this);
+
     QPainter p(this);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
-
-    // if (active) {
-    //     QColor hl = palette().color(QPalette::Highlight);
-    //     hl.setAlpha(40);
-    //     p.fillRect(rect(), hl);
-    // }
-
     QWidget::paintEvent(event);
 
     p.drawRect(rect().adjusted(0, 0, -1, -1));
-
     p.setRenderHint(QPainter::Antialiasing, true);
 
-    for (const auto& l : persistent_lines) {
-        if (l.pts_pct.size() < 2) {
-            continue;
-        }
-
-        QPen pen(l.color);
-        pen.setWidthF(2.0);
-        p.setPen(pen);
-
-        QPolygonF poly;
-        poly.reserve(int(l.pts_pct.size()));
-        for (const auto& pt_pct : l.pts_pct) {
-            poly << to_px(pt_pct);
-        }
-
-        if (l.closed && poly.size() >= 3) {
-            p.drawPolygon(poly);
-        } else {
-            p.drawPolyline(poly);
-        }
-
-        for (const auto& pt_px : poly) {
-            p.drawEllipse(pt_px, 3.0, 3.0);
-        }
-    }
-
-    if (!draft_line_points_pct.empty()) {
-        QPen pen(draft_line_color);
-        pen.setWidthF(2.0);
-        pen.setStyle(Qt::DashLine);
-        p.setPen(pen);
-
-        QPolygonF poly;
-        poly.reserve(static_cast<int>(draft_line_points_pct.size()));
-        for (const auto& pt_pct : draft_line_points_pct) {
-            poly << to_px(pt_pct);
-        }
-
-        if (draft_line_closed && poly.size() >= 3) {
-            p.drawPolygon(poly);
-        } else {
-            p.drawPolyline(poly);
-        }
-
-        for (const auto& pt_px : poly) {
-            p.drawEllipse(pt_px, 3.0, 3.0);
-        }
-    }
-
-    if (hover_point_pct.has_value()) {
-        QPen hpen(draft_line_color);
-        hpen.setWidthF(1.0);
-        hpen.setStyle(Qt::DashLine);
-        p.setPen(hpen);
-
-        const auto hp = to_px(*hover_point_pct);
-        p.drawEllipse(hp, 4.0, 4.0);
-    }
+    draw_persistent(p);
+    draw_draft(p);
+    draw_hover_point(p);
+    draw_hover_coords(p);
+    draw_preview_segment(p);
 }
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
@@ -197,6 +155,7 @@ void stream_cell::mousePressEvent(QMouseEvent* event) {
     }
 
     if (event->button() == Qt::LeftButton) {
+        setFocus();
         draft_line_points_pct.push_back(to_pct(event->pos()));
         update();
         event->accept();
@@ -207,8 +166,8 @@ void stream_cell::mousePressEvent(QMouseEvent* event) {
 }
 
 void stream_cell::mouseMoveEvent(QMouseEvent* event) {
-    qDebug() << "mouseMove in cell" << name << "active=" << active
-             << "drawing=" << drawing_enabled << "pos=" << event->pos();
+    // qDebug() << "mouseMove in cell" << name << "active=" << active
+    //          << "drawing=" << drawing_enabled << "pos=" << event->pos();
     if (!drawing_enabled || !active) {
         QWidget::mouseMoveEvent(event);
         return;
@@ -223,6 +182,30 @@ void stream_cell::leaveEvent(QEvent* event) {
     hover_point_pct.reset();
     update();
     QWidget::leaveEvent(event);
+}
+
+void stream_cell::keyPressEvent(QKeyEvent* event) {
+    if (!(drawing_enabled && active)) {
+        QWidget::keyPressEvent(event);
+        return;
+    }
+
+    const bool undo_key = (event->key() == Qt::Key_Backspace)
+        || (event->key() == Qt::Key_Z
+            && (event->modifiers() & Qt::ControlModifier));
+
+    if (!undo_key) {
+        QWidget::keyPressEvent(event);
+        return;
+    }
+
+    if (!draft_line_points_pct.empty()) {
+        draft_line_points_pct.pop_back();
+        hover_point_pct.reset();
+        update();
+    }
+
+    event->accept();
 }
 
 void stream_cell::build_ui() {
@@ -271,6 +254,7 @@ void stream_cell::build_ui() {
 
     name_label = new QLabel(name, this);
     name_label->setAlignment(Qt::AlignCenter);
+    name_label->setAttribute(Qt::WA_TransparentForMouseEvents);
     root->addWidget(name_label, 1);
 
     // setLayout(root);
@@ -322,6 +306,138 @@ void stream_cell::update_icon() {
         );
 #endif
     }
+}
+
+void stream_cell::draw_poly_with_points(
+    QPainter& p, const std::vector<QPointF>& pts_pct, const QColor& color,
+    bool closed, Qt::PenStyle style, qreal width
+) const {
+    if (pts_pct.size() < 2) {
+        return;
+    }
+
+    QPen pen(color);
+    pen.setWidthF(width);
+    pen.setStyle(style);
+    p.setPen(pen);
+
+    QPolygonF poly;
+    poly.reserve(static_cast<int>(pts_pct.size()));
+    for (const auto& pt_pct : pts_pct) {
+        poly << to_px(pt_pct);
+    }
+
+    if (closed && poly.size() >= 3) {
+        p.drawPolygon(poly);
+    } else {
+        p.drawPolyline(poly);
+    }
+
+    for (const auto& pt_px : poly) {
+        p.drawEllipse(pt_px, 3.0, 3.0);
+    }
+}
+
+void stream_cell::draw_persistent(QPainter& p) const {
+    for (const auto& l : persistent_lines) {
+        draw_poly_with_points(
+            p, l.pts_pct, l.color, l.closed, Qt::SolidLine, 2.0
+        );
+
+        if (!(active && labels_enabled)) {
+            continue;
+        }
+
+        const auto text = l.template_name.trimmed();
+        if (text.isEmpty()) {
+            continue;
+        }
+
+        p.setPen(l.color);
+        p.drawText(label_pos_px(l), text);
+    }
+}
+
+void stream_cell::draw_draft(QPainter& p) const {
+    if (draft_line_points_pct.empty()) {
+        return;
+    }
+
+    draw_poly_with_points(
+        p, draft_line_points_pct, draft_line_color, draft_line_closed,
+        Qt::DashLine, 2.0
+    );
+}
+
+void stream_cell::draw_hover_point(QPainter& p) const {
+    if (!hover_point_pct.has_value()) {
+        return;
+    }
+
+    QPen hpen(draft_line_color);
+    hpen.setWidthF(1.0);
+    hpen.setStyle(Qt::DashLine);
+    p.setPen(hpen);
+
+    p.drawEllipse(to_px(*hover_point_pct), 4.0, 4.0);
+}
+
+void stream_cell::draw_hover_coords(QPainter& p) const {
+    if (!(hover_point_pct.has_value() && drawing_enabled && active)) {
+        return;
+    }
+
+    const auto& hp = *hover_point_pct;
+    QString txt
+        = QString("x=%1  y=%2").arg(hp.x(), 0, 'f', 1).arg(hp.y(), 0, 'f', 1);
+
+    QRect r = rect().adjusted(6, 6, -6, -6);
+    p.setPen(palette().color(QPalette::Text));
+    p.drawText(r, Qt::AlignLeft | Qt::AlignBottom, txt);
+}
+
+void stream_cell::draw_preview_segment(QPainter& p) const {
+    if (!(drawing_enabled && active && hover_point_pct.has_value()
+          && !draft_line_points_pct.empty())) {
+        return;
+    }
+
+    QPen pen(draft_line_color);
+    pen.setWidthF(1.5);
+    pen.setStyle(Qt::DashLine);
+    p.setPen(pen);
+
+    const QPointF last_px = to_px(draft_line_points_pct.back());
+    const QPointF hover_px = to_px(*hover_point_pct);
+
+    p.drawLine(last_px, hover_px);
+
+    if (draft_line_closed && draft_line_points_pct.size() >= 2) {
+        const QPointF first_px = to_px(draft_line_points_pct.front());
+        p.drawLine(hover_px, first_px);
+    }
+}
+
+QPointF stream_cell::label_pos_px(const line_instance& l) const {
+    if (l.pts_pct.empty()) {
+        return {};
+    }
+
+    if (!l.closed || l.pts_pct.size() < 3) {
+        const QPointF p0 = to_px(l.pts_pct.front());
+        return { p0.x() + 6.0, p0.y() + 14.0 };
+    }
+
+    qreal sx = 0.0;
+    qreal sy = 0.0;
+    for (const auto& pt_pct : l.pts_pct) {
+        const QPointF px = to_px(pt_pct);
+        sx += px.x();
+        sy += px.y();
+    }
+
+    const qreal n = static_cast<qreal>(l.pts_pct.size());
+    return { sx / n, sy / n };
 }
 
 QPointF stream_cell::to_pct(const QPointF& pos_px) const {

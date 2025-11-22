@@ -43,7 +43,10 @@ public:
     void set_active_line_closed(bool closed) const;
 
     void reset_active_line_form();
+    void reset_active_template_form();
     QString active_template_current() const;
+    QColor active_template_preview_color() const;
+    void set_template_candidates(const QStringList& names) const;
 signals:
     void add_file_stream(const QString& path, const QString& name, bool loop);
     void add_local_stream(const QString& source, const QString& name);
@@ -63,6 +66,9 @@ signals:
     );
     void active_edit_mode_changed(bool drawing_new);
     void active_template_selected(const QString& template_name);
+    void active_template_color_changed(const QColor& color);
+    void active_line_undo_requested();
+    void active_labels_enabled_changed(bool on);
 
 private:
     enum class input_mode { file, local, url };
@@ -86,6 +92,13 @@ private:
 
     void set_name_error(bool error) const;
     void update_active_tools() const;
+
+    QWidget* build_active_stream_box(QWidget* parent);
+    QWidget* build_edit_mode_box(QWidget* parent);
+    QWidget* build_new_line_box(QWidget* parent);
+    QWidget* build_templates_box(QWidget* parent);
+
+    void set_btn_color(QPushButton* btn, const QColor& c) const;
 
     QTabWidget* tabs;
 
@@ -124,6 +137,7 @@ private:
     QPushButton* active_line_color_btn { nullptr };
     QColor active_line_color { Qt::red };
     QPushButton* active_line_save_btn { nullptr };
+    QPushButton* active_line_undo_btn { nullptr };
 
     QComboBox* active_template_combo { nullptr };
     QPushButton* active_template_color_btn { nullptr };
@@ -136,6 +150,7 @@ private:
     QButtonGroup* active_mode_group { nullptr };
     QRadioButton* active_mode_draw_radio { nullptr };
     QRadioButton* active_mode_template_radio { nullptr };
+    QCheckBox* active_labels_cb = nullptr;
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP

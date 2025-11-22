@@ -23,12 +23,11 @@ jobs:
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Set up GCC 14
-        uses: egor-tensin/setup-gcc@v1
+        uses: egor-tensin/setup-gcc@eaa888eb19115a521fa72b65cd94fe1f25bbcaac # v1.3
         with:
           version: 14
           platform: x64
-      # setup-gcc action: :contentReference[oaicite:1]{index=1}
-      
+
       - uses: MarkusJx/googletest-installer@28c5d4102d9d57b46254be19a940bf038a9c850a
       - uses: ssciwr/doxygen-install@501e53b879da7648ab392ee226f5b90e42148449
         with:
@@ -46,10 +45,11 @@ jobs:
           install-deps: 'true'
           cache: 'true'
 
-      # - name: Install backend deps
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y \
+      - name: Install backend deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcxxopts-dev
       #       v4l2loopback-dkms \
       #       libopencv-dev
 

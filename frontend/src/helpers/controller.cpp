@@ -237,11 +237,39 @@ void controller::handle_thumb_activate(const QString& name) {
 
 void controller::sync_active_persistent() {
     if (!main_zone || active_name.isEmpty()) {
+        if (settings) {
+            settings->set_template_candidates({});
+        }
         return;
     }
+
     if (auto* cell = main_zone->active_cell()) {
         cell->set_persistent_lines(per_stream_lines.value(active_name));
     }
+
+    if (!settings) {
+        return;
+    }
+
+    QSet<QString> used;
+    const auto current_lines = per_stream_lines.value(active_name);
+    for (const auto& inst : current_lines) {
+        const auto tn = inst.template_name.trimmed();
+        if (!tn.isEmpty()) {
+            used.insert(tn);
+        }
+    }
+
+    QStringList candidates;
+    candidates.reserve(templates.size());
+    for (auto it = templates.begin(); it != templates.end(); ++it) {
+        const QString name = it.key();
+        if (!used.contains(name)) {
+            candidates << name;
+        }
+    }
+
+    settings->set_template_candidates(candidates);
 }
 
 void controller::apply_template_preview(const QString& template_name) {
@@ -261,7 +289,12 @@ void controller::apply_template_preview(const QString& template_name) {
 
     const auto tpl = templates.value(template_name);
 
-    cell->set_draft_params(template_name, QColor(Qt::red), tpl.closed);
+    QColor c = Qt::red;
+    if (settings) {
+        c = settings->active_template_preview_color();
+    }
+
+    cell->set_draft_params(template_name, c, tpl.closed);
     cell->set_draft_points_pct(tpl.pts_pct);
 }
 
@@ -298,6 +331,21 @@ void controller::setup_settings_connections() {
     connect(
         settings, &settings_panel::active_template_selected, this,
         &controller::on_active_template_selected
+    );
+
+    connect(
+        settings, &settings_panel::active_template_color_changed, this,
+        &controller::on_active_template_color_changed
+    );
+
+    connect(
+        settings, &settings_panel::active_line_undo_requested, this,
+        &controller::on_active_line_undo_requested
+    );
+
+    connect(
+        settings, &settings_panel::active_labels_enabled_changed, this,
+        &controller::on_active_labels_enabled_changed
     );
 }
 
@@ -345,6 +393,10 @@ void controller::on_active_stream_selected(const QString& name) {
         main_zone->clear_active();
     } else {
         main_zone->set_active_stream(name);
+    }
+
+    if (auto* cell = main_zone->active_cell()) {
+        cell->set_labels_enabled(active_labels_enabled);
     }
 
     sync_active_persistent();
@@ -483,13 +535,10 @@ void controller::on_active_line_save_requested(
         inst.template_name = final_name;
         inst.color = draft_line_color;
         inst.closed = closed;
-        inst.pts_pct = pts;
+        inst.pts_pct = pts; // todo use lp->points
 
         per_stream_lines[active_name].push_back(inst);
-
-        if (auto* cell2 = main_zone->active_cell()) {
-            cell2->add_persistent_line(inst);
-        }
+        cell->add_persistent_line(inst);
 
         templates[final_name] = tpl_line { pts, closed };
 
@@ -499,10 +548,8 @@ void controller::on_active_line_save_requested(
         );
         qDebug() << "set_line ok";
 
-        if (auto* cell2 = main_zone->active_cell()) {
-            cell2->clear_draft();
-            cell2->set_draft_params(QString(), QColor(Qt::red), false);
-        }
+        cell->clear_draft();
+        cell->set_draft_params(QString(), QColor(Qt::red), false);
 
         draft_line_name.clear();
         draft_line_color = Qt::red;
@@ -514,11 +561,12 @@ void controller::on_active_line_save_requested(
 
         if (settings) {
             settings->add_template_candidate(final_name);
+            settings->reset_active_template_form();
             settings->append_event(QString("line added: %1 (%2 points)")
                                        .arg(final_name)
                                        .arg(pts.size()));
         }
-
+        sync_active_persistent();
     } catch (const std::exception& e) {
         qDebug() << "EXCEPTION:" << e.what();
         if (settings) {
@@ -580,5 +628,64 @@ void controller::on_active_template_add_requested(
         settings->append_event(
             QString("template added to active: %1").arg(template_name)
         );
+    }
+
+    if (auto* cell2 = main_zone->active_cell()) {
+        cell2->clear_draft();
+    }
+
+    if (settings) {
+        settings->reset_active_template_form();
+    }
+
+    sync_active_persistent();
+}
+
+void controller::on_active_template_color_changed(const QColor& color) {
+    Q_UNUSED(color);
+
+    if (drawing_new_mode) {
+        return;
+    }
+    if (!settings) {
+        return;
+    }
+
+    const auto t = settings->active_template_current();
+    if (t.isEmpty()) {
+        return;
+    }
+
+    apply_template_preview(t);
+}
+
+void controller::on_active_line_undo_requested() {
+    if (!main_zone) {
+        return;
+    }
+
+    auto* cell = main_zone->active_cell();
+    if (!cell) {
+        return;
+    }
+
+    auto pts = cell->draft_points_pct();
+    if (pts.empty()) {
+        return;
+    }
+
+    pts.pop_back();
+    cell->set_draft_points_pct(pts);
+}
+
+void controller::on_active_labels_enabled_changed(bool on) {
+    active_labels_enabled = on;
+
+    if (!main_zone) {
+        return;
+    }
+
+    if (auto* cell = main_zone->active_cell()) {
+        cell->set_labels_enabled(active_labels_enabled);
     }
 }
