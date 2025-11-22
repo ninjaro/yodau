@@ -46,6 +46,7 @@ public:
 
     void set_draft_preview(bool on);
     bool is_draft_preview() const;
+    void set_labels_enabled(bool on);
 
 signals:
     void request_close(const QString& name);
@@ -56,10 +57,23 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void leaveEvent(QEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
 
 private:
     void build_ui();
     void update_icon();
+
+    void draw_poly_with_points(
+        QPainter& p, const std::vector<QPointF>& pts_pct, const QColor& color,
+        bool closed, Qt::PenStyle style, qreal width
+    ) const;
+
+    void draw_persistent(QPainter& p) const;
+    void draw_draft(QPainter& p) const;
+    void draw_hover_point(QPainter& p) const;
+    void draw_hover_coords(QPainter& p) const;
+    void draw_preview_segment(QPainter& p) const;
+    QPointF label_pos_px(const line_instance& l) const;
 
     QPointF to_pct(const QPointF& pos_px) const;
     QPointF to_px(const QPointF& pos_pct) const;
@@ -80,6 +94,7 @@ private:
 
     std::vector<line_instance> persistent_lines;
     bool draft_preview { false };
+    bool labels_enabled = true;
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP

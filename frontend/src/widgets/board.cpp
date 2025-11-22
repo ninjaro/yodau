@@ -30,6 +30,9 @@ board::board(QWidget* parent)
 grid_view* board::grid_mode() const { return grid; }
 
 void board::set_active_stream(const QString& name) {
+    qDebug() << "board::set_active_stream" << name << "active_tile="
+             << (active_tile ? active_tile->get_name() : "null");
+
     if (!grid || name.isEmpty()) {
         return;
     }
@@ -52,6 +55,7 @@ void board::set_active_stream(const QString& name) {
 
     cell->setParent(active_container);
     cell->set_active(true);
+    // todo: Test/debug code should be removed before merging
     stream_cell::line_instance test;
     test.template_name = "test";
     test.color = Qt::green;
@@ -85,6 +89,10 @@ void board::set_active_stream(const QString& name) {
 }
 
 void board::clear_active() {
+    qDebug() << "board::clear_active"
+             << "active_tile="
+             << (active_tile ? active_tile->get_name() : "null");
+
     if (!active_tile || !grid) {
         return;
     }
@@ -99,6 +107,10 @@ void board::clear_active() {
 }
 
 stream_cell* board::take_active_cell() {
+    qDebug() << "board::take_active_cell"
+             << "active_tile="
+             << (active_tile ? active_tile->get_name() : "null");
+
     if (!active_tile) {
         return nullptr;
     }

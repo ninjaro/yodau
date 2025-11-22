@@ -27,8 +27,6 @@ jobs:
         with:
           version: 14
           platform: x64
-      # setup-gcc action: :contentReference[oaicite:1]{index=1}
-
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4
@@ -44,10 +42,11 @@ jobs:
           install-deps: 'true'
           cache: 'true'
 
-      # - name: Install backend deps
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y \
+      - name: Install backend deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcxxopts-dev
       #       v4l2loopback-dkms \
       #       libopencv-dev
 

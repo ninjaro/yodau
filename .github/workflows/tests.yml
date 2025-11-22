@@ -17,7 +17,6 @@ jobs:
         with:
           version: 14
           platform: x64
-      # setup-gcc action: :contentReference[oaicite:1]{index=1}
 
       - uses: MarkusJx/googletest-installer@28c5d4102d9d57b46254be19a940bf038a9c850a
 
@@ -28,6 +27,14 @@ jobs:
           target: 'desktop'
           install-deps: 'true'
           cache: 'true'
+
+      - name: Install backend deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcxxopts-dev
+      #       v4l2loopback-dkms \
+      #       libopencv-dev
 
       - name: Configure (Debug, non-KDE, tests ON, coverage OFF)
         env:

@@ -229,11 +229,62 @@ void settings_panel::reset_active_line_form() {
     emit active_line_params_changed(QString(), active_line_color, false);
 }
 
+void settings_panel::reset_active_template_form() {
+    if (!active_template_combo) {
+        return;
+    }
+    const int idx = active_template_combo->findText(str_label("none"));
+    if (idx >= 0) {
+        active_template_combo->setCurrentIndex(idx);
+    } else {
+        active_template_combo->setCurrentIndex(-1);
+    }
+}
+
 QString settings_panel::active_template_current() const {
     if (!active_template_combo) {
         return {};
     }
     return active_template_combo->currentText().trimmed();
+}
+
+QColor settings_panel::active_template_preview_color() const {
+    return active_template_color;
+}
+
+void settings_panel::set_template_candidates(const QStringList& names) const {
+    if (!active_template_combo) {
+        return;
+    }
+
+    const QString none_text = str_label("none");
+
+    active_template_combo->blockSignals(true);
+
+    active_template_combo->clear();
+    active_template_combo->addItem(none_text, QVariant());
+
+    QSet<QString> seen;
+    for (const auto& n : names) {
+        const auto t = n.trimmed();
+        if (t.isEmpty()) {
+            continue;
+        }
+        if (t == none_text) {
+            continue;
+        }
+        if (seen.contains(t)) {
+            continue;
+        }
+        seen.insert(t);
+        active_template_combo->addItem(t);
+    }
+
+    active_template_combo->setCurrentIndex(0);
+
+    active_template_combo->blockSignals(false);
+
+    update_active_tools();
 }
 
 void settings_panel::build_ui() {
@@ -407,186 +458,10 @@ QWidget* settings_panel::build_active_tab() {
     const auto layout = new QVBoxLayout(w);
     layout->setSpacing(10);
 
-    auto set_btn_color = [](QPushButton* btn, const QColor& c) {
-        btn->setStyleSheet(QString("background-color: %1;").arg(c.name()));
-    };
-
-    {
-        const auto box = new QGroupBox(str_label("active stream"), w);
-        const auto box_layout = new QVBoxLayout(box);
-
-        active_combo = new QComboBox(box);
-        active_combo->setEditable(false);
-        active_combo->addItem(str_label("none"), QVariant());
-
-        box_layout->addWidget(active_combo);
-        box->setLayout(box_layout);
-        layout->addWidget(box);
-
-        connect(
-            active_combo, &QComboBox::currentTextChanged, this,
-            [this](const QString& text) {
-                if (text == str_label("none")) {
-                    emit active_stream_selected(QString());
-                } else {
-                    emit active_stream_selected(text);
-                }
-                update_active_tools();
-            }
-        );
-    }
-    {
-        const auto box = new QGroupBox(str_label("edit mode"), w);
-        const auto h = new QHBoxLayout(box);
-
-        active_mode_group = new QButtonGroup(box);
-        active_mode_draw_radio = new QRadioButton(str_label("draw new"), box);
-        active_mode_template_radio
-            = new QRadioButton(str_label("use template"), box);
-
-        active_mode_group->addButton(active_mode_draw_radio, 0);
-        active_mode_group->addButton(active_mode_template_radio, 1);
-
-        active_mode_draw_radio->setChecked(true);
-
-        h->addWidget(active_mode_draw_radio);
-        h->addWidget(active_mode_template_radio);
-        box->setLayout(h);
-        layout->addWidget(box);
-
-        connect(
-            active_mode_group, &QButtonGroup::idClicked, this, [this](int id) {
-                emit active_edit_mode_changed(id == 0);
-                update_active_tools();
-            }
-        );
-    }
-    {
-        active_line_box = new QGroupBox(str_label("new line"), w);
-        const auto v = new QVBoxLayout(active_line_box);
-
-        active_line_name_edit = new QLineEdit(active_line_box);
-        active_line_name_edit->setPlaceholderText(
-            str_label("template name (optional)")
-        );
-        v->addWidget(active_line_name_edit);
-
-        active_line_closed_cb
-            = new QCheckBox(str_label("closed"), active_line_box);
-        active_line_closed_cb->setChecked(false);
-        v->addWidget(active_line_closed_cb);
-
-        active_line_color_btn
-            = new QPushButton(str_label("color"), active_line_box);
-        set_btn_color(active_line_color_btn, active_line_color);
-        v->addWidget(active_line_color_btn);
-
-        active_line_save_btn
-            = new QPushButton(str_label("add line"), active_line_box);
-        v->addWidget(active_line_save_btn);
-
-        active_line_box->setLayout(v);
-        layout->addWidget(active_line_box);
-
-        connect(
-            active_line_color_btn, &QPushButton::clicked, this,
-            [this, set_btn_color]() {
-                const auto c = QColorDialog::getColor(
-                    active_line_color, this, str_label("choose color")
-                );
-                if (!c.isValid()) {
-                    return;
-                }
-                active_line_color = c;
-                set_btn_color(active_line_color_btn, active_line_color);
-                emit active_line_params_changed(
-                    active_line_name_edit->text().trimmed(), active_line_color,
-                    active_line_closed_cb->isChecked()
-                );
-            }
-        );
-
-        auto push_params = [this]() {
-            emit active_line_params_changed(
-                active_line_name_edit->text().trimmed(), active_line_color,
-                active_line_closed_cb->isChecked()
-            );
-        };
-
-        connect(
-            active_line_name_edit, &QLineEdit::editingFinished, this,
-            [push_params]() { push_params(); }
-        );
-
-        connect(
-            active_line_closed_cb, &QCheckBox::toggled, this,
-            [push_params](bool) { push_params(); }
-        );
-
-        connect(active_line_save_btn, &QPushButton::clicked, this, [this]() {
-            emit active_line_save_requested(
-                active_line_name_edit->text().trimmed(),
-                active_line_closed_cb->isChecked()
-            );
-        });
-        update_active_tools();
-    }
-
-    {
-        active_templates_box = new QGroupBox(str_label("templates"), w);
-        const auto v = new QVBoxLayout(active_templates_box);
-
-        active_template_combo = new QComboBox(active_templates_box);
-        active_template_combo->setEditable(false);
-        // active_template_combo->addItem(str_label("none"), QVariant());
-        v->addWidget(active_template_combo);
-
-        connect(
-            active_template_combo, &QComboBox::currentTextChanged, this,
-            [this](const QString& text) {
-                if (text.isEmpty()) {
-                    emit active_template_selected(QString());
-                } else {
-                    emit active_template_selected(text);
-                }
-            }
-        );
-
-        active_template_color_btn
-            = new QPushButton(str_label("color"), active_templates_box);
-        set_btn_color(active_template_color_btn, active_template_color);
-        v->addWidget(active_template_color_btn);
-
-        active_template_add_btn
-            = new QPushButton(str_label("add template"), active_templates_box);
-        v->addWidget(active_template_add_btn);
-
-        active_templates_box->setLayout(v);
-        layout->addWidget(active_templates_box);
-
-        connect(
-            active_template_color_btn, &QPushButton::clicked, this,
-            [this, set_btn_color]() {
-                const auto c = QColorDialog::getColor(
-                    active_template_color, this, str_label("choose color")
-                );
-                if (!c.isValid()) {
-                    return;
-                }
-                active_template_color = c;
-                set_btn_color(active_template_color_btn, active_template_color);
-            }
-        );
-
-        connect(active_template_add_btn, &QPushButton::clicked, this, [this]() {
-            const auto t = active_template_combo->currentText();
-            if (t.isEmpty() || t == str_label("none")) {
-                return;
-            }
-            emit active_template_add_requested(t, active_template_color);
-        });
-        update_active_tools();
-    }
+    layout->addWidget(build_active_stream_box(w));
+    layout->addWidget(build_edit_mode_box(w));
+    layout->addWidget(build_new_line_box(w));
+    layout->addWidget(build_templates_box(w));
 
     layout->addStretch();
     w->setLayout(layout);
@@ -747,4 +622,203 @@ void settings_panel::update_active_tools() const {
         active_templates_box->setVisible(show_tpl);
         active_templates_box->setEnabled(show_tpl);
     }
+}
+
+void settings_panel::set_btn_color(QPushButton* btn, const QColor& c) const {
+    if (!btn) {
+        return;
+    }
+    btn->setStyleSheet(QString("background-color: %1;").arg(c.name()));
+}
+
+QWidget* settings_panel::build_active_stream_box(QWidget* parent) {
+    const auto box = new QGroupBox(str_label("active stream"), parent);
+    const auto box_layout = new QVBoxLayout(box);
+
+    active_combo = new QComboBox(box);
+    active_combo->setEditable(false);
+    active_combo->addItem(str_label("none"), QVariant());
+
+    box_layout->addWidget(active_combo);
+    box->setLayout(box_layout);
+
+    active_labels_cb = new QCheckBox(str_label("labels"), box);
+    active_labels_cb->setChecked(true);
+    box_layout->addWidget(active_labels_cb);
+
+    connect(
+        active_labels_cb, &QCheckBox::toggled, this,
+        &settings_panel::active_labels_enabled_changed
+    );
+
+    connect(
+        active_combo, &QComboBox::currentTextChanged, this,
+        [this](const QString& text) {
+            if (text == str_label("none")) {
+                emit active_stream_selected(QString());
+            } else {
+                emit active_stream_selected(text);
+            }
+            update_active_tools();
+        }
+    );
+
+    return box;
+}
+
+QWidget* settings_panel::build_edit_mode_box(QWidget* parent) {
+    const auto box = new QGroupBox(str_label("edit mode"), parent);
+    const auto h = new QHBoxLayout(box);
+
+    active_mode_group = new QButtonGroup(box);
+    active_mode_draw_radio = new QRadioButton(str_label("draw new"), box);
+    active_mode_template_radio
+        = new QRadioButton(str_label("use template"), box);
+
+    active_mode_group->addButton(active_mode_draw_radio, 0);
+    active_mode_group->addButton(active_mode_template_radio, 1);
+
+    active_mode_draw_radio->setChecked(true);
+
+    h->addWidget(active_mode_draw_radio);
+    h->addWidget(active_mode_template_radio);
+    box->setLayout(h);
+
+    connect(active_mode_group, &QButtonGroup::idClicked, this, [this](int id) {
+        emit active_edit_mode_changed(id == 0);
+        update_active_tools();
+    });
+
+    return box;
+}
+
+QWidget* settings_panel::build_new_line_box(QWidget* parent) {
+    active_line_box = new QGroupBox(str_label("new line"), parent);
+    const auto v = new QVBoxLayout(active_line_box);
+
+    active_line_name_edit = new QLineEdit(active_line_box);
+    active_line_name_edit->setPlaceholderText(
+        str_label("template name (optional)")
+    );
+    v->addWidget(active_line_name_edit);
+
+    active_line_closed_cb = new QCheckBox(str_label("closed"), active_line_box);
+    active_line_closed_cb->setChecked(false);
+    v->addWidget(active_line_closed_cb);
+
+    active_line_color_btn
+        = new QPushButton(str_label("color"), active_line_box);
+    set_btn_color(active_line_color_btn, active_line_color);
+    v->addWidget(active_line_color_btn);
+
+    active_line_undo_btn
+        = new QPushButton(str_label("undo point"), active_line_box);
+    v->addWidget(active_line_undo_btn);
+
+    connect(active_line_undo_btn, &QPushButton::clicked, this, [this]() {
+        emit active_line_undo_requested();
+    });
+
+    active_line_save_btn
+        = new QPushButton(str_label("add line"), active_line_box);
+    v->addWidget(active_line_save_btn);
+
+    active_line_box->setLayout(v);
+
+    connect(active_line_color_btn, &QPushButton::clicked, this, [this]() {
+        const auto c = QColorDialog::getColor(
+            active_line_color, this, str_label("choose color")
+        );
+        if (!c.isValid()) {
+            return;
+        }
+        active_line_color = c;
+        set_btn_color(active_line_color_btn, active_line_color);
+        emit active_line_params_changed(
+            active_line_name_edit->text().trimmed(), active_line_color,
+            active_line_closed_cb->isChecked()
+        );
+    });
+
+    auto push_params = [this]() {
+        emit active_line_params_changed(
+            active_line_name_edit->text().trimmed(), active_line_color,
+            active_line_closed_cb->isChecked()
+        );
+    };
+
+    connect(
+        active_line_name_edit, &QLineEdit::editingFinished, this,
+        [push_params]() { push_params(); }
+    );
+
+    connect(
+        active_line_closed_cb, &QCheckBox::toggled, this,
+        [push_params](bool) { push_params(); }
+    );
+
+    connect(active_line_save_btn, &QPushButton::clicked, this, [this]() {
+        emit active_line_save_requested(
+            active_line_name_edit->text().trimmed(),
+            active_line_closed_cb->isChecked()
+        );
+    });
+
+    update_active_tools();
+    return active_line_box;
+}
+
+QWidget* settings_panel::build_templates_box(QWidget* parent) {
+    active_templates_box = new QGroupBox(str_label("templates"), parent);
+    const auto v = new QVBoxLayout(active_templates_box);
+
+    active_template_combo = new QComboBox(active_templates_box);
+    active_template_combo->setEditable(false);
+    active_template_combo->addItem(str_label("none"), QVariant());
+    v->addWidget(active_template_combo);
+
+    connect(
+        active_template_combo, &QComboBox::currentTextChanged, this,
+        [this](const QString& text) {
+            if (text.isEmpty() || text == str_label("none")) {
+                emit active_template_selected(QString());
+            } else {
+                emit active_template_selected(text);
+            }
+        }
+    );
+
+    active_template_color_btn
+        = new QPushButton(str_label("color"), active_templates_box);
+    set_btn_color(active_template_color_btn, active_template_color);
+    v->addWidget(active_template_color_btn);
+
+    active_template_add_btn
+        = new QPushButton(str_label("add template"), active_templates_box);
+    v->addWidget(active_template_add_btn);
+
+    active_templates_box->setLayout(v);
+
+    connect(active_template_color_btn, &QPushButton::clicked, this, [this]() {
+        const auto c = QColorDialog::getColor(
+            active_template_color, this, str_label("choose color")
+        );
+        if (!c.isValid()) {
+            return;
+        }
+        active_template_color = c;
+        set_btn_color(active_template_color_btn, active_template_color);
+        emit active_template_color_changed(active_template_color);
+    });
+
+    connect(active_template_add_btn, &QPushButton::clicked, this, [this]() {
+        const auto t = active_template_combo->currentText();
+        if (t.isEmpty() || t == str_label("none")) {
+            return;
+        }
+        emit active_template_add_requested(t, active_template_color);
+    });
+
+    update_active_tools();
+    return active_templates_box;
 }
