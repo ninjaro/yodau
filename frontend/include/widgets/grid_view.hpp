@@ -8,7 +8,8 @@
 
 class QGridLayout;
 class QScrollArea;
-class QVBoxLayout;
+class QWidget;
+
 class stream_cell;
 
 class grid_view final : public QWidget {
@@ -16,15 +17,15 @@ class grid_view final : public QWidget {
 public:
     explicit grid_view(QWidget* parent = nullptr);
 
-    void add_stream(const QString& name);
-    // void set_active_stream(const QString& name);
-    void remove_stream(const QString& name);
     bool has_stream(const QString& name) const;
-
     QStringList stream_names() const;
+
+    void add_stream(const QString& name);
+    void remove_stream(const QString& name);
 
     stream_cell* take_stream_cell(const QString& name);
     void put_stream_cell(stream_cell* cell);
+    stream_cell* peek_stream_cell(const QString& name) const;
 
 signals:
     void stream_closed(const QString& name);

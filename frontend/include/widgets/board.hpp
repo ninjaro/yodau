@@ -3,8 +3,10 @@
 
 #include <QWidget>
 
-class QVBoxLayout;
+class QString;
 class QWidget;
+class QVBoxLayout;
+
 class grid_view;
 class stream_cell;
 
@@ -14,23 +16,18 @@ public:
     explicit board(QWidget* parent = nullptr);
 
     grid_view* grid_mode() const;
+    stream_cell* active_cell() const;
 
     void set_active_stream(const QString& name);
     void clear_active();
     stream_cell* take_active_cell();
 
-    stream_cell* active_cell() const;
-
-    // signals:
-    // void active_shrink_requested(const QString& name);
-    // void active_close_requested(const QString& name);
-
 private:
+    grid_view* grid;
+
     QWidget* active_container;
     QVBoxLayout* active_layout;
     stream_cell* active_tile;
-
-    grid_view* grid;
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_BOARD_HPP

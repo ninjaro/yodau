@@ -29,11 +29,19 @@ const QString& stream_cell::get_name() const { return name; }
 
 bool stream_cell::is_active() const { return active; }
 
+std::vector<QPointF> stream_cell::draft_points_pct() const {
+    return draft_line_points_pct;
+}
+
+bool stream_cell::draft_closed() const { return draft_line_closed; }
+
+QString stream_cell::draft_name() const { return draft_line_name; }
+
+QColor stream_cell::draft_color() const { return draft_line_color; }
+
+bool stream_cell::is_draft_preview() const { return draft_preview; }
+
 void stream_cell::set_active(const bool val) {
-    qDebug() << "set_active(" << val << ") for" << name
-             << "drawing=" << drawing_enabled << "parent="
-             << (parentWidget() ? parentWidget()->metaObject()->className()
-                                : "null");
     if (active == val) {
         return;
     }
@@ -76,16 +84,6 @@ void stream_cell::clear_draft() {
     update();
 }
 
-std::vector<QPointF> stream_cell::draft_points_pct() const {
-    return draft_line_points_pct;
-}
-
-bool stream_cell::draft_closed() const { return draft_line_closed; }
-
-QString stream_cell::draft_name() const { return draft_line_name; }
-
-QColor stream_cell::draft_color() const { return draft_line_color; }
-
 void stream_cell::set_persistent_lines(
     const std::vector<line_instance>& lines
 ) {
@@ -107,8 +105,6 @@ void stream_cell::set_draft_preview(const bool on) {
     draft_preview = on;
     update();
 }
-
-bool stream_cell::is_draft_preview() const { return draft_preview; }
 
 void stream_cell::set_labels_enabled(const bool on) {
     if (labels_enabled == on) {
@@ -137,12 +133,6 @@ void stream_cell::paintEvent(QPaintEvent* event) {
 }
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
-    qDebug() << "mousePress in cell" << name << "active=" << active
-             << "drawing=" << drawing_enabled << "pos=" << event->pos()
-             << "childAt="
-             << (childAt(event->pos())
-                     ? childAt(event->pos())->metaObject()->className()
-                     : "null");
     if (!drawing_enabled || !active) {
         QWidget::mousePressEvent(event);
         return;
@@ -166,8 +156,6 @@ void stream_cell::mousePressEvent(QMouseEvent* event) {
 }
 
 void stream_cell::mouseMoveEvent(QMouseEvent* event) {
-    // qDebug() << "mouseMove in cell" << name << "active=" << active
-    //          << "drawing=" << drawing_enabled << "pos=" << event->pos();
     if (!drawing_enabled || !active) {
         QWidget::mouseMoveEvent(event);
         return;
@@ -423,21 +411,9 @@ QPointF stream_cell::label_pos_px(const line_instance& l) const {
         return {};
     }
 
-    if (!l.closed || l.pts_pct.size() < 3) {
-        const QPointF p0 = to_px(l.pts_pct.front());
-        return { p0.x() + 6.0, p0.y() + 14.0 };
-    }
-
-    qreal sx = 0.0;
-    qreal sy = 0.0;
-    for (const auto& pt_pct : l.pts_pct) {
-        const QPointF px = to_px(pt_pct);
-        sx += px.x();
-        sy += px.y();
-    }
-
-    const qreal n = static_cast<qreal>(l.pts_pct.size());
-    return { sx / n, sy / n };
+    const QPointF anchor_pct = l.closed ? l.pts_pct.back() : l.pts_pct.front();
+    const QPointF anchor_px = to_px(anchor_pct);
+    return { anchor_px.x() + 6.0, anchor_px.y() + 14.0 };
 }
 
 QPointF stream_cell::to_pct(const QPointF& pos_px) const {
