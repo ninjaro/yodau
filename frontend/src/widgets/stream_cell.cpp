@@ -9,6 +9,7 @@
 #include <QPolygonF>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <algorithm>
 
 #include "helpers/icon_loader.hpp"
 
@@ -420,22 +421,15 @@ QPointF stream_cell::to_pct(const QPointF& pos_px) const {
     if (width() <= 0 || height() <= 0) {
         return {};
     }
-    float x
-        = static_cast<float>(pos_px.x()) / static_cast<float>(width()) * 100.0f;
-    float y = static_cast<float>(pos_px.y()) / static_cast<float>(height())
-        * 100.0f;
-    if (x < 0.f) {
-        x = 0.f;
-    }
-    if (x > 100.f) {
-        x = 100.f;
-    }
-    if (y < 0.f) {
-        y = 0.f;
-    }
-    if (y > 100.f) {
-        y = 100.f;
-    }
+
+    float x = static_cast<float>(pos_px.x())
+                / static_cast<float>(width()) * 100.0f;
+    float y = static_cast<float>(pos_px.y())
+                / static_cast<float>(height()) * 100.0f;
+
+    x = std::clamp(x, 0.f, 100.f);
+    y = std::clamp(y, 0.f, 100.f);
+
     return { x, y };
 }
 

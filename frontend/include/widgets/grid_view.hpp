@@ -8,7 +8,6 @@
 
 class QGridLayout;
 class QScrollArea;
-class QWidget;
 
 class stream_cell;
 

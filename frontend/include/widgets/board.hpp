@@ -4,7 +4,6 @@
 #include <QWidget>
 
 class QString;
-class QWidget;
 class QVBoxLayout;
 
 class grid_view;

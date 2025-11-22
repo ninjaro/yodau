@@ -64,10 +64,6 @@ void board::set_active_stream(const QString& name) {
 }
 
 void board::clear_active() {
-    qDebug() << "board::clear_active"
-             << "active_tile="
-             << (active_tile ? active_tile->get_name() : "null");
-
     if (!active_tile || !grid) {
         return;
     }
@@ -82,10 +78,6 @@ void board::clear_active() {
 }
 
 stream_cell* board::take_active_cell() {
-    qDebug() << "board::take_active_cell"
-             << "active_tile="
-             << (active_tile ? active_tile->get_name() : "null");
-
     if (!active_tile) {
         return nullptr;
     }
