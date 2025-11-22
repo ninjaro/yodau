@@ -1,9 +1,12 @@
 #include "helpers/controller.hpp"
+#include "geometry.hpp"
 #include "helpers/str_label.hpp"
 #include "stream.hpp"
 #include "widgets/settings_panel.hpp"
 
+#include <QColor>
 #include <QDateTime>
+#include <QDebug>
 #include <QtGlobal>
 
 #include "widgets/board.hpp"
@@ -58,6 +61,226 @@ controller::controller(
                 // }
             }
         );
+        // if (settings) {
+        connect(
+            settings, &settings_panel::active_edit_mode_changed, this,
+            [this](bool drawing_new) {
+                if (!main_zone) {
+                    return;
+                }
+                if (auto* cell = main_zone->active_cell()) {
+                    cell->clear_draft();
+                    cell->set_drawing_enabled(drawing_new);
+                    if (drawing_new) {
+                        cell->set_draft_params(
+                            draft_line_name, draft_line_color, draft_line_closed
+                        );
+                    }
+                }
+                if (settings) {
+                    settings->append_event(
+                        QString("edit mode: %1")
+                            .arg(drawing_new ? "draw new" : "use template")
+                    );
+                }
+            }
+        );
+
+        connect(
+            settings, &settings_panel::active_line_params_changed, this,
+            [this](const QString& name, const QColor& color, bool closed) {
+                draft_line_name = name;
+                draft_line_color = color;
+                draft_line_closed = closed;
+
+                if (main_zone) {
+                    if (auto* cell = main_zone->active_cell()) {
+                        cell->set_draft_params(
+                            draft_line_name, draft_line_color, draft_line_closed
+                        );
+                    }
+                }
+
+                if (settings) {
+                    settings->append_event(
+                        QString(
+                            "active line params: name='%1' color=%2 "
+                            "closed=%3"
+                        )
+                            .arg(draft_line_name)
+                            .arg(draft_line_color.name())
+                            .arg(draft_line_closed ? "true" : "false")
+                    );
+                }
+            }
+
+        );
+
+        connect(
+            settings, &settings_panel::active_line_save_requested, this,
+            [this](const QString& name, bool closed) {
+                qDebug() << "SAVE CLICK"
+                         << "name=" << name << "closed=" << closed
+                         << "active_name=" << active_name
+                         << "mgr=" << (stream_mgr != nullptr)
+                         << "zone=" << (main_zone != nullptr);
+
+                if (settings) {
+                    settings->append_event(
+                        QString("save click: name='%1' closed=%2 active='%3'")
+                            .arg(name)
+                            .arg(closed ? "true" : "false")
+                            .arg(active_name)
+                    );
+                }
+                if (!stream_mgr || !main_zone || active_name.isEmpty()) {
+                    if (settings) {
+                        settings->append_event(
+                            "add line failed: no active stream"
+                        );
+                    }
+                    return;
+                }
+
+                auto* cell = main_zone->active_cell();
+                qDebug() << "active cell=" << (cell != nullptr);
+
+                if (cell) {
+                    qDebug() << "draft pts=" << cell->draft_points_pct().size();
+                }
+                if (!cell) {
+                    if (settings) {
+                        settings->append_event(
+                            "add line failed: active cell not found"
+                        );
+                    }
+                    return;
+                }
+
+                const auto pts = cell->draft_points_pct();
+                if (pts.size() < 2) {
+                    if (settings) {
+                        settings->append_event(
+                            "add line failed: need at least 2 points"
+                        );
+                    }
+                    return;
+                }
+
+                QStringList parts;
+                parts.reserve(int(pts.size()));
+                for (const auto& p : pts) {
+                    parts << QString("(%1,%2)")
+                                 .arg(p.x(), 0, 'f', 3)
+                                 .arg(p.y(), 0, 'f', 3);
+                }
+                const auto points_str = parts.join("; ");
+
+                qDebug() << "points_str (qstring) =" << points_str;
+                qDebug() << "points_str bytes =" << points_str.toUtf8();
+                if (settings) {
+                    settings->append_event(
+                        QString("points_str = %1").arg(points_str)
+                    );
+                }
+
+                try {
+                    qDebug() << "calling add_line...";
+                    const auto lp = stream_mgr->add_line(
+                        points_str.toStdString(), closed, name.toStdString()
+                    );
+                    qDebug() << "add_line ok, lp=" << (lp != nullptr);
+
+                    const auto final_name = QString::fromStdString(lp->name);
+                    qDebug() << "final_name =" << final_name;
+
+                    templates[final_name] = tpl_line { pts, closed };
+
+                    qDebug() << "calling set_line...";
+                    stream_mgr->set_line(
+                        active_name.toStdString(), final_name.toStdString()
+                    );
+                    qDebug() << "set_line ok";
+                    if (auto* cell2 = main_zone->active_cell()) {
+                        cell2->clear_draft();
+                        cell2->set_draft_params(
+                            QString(), draft_line_color, false
+                        );
+                    }
+
+                    if (settings) {
+                        settings->add_template_candidate(final_name);
+                        settings->append_event(
+                            QString("line added: %1 (%2 points)")
+                                .arg(final_name)
+                                .arg(pts.size())
+                        );
+                    }
+                } catch (const std::exception& e) {
+                    qDebug() << "EXCEPTION:" << e.what();
+                    if (settings) {
+                        settings->append_event(
+                            QString("add line failed: %1").arg(e.what())
+                        );
+                    }
+                }
+            }
+        );
+
+        connect(
+            settings, &settings_panel::active_template_add_requested, this,
+            [this](const QString& template_name, const QColor& color) {
+                if (!stream_mgr || !main_zone || active_name.isEmpty()) {
+                    if (settings) {
+                        settings->append_event(
+                            "add template failed: no active stream"
+                        );
+                    }
+                    return;
+                }
+
+                if (!templates.contains(template_name)) {
+                    if (settings) {
+                        settings->append_event(
+                            QString(
+                                "add template failed: unknown template '%1'"
+                            )
+                                .arg(template_name)
+                        );
+                    }
+                    return;
+                }
+
+                const auto tpl = templates.value(template_name);
+
+                try {
+                    stream_mgr->set_line(
+                        active_name.toStdString(), template_name.toStdString()
+                    );
+                } catch (const std::exception& e) {
+                    if (settings) {
+                        settings->append_event(
+                            QString("add template failed: %1").arg(e.what())
+                        );
+                    }
+                    return;
+                }
+
+                if (auto* cell = main_zone->active_cell()) {
+                    cell->clear_draft();
+                    cell->set_draft_params(template_name, color, tpl.closed);
+                    cell->set_draft_points_pct(tpl.pts_pct);
+                }
+
+                if (settings) {
+                    settings->append_event(
+                        QString("template added to active: %1")
+                            .arg(template_name)
+                    );
+                }
+            }
+        );
+        // }
     }
 
     if (grid) {

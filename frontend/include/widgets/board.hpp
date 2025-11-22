@@ -19,6 +19,8 @@ public:
     void clear_active();
     stream_cell* take_active_cell();
 
+    stream_cell* active_cell() const;
+
     // signals:
     // void active_shrink_requested(const QString& name);
     // void active_close_requested(const QString& name);
@@ -31,4 +33,4 @@ private:
     grid_view* grid;
 };
 
-#endif
+#endif // YODAU_FRONTEND_WIDGETS_BOARD_HPP

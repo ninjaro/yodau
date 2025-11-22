@@ -1,14 +1,18 @@
 #ifndef YODAU_FRONTEND_HELPERS_CONTROLLER_HPP
 #define YODAU_FRONTEND_HELPERS_CONTROLLER_HPP
 
+#include <QMap>
 #include <QObject>
+#include <QPointF>
 #include <QString>
+#include <vector>
 
 #include "stream_manager.hpp"
 
 class settings_panel;
 class board;
 class grid_view;
+class QColor;
 
 class controller final : public QObject {
     Q_OBJECT
@@ -44,6 +48,17 @@ private:
     board* main_zone { nullptr };
     grid_view* grid { nullptr };
     QString active_name;
+
+    QString draft_line_name;
+    QColor draft_line_color { Qt::red };
+    bool draft_line_closed { false };
+
+    struct tpl_line {
+        std::vector<QPointF> pts_pct;
+        bool closed { false };
+    };
+
+    QMap<QString, tpl_line> templates;
 };
 
 #endif // YODAU_FRONTEND_HELPERS_CONTROLLER_HPP

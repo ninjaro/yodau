@@ -52,6 +52,13 @@ void board::set_active_stream(const QString& name) {
 
     cell->setParent(active_container);
     cell->set_active(true);
+    stream_cell::line_instance test;
+    test.template_name = "test";
+    test.color = Qt::green;
+    test.closed = false;
+    test.pts_pct = { { 10, 10 }, { 50, 20 }, { 80, 70 } };
+    cell->add_persistent_line(test);
+    cell->set_drawing_enabled(true);
     cell->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     cell->show();
     active_layout->addWidget(cell);
@@ -106,3 +113,5 @@ stream_cell* board::take_active_cell() {
     active_tile = nullptr;
     return out;
 }
+
+stream_cell* board::active_cell() const { return active_tile; }

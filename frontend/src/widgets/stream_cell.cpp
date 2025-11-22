@@ -2,8 +2,11 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPen>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -34,6 +37,61 @@ void stream_cell::set_active(const bool val) {
     update();
 }
 
+void stream_cell::set_drawing_enabled(const bool on) {
+    drawing_enabled = on;
+    if (!on) {
+        hover_point_pct.reset();
+    }
+    update();
+}
+
+void stream_cell::set_draft_params(
+    const QString& n, const QColor& color, const bool closed
+) {
+    draft_line_name = n;
+    draft_line_color = color;
+    draft_line_closed = closed;
+    update();
+}
+
+void stream_cell::set_draft_points_pct(const std::vector<QPointF>& pts) {
+    draft_line_points_pct = pts;
+    update();
+}
+
+void stream_cell::clear_draft() {
+    draft_line_points_pct.clear();
+    hover_point_pct.reset();
+    update();
+}
+
+std::vector<QPointF> stream_cell::draft_points_pct() const {
+    return draft_line_points_pct;
+}
+
+bool stream_cell::draft_closed() const { return draft_line_closed; }
+
+QString stream_cell::draft_name() const { return draft_line_name; }
+
+QColor stream_cell::draft_color() const { return draft_line_color; }
+
+void stream_cell::set_persistent_lines(
+    const std::vector<line_instance>& lines
+) {
+    persistent_lines = lines;
+    update();
+}
+
+void stream_cell::add_persistent_line(const line_instance& line) {
+    persistent_lines.push_back(line);
+    update();
+}
+
+void stream_cell::clear_persistent_lines() {
+    persistent_lines.clear();
+    update();
+}
+
 void stream_cell::paintEvent(QPaintEvent* event) {
     QStyleOption opt;
     opt.initFrom(this);
@@ -49,6 +107,113 @@ void stream_cell::paintEvent(QPaintEvent* event) {
     QWidget::paintEvent(event);
 
     p.drawRect(rect().adjusted(0, 0, -1, -1));
+
+    p.setRenderHint(QPainter::Antialiasing, true);
+
+    for (const auto& l : persistent_lines) {
+        if (l.pts_pct.size() < 2) {
+            continue;
+        }
+
+        QPen pen(l.color);
+        pen.setWidthF(2.0);
+        p.setPen(pen);
+
+        QPolygonF poly;
+        poly.reserve(int(l.pts_pct.size()));
+        for (const auto& pt_pct : l.pts_pct) {
+            poly << to_px(pt_pct);
+        }
+
+        if (l.closed && poly.size() >= 3) {
+            p.drawPolygon(poly);
+        } else {
+            p.drawPolyline(poly);
+        }
+
+        for (const auto& pt_px : poly) {
+            p.drawEllipse(pt_px, 3.0, 3.0);
+        }
+    }
+
+    if (!draft_line_points_pct.empty()) {
+        QPen pen(draft_line_color);
+        pen.setWidthF(2.0);
+        p.setPen(pen);
+
+        QPolygonF poly;
+        poly.reserve(static_cast<int>(draft_line_points_pct.size()));
+        for (const auto& pt_pct : draft_line_points_pct) {
+            poly << to_px(pt_pct);
+        }
+
+        if (draft_line_closed && poly.size() >= 3) {
+            p.drawPolygon(poly);
+        } else {
+            p.drawPolyline(poly);
+        }
+
+        for (const auto& pt_px : poly) {
+            p.drawEllipse(pt_px, 3.0, 3.0);
+        }
+    }
+
+    if (hover_point_pct.has_value()) {
+        QPen hpen(draft_line_color);
+        hpen.setWidthF(1.0);
+        hpen.setStyle(Qt::DashLine);
+        p.setPen(hpen);
+
+        const auto hp = to_px(*hover_point_pct);
+        p.drawEllipse(hp, 4.0, 4.0);
+    }
+}
+
+void stream_cell::mousePressEvent(QMouseEvent* event) {
+    qDebug() << "mousePress in cell" << name << "active=" << active
+             << "drawing=" << drawing_enabled << "pos=" << event->pos()
+             << "childAt="
+             << (childAt(event->pos())
+                     ? childAt(event->pos())->metaObject()->className()
+                     : "null");
+    if (!drawing_enabled || !active) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+
+    auto* child = childAt(event->pos());
+    if (child == close_btn || child == focus_btn) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton) {
+        draft_line_points_pct.push_back(to_pct(event->pos()));
+        update();
+        event->accept();
+        return;
+    }
+
+    QWidget::mousePressEvent(event);
+}
+
+void stream_cell::mouseMoveEvent(QMouseEvent* event) {
+    qDebug() << "mouseMove in cell" << name << "active=" << active
+             << "drawing=" << drawing_enabled << "pos=" << event->pos();
+    if (!drawing_enabled || !active) {
+        QWidget::mouseMoveEvent(event);
+        return;
+    }
+
+    hover_point_pct = to_pct(event->pos());
+    update();
+    event->accept();
+}
+
+void stream_cell::leaveEvent(QEvent* event) {
+    hover_point_pct.reset();
+    update();
+    QWidget::leaveEvent(event);
 }
 
 void stream_cell::build_ui() {
@@ -148,4 +313,27 @@ void stream_cell::update_icon() {
         );
 #endif
     }
+}
+
+QPointF stream_cell::to_pct(const QPointF& pos_px) const {
+    if (width() <= 0 || height() <= 0) {
+        return {};
+    }
+    float x
+        = static_cast<float>(pos_px.x()) / static_cast<float>(width()) * 100.0f;
+    float y = static_cast<float>(pos_px.y()) / static_cast<float>(height())
+        * 100.0f;
+    if (x < 0.f)
+        x = 0.f;
+    if (x > 100.f)
+        x = 100.f;
+    if (y < 0.f)
+        y = 0.f;
+    if (y > 100.f)
+        y = 100.f;
+    return { x, y };
+}
+
+QPointF stream_cell::to_px(const QPointF& pos_pct) const {
+    return { pos_pct.x() / 100.0 * width(), pos_pct.y() / 100.0 * height() };
 }
