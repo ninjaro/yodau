@@ -8,6 +8,8 @@
 #include <QPen>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QStyle>
+#include <QStyleOption>
 #include <QVBoxLayout>
 #include <algorithm>
 
@@ -422,10 +424,10 @@ QPointF stream_cell::to_pct(const QPointF& pos_px) const {
         return {};
     }
 
-    float x = static_cast<float>(pos_px.x())
-                / static_cast<float>(width()) * 100.0f;
-    float y = static_cast<float>(pos_px.y())
-                / static_cast<float>(height()) * 100.0f;
+    float x
+        = static_cast<float>(pos_px.x()) / static_cast<float>(width()) * 100.0f;
+    float y = static_cast<float>(pos_px.y()) / static_cast<float>(height())
+        * 100.0f;
 
     x = std::clamp(x, 0.f, 100.f);
     y = std::clamp(y, 0.f, 100.f);
