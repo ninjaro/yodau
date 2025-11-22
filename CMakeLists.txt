@@ -6,6 +6,11 @@ option(KDE "Enable KDE Frameworks and KDEGames integration" OFF)
 option(BUILD_TESTS "Build unit tests (GTest + QtTest)" ON)
 option(ENABLE_COVERAGE "Enable coverage instrumentation for gcc/clang" OFF)
 option(ENABLE_ASAN "Enable AddressSanitizer for libyodau_unittests" OFF)
+option(BUILD_GUI "Build Qt-based GUI application and Qt-based tests" ON)
+
+if (KDE AND NOT BUILD_GUI)
+    message(FATAL_ERROR "KDE integration requires BUILD_GUI to be ON")
+endif ()
 
 if (ENABLE_COVERAGE AND NOT BUILD_TESTS)
     set(BUILD_TESTS ON CACHE BOOL "Build unit tests (forced by ENABLE_COVERAGE)" FORCE)
@@ -76,39 +81,45 @@ endif ()
 
 include(FeatureSummary)
 
-set(QT_MAJOR_VERSION 6)
-set(QT_DEFAULT_MAJOR_VERSION 6)
-set(qt_min_version "6.0.0")
+if (BUILD_GUI)
+    set(QT_MAJOR_VERSION 6)
+    set(QT_DEFAULT_MAJOR_VERSION 6)
+    set(qt_min_version "6.0.0")
 
-find_package(Qt6 ${qt_min_version} CONFIG REQUIRED
-        COMPONENTS
-        Core
-        Widgets
-        Test
-)
-
-if (KDE)
-    find_package(KF6 ${kf6_min_version} REQUIRED COMPONENTS
-            CoreAddons
-            I18n
-            XmlGui
-            ConfigWidgets
-            WidgetsAddons
-            KIO
+    find_package(Qt6 ${qt_min_version} CONFIG REQUIRED
+            COMPONENTS
+            Core
+            Widgets
+            Test
     )
-    find_package(KDEGames6 REQUIRED)
+
+    if (KDE)
+        find_package(KF6 ${kf6_min_version} REQUIRED COMPONENTS
+                CoreAddons
+                I18n
+                XmlGui
+                ConfigWidgets
+                WidgetsAddons
+                KIO
+        )
+        find_package(KDEGames6 REQUIRED)
+    endif ()
+
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTORCC ON)
+    set(CMAKE_AUTOUIC ON)
 endif ()
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
-
 set(libyodau_headers
-        backend/include/stream_detect.hpp
+        backend/include/stream_manager.hpp
+        backend/include/stream.hpp
+        backend/include/geometry.hpp
 )
 
 set(libyodau_sources
-        backend/src/stream_detect.cpp
+        backend/src/stream_manager.cpp
+        backend/src/stream.cpp
+        backend/src/geometry.cpp
 )
 
 add_library(libyodau STATIC
@@ -142,74 +153,92 @@ target_link_libraries(yodau_cli
         PRIVATE
         libyodau
 )
+if (BUILD_GUI)
+    set(yodau_frontend_headers
+            frontend/include/main_window.hpp
 
-set(yodau_frontend_headers
-        frontend/include/main_window.hpp
-)
+            frontend/include/helpers/str_label.hpp
+            frontend/include/helpers/icon_loader.hpp
+            frontend/include/helpers/controller.hpp
 
-set(yodau_frontend_sources
-        frontend/src/main_window.cpp
-)
-
-set(yodau_qt_libs
-        Qt6::Core
-        Qt6::Widgets
-)
-
-if (KDE)
-    set(yodau_kde_libs
-            KF6::CoreAddons
-            KF6::I18n
-            KF6::XmlGui
-            KF6::ConfigWidgets
-            KF6::WidgetsAddons
-            KF6::KIOCore
-            KDEGames6
+            frontend/include/widgets/board.hpp
+            frontend/include/widgets/grid_view.hpp
+            frontend/include/widgets/settings_panel.hpp
+            frontend/include/widgets/stream_cell.hpp
     )
-endif ()
 
-qt_add_executable(yodau
-        MANUAL_FINALIZATION
-        frontend/src/main.cpp
-        ${yodau_frontend_sources}
-        ${yodau_frontend_headers}
-)
+    set(yodau_frontend_sources
+            frontend/src/main_window.cpp
 
-target_include_directories(yodau
-        PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/backend/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/frontend/include
-)
+            frontend/src/helpers/icon_loader.cpp
+            frontend/src/helpers/controller.cpp
 
-target_link_libraries(yodau
-        PRIVATE
-        libyodau
-        ${yodau_qt_libs}
-        $<$<BOOL:${KDE}>:${yodau_kde_libs}>
-)
-
-target_compile_definitions(yodau
-        PRIVATE
-        $<$<BOOL:${KDE}>:YODAU_KDE>
-)
-
-if (NOT ANDROID)
-    target_precompile_headers(yodau PRIVATE
-            <QtCore>
-            <QtWidgets>
-            <vector>
-            <tuple>
-            <memory>
-            <optional>
-            <string>
+            frontend/src/widgets/board.cpp
+            frontend/src/widgets/grid_view.cpp
+            frontend/src/widgets/settings_panel.cpp
+            frontend/src/widgets/stream_cell.cpp
     )
-endif ()
 
-if (ANDROID)
-    set_property(TARGET yodau PROPERTY QT_ANDROID_PACKAGE_NAME org.example.yodau)
-endif ()
+    set(yodau_qt_libs
+            Qt6::Core
+            Qt6::Widgets
+    )
 
-qt_finalize_executable(yodau)
+    if (KDE)
+        set(yodau_kde_libs
+                KF6::CoreAddons
+                KF6::I18n
+                KF6::XmlGui
+                KF6::ConfigWidgets
+                KF6::WidgetsAddons
+                KF6::KIOCore
+                KDEGames6
+        )
+    endif ()
+
+    qt_add_executable(yodau
+            MANUAL_FINALIZATION
+            frontend/src/main.cpp
+            ${yodau_frontend_sources}
+            ${yodau_frontend_headers}
+    )
+
+    target_include_directories(yodau
+            PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backend/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/frontend/include
+    )
+
+    target_link_libraries(yodau
+            PRIVATE
+            libyodau
+            ${yodau_qt_libs}
+            $<$<BOOL:${KDE}>:${yodau_kde_libs}>
+    )
+
+    target_compile_definitions(yodau
+            PRIVATE
+            $<$<BOOL:${KDE}>:YODAU_KDE>
+    )
+
+    if (NOT ANDROID)
+        target_precompile_headers(yodau PRIVATE
+                <QtCore>
+                <QtWidgets>
+                <vector>
+                <tuple>
+                <memory>
+                <optional>
+                <string>
+        )
+    endif ()
+
+    if (ANDROID)
+        set_property(TARGET yodau PROPERTY QT_ANDROID_PACKAGE_NAME org.example.yodau)
+    endif ()
+
+    qt_finalize_executable(yodau)
+endif ()
 
 if (KDE)
     set(install_args ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
@@ -222,10 +251,16 @@ else ()
 endif ()
 
 if (NOT ANDROID)
-    install(TARGETS
-            yodau
+    set(install_targets
             yodau_cli
             libyodau
+    )
+    if (BUILD_GUI)
+        list(APPEND install_targets yodau)
+    endif ()
+
+    install(TARGETS
+            ${install_targets}
             ${install_args}
     )
 endif ()
@@ -235,7 +270,7 @@ if (NOT ANDROID AND BUILD_TESTS)
 
     if (GTest_FOUND)
         set(libyodau_test_sources
-                backend/tests/stream_detect_tests.cpp
+                backend/tests/stream_manager_tests.cpp
         )
 
         add_executable(libyodau_unittests
@@ -268,7 +303,7 @@ if (NOT ANDROID AND BUILD_TESTS)
     endif ()
 endif ()
 
-if (NOT ANDROID AND BUILD_TESTS)
+if (BUILD_GUI AND NOT ANDROID AND BUILD_TESTS)
     set(yodau_qttest_headers
             frontend/tests/include/main_window_tests.hpp
     )

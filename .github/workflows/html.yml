@@ -3,7 +3,7 @@ name: Deploy
 on:
   push:
     branches:
-      - todomaster
+      - master
   workflow_dispatch:
 
 permissions:
@@ -21,6 +21,14 @@ jobs:
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Set up GCC 14
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: 14
+          platform: x64
+      # setup-gcc action: :contentReference[oaicite:1]{index=1}
+      
       - uses: MarkusJx/googletest-installer@28c5d4102d9d57b46254be19a940bf038a9c850a
       - uses: ssciwr/doxygen-install@501e53b879da7648ab392ee226f5b90e42148449
         with:
@@ -46,10 +54,15 @@ jobs:
       #       libopencv-dev
 
       - name: Configure (Debug, non-KDE, tests ON, coverage ON)
+        env:
+          CC: gcc-14
+          CXX: g++-14
         run: |
           cmake -S . -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc-14 \
+            -DCMAKE_CXX_COMPILER=g++-14 \
             -DKDE=OFF \
             -DBUILD_TESTS=ON \
             -DENABLE_COVERAGE=ON \
