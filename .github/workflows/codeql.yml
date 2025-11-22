@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
 
       - name: Set up GCC 14
-        uses: egor-tensin/setup-gcc@v1
+        uses: egor-tensin/setup-gcc@eaa888eb19115a521fa72b65cd94fe1f25bbcaac # v1
         with:
           version: 14
           platform: x64
