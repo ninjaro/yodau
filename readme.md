@@ -27,8 +27,17 @@ Index Terms-...todo
 
 ### INFORMATION ABOUT THE AUTHORS
 
-| **Yaroslav I. Riabtsev** | <p align="left">[orcid.org/0000-0001-5530-3752](https://orcid.org/0000-0001-5530-3752). E-mail: [yaroslav.riabtsev@rwth-aachen.de](mailto:yaroslav.riabtsev@rwth-aachen.de).<br> Master's student.</p> |
-|--------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+<table>
+  <tr>
+    <th><b>Yaroslav I. Riabtsev</b></th>
+    <td>
+      <a href="https://orcid.org/0000-0001-5530-3752">orcid.org/0000-0001-5530-3752</a>.
+      E-mail:
+      <a href="mailto:yaroslav.riabtsev@rwth-aachen.de">yaroslav.riabtsev@rwth-aachen.de</a>.<br/>
+      Master's student.
+    </td>
+  </tr>
+</table>
 
 [![codecov](https://codecov.io/gh/ninjaro/yodau/graph/badge.svg?token=HDR73FWZU9)](https://codecov.io/gh/ninjaro/yodau)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d89ee6b07aaa43f39f2561ee9eab5e89)](https://app.codacy.com/gh/ninjaro/yodau/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
@@ -103,7 +112,7 @@ cmake -B build-cli \
   -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_GUI=OFF
 cmake --build build-cli
-````
+```
 
 This produces:
 
