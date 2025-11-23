@@ -126,10 +126,18 @@ set(libyodau_sources
         backend/src/geometry.cpp
 )
 
+find_package(OpenCV QUIET)
+
 add_library(libyodau STATIC
         ${libyodau_sources}
         ${libyodau_headers}
 )
+
+if (OpenCV_FOUND)
+    target_link_libraries(libyodau PUBLIC ${OpenCV_LIBS})
+    target_include_directories(libyodau PUBLIC ${OpenCV_INCLUDE_DIRS})
+    target_compile_definitions(libyodau PUBLIC YODAU_OPENCV)
+endif ()
 
 set_target_properties(libyodau PROPERTIES
         OUTPUT_NAME yodau
@@ -151,14 +159,6 @@ add_executable(yodau_cli
         backend/src/cli_client.cpp
         backend/src/opencv_cli.cpp
 )
-
-find_package(OpenCV QUIET)
-
-if (OpenCV_FOUND)
-    target_link_libraries(yodau_cli PRIVATE ${OpenCV_LIBS})
-    target_include_directories(yodau_cli PRIVATE ${OpenCV_INCLUDE_DIRS})
-    target_compile_definitions(yodau_cli PRIVATE YODAU_OPENCV)
-endif ()
 
 target_include_directories(yodau_cli
         PRIVATE

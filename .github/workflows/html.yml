@@ -49,8 +49,8 @@ jobs:
       - name: Install backend deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libcxxopts-dev graphviz lcov libopencv-dev
+          sudo apt-get install -y  \
+            libcxxopts-dev graphviz lcov gcovr libopencv-dev
 
       - name: Configure (Debug, non-KDE, tests ON, coverage ON)
         env:
