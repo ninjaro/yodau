@@ -1,9 +1,13 @@
 #include "cli_client.hpp"
-
+#include "opencv_cli.hpp"
 #include <iostream>
 
 yodau::cli::cli_client::cli_client(backend::stream_manager& mgr)
-    : stream_mgr(mgr) { }
+    : stream_mgr(mgr) {
+#ifdef YODAU_OPENCV
+    stream_mgr.set_daemon_start_hook(opencv_daemon_start);
+#endif
+}
 
 int yodau::cli::cli_client::run() const {
     std::string line;
@@ -164,7 +168,7 @@ void yodau::cli::cli_client::cmd_start_stream(
             return;
         }
         const std::string name = result["name"].as<std::string>();
-        // todo
+        stream_mgr.start_stream(name);
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
@@ -193,7 +197,7 @@ void yodau::cli::cli_client::cmd_stop_stream(
             return;
         }
         const std::string name = result["name"].as<std::string>();
-        // todo
+        stream_mgr.stop_stream(name);
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
