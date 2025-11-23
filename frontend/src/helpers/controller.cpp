@@ -8,13 +8,16 @@
 #include <QColor>
 #include <QDateTime>
 #include <QDebug>
+#include <QImage>
 #include <QMediaDevices>
 #include <QMetaObject>
 #include <QThread>
 #include <QtGlobal>
+#include <chrono>
 
 #include "event.hpp"
 #include "frame.hpp"
+#include "opencv_client.hpp"
 #include "widgets/board.hpp"
 #include "widgets/grid_view.hpp"
 #include "widgets/stream_cell.hpp"
@@ -32,13 +35,19 @@ controller::controller(
     init_from_backend();
 
     if (stream_mgr) {
-        stream_mgr->set_frame_processor([this](
-                                            const yodau::backend::stream& s,
-                                            const yodau::backend::frame& f
-                                        ) { return make_fake_events(s, f); });
-
-        stream_mgr->enable_fake_events(700);
-
+        stream_mgr->set_analysis_interval_ms(66);
+#ifdef YODAU_OPENCV
+        stream_mgr->set_frame_processor(
+            yodau::backend::opencv_motion_processor
+        );
+#else
+        stream_mgr->set_frame_processor([](const yodau::backend::stream& s,
+                                           const yodau::backend::frame& f) {
+            Q_UNUSED(s);
+            Q_UNUSED(f);
+            return std::vector<yodau::backend::event> {};
+        });
+#endif
         stream_mgr->set_event_batch_sink(
             [this](const std::vector<yodau::backend::event>& evs) {
                 on_backend_events(evs);
@@ -53,6 +62,16 @@ controller::controller(
 
     setup_settings_connections();
     setup_grid_connections();
+}
+
+void controller::update_analysis_caps() {
+    if (!stream_mgr || !grid) {
+        return;
+    }
+
+    const int n = static_cast<int>(grid->stream_names().size());
+    const int interval = repaint_interval_for_count(n);
+    stream_mgr->set_analysis_interval_ms(interval);
 }
 
 void controller::init_from_backend() {
@@ -136,6 +155,10 @@ void controller::handle_show_stream_changed(
     if (show) {
         grid->add_stream(name);
         if (auto* tile = grid->peek_stream_cell(name)) {
+            connect(
+                tile, &stream_cell::frame_ready, this,
+                &controller::on_gui_frame, Qt::UniqueConnection
+            );
             tile->set_persistent_lines(per_stream_lines.value(name));
 
             const auto s = stream_mgr->find_stream(name.toStdString());
@@ -171,6 +194,7 @@ void controller::handle_show_stream_changed(
     }
 
     update_repaint_caps();
+    update_analysis_caps();
 }
 
 void controller::handle_backend_event(const QString& text) {
@@ -209,6 +233,7 @@ void controller::on_active_stream_selected(const QString& name) {
 
     sync_active_persistent();
     update_repaint_caps();
+    update_analysis_caps();
 }
 
 void controller::on_active_edit_mode_changed(bool drawing_new) {
@@ -549,6 +574,7 @@ void controller::register_stream_in_ui(
     settings->clear_add_inputs();
 
     update_repaint_caps();
+    update_analysis_caps();
 }
 
 QString controller::now_ts() {
@@ -765,42 +791,6 @@ void controller::update_repaint_caps() {
     }
 }
 
-std::vector<yodau::backend::event> controller::make_fake_events(
-    const yodau::backend::stream& s, const yodau::backend::frame& f
-) const {
-    Q_UNUSED(f);
-
-    std::vector<yodau::backend::event> out;
-
-    const int chance = QRandomGenerator::global()->bounded(100);
-    if (chance > 12) {
-        return out;
-    }
-
-    yodau::backend::event e;
-    e.ts = std::chrono::steady_clock::now();
-    e.stream_name = s.get_name();
-
-    const double x = QRandomGenerator::global()->bounded(5, 95);
-    const double y = QRandomGenerator::global()->bounded(5, 95);
-    e.pos_pct = yodau::backend::point { static_cast<float>(x),
-                                        static_cast<float>(y) };
-
-    const int k = QRandomGenerator::global()->bounded(2);
-    e.kind = k == 0 ? yodau::backend::event_kind::motion
-                    : yodau::backend::event_kind::tripwire;
-
-    const auto ln = s.line_names();
-    if (!ln.empty() && e.kind == yodau::backend::event_kind::tripwire) {
-        const int li
-            = QRandomGenerator::global()->bounded(static_cast<int>(ln.size()));
-        e.line_name = ln[static_cast<size_t>(li)];
-    }
-
-    out.push_back(std::move(e));
-    return out;
-}
-
 void controller::on_backend_events(
     const std::vector<yodau::backend::event>& evs
 ) {
@@ -841,6 +831,38 @@ stream_cell* controller::tile_for_stream_name(const QString& name) const {
     return nullptr;
 }
 
+yodau::backend::frame controller::frame_from_image(const QImage& image) const {
+    QImage img = image;
+
+    if (img.format() != QImage::Format_RGB888) {
+        img = img.convertToFormat(QImage::Format_RGB888);
+    }
+
+    yodau::backend::frame f;
+    f.width = img.width();
+    f.height = img.height();
+    f.stride = static_cast<int>(img.bytesPerLine());
+    f.format = yodau::backend::pixel_format::rgb24;
+    f.ts = std::chrono::steady_clock::now();
+
+    const auto* ptr = img.constBits();
+    const int bytes = static_cast<int>(img.sizeInBytes());
+    if (ptr && bytes > 0) {
+        f.data.assign(ptr, ptr + bytes);
+    }
+
+    return f;
+}
+
+void controller::on_gui_frame(const QString& stream_name, const QImage& image) {
+    if (!stream_mgr) {
+        return;
+    }
+
+    auto f = frame_from_image(image);
+    stream_mgr->push_frame(stream_name.toStdString(), std::move(f));
+}
+
 void controller::on_backend_event(const yodau::backend::event& e) {
     if (QThread::currentThread() != thread()) {
         const auto copy = e;
@@ -863,7 +885,9 @@ void controller::on_backend_event(const yodau::backend::event& e) {
 
     if (e.kind == yodau::backend::event_kind::tripwire) {
         if (!e.line_name.empty()) {
-            tile->highlight_line(QString::fromStdString(e.line_name));
+            const auto ln = QString::fromStdString(e.line_name);
+            const auto& p = *e.pos_pct;
+            tile->highlight_line_at(ln, QPointF(p.x, p.y));
         }
     }
 

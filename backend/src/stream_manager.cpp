@@ -447,6 +447,23 @@ void yodau::backend::stream_manager::disable_fake_events() {
     }
 }
 
+void yodau::backend::stream_manager::set_line_dir(
+    const std::string& line_name, tripwire_dir dir
+) {
+    std::scoped_lock lock(mtx);
+
+    const auto it = lines.find(line_name);
+    if (it == lines.end() || !it->second) {
+        throw std::runtime_error("line not found: " + line_name);
+    }
+
+    const auto old_ptr = it->second;
+    auto new_ptr = std::make_shared<line>(*old_ptr);
+    new_ptr->dir = dir;
+
+    it->second = new_ptr;
+}
+
 std::vector<std::shared_ptr<yodau::backend::stream>>
 yodau::backend::stream_manager::snapshot_streams() const {
     std::vector<std::shared_ptr<stream>> snap;
@@ -510,7 +527,7 @@ void yodau::backend::stream_manager::run_fake_events(std::stop_token st) {
 
 #ifdef __linux__
 bool yodau::backend::stream_manager::is_linux_capture_ok(const stream& s) {
-    if (s.get_type() != stream_type::local) {
+    if (s.get_type() != local) {
         return true;
     }
 

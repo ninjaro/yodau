@@ -1,15 +1,16 @@
 #include "cli_client.hpp"
-#include "opencv_cli.hpp"
+#include "opencv_client.hpp"
 #include <iostream>
 
-yodau::cli::cli_client::cli_client(backend::stream_manager& mgr)
+yodau::backend::cli_client::cli_client(backend::stream_manager& mgr)
     : stream_mgr(mgr) {
 #ifdef YODAU_OPENCV
     stream_mgr.set_daemon_start_hook(opencv_daemon_start);
+    stream_mgr.set_frame_processor(opencv_motion_processor);
 #endif
 }
 
-int yodau::cli::cli_client::run() const {
+int yodau::backend::cli_client::run() const {
     std::string line;
     while (true) {
         std::cout << "yodau> " << std::flush;
@@ -31,7 +32,7 @@ int yodau::cli::cli_client::run() const {
 }
 
 std::vector<std::string>
-yodau::cli::cli_client::tokenize(const std::string& line) {
+yodau::backend::cli_client::tokenize(const std::string& line) {
     std::vector<std::string> tokens;
     std::istringstream stream(line);
     std::string token;
@@ -41,7 +42,7 @@ yodau::cli::cli_client::tokenize(const std::string& line) {
     return tokens;
 }
 
-void yodau::cli::cli_client::dispatch_command(
+void yodau::backend::cli_client::dispatch_command(
     const std::string& cmd, const std::vector<std::string>& args
 ) const {
     static const std::unordered_map<
@@ -68,7 +69,7 @@ void yodau::cli::cli_client::dispatch_command(
     }
 }
 
-cxxopts::ParseResult yodau::cli::cli_client::parse_with_cxxopts(
+cxxopts::ParseResult yodau::backend::cli_client::parse_with_cxxopts(
     const std::string& cmd, const std::vector<std::string>& args,
     cxxopts::Options& options
 ) {
@@ -83,7 +84,7 @@ cxxopts::ParseResult yodau::cli::cli_client::parse_with_cxxopts(
     return options.parse(argc, argv_ptr);
 }
 
-void yodau::cli::cli_client::cmd_list_streams(
+void yodau::backend::cli_client::cmd_list_streams(
     const std::vector<std::string>& args
 ) const {
     const std::string cmd = "list-streams";
@@ -109,7 +110,7 @@ void yodau::cli::cli_client::cmd_list_streams(
     }
 }
 
-void yodau::cli::cli_client::cmd_add_stream(
+void yodau::backend::cli_client::cmd_add_stream(
     const std::vector<std::string>& args
 ) const {
     const std::string cmd = "add-stream";
@@ -147,7 +148,7 @@ void yodau::cli::cli_client::cmd_add_stream(
     }
 }
 
-void yodau::cli::cli_client::cmd_start_stream(
+void yodau::backend::cli_client::cmd_start_stream(
     const std::vector<std::string>& args
 ) const {
     const std::string cmd = "start-stream";
@@ -176,7 +177,7 @@ void yodau::cli::cli_client::cmd_start_stream(
     }
 }
 
-void yodau::cli::cli_client::cmd_stop_stream(
+void yodau::backend::cli_client::cmd_stop_stream(
     const std::vector<std::string>& args
 ) const {
     const std::string cmd = "stop-stream";
@@ -205,7 +206,7 @@ void yodau::cli::cli_client::cmd_stop_stream(
     }
 }
 
-void yodau::cli::cli_client::cmd_list_lines(
+void yodau::backend::cli_client::cmd_list_lines(
     const std::vector<std::string>& args
 ) const {
     const std::string cmd = "list-lines";
@@ -227,7 +228,20 @@ void yodau::cli::cli_client::cmd_list_lines(
     }
 }
 
-void yodau::cli::cli_client::cmd_add_line(
+static yodau::backend::tripwire_dir parse_tripwire_dir(const std::string& s) {
+    if (s == "neg_to_pos") {
+        return yodau::backend::tripwire_dir::neg_to_pos;
+    }
+    if (s == "pos_to_neg") {
+        return yodau::backend::tripwire_dir::pos_to_neg;
+    }
+    if (s == "any") {
+        return yodau::backend::tripwire_dir::any;
+    }
+    throw std::runtime_error("unknown dir: " + s);
+}
+
+void yodau::backend::cli_client::cmd_add_line(
     const std::vector<std::string>& args
 ) const {
     const std::string cmd = "add-line";
@@ -235,10 +249,12 @@ void yodau::cli::cli_client::cmd_add_line(
     options.allow_unrecognised_options();
     options.positional_help("<path> [<name>] [<close>]");
     options.add_options()
-        ("h,help", "Print help")
-        ("path", "Line coordinates, e.g. 0,0;100,100", cxxopts::value<std::string>())
-        ("name", "Name of the line", cxxopts::value<std::string>()->default_value(""))
-        ("close", "Whether the line is closed (true/false)", cxxopts::value<bool>()->default_value("false"));
+    ("h,help", "Print help")
+    ("path", "Line coordinates, e.g. 0,0;100,100", cxxopts::value<std::string>())
+    ("name", "Name of the line", cxxopts::value<std::string>()->default_value(""))
+    ("close", "Whether the line is closed (true/false)", cxxopts::value<bool>()->default_value("false"))
+    ("d,dir", "Tripwire direction (any/neg_to_pos/pos_to_neg)",
+        cxxopts::value<std::string>()->default_value("any"));
     options.parse_positional({ "path", "name", "close" });
     try {
         const auto result = parse_with_cxxopts("add-line", args, options);
@@ -253,9 +269,20 @@ void yodau::cli::cli_client::cmd_add_line(
         const std::string path = result["path"].as<std::string>();
         const std::string name = result["name"].as<std::string>();
         const bool close = result["close"].as<bool>();
+        const std::string dir_str = result["dir"].as<std::string>();
+
         const auto& line = stream_mgr.add_line(path, close, name);
+
+        try {
+            const auto dir = parse_tripwire_dir(dir_str);
+            stream_mgr.set_line_dir(line->name, dir);
+        } catch (const std::exception& e) {
+            std::cerr << "bad dir: " << e.what() << std::endl;
+        }
+
         line->dump(std::cout);
         std::cout << std::endl;
+
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
@@ -263,7 +290,7 @@ void yodau::cli::cli_client::cmd_add_line(
     }
 }
 
-void yodau::cli::cli_client::cmd_set_line(
+void yodau::backend::cli_client::cmd_set_line(
     const std::vector<std::string>& args
 ) const {
     const std::string cmd = "set-line";

@@ -1,6 +1,7 @@
 #ifndef YODAU_BACKEND_EVENT_HPP
 #define YODAU_BACKEND_EVENT_HPP
 #include <chrono>
+#include <optional>
 #include <string>
 
 #include "geometry.hpp"

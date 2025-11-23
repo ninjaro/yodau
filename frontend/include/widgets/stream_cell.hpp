@@ -79,9 +79,12 @@ public:
     void set_repaint_interval_ms(int ms);
     void highlight_line(const QString& line_name);
 
+    void highlight_line_at(const QString& line_name, const QPointF& pos_pct);
+
 signals:
     void request_close(const QString& name);
     void request_focus(const QString& name);
+    void frame_ready(const QString& stream_name, const QImage& image);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -154,6 +157,13 @@ private:
     int repaint_interval_ms { 66 };
     QHash<QString, QDateTime> line_highlights;
     int line_highlight_ttl_ms { 2500 };
+
+    struct hit_info {
+        QPointF pos_pct;
+        QDateTime ts;
+    };
+
+    QHash<QString, hit_info> line_hits;
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP

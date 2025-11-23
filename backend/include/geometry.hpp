@@ -15,10 +15,13 @@ struct point {
     bool compare(const point& other) const;
 };
 
+enum class tripwire_dir { any, neg_to_pos, pos_to_neg };
+
 struct line {
     std::string name;
     std::vector<point> points;
     bool closed { false };
+    tripwire_dir dir { tripwire_dir::any };
 
     void dump(std::ostream& out) const;
     void normalize();
