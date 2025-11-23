@@ -450,7 +450,8 @@ if (ENABLE_COVERAGE AND NOT ANDROID)
                         "'coverage' target will be unavailable."
                 )
             endif ()
-        else ()
+        endif ()
+    else ()
         message(STATUS
                 "ENABLE_COVERAGE=ON but tests are not built; 'coverage' target will be a no-op."
         )
