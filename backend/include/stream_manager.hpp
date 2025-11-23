@@ -72,6 +72,15 @@ public:
     void disable_fake_events();
 
 private:
+    std::vector<std::shared_ptr<stream>> snapshot_streams() const;
+    void snapshot_hooks(
+        frame_processor_fn& fp, event_sink_fn& es, event_batch_sink_fn& bes
+    ) const;
+    int current_fake_interval_ms() const;
+    void run_fake_events(std::stop_token st);
+#ifdef __linux__
+    static bool is_linux_capture_ok(const stream& s);
+#endif
     std::unordered_map<std::string, std::shared_ptr<stream>> streams;
     std::unordered_map<std::string, line_ptr> lines;
 

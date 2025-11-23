@@ -750,17 +750,7 @@ void controller::update_repaint_caps() {
 
     const auto names = grid->stream_names();
     const int n = static_cast<int>(names.size());
-
-    int interval = 66;
-    if (n <= 2) {
-        interval = 33; // ~30 fps
-    } else if (n <= 4) {
-        interval = 66; // ~15 fps
-    } else if (n <= 9) {
-        interval = 100; // ~10 fps
-    } else {
-        interval = 166; // ~6 fps
-    }
+    const int interval = repaint_interval_for_count(n);
 
     for (const auto& name : names) {
         if (auto* tile = grid->peek_stream_cell(name)) {
@@ -819,6 +809,38 @@ void controller::on_backend_events(
     }
 }
 
+int controller::repaint_interval_for_count(const int n) {
+    if (n <= 2) {
+        return 33;
+    }
+
+    if (n <= 4) {
+        return 66;
+    }
+
+    if (n <= 9) {
+        return 100;
+    }
+
+    return 166;
+}
+
+stream_cell* controller::tile_for_stream_name(const QString& name) const {
+    if (main_zone && !active_name.isEmpty() && active_name == name) {
+        if (auto* cell = main_zone->active_cell()) {
+            return cell;
+        }
+    }
+
+    if (grid) {
+        if (auto* tile = grid->peek_stream_cell(name)) {
+            return tile;
+        }
+    }
+
+    return nullptr;
+}
+
 void controller::on_backend_event(const yodau::backend::event& e) {
     if (QThread::currentThread() != thread()) {
         const auto copy = e;
@@ -830,17 +852,7 @@ void controller::on_backend_event(const yodau::backend::event& e) {
     }
 
     const auto name = QString::fromStdString(e.stream_name);
-
-    stream_cell* tile = nullptr;
-
-    if (main_zone && !active_name.isEmpty() && active_name == name) {
-        tile = main_zone->active_cell();
-    }
-
-    if (!tile && grid) {
-        tile = grid->peek_stream_cell(name);
-    }
-
+    auto* tile = tile_for_stream_name(name);
     if (!tile) {
         return;
     }
@@ -856,6 +868,5 @@ void controller::on_backend_event(const yodau::backend::event& e) {
     }
 
     const auto& p = *e.pos_pct;
-
     tile->add_event(QPointF(p.x, p.y), Qt::gray);
 }

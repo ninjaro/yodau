@@ -345,13 +345,8 @@ void yodau::backend::stream_manager::start_stream(const std::string& name) {
         ds = daemon_start;
 
 #ifdef __linux__
-        if (sp->get_type() == stream_type::local) {
-            const auto& p = sp->get_path();
-            if (p.rfind("/dev/video", 0) == 0) {
-                if (!is_capture_device(p)) {
-                    return;
-                }
-            }
+        if (!is_linux_capture_ok(*sp)) {
+            return;
         }
 #endif
 
@@ -420,58 +415,7 @@ void yodau::backend::stream_manager::enable_fake_events(const int interval_ms) {
         fake_enabled = true;
     }
 
-    std::jthread th([this](std::stop_token st) {
-        frame dummy;
-
-        while (!st.stop_requested()) {
-            std::vector<std::shared_ptr<stream>> snap;
-
-            {
-                std::scoped_lock lock(mtx);
-                snap.reserve(streams.size());
-                for (auto& sp : streams | std::views::values) {
-                    if (sp) {
-                        snap.push_back(sp);
-                    }
-                }
-            }
-
-            frame_processor_fn fp;
-            event_sink_fn es;
-            event_batch_sink_fn bes;
-
-            {
-                std::scoped_lock lock(mtx);
-                fp = frame_processor;
-                es = event_sink;
-                bes = event_batch_sink;
-            }
-
-            if (fp) {
-                for (const auto& sp : snap) {
-                    auto evs = fp(*sp, dummy);
-
-                    if (bes) {
-                        if (!evs.empty()) {
-                            bes(evs);
-                        }
-                    } else if (es) {
-                        for (const auto& e : evs) {
-                            es(e);
-                        }
-                    }
-                }
-            }
-
-            int interval = 700;
-            {
-                std::scoped_lock lock(mtx);
-                interval = fake_interval_ms;
-            }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(interval));
-        }
-    });
+    std::jthread th([this](std::stop_token st) { run_fake_events(st); });
 
     {
         std::scoped_lock lock(mtx);
@@ -502,3 +446,79 @@ void yodau::backend::stream_manager::disable_fake_events() {
         th.request_stop();
     }
 }
+
+std::vector<std::shared_ptr<yodau::backend::stream>>
+yodau::backend::stream_manager::snapshot_streams() const {
+    std::vector<std::shared_ptr<stream>> snap;
+
+    std::scoped_lock lock(mtx);
+    snap.reserve(streams.size());
+    for (auto& sp : streams | std::views::values) {
+        if (sp) {
+            snap.push_back(sp);
+        }
+    }
+
+    return snap;
+}
+
+void yodau::backend::stream_manager::snapshot_hooks(
+    frame_processor_fn& fp, event_sink_fn& es, event_batch_sink_fn& bes
+) const {
+    std::scoped_lock lock(mtx);
+    fp = frame_processor;
+    es = event_sink;
+    bes = event_batch_sink;
+}
+
+int yodau::backend::stream_manager::current_fake_interval_ms() const {
+    std::scoped_lock lock(mtx);
+    return fake_interval_ms;
+}
+
+void yodau::backend::stream_manager::run_fake_events(std::stop_token st) {
+    frame dummy;
+
+    while (!st.stop_requested()) {
+        auto snap = snapshot_streams();
+
+        frame_processor_fn fp;
+        event_sink_fn es;
+        event_batch_sink_fn bes;
+        snapshot_hooks(fp, es, bes);
+
+        if (fp) {
+            for (const auto& sp : snap) {
+                auto evs = fp(*sp, dummy);
+
+                if (bes) {
+                    if (!evs.empty()) {
+                        bes(evs);
+                    }
+                } else if (es) {
+                    for (const auto& e : evs) {
+                        es(e);
+                    }
+                }
+            }
+        }
+
+        const int interval = current_fake_interval_ms();
+        std::this_thread::sleep_for(std::chrono::milliseconds(interval));
+    }
+}
+
+#ifdef __linux__
+bool yodau::backend::stream_manager::is_linux_capture_ok(const stream& s) {
+    if (s.get_type() != stream_type::local) {
+        return true;
+    }
+
+    const auto& p = s.get_path();
+    if (p.rfind("/dev/video", 0) != 0) {
+        return true;
+    }
+
+    return is_capture_device(p);
+}
+#endif

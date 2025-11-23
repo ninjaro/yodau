@@ -5,9 +5,9 @@
 #include <QMap>
 #include <QObject>
 #include <QPointF>
+#include <QRandomGenerator>
 #include <QString>
 #include <QTimer>
-#include <QRandomGenerator>
 
 #include <vector>
 
@@ -105,6 +105,8 @@ private:
 
     void on_backend_event(const yodau::backend::event& e);
     void on_backend_events(const std::vector<yodau::backend::event>& evs);
+    static int repaint_interval_for_count(int n);
+    stream_cell* tile_for_stream_name(const QString& name) const;
 
 private:
     // external

@@ -4,6 +4,7 @@
 #include <QCamera>
 #include <QCameraDevice>
 #include <QColor>
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QImage>
 #include <QMediaCaptureSession>
@@ -14,7 +15,6 @@
 #include <QVideoFrame>
 #include <QVideoSink>
 #include <QWidget>
-#include <QDateTime>
 
 #include <optional>
 #include <vector>
