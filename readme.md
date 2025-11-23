@@ -53,7 +53,8 @@ replacements usually work; exact minimum versions are not rigorously specified.
 
 #### Core library (`libyodau`)
 
-- ...todo
+- *(Optional?)* **OpenCV** - used for CV-based helpers (lines/ROI/event-detection, future AI hooks). If OpenCV is found
+  at configure time, `YODAU_OPENCV` is defined and the OpenCV backend is enabled.<sup><a href="#ref-17">[17]</a></sup>
 - Static C++23 backend reused by both the CLI and the desktop application.
 - All public headers live under `backend/include/` and are intended to be usable without Qt or KDE present at compile
   time.
@@ -236,8 +237,12 @@ Available: [https://api.kde.org/legacy/libkdegames/html/](https://api.kde.org/le
 Nov. 2025. [Online].
 
 <a id="ref-15"></a>[15] Qt Group, "Qt;Athon 2025 Round 2 Project Briefs - Option #1: Multi-Camera Surveillance (
-Extenly)," competition instructions page, accessed Nov. 2025. [Online].  
+Extenly)," competition instructions page, accessed Nov. 2025. [Online].
 
 <a id="ref-16"></a>[16] Qt Group, "Qt;Athon 2025 Prizes," competition page / official announcement (grand prize: Steam
 Deck 512GB OLED + 100€ Xbox gift card + Qt expert mentoring; runner-up prizes include Qt Certification Test attempts),
 accessed Nov. 2025. [Online].
+
+<a id="ref-17"></a>[17] OpenCV Team, *OpenCV: Open Source Computer Vision Library* [Software]. OpenCV project website /
+GitHub repository, accessed Nov. 2025. [Online].
+Available: [https://opencv.org/](https://opencv.org/), [https://github.com/opencv/opencv](https://github.com/opencv/opencv)
