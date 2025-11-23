@@ -417,11 +417,23 @@ if (ENABLE_COVERAGE AND NOT ANDROID)
             find_program(GCOV_EXECUTABLE gcov-14)
 
             if (GCOVR)
+                set(coverage_deps libyodau_unittests)
+                set(coverage_runs)
+
+                if (TARGET libyodau_unittests)
+                    list(APPEND coverage_runs COMMAND $<TARGET_FILE:libyodau_unittests>)
+                endif ()
+
+                if (TARGET yodau_unittests)
+                    list(APPEND coverage_deps yodau_unittests)
+                    list(APPEND coverage_runs COMMAND $<TARGET_FILE:yodau_unittests>)
+                endif ()
+
                 add_custom_target(coverage
                         COMMENT "Generating coverage with gcovr"
                         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-                        COMMAND ${CMAKE_COMMAND} --build . --target libyodau_unittests
-                        COMMAND $<TARGET_FILE:libyodau_unittests>
+                        COMMAND ${CMAKE_COMMAND} --build . --target ${coverage_deps}
+                        ${coverage_runs}
                         COMMAND ${CMAKE_COMMAND} -E make_directory ${COVERAGE_DIR}
                         COMMAND ${GCOVR}
                         --gcov-executable ${GCOV_EXECUTABLE}
@@ -429,7 +441,7 @@ if (ENABLE_COVERAGE AND NOT ANDROID)
                         --exclude "${COVERAGE_IGNORE_REGEX}"
                         --html --html-details
                         -o ${COVERAGE_DIR}/index.html
-                        DEPENDS libyodau_unittests
+                        DEPENDS ${coverage_deps}
                         VERBATIM
                 )
             else ()
@@ -438,8 +450,7 @@ if (ENABLE_COVERAGE AND NOT ANDROID)
                         "'coverage' target will be unavailable."
                 )
             endif ()
-        endif ()
-    else ()
+        else ()
         message(STATUS
                 "ENABLE_COVERAGE=ON but tests are not built; 'coverage' target will be a no-op."
         )
