@@ -205,6 +205,21 @@ void stream_cell::highlight_line(const QString& line_name) {
     update();
 }
 
+void stream_cell::highlight_line_at(
+    const QString& line_name, const QPointF& pos_pct
+) {
+    if (line_name.isEmpty()) {
+        return;
+    }
+
+    hit_info h;
+    h.pos_pct = pos_pct;
+    h.ts = QDateTime::currentDateTime();
+    line_hits[line_name] = h;
+    line_highlights[line_name] = h.ts;
+    update();
+}
+
 void stream_cell::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
 
@@ -239,12 +254,12 @@ void stream_cell::paintEvent(QPaintEvent* event) {
         }
     }
 
+    draw_events(p);
     draw_persistent(p);
     draw_draft(p);
     draw_hover_point(p);
     draw_hover_coords(p);
     draw_preview_segment(p);
-    draw_events(p);
 }
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
@@ -462,20 +477,78 @@ void stream_cell::draw_persistent(QPainter& p) const {
         if (!key.isEmpty() && line_highlights.contains(key)) {
             const int age = static_cast<int>(line_highlights[key].msecsTo(now));
             if (age < line_highlight_ttl_ms) {
-                const double k
+                double ktime
                     = 1.0 - static_cast<double>(age) / line_highlight_ttl_ms;
-
-                int a = static_cast<int>(160.0 * k);
-                if (a < 0) {
-                    a = 0;
+                if (ktime < 0.0) {
+                    ktime = 0.0;
                 }
 
-                QColor hc = l.color;
-                hc.setAlpha(a);
+                const double falloff_pct = 30.0;
+                const double base_w = 2.0;
+                const double peak_w = 22.0;
 
-                draw_poly_with_points(
-                    p, l.pts_pct, hc, l.closed, Qt::SolidLine, 6.0
-                );
+                bool has_hit = false;
+                QPointF hit_pct;
+
+                if (line_hits.contains(key)) {
+                    const auto& h = line_hits[key];
+                    const int hit_age = static_cast<int>(h.ts.msecsTo(now));
+                    if (hit_age < line_highlight_ttl_ms) {
+                        has_hit = true;
+                        hit_pct = h.pos_pct;
+                    }
+                }
+
+                if (!has_hit) {
+                    QColor hc = l.color;
+                    int a = static_cast<int>(255.0 * ktime);
+                    if (a < 0) {
+                        a = 0;
+                    }
+                    hc.setAlpha(a);
+
+                    const double w = base_w + (peak_w - base_w) * ktime;
+
+                    draw_poly_with_points(
+                        p, l.pts_pct, hc, l.closed, Qt::SolidLine, w
+                    );
+                } else {
+                    for (size_t i = 1; i < l.pts_pct.size(); ++i) {
+                        const QPointF a_pct = l.pts_pct[i - 1];
+                        const QPointF b_pct = l.pts_pct[i];
+
+                        const QPointF mid = (a_pct + b_pct) * 0.5;
+                        const double dx = mid.x() - hit_pct.x();
+                        const double dy = mid.y() - hit_pct.y();
+                        double dist = std::sqrt(dx * dx + dy * dy);
+
+                        double kspace = 1.0 - dist / falloff_pct;
+                        if (kspace < 0.0) {
+                            kspace = 0.0;
+                        }
+
+                        kspace = kspace * kspace;
+
+                        const double k = ktime * kspace;
+                        if (k <= 0.0) {
+                            continue;
+                        }
+
+                        QColor hc = l.color;
+                        int a = static_cast<int>(255.0 * k);
+                        if (a < 0) {
+                            a = 0;
+                        }
+                        hc.setAlpha(a);
+
+                        const double w = base_w + (peak_w - base_w) * k;
+
+                        std::vector<QPointF> seg { a_pct, b_pct };
+                        draw_poly_with_points(
+                            p, seg, hc, false, Qt::SolidLine, w
+                        );
+                    }
+                }
             }
         }
 
@@ -605,7 +678,7 @@ void stream_cell::draw_events(QPainter& p) {
     const double w = static_cast<double>(r.width());
     const double h = static_cast<double>(r.height());
     const double base = std::min(w, h);
-    const double radius = base * 0.04;
+    const double radius = base * 0.015;
 
     QVector<event_instance> alive;
     alive.reserve(events.size());
@@ -650,6 +723,8 @@ void stream_cell::on_frame_changed(const QVideoFrame& frame) {
 
     last_frame = copy.toImage();
     copy.unmap();
+
+    emit frame_ready(name, last_frame);
 
     if (!repaint_timer.isValid()) {
         repaint_timer.start();

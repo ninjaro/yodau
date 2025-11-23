@@ -42,6 +42,8 @@ public slots:
     // backend
     void handle_backend_event(const QString& text);
 
+    void on_gui_frame(const QString& stream_name, const QImage& image);
+
 private slots:
     // active tab
     void on_active_stream_selected(const QString& name);
@@ -98,15 +100,14 @@ private:
     QStringList template_candidates_excluding(const QSet<QString>& used) const;
 
     void update_repaint_caps();
-
-    std::vector<yodau::backend::event> make_fake_events(
-        const yodau::backend::stream& s, const yodau::backend::frame& f
-    ) const;
+    void update_analysis_caps();
 
     void on_backend_event(const yodau::backend::event& e);
     void on_backend_events(const std::vector<yodau::backend::event>& evs);
     static int repaint_interval_for_count(int n);
     stream_cell* tile_for_stream_name(const QString& name) const;
+
+    yodau::backend::frame frame_from_image(const QImage& image) const;
 
 private:
     // external

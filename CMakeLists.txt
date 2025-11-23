@@ -118,12 +118,16 @@ set(libyodau_headers
         backend/include/geometry.hpp
         backend/include/frame.hpp
         backend/include/event.hpp
+
+        backend/include/opencv_client.hpp
 )
 
 set(libyodau_sources
         backend/src/stream_manager.cpp
         backend/src/stream.cpp
         backend/src/geometry.cpp
+
+        backend/src/opencv_client.cpp
 )
 
 find_package(OpenCV QUIET)
@@ -152,12 +156,8 @@ target_compile_features(libyodau PUBLIC cxx_std_23)
 
 add_executable(yodau_cli
         backend/src/main.cpp
-
         backend/include/cli_client.hpp
-        backend/include/opencv_cli.hpp
-
         backend/src/cli_client.cpp
-        backend/src/opencv_cli.cpp
 )
 
 target_include_directories(yodau_cli

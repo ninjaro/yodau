@@ -5,7 +5,7 @@
 
 #include "stream_manager.hpp"
 
-namespace yodau::cli {
+namespace yodau::backend {
 class cli_client {
 public:
     explicit cli_client(backend::stream_manager& mgr);

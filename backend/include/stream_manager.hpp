@@ -71,6 +71,8 @@ public:
     void enable_fake_events(int interval_ms = 700);
     void disable_fake_events();
 
+    void set_line_dir(const std::string& line_name, tripwire_dir dir);
+
 private:
     std::vector<std::shared_ptr<stream>> snapshot_streams() const;
     void snapshot_hooks(
