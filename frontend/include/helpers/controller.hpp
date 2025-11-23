@@ -5,7 +5,9 @@
 #include <QMap>
 #include <QObject>
 #include <QPointF>
+#include <QRandomGenerator>
 #include <QString>
+#include <QTimer>
 
 #include <vector>
 
@@ -95,6 +97,17 @@ private:
     QSet<QString> used_template_names_for_stream(const QString& stream) const;
     QStringList template_candidates_excluding(const QSet<QString>& used) const;
 
+    void update_repaint_caps();
+
+    std::vector<yodau::backend::event> make_fake_events(
+        const yodau::backend::stream& s, const yodau::backend::frame& f
+    ) const;
+
+    void on_backend_event(const yodau::backend::event& e);
+    void on_backend_events(const std::vector<yodau::backend::event>& evs);
+    static int repaint_interval_for_count(int n);
+    stream_cell* tile_for_stream_name(const QString& name) const;
+
 private:
     // external
     yodau::backend::stream_manager* stream_mgr { nullptr };
@@ -118,6 +131,12 @@ private:
 
     QMap<QString, tpl_line> templates;
     QMap<QString, std::vector<stream_cell::line_instance>> per_stream_lines;
+
+    QMap<QString, QUrl> stream_sources;
+    QMap<QString, bool> stream_loops;
+
+    int active_interval_ms { 33 };
+    int idle_interval_ms { 66 };
 };
 
 #endif // YODAU_FRONTEND_HELPERS_CONTROLLER_HPP

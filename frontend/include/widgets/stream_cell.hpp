@@ -1,9 +1,19 @@
 #ifndef YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP
 #define YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP
 
+#include <QCamera>
+#include <QCameraDevice>
 #include <QColor>
+#include <QDateTime>
+#include <QElapsedTimer>
+#include <QImage>
+#include <QMediaCaptureSession>
+#include <QMediaDevices>
+#include <QMediaPlayer>
 #include <QPointF>
 #include <QString>
+#include <QVideoFrame>
+#include <QVideoSink>
 #include <QWidget>
 
 #include <optional>
@@ -55,6 +65,20 @@ public:
     void set_draft_preview(bool on);
     void set_labels_enabled(bool on);
 
+    void set_source(const QUrl& source);
+    void set_loop(bool on);
+    void set_camera_id(const QByteArray& id);
+
+    struct event_instance {
+        QPointF pos_pct;
+        QColor color;
+        QDateTime ts;
+    };
+
+    void add_event(const QPointF& pos_pct, const QColor& color);
+    void set_repaint_interval_ms(int ms);
+    void highlight_line(const QString& line_name);
+
 signals:
     void request_close(const QString& name);
     void request_focus(const QString& name);
@@ -81,11 +105,20 @@ private:
     void draw_hover_point(QPainter& p) const;
     void draw_hover_coords(QPainter& p) const;
     void draw_preview_segment(QPainter& p) const;
+    void draw_stream_name(QPainter& p) const;
 
     QPointF label_pos_px(const line_instance& l) const;
 
     QPointF to_pct(const QPointF& pos_px) const;
     QPointF to_px(const QPointF& pos_pct) const;
+    void draw_events(QPainter& p);
+
+private slots:
+    void on_frame_changed(const QVideoFrame& frame);
+    void on_media_status_changed(QMediaPlayer::MediaStatus status);
+    void
+    on_player_error(QMediaPlayer::Error error, const QString& error_string);
+    void on_camera_error(QCamera::Error error);
 
 private:
     QString name;
@@ -107,6 +140,20 @@ private:
     std::optional<QPointF> hover_point_pct;
 
     std::vector<line_instance> persistent_lines;
+
+    QMediaPlayer* player { nullptr };
+    QVideoSink* sink { nullptr };
+    QImage last_frame;
+    bool loop_enabled { true };
+    QString last_error;
+    QCamera* camera { nullptr };
+    QMediaCaptureSession* session { nullptr };
+    QByteArray camera_id;
+    QVector<event_instance> events;
+    QElapsedTimer repaint_timer;
+    int repaint_interval_ms { 66 };
+    QHash<QString, QDateTime> line_highlights;
+    int line_highlight_ttl_ms { 2500 };
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP

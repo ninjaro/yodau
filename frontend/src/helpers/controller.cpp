@@ -4,11 +4,17 @@
 #include "stream.hpp"
 #include "widgets/settings_panel.hpp"
 
+#include <QCameraDevice>
 #include <QColor>
 #include <QDateTime>
 #include <QDebug>
+#include <QMediaDevices>
+#include <QMetaObject>
+#include <QThread>
 #include <QtGlobal>
 
+#include "event.hpp"
+#include "frame.hpp"
 #include "widgets/board.hpp"
 #include "widgets/grid_view.hpp"
 #include "widgets/stream_cell.hpp"
@@ -24,6 +30,21 @@ controller::controller(
     , grid(zone ? zone->grid_mode() : nullptr) {
 
     init_from_backend();
+
+    if (stream_mgr) {
+        stream_mgr->set_frame_processor([this](
+                                            const yodau::backend::stream& s,
+                                            const yodau::backend::frame& f
+                                        ) { return make_fake_events(s, f); });
+
+        stream_mgr->enable_fake_events(700);
+
+        stream_mgr->set_event_batch_sink(
+            [this](const std::vector<yodau::backend::event>& evs) {
+                on_backend_events(evs);
+            }
+        );
+    }
 
     if (settings && grid) {
         settings->set_active_candidates(grid->stream_names());
@@ -46,7 +67,18 @@ void controller::init_from_backend() {
         const auto qname = QString::fromStdString(n);
         names.insert(qname);
 
-        settings->add_stream_entry(qname, str_label("<unknown>"));
+        QString desc = str_label("<unknown>");
+        const auto s = stream_mgr->find_stream(n);
+        if (s) {
+            // const auto t = s->get_type();
+            const auto path = QString::fromStdString(s->get_path());
+            const auto type = QString::fromStdString(
+                yodau::backend::stream::type_name(s->get_type())
+            );
+            desc = QString("%1:%2").arg(type, path);
+        }
+
+        settings->add_stream_entry(qname, desc);
     }
 
     settings->set_existing_names(names);
@@ -87,6 +119,11 @@ void controller::handle_detect_local_sources() {
     settings->append_add_log(
         QString("[%1] ok: detected %2 local sources").arg(ts).arg(locals.size())
     );
+
+    const auto cams = QMediaDevices::videoInputs();
+    // for (int i = 0; i < cams.size(); ++i) {
+    //     const auto& c = cams[i];
+    // }
 }
 
 void controller::handle_show_stream_changed(
@@ -100,6 +137,21 @@ void controller::handle_show_stream_changed(
         grid->add_stream(name);
         if (auto* tile = grid->peek_stream_cell(name)) {
             tile->set_persistent_lines(per_stream_lines.value(name));
+
+            const auto s = stream_mgr->find_stream(name.toStdString());
+            if (s) {
+                tile->set_loop(s->is_looping());
+                const auto path = QString::fromStdString(s->get_path());
+                const auto type = s->get_type();
+
+                if (type == yodau::backend::stream_type::local) {
+                    tile->set_camera_id(path.toUtf8());
+                } else if (type == yodau::backend::stream_type::file) {
+                    tile->set_source(QUrl::fromLocalFile(path));
+                } else {
+                    tile->set_source(QUrl(path));
+                }
+            }
         }
     } else {
         grid->remove_stream(name);
@@ -117,6 +169,8 @@ void controller::handle_show_stream_changed(
     if (settings) {
         settings->set_active_candidates(grid->stream_names());
     }
+
+    update_repaint_caps();
 }
 
 void controller::handle_backend_event(const QString& text) {
@@ -154,6 +208,7 @@ void controller::on_active_stream_selected(const QString& name) {
     }
 
     sync_active_persistent();
+    update_repaint_caps();
 }
 
 void controller::on_active_edit_mode_changed(bool drawing_new) {
@@ -433,6 +488,26 @@ void controller::handle_add_stream_common(
 
     const auto ts = now_ts();
 
+    if (type == "url") {
+        const QUrl url(source);
+        const auto scheme = url.scheme().toLower();
+
+        if (!url.isValid() || scheme.isEmpty()) {
+            settings->append_add_log(
+                QString("[%1] error: invalid url '%2'").arg(ts, source)
+            );
+            return;
+        }
+
+        if (scheme != "rtsp" && scheme != "http" && scheme != "https") {
+            settings->append_add_log(
+                QString("[%1] error: unsupported url scheme '%2'")
+                    .arg(ts, scheme)
+            );
+            return;
+        }
+    }
+
     try {
         const auto& s = stream_mgr->add_stream(
             source.toStdString(), name.toStdString(), type.toStdString(), loop
@@ -440,6 +515,15 @@ void controller::handle_add_stream_common(
 
         const auto final_name = QString::fromStdString(s.get_name());
         const auto source_desc = QString("%1:%2").arg(type, source);
+
+        QUrl url;
+        if (type == "file" || type == "local") {
+            url = QUrl::fromLocalFile(source);
+        } else {
+            url = QUrl(source);
+        }
+        stream_sources[final_name] = url;
+        stream_loops[final_name] = loop;
 
         settings->append_add_log(
             QString("[%1] ok: added %2 as %3").arg(ts, source_desc, final_name)
@@ -463,6 +547,8 @@ void controller::register_stream_in_ui(
     settings->add_existing_name(final_name);
     settings->add_stream_entry(final_name, source_desc);
     settings->clear_add_inputs();
+
+    update_repaint_caps();
 }
 
 QString controller::now_ts() {
@@ -655,4 +741,132 @@ controller::template_candidates_excluding(const QSet<QString>& used) const {
     }
 
     return candidates;
+}
+
+void controller::update_repaint_caps() {
+    if (!grid) {
+        return;
+    }
+
+    const auto names = grid->stream_names();
+    const int n = static_cast<int>(names.size());
+    const int interval = repaint_interval_for_count(n);
+
+    for (const auto& name : names) {
+        if (auto* tile = grid->peek_stream_cell(name)) {
+            tile->set_repaint_interval_ms(interval);
+        }
+    }
+
+    if (!active_name.isEmpty()) {
+        if (auto* cell = grid->peek_stream_cell(active_name)) {
+            cell->set_repaint_interval_ms(active_interval_ms);
+        }
+    }
+}
+
+std::vector<yodau::backend::event> controller::make_fake_events(
+    const yodau::backend::stream& s, const yodau::backend::frame& f
+) const {
+    Q_UNUSED(f);
+
+    std::vector<yodau::backend::event> out;
+
+    const int chance = QRandomGenerator::global()->bounded(100);
+    if (chance > 12) {
+        return out;
+    }
+
+    yodau::backend::event e;
+    e.ts = std::chrono::steady_clock::now();
+    e.stream_name = s.get_name();
+
+    const double x = QRandomGenerator::global()->bounded(5, 95);
+    const double y = QRandomGenerator::global()->bounded(5, 95);
+    e.pos_pct = yodau::backend::point { static_cast<float>(x),
+                                        static_cast<float>(y) };
+
+    const int k = QRandomGenerator::global()->bounded(2);
+    e.kind = k == 0 ? yodau::backend::event_kind::motion
+                    : yodau::backend::event_kind::tripwire;
+
+    const auto ln = s.line_names();
+    if (!ln.empty() && e.kind == yodau::backend::event_kind::tripwire) {
+        const int li
+            = QRandomGenerator::global()->bounded(static_cast<int>(ln.size()));
+        e.line_name = ln[static_cast<size_t>(li)];
+    }
+
+    out.push_back(std::move(e));
+    return out;
+}
+
+void controller::on_backend_events(
+    const std::vector<yodau::backend::event>& evs
+) {
+    for (const auto& e : evs) {
+        on_backend_event(e);
+    }
+}
+
+int controller::repaint_interval_for_count(const int n) {
+    if (n <= 2) {
+        return 33;
+    }
+
+    if (n <= 4) {
+        return 66;
+    }
+
+    if (n <= 9) {
+        return 100;
+    }
+
+    return 166;
+}
+
+stream_cell* controller::tile_for_stream_name(const QString& name) const {
+    if (main_zone && !active_name.isEmpty() && active_name == name) {
+        if (auto* cell = main_zone->active_cell()) {
+            return cell;
+        }
+    }
+
+    if (grid) {
+        if (auto* tile = grid->peek_stream_cell(name)) {
+            return tile;
+        }
+    }
+
+    return nullptr;
+}
+
+void controller::on_backend_event(const yodau::backend::event& e) {
+    if (QThread::currentThread() != thread()) {
+        const auto copy = e;
+        QMetaObject::invokeMethod(
+            this, [this, copy]() { on_backend_event(copy); },
+            Qt::QueuedConnection
+        );
+        return;
+    }
+
+    const auto name = QString::fromStdString(e.stream_name);
+    auto* tile = tile_for_stream_name(name);
+    if (!tile) {
+        return;
+    }
+
+    if (!e.pos_pct.has_value()) {
+        return;
+    }
+
+    if (e.kind == yodau::backend::event_kind::tripwire) {
+        if (!e.line_name.empty()) {
+            tile->highlight_line(QString::fromStdString(e.line_name));
+        }
+    }
+
+    const auto& p = *e.pos_pct;
+    tile->add_event(QPointF(p.x, p.y), Qt::gray);
 }
