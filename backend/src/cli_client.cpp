@@ -236,7 +236,7 @@ void yodau::cli::cli_client::cmd_add_line(
     options.positional_help("<path> [<name>] [<close>]");
     options.add_options()
         ("h,help", "Print help")
-        ("path", "Line coordinates, e.g. 0,0,100,100", cxxopts::value<std::string>())
+        ("path", "Line coordinates, e.g. 0,0;100,100", cxxopts::value<std::string>())
         ("name", "Name of the line", cxxopts::value<std::string>()->default_value(""))
         ("close", "Whether the line is closed (true/false)", cxxopts::value<bool>()->default_value("false"));
     options.parse_positional({ "path", "name", "close" });

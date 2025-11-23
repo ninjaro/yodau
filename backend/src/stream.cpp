@@ -27,6 +27,35 @@ yodau::backend::stream::stream(
     }
 }
 
+yodau::backend::stream::stream(stream&& other) noexcept
+    : name(std::move(other.name))
+    , path(std::move(other.path))
+    , type(other.type)
+    , loop(other.loop)
+    , active(other.active) {
+
+    std::scoped_lock lock(other.lines_mtx);
+    lines = std::move(other.lines);
+}
+
+yodau::backend::stream&
+yodau::backend::stream::operator=(stream&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+
+    std::scoped_lock lock(lines_mtx, other.lines_mtx);
+
+    name = std::move(other.name);
+    path = std::move(other.path);
+    type = other.type;
+    loop = other.loop;
+    active = other.active;
+    lines = std::move(other.lines);
+
+    return *this;
+}
+
 yodau::backend::stream_type
 yodau::backend::stream::identify(const std::string& path) {
     if (path.rfind("/dev/video", 0) == 0) {
@@ -81,11 +110,19 @@ void yodau::backend::stream::dump(
         << ", type=" << type_name(type)
         << ", loop=" << (loop ? "true" : "false")
         << ", active_pipeline=" << pipeline_name(active) << ")";
-    if (connections && !lines.empty()) {
-        out << "\n\tConnected lines:";
-        for (const auto& line_name : line_names()) {
-            out << ' ' << line_name;
-        }
+
+    if (!connections) {
+        return;
+    }
+
+    const auto names = line_names();
+    if (names.empty()) {
+        return;
+    }
+
+    out << "\n\tConnected lines:";
+    for (const auto& ln : names) {
+        out << ' ' << ln;
     }
 }
 
@@ -103,10 +140,23 @@ void yodau::backend::stream::connect_line(line_ptr line) {
     if (!line) {
         return;
     }
+    std::scoped_lock lock(lines_mtx);
     lines.emplace(line->name, line);
 }
 
 std::vector<std::string> yodau::backend::stream::line_names() const {
+    std::scoped_lock lock(lines_mtx);
     return lines | std::views::keys
         | std::ranges::to<std::vector<std::string>>();
+}
+
+std::vector<yodau::backend::line_ptr>
+yodau::backend::stream::lines_snapshot() const {
+    std::scoped_lock lock(lines_mtx);
+    std::vector<line_ptr> out;
+    out.reserve(lines.size());
+    for (const auto& lp : lines | std::views::values) {
+        out.push_back(lp);
+    }
+    return out;
 }

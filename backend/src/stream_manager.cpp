@@ -10,9 +10,7 @@
 #include <linux/videodev2.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#endif
 
-#ifdef __linux__
 namespace {
 bool is_capture_device(const std::string& path) {
     const int fd = ::open(path.c_str(), O_RDONLY | O_NONBLOCK);
@@ -53,6 +51,7 @@ void yodau::backend::stream_manager::dump(std::ostream& out) const {
 }
 
 void yodau::backend::stream_manager::dump_lines(std::ostream& out) const {
+    std::scoped_lock lock(mtx);
     out << lines.size() << " lines:";
     for (const auto& line : lines | std::views::values) {
         out << "\n\t";
@@ -63,6 +62,7 @@ void yodau::backend::stream_manager::dump_lines(std::ostream& out) const {
 void yodau::backend::stream_manager::dump_stream(
     std::ostream& out, const bool connections
 ) const {
+    std::scoped_lock lock(mtx);
     out << streams.size() << " streams:";
     for (const auto& stream : streams | std::views::values) {
         out << "\n\t";
@@ -73,7 +73,10 @@ void yodau::backend::stream_manager::dump_stream(
 void yodau::backend::stream_manager::set_local_stream_detector(
     local_stream_detector_fn detector
 ) {
-    stream_detector = std::move(detector);
+    {
+        std::scoped_lock lock(mtx);
+        stream_detector = std::move(detector);
+    }
     refresh_local_streams();
 }
 
@@ -217,11 +220,13 @@ void yodau::backend::stream_manager::push_frame(
 ) {
     manual_push_fn mp;
     event_sink_fn es;
+    event_batch_sink_fn bes;
 
     {
         std::scoped_lock lock(mtx);
         mp = manual_push;
         es = event_sink;
+        bes = event_batch_sink;
     }
 
     if (mp) {
@@ -230,6 +235,12 @@ void yodau::backend::stream_manager::push_frame(
     }
 
     auto events = process_frame(stream_name, std::move(f));
+
+    if (bes) {
+        bes(events);
+        return;
+    }
+
     if (!es) {
         return;
     }
@@ -300,6 +311,13 @@ void yodau::backend::stream_manager::set_event_sink(event_sink_fn fn) {
     event_sink = std::move(fn);
 }
 
+void yodau::backend::stream_manager::set_event_batch_sink(
+    event_batch_sink_fn fn
+) {
+    std::scoped_lock lock(mtx);
+    event_batch_sink = std::move(fn);
+}
+
 void yodau::backend::stream_manager::set_analysis_interval_ms(int ms) {
     if (ms <= 0) {
         return;
@@ -309,46 +327,47 @@ void yodau::backend::stream_manager::set_analysis_interval_ms(int ms) {
 }
 
 void yodau::backend::stream_manager::start_stream(const std::string& name) {
-    std::scoped_lock lock(mtx);
-    if (!daemon_start) {
-        return;
-    }
+    std::shared_ptr<stream> sp;
+    daemon_start_fn ds;
 
-    if (daemons.contains(name)) {
-        return;
-    }
+    {
+        std::scoped_lock lock(mtx);
+        if (!daemon_start || daemons.contains(name)) {
+            return;
+        }
 
-    const auto it = streams.find(name);
-    if (it == streams.end()) {
-        return;
-    }
+        const auto it = streams.find(name);
+        if (it == streams.end() || !it->second) {
+            return;
+        }
 
-    auto sp = it->second;
-    if (!sp) {
-        return;
-    }
+        sp = it->second;
+        ds = daemon_start;
 
 #ifdef __linux__
-    if (sp->get_type() == stream_type::local) {
-        const auto& p = sp->get_path();
-        if (p.rfind("/dev/video", 0) == 0) {
-            if (!is_capture_device(p)) {
-                return;
+        if (sp->get_type() == stream_type::local) {
+            const auto& p = sp->get_path();
+            if (p.rfind("/dev/video", 0) == 0) {
+                if (!is_capture_device(p)) {
+                    return;
+                }
             }
         }
-    }
 #endif
 
-    sp->activate(stream_pipeline::automatic);
+        sp->activate(stream_pipeline::automatic);
+    }
 
-    daemons.emplace(
-        name, std::jthread([this, name, sp](std::stop_token st) mutable {
-            daemon_start(
-                *sp,
-                [this, name](frame&& f) { push_frame(name, std::move(f)); }, st
-            );
-        })
-    );
+    std::jthread th([this, name, sp, ds](std::stop_token st) mutable {
+        ds(
+            *sp, [this, name](frame&& f) { push_frame(name, std::move(f)); }, st
+        );
+    });
+
+    {
+        std::scoped_lock lock(mtx);
+        daemons.emplace(name, std::move(th));
+    }
 }
 
 void yodau::backend::stream_manager::stop_stream(const std::string& name) {
@@ -387,16 +406,21 @@ bool yodau::backend::stream_manager::is_stream_running(
 }
 
 void yodau::backend::stream_manager::enable_fake_events(const int interval_ms) {
-    if (interval_ms > 0) {
-        fake_interval_ms = interval_ms;
+    {
+        std::scoped_lock lock(mtx);
+
+        if (interval_ms > 0) {
+            fake_interval_ms = interval_ms;
+        }
+
+        if (fake_enabled) {
+            return;
+        }
+
+        fake_enabled = true;
     }
 
-    if (fake_enabled) {
-        return;
-    }
-    fake_enabled = true;
-
-    fake_thread = std::jthread([this](std::stop_token st) {
+    std::jthread th([this](std::stop_token st) {
         frame dummy;
 
         while (!st.stop_requested()) {
@@ -414,36 +438,67 @@ void yodau::backend::stream_manager::enable_fake_events(const int interval_ms) {
 
             frame_processor_fn fp;
             event_sink_fn es;
+            event_batch_sink_fn bes;
+
             {
                 std::scoped_lock lock(mtx);
                 fp = frame_processor;
                 es = event_sink;
+                bes = event_batch_sink;
             }
 
-            if (fp && es) {
+            if (fp) {
                 for (const auto& sp : snap) {
                     auto evs = fp(*sp, dummy);
-                    for (const auto& e : evs) {
-                        es(e);
+
+                    if (bes) {
+                        if (!evs.empty()) {
+                            bes(evs);
+                        }
+                    } else if (es) {
+                        for (const auto& e : evs) {
+                            es(e);
+                        }
                     }
                 }
             }
 
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(fake_interval_ms)
-            );
+            int interval = 700;
+            {
+                std::scoped_lock lock(mtx);
+                interval = fake_interval_ms;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(interval));
         }
     });
+
+    {
+        std::scoped_lock lock(mtx);
+        if (!fake_enabled) {
+            th.request_stop();
+            return;
+        }
+        fake_thread = std::move(th);
+    }
 }
 
 void yodau::backend::stream_manager::disable_fake_events() {
-    if (!fake_enabled) {
-        return;
-    }
-    fake_enabled = false;
+    std::jthread th;
 
-    if (fake_thread.joinable()) {
-        fake_thread.request_stop();
+    {
+        std::scoped_lock lock(mtx);
+
+        if (!fake_enabled) {
+            return;
+        }
+
+        fake_enabled = false;
+        th = std::move(fake_thread);
         fake_thread = std::jthread();
+    }
+
+    if (th.joinable()) {
+        th.request_stop();
     }
 }

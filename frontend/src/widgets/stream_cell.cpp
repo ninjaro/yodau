@@ -28,8 +28,6 @@ stream_cell::stream_cell(const QString& name, QWidget* parent)
     build_ui();
     setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-    // setMinimumSize(120, 90);
     repaint_timer.start();
 }
 
@@ -167,7 +165,7 @@ void stream_cell::set_camera_id(const QByteArray& id) {
     }
 
     if (device.isNull()) {
-        last_error = "camera not found";
+        last_error = tr("camera not found");
         update();
         return;
     }
@@ -208,28 +206,38 @@ void stream_cell::highlight_line(const QString& line_name) {
 }
 
 void stream_cell::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event);
+
     QStyleOption opt;
     opt.initFrom(this);
 
     QPainter p(this);
+    style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
+
     if (!last_frame.isNull()) {
         p.drawImage(rect(), last_frame);
     } else {
-        QString txt = last_error.isEmpty() ? "no signal" : last_error;
-
-        QRect r = rect().adjusted(6, 6, -6, -6);
+        const QString txt = last_error.isEmpty() ? "no signal" : last_error;
+        const QRect r = rect().adjusted(6, 6, -6, -6);
         p.setPen(palette().color(QPalette::Text));
         p.drawText(r, Qt::AlignCenter, txt);
     }
 
     draw_stream_name(p);
 
-    QWidget::paintEvent(event);
-    style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
-    QWidget::paintEvent(event);
-
     p.drawRect(rect().adjusted(0, 0, -1, -1));
     p.setRenderHint(QPainter::Antialiasing, true);
+
+    const auto now = QDateTime::currentDateTime();
+
+    for (auto it = line_highlights.begin(); it != line_highlights.end();) {
+        const int age = static_cast<int>(it.value().msecsTo(now));
+        if (age >= line_highlight_ttl_ms) {
+            it = line_highlights.erase(it);
+        } else {
+            ++it;
+        }
+    }
 
     draw_persistent(p);
     draw_draft(p);
@@ -446,7 +454,31 @@ void stream_cell::draw_poly_with_points(
 }
 
 void stream_cell::draw_persistent(QPainter& p) const {
+    const auto now = QDateTime::currentDateTime();
+
     for (const auto& l : persistent_lines) {
+        const auto key = l.template_name.trimmed();
+
+        if (!key.isEmpty() && line_highlights.contains(key)) {
+            const int age = static_cast<int>(line_highlights[key].msecsTo(now));
+            if (age < line_highlight_ttl_ms) {
+                const double k
+                    = 1.0 - static_cast<double>(age) / line_highlight_ttl_ms;
+
+                int a = static_cast<int>(160.0 * k);
+                if (a < 0) {
+                    a = 0;
+                }
+
+                QColor hc = l.color;
+                hc.setAlpha(a);
+
+                draw_poly_with_points(
+                    p, l.pts_pct, hc, l.closed, Qt::SolidLine, 6.0
+                );
+            }
+        }
+
         draw_poly_with_points(
             p, l.pts_pct, l.color, l.closed, Qt::SolidLine, 2.0
         );
@@ -455,7 +487,7 @@ void stream_cell::draw_persistent(QPainter& p) const {
             continue;
         }
 
-        const auto text = l.template_name.trimmed();
+        const auto text = key;
         if (text.isEmpty()) {
             continue;
         }

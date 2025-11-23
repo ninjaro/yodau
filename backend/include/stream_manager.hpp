@@ -23,6 +23,8 @@ public:
     using frame_processor_fn
         = std::function<std::vector<event>(const stream& s, const frame& f)>;
     using event_sink_fn = std::function<void(const event& e)>;
+    using event_batch_sink_fn
+        = std::function<void(const std::vector<event>& events)>;
 
     stream_manager();
 
@@ -59,6 +61,7 @@ public:
     std::vector<event> process_frame(const std::string& stream_name, frame&& f);
 
     void set_event_sink(event_sink_fn fn);
+    void set_event_batch_sink(event_batch_sink_fn fn);
     void set_analysis_interval_ms(int ms);
 
     void start_stream(const std::string& name);
@@ -80,6 +83,8 @@ private:
     daemon_start_fn daemon_start;
     frame_processor_fn frame_processor;
     event_sink_fn event_sink;
+    event_batch_sink_fn event_batch_sink;
+
     int analysis_interval_ms { 200 };
     std::unordered_map<std::string, std::chrono::steady_clock::time_point>
         last_analysis_ts;

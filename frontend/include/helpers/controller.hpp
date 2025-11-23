@@ -7,6 +7,7 @@
 #include <QPointF>
 #include <QString>
 #include <QTimer>
+#include <QRandomGenerator>
 
 #include <vector>
 
@@ -103,6 +104,7 @@ private:
     ) const;
 
     void on_backend_event(const yodau::backend::event& e);
+    void on_backend_events(const std::vector<yodau::backend::event>& evs);
 
 private:
     // external

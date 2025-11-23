@@ -39,9 +39,11 @@ controller::controller(
 
         stream_mgr->enable_fake_events(700);
 
-        stream_mgr->set_event_sink([this](const yodau::backend::event& e) {
-            on_backend_event(e);
-        });
+        stream_mgr->set_event_batch_sink(
+            [this](const std::vector<yodau::backend::event>& evs) {
+                on_backend_events(evs);
+            }
+        );
     }
 
     if (settings && grid) {
@@ -809,6 +811,14 @@ std::vector<yodau::backend::event> controller::make_fake_events(
     return out;
 }
 
+void controller::on_backend_events(
+    const std::vector<yodau::backend::event>& evs
+) {
+    for (const auto& e : evs) {
+        on_backend_event(e);
+    }
+}
+
 void controller::on_backend_event(const yodau::backend::event& e) {
     if (QThread::currentThread() != thread()) {
         const auto copy = e;
@@ -847,17 +857,5 @@ void controller::on_backend_event(const yodau::backend::event& e) {
 
     const auto& p = *e.pos_pct;
 
-    QColor c = Qt::red;
-    if (!e.line_name.empty()) {
-        const auto ln = QString::fromStdString(e.line_name);
-        const auto lines = per_stream_lines.value(name);
-        for (const auto& inst : lines) {
-            if (inst.template_name == ln) {
-                c = inst.color;
-                break;
-            }
-        }
-    }
-
-    tile->add_event(QPointF(p.x, p.y), c);
+    tile->add_event(QPointF(p.x, p.y), Qt::gray);
 }
