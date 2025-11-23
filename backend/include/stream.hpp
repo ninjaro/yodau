@@ -11,13 +11,17 @@ enum class stream_pipeline { manual, automatic, none };
 class stream {
 public:
     stream(
-        std::string path, std::string name, std::string type = {},
+        std::string path, std::string name, const std::string& type_str = {},
         bool loop = true
     );
     static stream_type identify(const std::string& path);
     static std::string type_name(const stream_type type);
     static std::string pipeline_name(const stream_pipeline pipeline);
+
     std::string get_name() const;
+    std::string get_path() const;
+    stream_type get_type() const;
+    bool is_looping() const;
 
     void dump(std::ostream& out, bool connections = false) const;
 

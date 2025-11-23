@@ -91,6 +91,8 @@ if (BUILD_GUI)
             Core
             Widgets
             Test
+            Multimedia
+            MultimediaWidgets
     )
 
     if (KDE)
@@ -114,6 +116,8 @@ set(libyodau_headers
         backend/include/stream_manager.hpp
         backend/include/stream.hpp
         backend/include/geometry.hpp
+        backend/include/frame.hpp
+        backend/include/event.hpp
 )
 
 set(libyodau_sources
@@ -140,9 +144,21 @@ target_compile_features(libyodau PUBLIC cxx_std_23)
 
 add_executable(yodau_cli
         backend/src/main.cpp
-        backend/src/cli_client.cpp
+
         backend/include/cli_client.hpp
+        backend/include/opencv_cli.hpp
+
+        backend/src/cli_client.cpp
+        backend/src/opencv_cli.cpp
 )
+
+find_package(OpenCV QUIET)
+
+if (OpenCV_FOUND)
+    target_link_libraries(yodau_cli PRIVATE ${OpenCV_LIBS})
+    target_include_directories(yodau_cli PRIVATE ${OpenCV_INCLUDE_DIRS})
+    target_compile_definitions(yodau_cli PRIVATE YODAU_OPENCV)
+endif ()
 
 target_include_directories(yodau_cli
         PRIVATE
@@ -182,6 +198,8 @@ if (BUILD_GUI)
     set(yodau_qt_libs
             Qt6::Core
             Qt6::Widgets
+            Qt6::Multimedia
+            Qt6::MultimediaWidgets
     )
 
     if (KDE)
