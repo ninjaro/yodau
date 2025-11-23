@@ -8,7 +8,10 @@
 #include <QPen>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QStyle>
+#include <QStyleOption>
 #include <QVBoxLayout>
+#include <algorithm>
 
 #include "helpers/icon_loader.hpp"
 
@@ -17,23 +20,34 @@ stream_cell::stream_cell(const QString& name, QWidget* parent)
     , name(name)
     , close_btn(nullptr)
     , focus_btn(nullptr)
-    , name_label(nullptr) {
+    , name_label(nullptr)
+    , player(nullptr)
+    , sink(nullptr)
+    , camera(nullptr)
+    , session(nullptr) {
     build_ui();
     setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-    // setMinimumSize(120, 90);
+    repaint_timer.start();
 }
 
 const QString& stream_cell::get_name() const { return name; }
 
 bool stream_cell::is_active() const { return active; }
 
+std::vector<QPointF> stream_cell::draft_points_pct() const {
+    return draft_line_points_pct;
+}
+
+bool stream_cell::draft_closed() const { return draft_line_closed; }
+
+QString stream_cell::draft_name() const { return draft_line_name; }
+
+QColor stream_cell::draft_color() const { return draft_line_color; }
+
+bool stream_cell::is_draft_preview() const { return draft_preview; }
+
 void stream_cell::set_active(const bool val) {
-    qDebug() << "set_active(" << val << ") for" << name
-             << "drawing=" << drawing_enabled << "parent="
-             << (parentWidget() ? parentWidget()->metaObject()->className()
-                                : "null");
     if (active == val) {
         return;
     }
@@ -76,16 +90,6 @@ void stream_cell::clear_draft() {
     update();
 }
 
-std::vector<QPointF> stream_cell::draft_points_pct() const {
-    return draft_line_points_pct;
-}
-
-bool stream_cell::draft_closed() const { return draft_line_closed; }
-
-QString stream_cell::draft_name() const { return draft_line_name; }
-
-QColor stream_cell::draft_color() const { return draft_line_color; }
-
 void stream_cell::set_persistent_lines(
     const std::vector<line_instance>& lines
 ) {
@@ -108,8 +112,6 @@ void stream_cell::set_draft_preview(const bool on) {
     update();
 }
 
-bool stream_cell::is_draft_preview() const { return draft_preview; }
-
 void stream_cell::set_labels_enabled(const bool on) {
     if (labels_enabled == on) {
         return;
@@ -118,31 +120,134 @@ void stream_cell::set_labels_enabled(const bool on) {
     update();
 }
 
+void stream_cell::set_source(const QUrl& source) {
+    if (!player) {
+        return;
+    }
+
+    last_error.clear();
+    last_frame = QImage();
+
+    player->setSource(source);
+    player->play();
+}
+
+void stream_cell::set_loop(const bool on) { loop_enabled = on; }
+
+void stream_cell::set_camera_id(const QByteArray& id) {
+    camera_id = id;
+
+    last_error.clear();
+    last_frame = QImage();
+
+    if (player) {
+        player->stop();
+    }
+
+    if (camera) {
+        camera->stop();
+        camera->deleteLater();
+        camera = nullptr;
+    }
+
+    if (!session) {
+        session = new QMediaCaptureSession(this);
+        session->setVideoSink(sink);
+    }
+
+    QCameraDevice device;
+    const auto cams = QMediaDevices::videoInputs();
+    for (const auto& c : cams) {
+        if (c.id() == id) {
+            device = c;
+            break;
+        }
+    }
+
+    if (device.isNull()) {
+        last_error = tr("camera not found");
+        update();
+        return;
+    }
+
+    camera = new QCamera(device, this);
+    session->setCamera(camera);
+
+    connect(
+        camera, &QCamera::errorOccurred, this, &stream_cell::on_camera_error
+    );
+
+    camera->start();
+}
+
+void stream_cell::add_event(const QPointF& pos_pct, const QColor& color) {
+    event_instance e;
+    e.pos_pct = pos_pct;
+    e.color = color;
+    e.ts = QDateTime::currentDateTime();
+
+    events.push_back(e);
+    update();
+}
+
+void stream_cell::set_repaint_interval_ms(const int ms) {
+    if (ms <= 0) {
+        return;
+    }
+    repaint_interval_ms = ms;
+}
+
+void stream_cell::highlight_line(const QString& line_name) {
+    if (line_name.isEmpty()) {
+        return;
+    }
+    line_highlights[line_name] = QDateTime::currentDateTime();
+    update();
+}
+
 void stream_cell::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event);
+
     QStyleOption opt;
     opt.initFrom(this);
 
     QPainter p(this);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
-    QWidget::paintEvent(event);
+
+    if (!last_frame.isNull()) {
+        p.drawImage(rect(), last_frame);
+    } else {
+        const QString txt = last_error.isEmpty() ? "no signal" : last_error;
+        const QRect r = rect().adjusted(6, 6, -6, -6);
+        p.setPen(palette().color(QPalette::Text));
+        p.drawText(r, Qt::AlignCenter, txt);
+    }
+
+    draw_stream_name(p);
 
     p.drawRect(rect().adjusted(0, 0, -1, -1));
     p.setRenderHint(QPainter::Antialiasing, true);
+
+    const auto now = QDateTime::currentDateTime();
+
+    for (auto it = line_highlights.begin(); it != line_highlights.end();) {
+        const int age = static_cast<int>(it.value().msecsTo(now));
+        if (age >= line_highlight_ttl_ms) {
+            it = line_highlights.erase(it);
+        } else {
+            ++it;
+        }
+    }
 
     draw_persistent(p);
     draw_draft(p);
     draw_hover_point(p);
     draw_hover_coords(p);
     draw_preview_segment(p);
+    draw_events(p);
 }
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
-    qDebug() << "mousePress in cell" << name << "active=" << active
-             << "drawing=" << drawing_enabled << "pos=" << event->pos()
-             << "childAt="
-             << (childAt(event->pos())
-                     ? childAt(event->pos())->metaObject()->className()
-                     : "null");
     if (!drawing_enabled || !active) {
         QWidget::mousePressEvent(event);
         return;
@@ -166,8 +271,6 @@ void stream_cell::mousePressEvent(QMouseEvent* event) {
 }
 
 void stream_cell::mouseMoveEvent(QMouseEvent* event) {
-    // qDebug() << "mouseMove in cell" << name << "active=" << active
-    //          << "drawing=" << drawing_enabled << "pos=" << event->pos();
     if (!drawing_enabled || !active) {
         QWidget::mouseMoveEvent(event);
         return;
@@ -249,15 +352,19 @@ void stream_cell::build_ui() {
     );
 #endif
     top_row->addWidget(close_btn);
-
     root->addLayout(top_row);
+    root->addStretch(1);
 
-    name_label = new QLabel(name, this);
-    name_label->setAlignment(Qt::AlignCenter);
-    name_label->setAttribute(Qt::WA_TransparentForMouseEvents);
-    root->addWidget(name_label, 1);
+    sink = new QVideoSink(this);
+    connect(
+        sink, &QVideoSink::videoFrameChanged, this,
+        &stream_cell::on_frame_changed
+    );
 
-    // setLayout(root);
+    player = new QMediaPlayer(this);
+    player->setVideoOutput(sink);
+    // player->setSource(QUrl::fromLocalFile("/home/yarro/Pictures/kino/1080.mp4"));
+    // player->play();
 
     connect(close_btn, &QPushButton::clicked, this, [this]() {
         emit request_close(name);
@@ -265,6 +372,14 @@ void stream_cell::build_ui() {
     connect(focus_btn, &QPushButton::clicked, this, [this]() {
         emit request_focus(name);
     });
+    connect(
+        player, &QMediaPlayer::mediaStatusChanged, this,
+        &stream_cell::on_media_status_changed
+    );
+    connect(
+        player, &QMediaPlayer::errorOccurred, this,
+        &stream_cell::on_player_error
+    );
 }
 
 void stream_cell::update_icon() {
@@ -339,7 +454,31 @@ void stream_cell::draw_poly_with_points(
 }
 
 void stream_cell::draw_persistent(QPainter& p) const {
+    const auto now = QDateTime::currentDateTime();
+
     for (const auto& l : persistent_lines) {
+        const auto key = l.template_name.trimmed();
+
+        if (!key.isEmpty() && line_highlights.contains(key)) {
+            const int age = static_cast<int>(line_highlights[key].msecsTo(now));
+            if (age < line_highlight_ttl_ms) {
+                const double k
+                    = 1.0 - static_cast<double>(age) / line_highlight_ttl_ms;
+
+                int a = static_cast<int>(160.0 * k);
+                if (a < 0) {
+                    a = 0;
+                }
+
+                QColor hc = l.color;
+                hc.setAlpha(a);
+
+                draw_poly_with_points(
+                    p, l.pts_pct, hc, l.closed, Qt::SolidLine, 6.0
+                );
+            }
+        }
+
         draw_poly_with_points(
             p, l.pts_pct, l.color, l.closed, Qt::SolidLine, 2.0
         );
@@ -348,7 +487,7 @@ void stream_cell::draw_persistent(QPainter& p) const {
             continue;
         }
 
-        const auto text = l.template_name.trimmed();
+        const auto text = key;
         if (text.isEmpty()) {
             continue;
         }
@@ -418,51 +557,146 @@ void stream_cell::draw_preview_segment(QPainter& p) const {
     }
 }
 
+void stream_cell::draw_stream_name(QPainter& p) const {
+    if (name.isEmpty()) {
+        return;
+    }
+
+    QRect r = rect().adjusted(6, 6, -6, -6);
+    p.setPen(palette().color(QPalette::Text));
+    p.drawText(r, Qt::AlignLeft | Qt::AlignTop, name);
+}
+
 QPointF stream_cell::label_pos_px(const line_instance& l) const {
     if (l.pts_pct.empty()) {
         return {};
     }
 
-    if (!l.closed || l.pts_pct.size() < 3) {
-        const QPointF p0 = to_px(l.pts_pct.front());
-        return { p0.x() + 6.0, p0.y() + 14.0 };
-    }
-
-    qreal sx = 0.0;
-    qreal sy = 0.0;
-    for (const auto& pt_pct : l.pts_pct) {
-        const QPointF px = to_px(pt_pct);
-        sx += px.x();
-        sy += px.y();
-    }
-
-    const qreal n = static_cast<qreal>(l.pts_pct.size());
-    return { sx / n, sy / n };
+    const QPointF anchor_pct = l.closed ? l.pts_pct.back() : l.pts_pct.front();
+    const QPointF anchor_px = to_px(anchor_pct);
+    return { anchor_px.x() + 6.0, anchor_px.y() + 14.0 };
 }
 
 QPointF stream_cell::to_pct(const QPointF& pos_px) const {
     if (width() <= 0 || height() <= 0) {
         return {};
     }
+
     float x
         = static_cast<float>(pos_px.x()) / static_cast<float>(width()) * 100.0f;
     float y = static_cast<float>(pos_px.y()) / static_cast<float>(height())
         * 100.0f;
-    if (x < 0.f) {
-        x = 0.f;
-    }
-    if (x > 100.f) {
-        x = 100.f;
-    }
-    if (y < 0.f) {
-        y = 0.f;
-    }
-    if (y > 100.f) {
-        y = 100.f;
-    }
+
+    x = std::clamp(x, 0.f, 100.f);
+    y = std::clamp(y, 0.f, 100.f);
+
     return { x, y };
 }
 
 QPointF stream_cell::to_px(const QPointF& pos_pct) const {
     return { pos_pct.x() / 100.0 * width(), pos_pct.y() / 100.0 * height() };
+}
+
+void stream_cell::draw_events(QPainter& p) {
+    const auto now = QDateTime::currentDateTime();
+    const int ttl_ms = 2000;
+
+    const QRect r = rect();
+    const double w = static_cast<double>(r.width());
+    const double h = static_cast<double>(r.height());
+    const double base = std::min(w, h);
+    const double radius = base * 0.04;
+
+    QVector<event_instance> alive;
+    alive.reserve(events.size());
+
+    for (const auto& e : events) {
+        const int age = static_cast<int>(e.ts.msecsTo(now));
+        if (age >= ttl_ms) {
+            continue;
+        }
+
+        alive.push_back(e);
+
+        const double k = 1.0 - static_cast<double>(age) / ttl_ms;
+        int a = static_cast<int>(120.0 * k);
+        if (a < 0) {
+            a = 0;
+        }
+
+        QColor c = e.color;
+        c.setAlpha(a);
+
+        const double x = r.left() + w * (e.pos_pct.x() / 100.0);
+        const double y = r.top() + h * (e.pos_pct.y() / 100.0);
+
+        p.setPen(Qt::NoPen);
+        p.setBrush(c);
+        p.drawEllipse(QPointF(x, y), radius, radius);
+    }
+
+    events = std::move(alive);
+}
+
+void stream_cell::on_frame_changed(const QVideoFrame& frame) {
+    if (!frame.isValid()) {
+        return;
+    }
+
+    QVideoFrame copy(frame);
+    if (!copy.map(QVideoFrame::ReadOnly)) {
+        return;
+    }
+
+    last_frame = copy.toImage();
+    copy.unmap();
+
+    if (!repaint_timer.isValid()) {
+        repaint_timer.start();
+        update();
+        return;
+    }
+
+    if (repaint_timer.elapsed() < repaint_interval_ms) {
+        return;
+    }
+
+    repaint_timer.restart();
+    update();
+}
+
+void stream_cell::on_media_status_changed(
+    const QMediaPlayer::MediaStatus status
+) {
+    if (!loop_enabled) {
+        return;
+    }
+    if (status != QMediaPlayer::EndOfMedia) {
+        return;
+    }
+    if (!player) {
+        return;
+    }
+
+    player->setPosition(0);
+    player->play();
+}
+
+void stream_cell::on_player_error(
+    const QMediaPlayer::Error error, const QString& error_string
+) {
+    Q_UNUSED(error);
+    last_error = error_string;
+    update();
+}
+
+void stream_cell::on_camera_error(const QCamera::Error error) {
+    Q_UNUSED(error);
+
+    if (!camera) {
+        return;
+    }
+
+    last_error = camera->errorString();
+    update();
 }
