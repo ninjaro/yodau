@@ -71,6 +71,8 @@ jobs:
         run: doxygen Doxyfile
 
       - name: Build with coverage
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           cmake --build build --target coverage --parallel $(nproc)
 
