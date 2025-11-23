@@ -414,6 +414,7 @@ if (ENABLE_COVERAGE AND NOT ANDROID)
             endif ()
         elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             find_program(GCOVR gcovr)
+            find_program(GCOV_EXECUTABLE gcov-14)
 
             if (GCOVR)
                 add_custom_target(coverage
@@ -423,6 +424,7 @@ if (ENABLE_COVERAGE AND NOT ANDROID)
                         COMMAND $<TARGET_FILE:libyodau_unittests>
                         COMMAND ${CMAKE_COMMAND} -E make_directory ${COVERAGE_DIR}
                         COMMAND ${GCOVR}
+                        --gcov-executable ${GCOV_EXECUTABLE}
                         --root ${CMAKE_SOURCE_DIR}
                         --exclude "${COVERAGE_IGNORE_REGEX}"
                         --html --html-details
