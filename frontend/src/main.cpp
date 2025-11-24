@@ -10,6 +10,7 @@
 #include <KAboutData>
 #include <KLocalizedString>
 #endif
+
 int main(int argc, char* argv[]) {
     const QApplication app(argc, argv);
 
