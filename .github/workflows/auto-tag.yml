@@ -1,0 +1,42 @@
+name: auto-tag
+
+on:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute next patch tag
+        id: next
+        run: |
+          last=$(git tag --list "v*" --sort=-v:refname | head -n 1)
+          if [ -z "$last" ]; then
+            next="v0.1.0"
+          else
+            ver=${last#v}             # 0.1.0
+            IFS='.' read -r a b c <<< "$ver"
+            c=$((c+1))
+            next="v$a.$b.$c"
+          fi
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          tag="${{ steps.next.outputs.next }}"
+          echo "Tagging $tag"
+          git tag "$tag"
+          git push origin "$tag"
