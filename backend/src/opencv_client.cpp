@@ -297,7 +297,7 @@ void opencv_client::process_tripwire_for_line(
     std::vector<event>& out, const stream& s, const line& l,
     const point& prev_pos, const point& cur_pos_pct,
     const std::vector<point>& contour_pct,
-    const std::chrono::steady_clock::time_point now
+    const std::chrono::steady_clock::time_point now, double
 ) {
     const auto& pts = l.points;
     if (pts.size() < 2) {
@@ -332,6 +332,56 @@ void opencv_client::process_tripwire_for_line(
 
     if (hit_positions_pct.empty()) {
         hit_positions_pct.push_back(best_pos);
+    }
+
+    double geom_strength = 1.0;
+
+    if (!hit_positions_pct.empty()) {
+        float min_x = hit_positions_pct[0].x;
+        float max_x = hit_positions_pct[0].x;
+        float min_y = hit_positions_pct[0].y;
+        float max_y = hit_positions_pct[0].y;
+
+        for (size_t i = 1; i < hit_positions_pct.size(); ++i) {
+            const auto& hp = hit_positions_pct[i];
+            if (hp.x < min_x) {
+                min_x = hp.x;
+            }
+            if (hp.x > max_x) {
+                max_x = hp.x;
+            }
+            if (hp.y < min_y) {
+                min_y = hp.y;
+            }
+            if (hp.y > max_y) {
+                max_y = hp.y;
+            }
+        }
+
+        double dx = static_cast<double>(max_x - min_x);
+        double dy = static_cast<double>(max_y - min_y);
+        double span = std::sqrt(dx * dx + dy * dy);
+
+        const double span_min = 1.0;
+        const double span_max = 20.0;
+
+        if (span < span_min) {
+            span = span_min;
+        }
+
+        double norm = span / span_max;
+        if (norm < 0.0) {
+            norm = 0.0;
+        } else if (norm > 1.0) {
+            norm = 1.0;
+        }
+
+        const double strength_min = 0.5;
+        if (norm < strength_min) {
+            norm = strength_min;
+        }
+
+        geom_strength = norm;
     }
 
     const float prev_side = cross_z(best_a, best_b, prev_pos);
@@ -381,6 +431,8 @@ void opencv_client::process_tripwire_for_line(
         return;
     }
 
+    double strength_to_use = geom_strength;
+
     for (const auto& pos : hit_positions_pct) {
         event t;
         t.kind = event_kind::tripwire;
@@ -388,7 +440,11 @@ void opencv_client::process_tripwire_for_line(
         t.line_name = l.name;
         t.ts = now;
         t.pos_pct = pos;
-        t.message = dir;
+
+        std::string msg = dir;
+        msg.push_back('|');
+        msg += std::to_string(strength_to_use);
+        t.message = msg;
 
         std::cerr << "tripwire stream=" << t.stream_name
                   << " line=" << t.line_name << " dir=" << dir << std::endl;
@@ -549,7 +605,7 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
             const auto dt
                 = std::chrono::duration_cast<std::chrono::milliseconds>(
                       now - it->second
-                )
+                  )
                       .count();
             if (dt < cooldown_ms) {
                 return out;
@@ -557,6 +613,8 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
         }
         last_emit_by_stream[s.get_name()] = now;
     }
+
+    double strength = 1.0;
 
     cv::Moments mm = cv::moments(contours[max_i]);
     double cx = 0.0;
@@ -632,7 +690,7 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
             }
 
             process_tripwire_for_line(
-                out, s, *lp, prev_pos, cur_pos_pct, contour_pct, now
+                out, s, *lp, prev_pos, cur_pos_pct, contour_pct, now, strength
             );
         }
     }

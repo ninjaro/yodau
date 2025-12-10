@@ -887,7 +887,22 @@ void controller::on_backend_event(const yodau::backend::event& e) {
         if (!e.line_name.empty()) {
             const auto ln = QString::fromStdString(e.line_name);
             const auto& p = *e.pos_pct;
-            tile->highlight_line_at(ln, QPointF(p.x, p.y));
+
+            double strength = 1.0;
+
+            if (!e.message.empty()) {
+                const auto msg = QString::fromStdString(e.message);
+                const auto parts = msg.split('|');
+                if (!parts.isEmpty()) {
+                    bool ok = false;
+                    const double v = parts.last().toDouble(&ok);
+                    if (ok && v > 0.0) {
+                        strength = v;
+                    }
+                }
+            }
+
+            tile->highlight_line_at(ln, QPointF(p.x, p.y), strength);
         }
     }
 

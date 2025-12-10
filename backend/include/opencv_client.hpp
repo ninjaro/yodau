@@ -74,7 +74,7 @@ private:
         std::vector<event>& out, const stream& s, const line& l,
         const point& prev_pos, const point& cur_pos_pct,
         const std::vector<point>& contour_pct,
-        const std::chrono::steady_clock::time_point now
+        const std::chrono::steady_clock::time_point now, double strength
     );
 
     std::optional<size_t> find_largest_contour_index(

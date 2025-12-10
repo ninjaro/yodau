@@ -27,6 +27,12 @@ class QMouseEvent;
 class QPaintEvent;
 class QPainter;
 
+struct hit_info {
+    QPointF pos_pct;
+    QDateTime ts;
+    double strength { 1.0 };
+};
+
 class stream_cell final : public QWidget {
     Q_OBJECT
 
@@ -79,7 +85,9 @@ public:
     void set_repaint_interval_ms(int ms);
     void highlight_line(const QString& line_name);
 
-    void highlight_line_at(const QString& line_name, const QPointF& pos_pct);
+    void highlight_line_at(
+        const QString& line_name, const QPointF& pos_pct, double strength = 1.0
+    );
 
 signals:
     void request_close(const QString& name);
@@ -115,6 +123,11 @@ private:
     QPointF to_pct(const QPointF& pos_px) const;
     QPointF to_px(const QPointF& pos_pct) const;
     void draw_events(QPainter& p);
+
+    double segment_impact_k(
+        const QPointF& a_pct, const QPointF& b_pct,
+        const QVector<hit_info>& hit_points, double falloff_pct, double ktime
+    ) const;
 
 private slots:
     void on_frame_changed(const QVideoFrame& frame);
@@ -157,11 +170,6 @@ private:
     int repaint_interval_ms { 66 };
     QHash<QString, QDateTime> line_highlights;
     int line_highlight_ttl_ms { 2500 };
-
-    struct hit_info {
-        QPointF pos_pct;
-        QDateTime ts;
-    };
 
     QHash<QString, QVector<hit_info>> line_hits;
 };

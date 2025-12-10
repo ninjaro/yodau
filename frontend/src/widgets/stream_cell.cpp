@@ -206,7 +206,7 @@ void stream_cell::highlight_line(const QString& line_name) {
 }
 
 void stream_cell::highlight_line_at(
-    const QString& line_name, const QPointF& pos_pct
+    const QString& line_name, const QPointF& pos_pct, double strength
 ) {
     if (line_name.isEmpty()) {
         return;
@@ -215,6 +215,7 @@ void stream_cell::highlight_line_at(
     hit_info h;
     h.pos_pct = pos_pct;
     h.ts = QDateTime::currentDateTime();
+    h.strength = strength;
 
     auto& hits = line_hits[line_name];
 
@@ -500,7 +501,7 @@ void stream_cell::draw_persistent(QPainter& p) const {
                 const double peak_w = 22.0;
 
                 bool has_hit = false;
-                QVector<QPointF> hit_points;
+                QVector<hit_info> hit_points;
 
                 if (line_hits.contains(key)) {
                     const auto hits = line_hits.value(key);
@@ -509,11 +510,12 @@ void stream_cell::draw_persistent(QPainter& p) const {
                             = static_cast<int>(hits[i].ts.msecsTo(now));
                         if (hit_age < line_highlight_ttl_ms) {
                             has_hit = true;
-                            hit_points.push_back(hits[i].pos_pct);
+                            hit_points.push_back(hits[i]);
                         }
                     }
                 }
 
+                const double k_boost = 1.0;
                 if (!has_hit) {
                     QColor hc = l.color;
                     int a = static_cast<int>(255.0 * ktime);
@@ -532,30 +534,16 @@ void stream_cell::draw_persistent(QPainter& p) const {
                         const QPointF a_pct = l.pts_pct[i - 1];
                         const QPointF b_pct = l.pts_pct[i];
 
-                        const QPointF mid = (a_pct + b_pct) * 0.5;
-
-                        double best_kspace = 0.0;
-
-                        for (int j = 0; j < hit_points.size(); j += 1) {
-                            const double dx = mid.x() - hit_points[j].x();
-                            const double dy = mid.y() - hit_points[j].y();
-                            double dist = std::sqrt(dx * dx + dy * dy);
-
-                            double kspace = 1.0 - dist / falloff_pct;
-                            if (kspace < 0.0) {
-                                kspace = 0.0;
-                            }
-
-                            kspace = kspace * kspace;
-
-                            if (kspace > best_kspace) {
-                                best_kspace = kspace;
-                            }
-                        }
-
-                        const double k = ktime * best_kspace;
+                        double k = segment_impact_k(
+                            a_pct, b_pct, hit_points, falloff_pct, ktime
+                        );
                         if (k <= 0.0) {
                             continue;
+                        }
+
+                        k = k * k_boost;
+                        if (k > 1.0) {
+                            k = 1.0;
                         }
 
                         QColor hc = l.color;
@@ -577,29 +565,14 @@ void stream_cell::draw_persistent(QPainter& p) const {
                         const QPointF a_pct = l.pts_pct.back();
                         const QPointF b_pct = l.pts_pct.front();
 
-                        const QPointF mid = (a_pct + b_pct) * 0.5;
-
-                        double best_kspace = 0.0;
-
-                        for (int j = 0; j < hit_points.size(); j += 1) {
-                            const double dx = mid.x() - hit_points[j].x();
-                            const double dy = mid.y() - hit_points[j].y();
-                            double dist = std::sqrt(dx * dx + dy * dy);
-
-                            double kspace = 1.0 - dist / falloff_pct;
-                            if (kspace < 0.0) {
-                                kspace = 0.0;
-                            }
-
-                            kspace = kspace * kspace;
-
-                            if (kspace > best_kspace) {
-                                best_kspace = kspace;
-                            }
-                        }
-
-                        const double k = ktime * best_kspace;
+                        double k = segment_impact_k(
+                            a_pct, b_pct, hit_points, falloff_pct, ktime
+                        );
                         if (k > 0.0) {
+                            k = k * k_boost;
+                            if (k > 1.0) {
+                                k = 1.0;
+                            }
                             QColor hc = l.color;
                             int a = static_cast<int>(255.0 * k);
                             if (a < 0) {
@@ -776,6 +749,58 @@ void stream_cell::draw_events(QPainter& p) {
     }
 
     events = std::move(alive);
+}
+
+double stream_cell::segment_impact_k(
+    const QPointF& a_pct, const QPointF& b_pct,
+    const QVector<hit_info>& hit_points, double falloff_pct, double ktime
+) const {
+    const double abx = b_pct.x() - a_pct.x();
+    const double aby = b_pct.y() - a_pct.y();
+    const double ab_len2 = abx * abx + aby * aby;
+
+    if (ab_len2 <= 0.0) {
+        return 0.0;
+    }
+
+    double best_impact = 0.0;
+
+    for (int j = 0; j < hit_points.size(); j += 1) {
+        const hit_info hp_info = hit_points[j];
+        const QPointF hp = hp_info.pos_pct;
+
+        const double apx = hp.x() - a_pct.x();
+        const double apy = hp.y() - a_pct.y();
+
+        double t = (apx * abx + apy * aby) / ab_len2;
+        if (t < 0.0) {
+            t = 0.0;
+        } else if (t > 1.0) {
+            t = 1.0;
+        }
+
+        const double projx = a_pct.x() + t * abx;
+        const double projy = a_pct.y() + t * aby;
+
+        const double dx = projx - hp.x();
+        const double dy = projy - hp.y();
+        double dist = std::sqrt(dx * dx + dy * dy);
+
+        double kspace = 1.0 - dist / falloff_pct;
+        if (kspace < 0.0) {
+            kspace = 0.0;
+        }
+
+        kspace = kspace * kspace;
+
+        double impact = kspace * hp_info.strength;
+        if (impact > best_impact) {
+            best_impact = impact;
+        }
+    }
+
+    const double k = ktime * best_impact;
+    return k;
 }
 
 void stream_cell::on_frame_changed(const QVideoFrame& frame) {
