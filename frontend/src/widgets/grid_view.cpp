@@ -124,8 +124,12 @@ void grid_view::enlarge_requested(const QString& name) {
 
 static int ceil_div(const int a, const int b) { return (a + b - 1) / b; }
 
+void grid_view::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    rebuild_layout();
+}
+
 void grid_view::rebuild_layout() {
-    // todo fix layout
     while (grid_layout->count() > 0) {
         auto* item = grid_layout->takeAt(0);
         if (item->widget()) {
@@ -142,8 +146,76 @@ void grid_view::rebuild_layout() {
     }
     this->show();
 
-    const int cols = qCeil(qSqrt(static_cast<double>(n)));
-    const int rows = ceil_div(n, cols);
+    const int viewport_w = scroll->viewport()->width();
+    const int viewport_h = scroll->viewport()->height();
+
+    const QMargins margins = grid_layout->contentsMargins();
+    int available_width = viewport_w - margins.left() - margins.right();
+    int available_height = viewport_h - margins.top() - margins.bottom();
+
+    if (available_width <= 0) {
+        available_width = kMinTileW;
+    }
+    if (available_height <= 0) {
+        available_height = kMinTileH;
+    }
+
+    int h_spacing = grid_layout->horizontalSpacing();
+    if (h_spacing < 0) {
+        h_spacing = grid_layout->spacing();
+    }
+    int v_spacing = grid_layout->verticalSpacing();
+    if (v_spacing < 0) {
+        v_spacing = grid_layout->spacing();
+    }
+
+    const int denom = kMinTileH + v_spacing;
+    int max_rows = 1;
+    if (denom > 0) {
+        max_rows = (available_height + v_spacing) / denom;
+    }
+    if (max_rows < 1) {
+        max_rows = 1;
+    }
+    if (max_rows > n) {
+        max_rows = n;
+    }
+
+    const qint64 overflow_weight = 1000000;
+    const qint64 slack_weight = 1;
+    const qint64 row_weight = kMinTileH;
+
+    int best_rows = 1;
+    int best_cols = n;
+    qint64 best_score = 0;
+    bool has_best = false;
+
+    for (int rows = 1; rows <= max_rows; ++rows) {
+        const int cols = ceil_div(n, rows);
+        const int cols_minus_one = cols > 0 ? cols - 1 : 0;
+        const int needed_width = cols * kMinTileW + cols_minus_one * h_spacing;
+
+        const int overflow = needed_width > available_width
+            ? needed_width - available_width
+            : 0;
+        const int slack = available_width > needed_width
+            ? available_width - needed_width
+            : 0;
+
+        const qint64 score = static_cast<qint64>(overflow) * overflow_weight
+            + static_cast<qint64>(slack) * slack_weight
+            + static_cast<qint64>(rows) * row_weight;
+
+        if (!has_best || score < best_score) {
+            has_best = true;
+            best_score = score;
+            best_rows = rows;
+            best_cols = cols;
+        }
+    }
+
+    const int rows = best_rows;
+    const int cols = best_cols;
 
     for (int c = 0; c < cols; ++c) {
         grid_layout->setColumnStretch(c, 1);

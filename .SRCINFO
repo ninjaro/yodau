@@ -1,0 +1,17 @@
+pkgbase = yodau
+	pkgdesc = YEAR OF THE DEPEND ADULT UNDERGARMENT: Qt/OpenCV-based video stream viewer with motion and tripwire events
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/ninjaro/yodau
+	arch = x86_64
+	license = MIT
+	makedepends = cmake
+	makedepends = ninja
+	makedepends = gcc
+	depends = qt6-base
+	depends = qt6-multimedia
+	optdepends = opencv: enables motion/tripwire detection backend
+	source = yodau-0.1.0.tar.gz::https://github.com/ninjaro/yodau/archive/refs/tags/v0.1.0.tar.gz
+	sha256sums = 9067af7856c0a53274e493eab0dc56abe24e06393a2627542af70884163c265d
+
+pkgname = yodau

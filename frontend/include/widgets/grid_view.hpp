@@ -30,6 +30,9 @@ signals:
     void stream_closed(const QString& name);
     void stream_enlarge(const QString& name);
 
+protected:
+    void resizeEvent(QResizeEvent* event) override;
+
 private:
     void rebuild_layout();
     void close_requested(const QString& name);

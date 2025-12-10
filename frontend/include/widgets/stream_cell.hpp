@@ -163,7 +163,7 @@ private:
         QDateTime ts;
     };
 
-    QHash<QString, hit_info> line_hits;
+    QHash<QString, QVector<hit_info>> line_hits;
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP

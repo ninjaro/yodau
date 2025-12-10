@@ -891,6 +891,25 @@ void controller::on_backend_event(const yodau::backend::event& e) {
         }
     }
 
+    bool allow_gui_motion = true;
+    if (e.kind == yodau::backend::event_kind::motion) {
+        const auto now = QDateTime::currentDateTime();
+        if (last_gui_motion_event_ts.contains(name)) {
+            const int age
+                = static_cast<int>(last_gui_motion_event_ts[name].msecsTo(now));
+            if (age < motion_gui_interval_ms) {
+                allow_gui_motion = false;
+            }
+        }
+        if (allow_gui_motion) {
+            last_gui_motion_event_ts[name] = now;
+        }
+    }
+
+    if (!allow_gui_motion) {
+        return;
+    }
+
     const auto& p = *e.pos_pct;
     tile->add_event(QPointF(p.x, p.y), Qt::gray);
 }

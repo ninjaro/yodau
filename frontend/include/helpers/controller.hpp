@@ -138,6 +138,9 @@ private:
 
     int active_interval_ms { 33 };
     int idle_interval_ms { 66 };
+
+    QHash<QString, QDateTime> last_gui_motion_event_ts;
+    int motion_gui_interval_ms { 80 };
 };
 
 #endif // YODAU_FRONTEND_HELPERS_CONTROLLER_HPP

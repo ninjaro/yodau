@@ -215,7 +215,19 @@ void stream_cell::highlight_line_at(
     hit_info h;
     h.pos_pct = pos_pct;
     h.ts = QDateTime::currentDateTime();
-    line_hits[line_name] = h;
+
+    auto& hits = line_hits[line_name];
+
+    for (int i = 0; i < hits.size(); i += 1) {
+        const int age = static_cast<int>(hits[i].ts.msecsTo(h.ts));
+        if (age >= line_highlight_ttl_ms) {
+            hits.removeAt(i);
+            i -= 1;
+        }
+    }
+
+    hits.push_back(h);
+
     line_highlights[line_name] = h.ts;
     update();
 }
@@ -488,14 +500,17 @@ void stream_cell::draw_persistent(QPainter& p) const {
                 const double peak_w = 22.0;
 
                 bool has_hit = false;
-                QPointF hit_pct;
+                QVector<QPointF> hit_points;
 
                 if (line_hits.contains(key)) {
-                    const auto& h = line_hits[key];
-                    const int hit_age = static_cast<int>(h.ts.msecsTo(now));
-                    if (hit_age < line_highlight_ttl_ms) {
-                        has_hit = true;
-                        hit_pct = h.pos_pct;
+                    const auto hits = line_hits.value(key);
+                    for (int i = 0; i < hits.size(); i += 1) {
+                        const int hit_age
+                            = static_cast<int>(hits[i].ts.msecsTo(now));
+                        if (hit_age < line_highlight_ttl_ms) {
+                            has_hit = true;
+                            hit_points.push_back(hits[i].pos_pct);
+                        }
                     }
                 }
 
@@ -518,18 +533,27 @@ void stream_cell::draw_persistent(QPainter& p) const {
                         const QPointF b_pct = l.pts_pct[i];
 
                         const QPointF mid = (a_pct + b_pct) * 0.5;
-                        const double dx = mid.x() - hit_pct.x();
-                        const double dy = mid.y() - hit_pct.y();
-                        double dist = std::sqrt(dx * dx + dy * dy);
 
-                        double kspace = 1.0 - dist / falloff_pct;
-                        if (kspace < 0.0) {
-                            kspace = 0.0;
+                        double best_kspace = 0.0;
+
+                        for (int j = 0; j < hit_points.size(); j += 1) {
+                            const double dx = mid.x() - hit_points[j].x();
+                            const double dy = mid.y() - hit_points[j].y();
+                            double dist = std::sqrt(dx * dx + dy * dy);
+
+                            double kspace = 1.0 - dist / falloff_pct;
+                            if (kspace < 0.0) {
+                                kspace = 0.0;
+                            }
+
+                            kspace = kspace * kspace;
+
+                            if (kspace > best_kspace) {
+                                best_kspace = kspace;
+                            }
                         }
 
-                        kspace = kspace * kspace;
-
-                        const double k = ktime * kspace;
+                        const double k = ktime * best_kspace;
                         if (k <= 0.0) {
                             continue;
                         }
@@ -547,6 +571,49 @@ void stream_cell::draw_persistent(QPainter& p) const {
                         draw_poly_with_points(
                             p, seg, hc, false, Qt::SolidLine, w
                         );
+                    }
+
+                    if (l.closed && l.pts_pct.size() >= 2) {
+                        const QPointF a_pct = l.pts_pct.back();
+                        const QPointF b_pct = l.pts_pct.front();
+
+                        const QPointF mid = (a_pct + b_pct) * 0.5;
+
+                        double best_kspace = 0.0;
+
+                        for (int j = 0; j < hit_points.size(); j += 1) {
+                            const double dx = mid.x() - hit_points[j].x();
+                            const double dy = mid.y() - hit_points[j].y();
+                            double dist = std::sqrt(dx * dx + dy * dy);
+
+                            double kspace = 1.0 - dist / falloff_pct;
+                            if (kspace < 0.0) {
+                                kspace = 0.0;
+                            }
+
+                            kspace = kspace * kspace;
+
+                            if (kspace > best_kspace) {
+                                best_kspace = kspace;
+                            }
+                        }
+
+                        const double k = ktime * best_kspace;
+                        if (k > 0.0) {
+                            QColor hc = l.color;
+                            int a = static_cast<int>(255.0 * k);
+                            if (a < 0) {
+                                a = 0;
+                            }
+                            hc.setAlpha(a);
+
+                            const double w = base_w + (peak_w - base_w) * k;
+
+                            std::vector<QPointF> seg { a_pct, b_pct };
+                            draw_poly_with_points(
+                                p, seg, hc, false, Qt::SolidLine, w
+                            );
+                        }
                     }
                 }
             }

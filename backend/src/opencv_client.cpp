@@ -251,7 +251,7 @@ void opencv_client::consider_hit(
 void opencv_client::test_line_segment_against_contour(
     bool& hit, float& best_dist2, point& best_a, point& best_b, point& best_pos,
     const point& cur_pos_pct, const std::vector<point>& contour_pct,
-    const point& a, const point& b
+    const point& a, const point& b, std::vector<point>& hit_positions_pct
 ) const {
     if (contour_pct.size() < 2) {
         return;
@@ -268,6 +268,8 @@ void opencv_client::test_line_segment_against_contour(
                 ip = *inter;
             }
 
+            hit_positions_pct.push_back(ip);
+
             consider_hit(
                 hit, best_dist2, best_a, best_b, best_pos, cur_pos_pct, a, b, ip
             );
@@ -282,6 +284,8 @@ void opencv_client::test_line_segment_against_contour(
         if (inter.has_value()) {
             ip = *inter;
         }
+
+        hit_positions_pct.push_back(ip);
 
         consider_hit(
             hit, best_dist2, best_a, best_b, best_pos, cur_pos_pct, a, b, ip
@@ -306,22 +310,28 @@ void opencv_client::process_tripwire_for_line(
     point best_pos = cur_pos_pct;
     float best_dist2 = std::numeric_limits<float>::max();
 
+    std::vector<point> hit_positions_pct;
+
     for (size_t i = 1; i < pts.size(); ++i) {
         test_line_segment_against_contour(
             hit, best_dist2, best_a, best_b, best_pos, cur_pos_pct, contour_pct,
-            pts[i - 1], pts[i]
+            pts[i - 1], pts[i], hit_positions_pct
         );
     }
 
     if (l.closed && pts.size() > 2) {
         test_line_segment_against_contour(
             hit, best_dist2, best_a, best_b, best_pos, cur_pos_pct, contour_pct,
-            pts.back(), pts.front()
+            pts.back(), pts.front(), hit_positions_pct
         );
     }
 
     if (!hit) {
         return;
+    }
+
+    if (hit_positions_pct.empty()) {
+        hit_positions_pct.push_back(best_pos);
     }
 
     const float prev_side = cross_z(best_a, best_b, prev_pos);
@@ -371,18 +381,20 @@ void opencv_client::process_tripwire_for_line(
         return;
     }
 
-    event t;
-    t.kind = event_kind::tripwire;
-    t.stream_name = s.get_name();
-    t.line_name = l.name;
-    t.ts = now;
-    t.pos_pct = best_pos;
-    t.message = dir;
+    for (const auto& pos : hit_positions_pct) {
+        event t;
+        t.kind = event_kind::tripwire;
+        t.stream_name = s.get_name();
+        t.line_name = l.name;
+        t.ts = now;
+        t.pos_pct = pos;
+        t.message = dir;
 
-    std::cerr << "tripwire stream=" << t.stream_name << " line=" << t.line_name
-              << " dir=" << dir << std::endl;
+        std::cerr << "tripwire stream=" << t.stream_name
+                  << " line=" << t.line_name << " dir=" << dir << std::endl;
 
-    out.push_back(std::move(t));
+        out.push_back(std::move(t));
+    }
 }
 
 std::optional<size_t> opencv_client::find_largest_contour_index(
@@ -627,8 +639,8 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 
     add_motion_event(out, s.get_name(), now, cur_pos_pct);
 
-    const int grid_step = 24;
-    const int max_bubbles = 80;
+    const int grid_step = 32;
+    const int max_bubbles = 40;
 
     int bubbled = 0;
     for (int y = 0; y < diff.rows; y += grid_step) {

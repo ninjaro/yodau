@@ -66,7 +66,8 @@ private:
     void test_line_segment_against_contour(
         bool& hit, float& best_dist2, point& best_a, point& best_b,
         point& best_pos, const point& cur_pos_pct,
-        const std::vector<point>& contour_pct, const point& a, const point& b
+        const std::vector<point>& contour_pct, const point& a, const point& b,
+        std::vector<point>& hit_positions_pct
     ) const;
 
     void process_tripwire_for_line(
