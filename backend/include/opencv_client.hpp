@@ -7,6 +7,7 @@
 #include "frame.hpp"
 #include "stream.hpp"
 #include "stream_manager.hpp"
+#include "tripwire_grid_stream_index.hpp"
 
 #include <opencv2/opencv.hpp>
 
@@ -81,7 +82,18 @@ private:
         const std::vector<std::vector<cv::Point>>& contours
     ) const;
 
-private:
+    struct grid_cache_entry {
+        grid_dims dims;
+        std::vector<const line*> line_ptrs;
+        grid_stream_index index;
+    };
+
+    const grid_stream_index& get_grid_index_cached(
+        const stream& s, const grid_dims& g, const std::vector<line_ptr>& lines
+    );
+
+    mutable std::mutex grid_cache_mtx;
+    std::unordered_map<std::string, grid_cache_entry> grid_cache_by_stream;
     mutable std::mutex mtx;
 
     std::unordered_map<std::string, cv::Mat> prev_gray_by_stream;

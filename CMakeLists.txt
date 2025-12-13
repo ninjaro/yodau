@@ -116,6 +116,10 @@ set(libyodau_headers
         backend/include/stream_manager.hpp
         backend/include/stream.hpp
         backend/include/geometry.hpp
+        backend/include/coords.hpp
+        backend/include/tripwire_grid.hpp
+        backend/include/tripwire_grid_index.hpp
+        backend/include/tripwire_grid_stream_index.hpp
         backend/include/frame.hpp
         backend/include/event.hpp
 
@@ -126,6 +130,10 @@ set(libyodau_sources
         backend/src/stream_manager.cpp
         backend/src/stream.cpp
         backend/src/geometry.cpp
+        backend/src/coords.cpp
+        backend/src/tripwire_grid.cpp
+        backend/src/tripwire_grid_index.cpp
+        backend/src/tripwire_grid_stream_index.cpp
 
         backend/src/opencv_client.cpp
 )
