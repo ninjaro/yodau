@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - name: Set up GCC 14
         uses: egor-tensin/setup-gcc@eaa888eb19115a521fa72b65cd94fe1f25bbcaac # v1
@@ -28,7 +28,7 @@ jobs:
           version: 14
           platform: x64
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4
+        uses: github/codeql-action/init@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: manual
@@ -66,4 +66,4 @@ jobs:
         run: cmake --build build --parallel "$(nproc)"
 
       - name: Run CodeQL Analysis
-        uses: github/codeql-action/analyze@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4
+        uses: github/codeql-action/analyze@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4
