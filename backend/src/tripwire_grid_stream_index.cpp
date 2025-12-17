@@ -1,6 +1,41 @@
 #include "tripwire_grid_stream_index.hpp"
 
-void yodau::backend::grid_candidate_tracker::ensure_size(const std::size_t n) {
+yodau::backend::pct_bbox
+yodau::backend::compute_pct_bbox(const std::vector<point>& pts, bool& ok) {
+    pct_bbox b {};
+    ok = false;
+
+    if (pts.empty()) {
+        return b;
+    }
+
+    b.min_x = pts[0].x;
+    b.max_x = pts[0].x;
+    b.min_y = pts[0].y;
+    b.max_y = pts[0].y;
+
+    for (size_t i = 1; i < pts.size(); ++i) {
+        const auto& p = pts[i];
+
+        if (p.x < b.min_x) {
+            b.min_x = p.x;
+        }
+        if (p.x > b.max_x) {
+            b.max_x = p.x;
+        }
+        if (p.y < b.min_y) {
+            b.min_y = p.y;
+        }
+        if (p.y > b.max_y) {
+            b.max_y = p.y;
+        }
+    }
+
+    ok = true;
+    return b;
+}
+
+void yodau::backend::grid_candidate_tracker::ensure_size(const size_t n) {
     if (seen.size() != n) {
         seen.assign(n, 0);
         stamp = 1;
@@ -27,7 +62,7 @@ yodau::backend::grid_stream_index yodau::backend::build_grid_stream_index(
         return out;
     }
 
-    out.cell_to_segment_ids.resize(static_cast<std::size_t>(g.nx * g.ny));
+    out.cell_to_segment_ids.resize(static_cast<size_t>(g.nx * g.ny));
 
     for (const auto& lp : input_lines) {
         if (!lp) {
@@ -38,15 +73,16 @@ yodau::backend::grid_stream_index yodau::backend::build_grid_stream_index(
         cl.name = lp->name;
         cl.dir = lp->dir;
         cl.index = build_grid_line_index(*lp, g);
+        cl.bbox = compute_pct_bbox(lp->points, cl.bbox_ok);
 
         out.lines.push_back(std::move(cl));
     }
 
-    for (std::size_t li = 0; li < out.lines.size(); ++li) {
+    for (size_t li = 0; li < out.lines.size(); ++li) {
         const auto& line_idx = out.lines[li].index;
 
-        for (std::size_t si = 0; si < line_idx.segments.size(); ++si) {
-            const std::size_t id = out.segments.size();
+        for (size_t si = 0; si < line_idx.segments.size(); ++si) {
+            const size_t id = out.segments.size();
 
             grid_segment_ref ref {};
             ref.id = id;
@@ -58,8 +94,7 @@ yodau::backend::grid_stream_index yodau::backend::build_grid_stream_index(
             const auto& seg = line_idx.segments[si];
             for (const auto& c : seg.cells) {
                 const int idx = grid_index(c, g);
-                out.cell_to_segment_ids[static_cast<std::size_t>(idx)]
-                    .push_back(id);
+                out.cell_to_segment_ids[static_cast<size_t>(idx)].push_back(id);
             }
         }
     }
@@ -69,7 +104,7 @@ yodau::backend::grid_stream_index yodau::backend::build_grid_stream_index(
 
 void yodau::backend::collect_grid_candidates(
     const grid_stream_index& idx, const std::vector<int>& active_cell_indices,
-    grid_candidate_tracker& tracker, std::vector<std::size_t>& out_segment_ids
+    grid_candidate_tracker& tracker, std::vector<size_t>& out_segment_ids
 ) {
     out_segment_ids.clear();
 
@@ -84,8 +119,8 @@ void yodau::backend::collect_grid_candidates(
         }
 
         const auto& ids
-            = idx.cell_to_segment_ids[static_cast<std::size_t>(cell_idx)];
-        for (const std::size_t id : ids) {
+            = idx.cell_to_segment_ids[static_cast<size_t>(cell_idx)];
+        for (const size_t id : ids) {
             if (id >= tracker.seen.size()) {
                 continue;
             }

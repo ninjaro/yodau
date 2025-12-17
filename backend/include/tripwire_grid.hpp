@@ -10,7 +10,7 @@
 namespace yodau::backend {
 
 struct grid_tripwire_segment {
-    std::size_t seg_index {};
+    size_t seg_index {};
     point a_pct;
     point b_pct;
     std::vector<grid_point> cells;

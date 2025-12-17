@@ -11,7 +11,7 @@ namespace yodau::backend {
 struct grid_line_index {
     grid_dims dims;
     std::vector<grid_tripwire_segment> segments;
-    std::vector<std::vector<std::size_t>> cell_to_segments;
+    std::vector<std::vector<size_t>> cell_to_segments;
 };
 
 grid_line_index build_grid_line_index(const line& l, const grid_dims& g);

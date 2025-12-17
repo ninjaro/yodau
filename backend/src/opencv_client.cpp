@@ -4,8 +4,10 @@
 #include "coords.hpp"
 #include "tripwire_grid_stream_index.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <filesystem>
+#include <tuple>
 
 #ifdef __linux__
 #include <fcntl.h>
@@ -25,9 +27,7 @@
 namespace yodau::backend {
 
 namespace {
-    cv::Mat downsample_to_grid_u8(
-        const cv::Mat& diff, const yodau::backend::grid_dims& g
-    ) {
+    cv::Mat downsample_to_grid_u8(const cv::Mat& diff, const grid_dims& g) {
         cv::Mat out;
 
         if (g.nx <= 0 || g.ny <= 0) {
@@ -39,6 +39,44 @@ namespace {
 
         cv::resize(diff, out, cv::Size(g.nx, g.ny), 0.0, 0.0, cv::INTER_AREA);
         return out;
+    }
+
+    [[maybe_unused]] bool is_null_line_ptr(const line_ptr& lp) { return !lp; }
+
+    [[maybe_unused]] bool
+    line_ptr_less_by_name(const line_ptr& a, const line_ptr& b) {
+        const bool a_ok = static_cast<bool>(a);
+        const bool b_ok = static_cast<bool>(b);
+
+        if (!b_ok) {
+            return false;
+        }
+        if (!a_ok) {
+            return true;
+        }
+
+        if (a->name < b->name) {
+            return true;
+        }
+        if (b->name < a->name) {
+            return false;
+        }
+
+        return a.get() < b.get();
+    }
+
+    void normalize_lines_snapshot(std::vector<line_ptr>& lines) {
+        std::erase_if(lines, [](auto& p) { return !p; });
+
+        // lines.erase(
+        //     std::remove_if(lines.begin(), lines.end(), is_null_line_ptr),
+        //     lines.end()
+        // );
+
+        // std::sort(lines.begin(), lines.end(), line_ptr_less_by_name);
+        std::sort(lines.begin(), lines.end(), [](auto const& a, auto const& b) {
+            return std::tie(a->name, a.get()) < std::tie(b->name, b.get());
+        });
     }
 
 #ifdef __linux__
@@ -174,8 +212,10 @@ int opencv_client::orient(
 }
 
 bool opencv_client::between(float a, float b, float c) const {
-    return (a <= c + point::epsilon && c <= b + point::epsilon)
-        || (b <= c + point::epsilon && c <= a + point::epsilon);
+    auto [lo, hi] = std::minmax(a, b);
+    return lo <= c + point::epsilon && c <= hi + point::epsilon;
+    // return (a <= c + point::epsilon && c <= b + point::epsilon)
+    //     || (b <= c + point::epsilon && c <= a + point::epsilon);
 }
 
 bool opencv_client::on_segment(
@@ -533,7 +573,7 @@ const grid_stream_index& opencv_client::get_grid_index_cached(
             }
 
             if (same) {
-                for (std::size_t i = 0; i < ptrs.size(); ++i) {
+                for (size_t i = 0; i < ptrs.size(); ++i) {
                     if (it->second.line_ptrs[i] != ptrs[i]) {
                         same = false;
                         break;
@@ -744,15 +784,11 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
         int y1 = c1.y;
 
         if (x0 > x1) {
-            const int t = x0;
-            x0 = x1;
-            x1 = t;
+            std::swap(x0, x1);
         }
 
         if (y0 > y1) {
-            const int t = y0;
-            y0 = y1;
-            y1 = t;
+            std::swap(y0, y1);
         }
 
         const int pad = 1;
@@ -763,10 +799,8 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
         y0 = clamp_int(y0 - pad, 0, g.ny - 1);
         y1 = clamp_int(y1 + pad, 0, g.ny - 1);
 
-        motion_box_cell_indices.clear();
-
         motion_box_cell_indices.reserve(
-            static_cast<std::size_t>((x1 - x0 + 1) * (y1 - y0 + 1))
+            static_cast<size_t>((x1 - x0 + 1) * (y1 - y0 + 1))
         );
 
         for (int cell_y = y0; cell_y <= y1; ++cell_y) {
@@ -838,38 +872,45 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
     }
 
     if (has_prev) {
-        const auto lines = s.lines_snapshot();
+        auto lines = s.lines_snapshot();
+        normalize_lines_snapshot(lines);
 #ifdef YODAU_GRID_PREFILTER
+        const grid_stream_index* idx_ptr = nullptr;
         std::vector<std::uint8_t> candidate_line_flags;
         grid_candidate_tracker tracker;
-        std::vector<std::size_t> candidate_segment_ids;
+        std::vector<size_t> candidate_segment_ids;
 
         if (!motion_box_cell_indices.empty()) {
-            const grid_stream_index& idx = get_grid_index_cached(s, g, lines);
+            const grid_stream_index& idx_ref
+                = get_grid_index_cached(s, g, lines);
+            idx_ptr = &idx_ref;
 
             collect_grid_candidates(
-                idx, motion_box_cell_indices, tracker, candidate_segment_ids
+                *idx_ptr, motion_box_cell_indices, tracker,
+                candidate_segment_ids
             );
 
-            candidate_line_flags.assign(idx.lines.size(), 0);
+            if (!candidate_segment_ids.empty()) {
+                candidate_line_flags.assign(idx_ptr->lines.size(), 0);
 
-            for (const std::size_t seg_id : candidate_segment_ids) {
-                if (seg_id >= idx.segments.size()) {
-                    continue;
+                for (const size_t seg_id : candidate_segment_ids) {
+                    if (seg_id >= idx_ptr->segments.size()) {
+                        continue;
+                    }
+
+                    const auto& ref = idx_ptr->segments[seg_id];
+                    if (ref.line_index >= candidate_line_flags.size()) {
+                        continue;
+                    }
+
+                    candidate_line_flags[ref.line_index] = 1;
                 }
-
-                const auto& ref = idx.segments[seg_id];
-                if (ref.line_index >= candidate_line_flags.size()) {
-                    continue;
-                }
-
-                candidate_line_flags[ref.line_index] = 1;
             }
         }
 #endif
-        std::size_t grid_li = 0;
 
-        for (const auto& lp : lines) {
+        for (size_t grid_li = 0; grid_li < lines.size(); ++grid_li) {
+            const auto& lp = lines[grid_li];
             if (!lp) {
                 continue;
             }
@@ -878,7 +919,6 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
             if (!candidate_line_flags.empty()) {
                 if (grid_li < candidate_line_flags.size()) {
                     if (candidate_line_flags[grid_li] == 0) {
-                        grid_li++;
                         continue;
                     }
                 }
@@ -887,11 +927,69 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 
             const auto& pts = lp->points;
             if (pts.empty()) {
-                grid_li++;
                 continue;
             }
 
             if (motion_box_ok) {
+#ifdef YODAU_GRID_PREFILTER
+                bool do_fallback = true;
+
+                if (idx_ptr) {
+                    if (grid_li < idx_ptr->lines.size()) {
+                        const auto& cl = idx_ptr->lines[grid_li];
+                        if (cl.bbox_ok) {
+                            const bool x_overlap
+                                = !(cl.bbox.max_x < motion_box.min_x
+                                    || cl.bbox.min_x > motion_box.max_x);
+
+                            const bool y_overlap
+                                = !(cl.bbox.max_y < motion_box.min_y
+                                    || cl.bbox.min_y > motion_box.max_y);
+
+                            if (!(x_overlap && y_overlap)) {
+                                continue;
+                            }
+
+                            do_fallback = false;
+                        }
+                    }
+                }
+
+                if (do_fallback) {
+                    bbox2f line_box {};
+                    line_box.min_x = 100.0f;
+                    line_box.min_y = 100.0f;
+                    line_box.max_x = 0.0f;
+                    line_box.max_y = 0.0f;
+
+                    for (const auto& p : pts) {
+                        if (p.x < line_box.min_x) {
+                            line_box.min_x = p.x;
+                        }
+                        if (p.y < line_box.min_y) {
+                            line_box.min_y = p.y;
+                        }
+                        if (p.x > line_box.max_x) {
+                            line_box.max_x = p.x;
+                        }
+                        if (p.y > line_box.max_y) {
+                            line_box.max_y = p.y;
+                        }
+                    }
+
+                    const bool x_overlap
+                        = !(line_box.max_x < motion_box.min_x
+                            || line_box.min_x > motion_box.max_x);
+
+                    const bool y_overlap
+                        = !(line_box.max_y < motion_box.min_y
+                            || line_box.min_y > motion_box.max_y);
+
+                    if (!(x_overlap && y_overlap)) {
+                        continue;
+                    }
+                }
+#else
                 bbox2f line_box {};
                 line_box.min_x = 100.0f;
                 line_box.min_y = 100.0f;
@@ -922,16 +1020,14 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
                         || line_box.min_y > motion_box.max_y);
 
                 if (!(x_overlap && y_overlap)) {
-                    grid_li++;
                     continue;
                 }
+#endif
             }
 
             process_tripwire_for_line(
                 out, s, *lp, prev_pos, cur_pos_pct, contour_pct, now, strength
             );
-
-            grid_li++;
         }
     }
 
@@ -942,7 +1038,7 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
     const cv::Mat grid_u8 = downsample_to_grid_u8(diff, g);
 
     std::vector<int> active_cell_indices;
-    active_cell_indices.reserve(static_cast<std::size_t>(g.nx * g.ny));
+    active_cell_indices.reserve(static_cast<size_t>(g.nx * g.ny));
 
     for (int cell_y = 0; cell_y < g.ny; ++cell_y) {
         const std::uint8_t* row = grid_u8.ptr<std::uint8_t>(cell_y);
@@ -957,12 +1053,13 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 
 #ifdef YODAU_DEBUG_GRID
     if (!active_cell_indices.empty()) {
-        const auto lines = s.lines_snapshot();
+        auto lines = s.lines_snapshot();
+        normalize_lines_snapshot(lines);
         if (!lines.empty()) {
             const grid_stream_index& idx = get_grid_index_cached(s, g, lines);
 
             grid_candidate_tracker tracker;
-            std::vector<std::size_t> candidate_segment_ids;
+            std::vector<size_t> candidate_segment_ids;
 
             collect_grid_candidates(
                 idx, active_cell_indices, tracker, candidate_segment_ids

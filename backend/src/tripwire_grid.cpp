@@ -6,14 +6,14 @@ yodau::backend::compile_line_to_grid_segments(
 ) {
     std::vector<grid_tripwire_segment> out;
 
-    const std::size_t n = l.points.size();
+    const size_t n = l.points.size();
     if (n < 2) {
         return out;
     }
 
-    std::size_t seg_index = 0;
+    size_t seg_index = 0;
 
-    for (std::size_t i = 1; i < n; ++i) {
+    for (size_t i = 1; i < n; ++i) {
         grid_tripwire_segment seg {};
         seg.seg_index = seg_index;
         seg.a_pct = l.points[i - 1];
