@@ -19,7 +19,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Set up GCC 14
@@ -29,10 +29,10 @@ jobs:
           platform: x64
 
       - uses: MarkusJx/googletest-installer@28c5d4102d9d57b46254be19a940bf038a9c850a
-      - uses: ssciwr/doxygen-install@501e53b879da7648ab392ee226f5b90e42148449
+      - uses: ssciwr/doxygen-install@f13be1686235deee0aeb6cdf56640170691dc96b
         with:
           version: "1.15.0"
-      - uses: KyleMayes/install-llvm-action@98e68e10c96dffcb7bfed8b2144541a66b49aa02
+      - uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
         with:
           version: "20.1.8"
           env: true
@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload results to Codecov
         if: ${{ hashFiles('build/coverage.info') != '' }}
-        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
         continue-on-error: true
         with:
           files: build/coverage.info
