@@ -5,6 +5,8 @@ The backend runtime now supports two rendering ownership modes:
 * `backend_only` - used by the CLI. OpenCV capture, detection, line overlay rendering, and the backend-owned virtual camera all run in the backend library.
 * `frontend_only` - used by the Qt app. Qt decodes and draws frames, while the backend library only performs detection and emits events.
 
+In CLI `backend_only` mode, `yodau` does not open preview windows. Instead, on Linux it tries to publish rendered frames into a V4L2 output device so the stream can be opened externally, for example with `ffplay /dev/yodau-video0`, and can appear in webcam pickers if the system exposes that loopback device to other applications.
+
 ### Streams
 
 A *stream* represents a video source (local device, file, HTTP/HTTPS, RTSP).
@@ -56,7 +58,11 @@ yodau> list-virtual-cameras
 ```
 
 * `--name` is required; fails with an error if the stream does not exist.
-* `list-virtual-cameras` prints the backend-owned rendered frame buffers that are populated in CLI `backend_only` mode.
+* The Linux backend expects an existing virtual camera output device.
+  By default it prefers `/dev/yodau-video0`, `/dev/yodau-video1`, ... and then compatible loopback-style `/dev/videoN` outputs.
+* Set `YODAU_VCAM_DEVICE=/dev/some-device` to pin the backend to a specific virtual camera device.
+* `list-virtual-cameras` prints the backend stream-to-device bindings, readiness, and the last device error if no compatible sink is currently available.
+* The device binding is finalized when the first rendered frame arrives, because the sink format is configured from the stream frame size.
 
 ### Lines
 

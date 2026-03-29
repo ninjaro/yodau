@@ -9,8 +9,11 @@
 #include <QString>
 #include <QTimer>
 
+#include <chrono>
+#include <deque>
 #include <vector>
 
+#include "analysis/fps_policy.hpp"
 #include "analysis/processing_runtime.hpp"
 #include "streams/stream_manager.hpp"
 #include "widgets/stream_cell.hpp"
@@ -28,8 +31,8 @@ class stream_controller final : public QObject {
 
 public:
     explicit stream_controller(
-        yodau::backend::stream_manager* mgr, settings_panel* panel, stream_board* zone,
-        yodau::monitor::runtime_bridge* monitor = nullptr,
+        yodau::backend::stream_manager* mgr, settings_panel* panel,
+        stream_board* zone, yodau::monitor::runtime_bridge* monitor = nullptr,
         QObject* parent = nullptr
     );
 
@@ -117,13 +120,19 @@ private:
     QSet<QString> used_template_names_for_stream(const QString& stream) const;
     QStringList template_candidates_excluding(const QSet<QString>& used) const;
 
-    void update_repaint_caps();
-    void update_analysis_caps();
+    void refresh_fps_policy(bool force = false);
+    int grid_cell_count() const;
+    int line_count_for_stream(const QString& stream_name) const;
+    int recent_motion_count();
+    double current_device_load_ratio() const;
+    void note_processing_cost_sample(double elapsed_ms);
+    QImage scaled_processing_image(
+        const QString& stream_name, const QImage& image
+    ) const;
     void update_monitor_inventory();
 
     void on_backend_event(const yodau::backend::event& e);
     void on_backend_events(const std::vector<yodau::backend::event>& evs);
-    static int repaint_interval_for_count(int n);
     stream_cell* tile_for_stream_name(const QString& name) const;
 
     yodau::backend::frame frame_from_image(const QImage& image) const;
@@ -158,11 +167,13 @@ private:
     QMap<QString, QUrl> stream_sources;
     QMap<QString, bool> stream_loops;
 
-    int active_interval_ms { 33 };
-    int idle_interval_ms { 66 };
-
     QHash<QString, QDateTime> last_gui_motion_event_ts;
     int motion_gui_interval_ms { 80 };
+    yodau::backend::fps_capability_profile fps_capability;
+    QHash<QString, int> processing_scale_percent_by_stream;
+    double processing_cost_ema_ms { 0.0 };
+    std::deque<std::chrono::steady_clock::time_point> recent_motion_events;
+    std::chrono::steady_clock::time_point last_fps_policy_refresh {};
 };
 
 #endif // YODAU_FRONTEND_SHELL_STREAM_CONTROLLER_HPP

@@ -38,6 +38,7 @@ public:
     stream_manager::processed_frame_sink_fn processed_frame_sink();
 
     render_mode mode() const;
+    bool processing_enabled() const;
     bool has_virtual_camera() const;
     virtual_camera* preview_camera();
     const virtual_camera* preview_camera() const;

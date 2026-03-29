@@ -1,5 +1,5 @@
-#include "streams/linux_capture_device.hpp"
 #include "streams/stream_manager.hpp"
+#include "streams/linux_capture_device.hpp"
 
 #include <chrono>
 #include <ranges>
@@ -250,6 +250,8 @@ yodau::backend::stream_manager::process_frame(
         sp = it->second;
 
         const auto last_it = last_analysis_ts.find(stream_name);
+        const int analysis_interval_ms
+            = analysis_interval_for_stream_locked(stream_name);
         if (last_it == last_analysis_ts.end()) {
             last_analysis_ts[stream_name] = now;
             allow = true;
@@ -297,7 +299,29 @@ void yodau::backend::stream_manager::set_analysis_interval_ms(int ms) {
         return;
     }
     std::scoped_lock lock(mtx);
-    analysis_interval_ms = ms;
+    default_analysis_interval_ms = ms;
+}
+
+void yodau::backend::stream_manager::set_stream_analysis_interval_ms(
+    const std::string& stream_name, const int ms
+) {
+    if (stream_name.empty() || ms <= 0) {
+        return;
+    }
+
+    std::scoped_lock lock(mtx);
+    analysis_interval_overrides_ms[stream_name] = ms;
+}
+
+void yodau::backend::stream_manager::clear_stream_analysis_interval_ms(
+    const std::string& stream_name
+) {
+    if (stream_name.empty()) {
+        return;
+    }
+
+    std::scoped_lock lock(mtx);
+    analysis_interval_overrides_ms.erase(stream_name);
 }
 
 void yodau::backend::stream_manager::start_stream(const std::string& name) {
@@ -465,6 +489,18 @@ void yodau::backend::stream_manager::snapshot_hooks(
 int yodau::backend::stream_manager::current_fake_interval_ms() const {
     std::scoped_lock lock(mtx);
     return fake_interval_ms;
+}
+
+int yodau::backend::stream_manager::analysis_interval_for_stream_locked(
+    const std::string& stream_name
+) const {
+    const auto interval_it = analysis_interval_overrides_ms.find(stream_name);
+    if (interval_it != analysis_interval_overrides_ms.end()
+        && interval_it->second > 0) {
+        return interval_it->second;
+    }
+
+    return default_analysis_interval_ms;
 }
 
 void yodau::backend::stream_manager::run_stream_daemon(

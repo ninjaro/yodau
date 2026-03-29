@@ -16,7 +16,7 @@ yodau::backend::cli_client::cli_client(backend::stream_manager& mgr)
     );
 }
 
-int yodau::backend::cli_client::run() const {
+int yodau::backend::cli_client::run() {
     std::string line;
     while (true) {
         std::cout << "yodau> " << std::flush;
@@ -50,19 +50,18 @@ yodau::backend::cli_client::tokenize(const std::string& line) {
 
 void yodau::backend::cli_client::dispatch_command(
     const std::string& cmd, const std::vector<std::string>& args
-) const {
+) {
     static const std::unordered_map<
-        std::string,
-        void (cli_client::*)(const std::vector<std::string>& args) const>
-        command_map = { { "list-streams", &cli_client::cmd_list_streams },
-                        { "add-stream", &cli_client::cmd_add_stream },
-                        { "start-stream", &cli_client::cmd_start_stream },
-                        { "stop-stream", &cli_client::cmd_stop_stream },
-                        { "list-lines", &cli_client::cmd_list_lines },
-                        { "add-line", &cli_client::cmd_add_line },
-                        { "set-line", &cli_client::cmd_set_line },
-                        { "list-virtual-cameras",
-                          &cli_client::cmd_list_virtual_cameras } };
+        std::string, void (cli_client::*)(const std::vector<std::string>& args)>
+        command_map
+        = { { "list-streams", &cli_client::cmd_list_streams },
+            { "add-stream", &cli_client::cmd_add_stream },
+            { "start-stream", &cli_client::cmd_start_stream },
+            { "stop-stream", &cli_client::cmd_stop_stream },
+            { "list-lines", &cli_client::cmd_list_lines },
+            { "add-line", &cli_client::cmd_add_line },
+            { "set-line", &cli_client::cmd_set_line },
+            { "list-virtual-cameras", &cli_client::cmd_list_virtual_cameras } };
     const auto it = command_map.find(cmd);
     if (it == command_map.end()) {
         std::cerr << "unknown command: " << cmd << std::endl;
@@ -94,7 +93,7 @@ cxxopts::ParseResult yodau::backend::cli_client::parse_with_cxxopts(
 
 void yodau::backend::cli_client::cmd_list_streams(
     const std::vector<std::string>& args
-) const {
+) {
     const std::string cmd = "list-streams";
     cxxopts::Options options(cmd, "List all streams");
     options.allow_unrecognised_options();
@@ -120,7 +119,7 @@ void yodau::backend::cli_client::cmd_list_streams(
 
 void yodau::backend::cli_client::cmd_add_stream(
     const std::vector<std::string>& args
-) const {
+) {
     const std::string cmd = "add-stream";
     cxxopts::Options options(cmd, "Add a new stream");
     options.allow_unrecognised_options();
@@ -158,7 +157,7 @@ void yodau::backend::cli_client::cmd_add_stream(
 
 void yodau::backend::cli_client::cmd_start_stream(
     const std::vector<std::string>& args
-) const {
+) {
     const std::string cmd = "start-stream";
     cxxopts::Options options("start-stream", "Start a stream");
     options.allow_unrecognised_options();
@@ -178,6 +177,11 @@ void yodau::backend::cli_client::cmd_start_stream(
         }
         const std::string name = result["name"].as<std::string>();
         stream_mgr.start_stream(name);
+        std::cout
+            << "stream started: " << name
+            << " (expects a Linux virtual camera such as /dev/yodau-video0"
+            << " or YODAU_VCAM_DEVICE; inspect with"
+            << " list-virtual-cameras)" << std::endl;
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
@@ -187,7 +191,7 @@ void yodau::backend::cli_client::cmd_start_stream(
 
 void yodau::backend::cli_client::cmd_stop_stream(
     const std::vector<std::string>& args
-) const {
+) {
     const std::string cmd = "stop-stream";
     cxxopts::Options options("stop-stream", "Stop a stream");
     options.allow_unrecognised_options();
@@ -207,6 +211,10 @@ void yodau::backend::cli_client::cmd_stop_stream(
         }
         const std::string name = result["name"].as<std::string>();
         stream_mgr.stop_stream(name);
+        if (auto* camera = backend_runtime.preview_camera()) {
+            camera->release(name);
+        }
+        std::cout << "stream stopped: " << name << std::endl;
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing command '" << cmd << "': " << e.what()
                   << std::endl;
@@ -216,7 +224,7 @@ void yodau::backend::cli_client::cmd_stop_stream(
 
 void yodau::backend::cli_client::cmd_list_lines(
     const std::vector<std::string>& args
-) const {
+) {
     const std::string cmd = "list-lines";
     cxxopts::Options options("list-lines", "List all lines in a stream");
     options.allow_unrecognised_options();
@@ -251,7 +259,7 @@ static yodau::backend::tripwire_dir parse_tripwire_dir(const std::string& s) {
 
 void yodau::backend::cli_client::cmd_add_line(
     const std::vector<std::string>& args
-) const {
+) {
     const std::string cmd = "add-line";
     cxxopts::Options options("add-line", "Add a new line to a stream");
     options.allow_unrecognised_options();
@@ -300,7 +308,7 @@ void yodau::backend::cli_client::cmd_add_line(
 
 void yodau::backend::cli_client::cmd_set_line(
     const std::vector<std::string>& args
-) const {
+) {
     const std::string cmd = "set-line";
     cxxopts::Options options("set-line", "Set a new line to a stream");
     options.allow_unrecognised_options();
@@ -334,9 +342,11 @@ void yodau::backend::cli_client::cmd_set_line(
 
 void yodau::backend::cli_client::cmd_list_virtual_cameras(
     const std::vector<std::string>& args
-) const {
+) {
     const std::string cmd = "list-virtual-cameras";
-    cxxopts::Options options(cmd, "List backend-rendered virtual camera frames");
+    cxxopts::Options options(
+        cmd, "List backend virtual camera device bindings"
+    );
     options.allow_unrecognised_options();
     options.add_options()("h,help", "Print help");
     try {
@@ -363,15 +373,14 @@ void yodau::backend::cli_client::cmd_list_virtual_cameras(
 
 void yodau::backend::cli_client::on_backend_events(
     const std::vector<event>& events
-) const {
+) {
     for (const auto& event_value : events) {
         print_backend_event(event_value);
     }
 }
 
 void yodau::backend::cli_client::print_backend_event(const event& event_value) {
-    std::cout << "[event] stream=" << event_value.stream_name
-              << " kind=";
+    std::cout << "[event] stream=" << event_value.stream_name << " kind=";
 
     switch (event_value.kind) {
     case event_kind::motion:

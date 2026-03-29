@@ -57,18 +57,17 @@ struct processed_frame_probe {
 
 } // namespace stream_manager_tests_support
 
-TEST(tripwire_grid_stream_index_test, recommend_grid_dims_focuses_on_new_small_line) {
+TEST(
+    tripwire_grid_stream_index_test,
+    recommend_grid_dims_focuses_on_new_small_line
+) {
     std::vector<line_ptr> lines {
         make_line({ point { 5.0f, 5.0f }, point { 95.0f, 5.0f } }, "top"),
         make_line({ point { 5.0f, 95.0f }, point { 95.0f, 95.0f } }, "bottom"),
         make_line({ point { 5.0f, 5.0f }, point { 5.0f, 95.0f } }, "left"),
         make_line({ point { 95.0f, 5.0f }, point { 95.0f, 95.0f } }, "right"),
-        make_line(
-            { point { 10.0f, 20.0f }, point { 90.0f, 20.0f } }, "mid_a"
-        ),
-        make_line(
-            { point { 10.0f, 80.0f }, point { 90.0f, 80.0f } }, "mid_b"
-        ),
+        make_line({ point { 10.0f, 20.0f }, point { 90.0f, 20.0f } }, "mid_a"),
+        make_line({ point { 10.0f, 80.0f }, point { 90.0f, 80.0f } }, "mid_b"),
     };
 
     const line_ptr focus_line = make_line(
@@ -84,25 +83,23 @@ TEST(tripwire_grid_stream_index_test, recommend_grid_dims_focuses_on_new_small_l
     EXPECT_GT(focused.nx * focused.ny, neutral.nx * neutral.ny);
 }
 
-TEST(tripwire_grid_stream_index_test, collect_grid_candidates_stays_local_to_active_cells) {
+TEST(
+    tripwire_grid_stream_index_test,
+    collect_grid_candidates_stays_local_to_active_cells
+) {
     const std::vector<line_ptr> lines {
-        make_line(
-            { point { 10.0f, 10.0f }, point { 10.0f, 90.0f } }, "left"
-        ),
-        make_line(
-            { point { 50.0f, 10.0f }, point { 50.0f, 90.0f } }, "center"
-        ),
-        make_line(
-            { point { 90.0f, 10.0f }, point { 90.0f, 90.0f } }, "right"
-        ),
+        make_line({ point { 10.0f, 10.0f }, point { 10.0f, 90.0f } }, "left"),
+        make_line({ point { 50.0f, 10.0f }, point { 50.0f, 90.0f } }, "center"),
+        make_line({ point { 90.0f, 10.0f }, point { 90.0f, 90.0f } }, "right"),
     };
 
     const grid_dims dims { 12, 12 };
     const auto index = build_grid_stream_index(lines, dims);
 
     std::vector<int> active_cell_indices;
-    for (const auto& cell :
-         trace_grid_cells_pct(point { 7.0f, 15.0f }, point { 14.0f, 85.0f }, dims)) {
+    for (const auto& cell : trace_grid_cells_pct(
+             point { 7.0f, 15.0f }, point { 14.0f, 85.0f }, dims
+         )) {
         active_cell_indices.push_back(grid_index(cell, dims));
     }
 
@@ -126,19 +123,21 @@ TEST(tripwire_grid_stream_index_test, collect_grid_candidates_stays_local_to_act
     EXPECT_EQ(candidate_line_names, std::set<std::string> { "left" });
 }
 
-TEST(tripwire_grid_stream_index_test, collect_grid_candidates_deduplicates_segment_ids) {
+TEST(
+    tripwire_grid_stream_index_test,
+    collect_grid_candidates_deduplicates_segment_ids
+) {
     const std::vector<line_ptr> lines {
-        make_line(
-            { point { 0.0f, 0.0f }, point { 100.0f, 100.0f } }, "diag"
-        ),
+        make_line({ point { 0.0f, 0.0f }, point { 100.0f, 100.0f } }, "diag"),
     };
 
     const grid_dims dims { 10, 10 };
     const auto index = build_grid_stream_index(lines, dims);
 
     std::vector<int> active_cell_indices;
-    for (const auto& cell :
-         trace_grid_cells_pct(point { 0.0f, 0.0f }, point { 100.0f, 100.0f }, dims)) {
+    for (const auto& cell : trace_grid_cells_pct(
+             point { 0.0f, 0.0f }, point { 100.0f, 100.0f }, dims
+         )) {
         active_cell_indices.push_back(grid_index(cell, dims));
     }
 
@@ -160,12 +159,14 @@ TEST(stream_manager_test, processed_frame_sink_receives_frame_and_events) {
     stream_manager_tests_support::processed_frame_probe probe;
     mgr.set_frame_processor(
         std::bind_front(
-            &stream_manager_tests_support::processed_frame_probe::process, &probe
+            &stream_manager_tests_support::processed_frame_probe::process,
+            &probe
         )
     );
     mgr.set_processed_frame_sink(
         std::bind_front(
-            &stream_manager_tests_support::processed_frame_probe::on_processed_frame,
+            &stream_manager_tests_support::processed_frame_probe::
+                on_processed_frame,
             &probe
         )
     );
@@ -216,4 +217,24 @@ TEST(virtual_camera_test, latest_frame_replaces_previous_frame_for_stream) {
     EXPECT_EQ(frames.front().stream_name, "cam0");
     EXPECT_EQ(frames.front().update_count, 2u);
     EXPECT_EQ(frames.front().bytes, second_frame.data.size());
+}
+
+TEST(virtual_camera_test, release_clears_cached_frame_state_for_stream) {
+    virtual_camera camera("backend_cli");
+
+    yodau::backend::frame frame_value;
+    frame_value.width = 320;
+    frame_value.height = 180;
+    frame_value.stride = 320 * 3;
+    frame_value.format = yodau::backend::pixel_format::bgr24;
+    frame_value.data.resize(static_cast<size_t>(frame_value.stride) * 180u);
+
+    camera.publish("cam0", frame_value);
+    ASSERT_TRUE(camera.latest_frame("cam0").has_value());
+    ASSERT_EQ(camera.frames().size(), 1u);
+
+    camera.release("cam0");
+
+    EXPECT_FALSE(camera.latest_frame("cam0").has_value());
+    EXPECT_TRUE(camera.frames().empty());
 }

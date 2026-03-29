@@ -37,6 +37,14 @@ bool grid_view::has_stream(const QString& name) const {
 
 QStringList grid_view::stream_names() const { return tiles.keys(); }
 
+int grid_view::layout_row_count() const { return last_layout_rows; }
+
+int grid_view::layout_column_count() const { return last_layout_columns; }
+
+int grid_view::layout_cell_count() const {
+    return last_layout_rows * last_layout_columns;
+}
+
 void grid_view::add_stream(const QString& name) {
     if (name.isEmpty() || tiles.contains(name)) {
         return;
@@ -140,6 +148,8 @@ void grid_view::rebuild_layout() {
 
     const int n = static_cast<int>(tiles.size());
     if (n == 0) {
+        last_layout_rows = 0;
+        last_layout_columns = 0;
         this->hide();
         updateGeometry();
         return;
@@ -217,6 +227,8 @@ void grid_view::rebuild_layout() {
 
     const int rows = best_rows;
     const int cols = best_cols;
+    last_layout_rows = rows;
+    last_layout_columns = cols;
 
     for (int c = 0; c < cols; ++c) {
         grid_layout->setColumnStretch(c, 1);

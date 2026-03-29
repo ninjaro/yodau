@@ -1,132 +1,528 @@
 #include "streams/virtual_camera.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cctype>
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <ranges>
+#include <string_view>
+#include <unordered_set>
 
-#ifdef YODAU_OPENCV
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
+#ifdef __linux__
+#include <fcntl.h>
+#include <filesystem>
+#include <linux/videodev2.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 #endif
 
 namespace yodau::backend {
 
 namespace virtual_camera_support {
 
-std::string pixel_format_name(const pixel_format format) {
-    switch (format) {
-    case pixel_format::gray8:
-        return "gray8";
-    case pixel_format::rgb24:
-        return "rgb24";
-    case pixel_format::bgr24:
-        return "bgr24";
-    case pixel_format::rgba32:
-        return "rgba32";
-    case pixel_format::bgra32:
-        return "bgra32";
+    std::string pixel_format_name(const pixel_format format) {
+        switch (format) {
+        case pixel_format::gray8:
+            return "gray8";
+        case pixel_format::rgb24:
+            return "rgb24";
+        case pixel_format::bgr24:
+            return "bgr24";
+        case pixel_format::rgba32:
+            return "rgba32";
+        case pixel_format::bgra32:
+            return "bgra32";
+        }
+
+        return "unknown";
     }
 
-    return "unknown";
-}
+#ifdef __linux__
 
-#ifdef YODAU_OPENCV
-bool has_live_preview_display() {
-    const char* display_env = std::getenv("DISPLAY");
-    if (display_env != nullptr && display_env[0] != '\0') {
+    constexpr std::uint32_t virtual_camera_pixel_format = V4L2_PIX_FMT_YUYV;
+
+    struct rgb_pixel {
+        std::uint8_t red { 0 };
+        std::uint8_t green { 0 };
+        std::uint8_t blue { 0 };
+    };
+
+    struct yuv_pixel {
+        std::uint8_t y { 16 };
+        std::uint8_t u { 128 };
+        std::uint8_t v { 128 };
+    };
+
+    struct output_device_candidate {
+        std::string path;
+        std::string card_name;
+    };
+
+    std::string lowercase(std::string text) {
+        std::ranges::transform(text, text.begin(), [](const unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+        return text;
+    }
+
+    bool starts_with(
+        const std::string_view text, const std::string_view expected_prefix
+    ) {
+        return text.substr(0, expected_prefix.size()) == expected_prefix;
+    }
+
+    bool has_numeric_suffix(
+        const std::string_view text, const std::string_view prefix
+    ) {
+        if (!starts_with(text, prefix) || text.size() <= prefix.size()) {
+            return false;
+        }
+
+        return std::ranges::all_of(
+            text.substr(prefix.size()), [](const char ch) {
+                return std::isdigit(static_cast<unsigned char>(ch)) != 0;
+            }
+        );
+    }
+
+    int numeric_suffix_value(
+        const std::string_view text, const std::string_view prefix
+    ) {
+        if (!has_numeric_suffix(text, prefix)) {
+            return -1;
+        }
+
+        const auto suffix = text.substr(prefix.size());
+        int value = 0;
+        for (const char ch : suffix) {
+            value = value * 10 + (ch - '0');
+        }
+        return value;
+    }
+
+    bool query_output_device(
+        const std::string& path, output_device_candidate& out_candidate
+    ) {
+        const int fd = ::open(path.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC);
+        if (fd < 0) {
+            return false;
+        }
+
+        v4l2_capability cap {};
+        const int rc = ::ioctl(fd, VIDIOC_QUERYCAP, &cap);
+        ::close(fd);
+
+        if (rc < 0) {
+            return false;
+        }
+
+        std::uint32_t caps = cap.capabilities;
+        if (caps & V4L2_CAP_DEVICE_CAPS) {
+            caps = cap.device_caps;
+        }
+
+        const bool video_output = (caps & V4L2_CAP_VIDEO_OUTPUT)
+            || (caps & V4L2_CAP_VIDEO_OUTPUT_MPLANE);
+        const bool io_supported
+            = (caps & V4L2_CAP_STREAMING) || (caps & V4L2_CAP_READWRITE);
+        if (!video_output || !io_supported) {
+            return false;
+        }
+
+        out_candidate.path = path;
+        out_candidate.card_name = reinterpret_cast<const char*>(cap.card);
         return true;
     }
 
-    const char* wayland_env = std::getenv("WAYLAND_DISPLAY");
-    return wayland_env != nullptr && wayland_env[0] != '\0';
-}
+    bool is_loopback_like_device(
+        const output_device_candidate& candidate, const std::string& camera_name
+    ) {
+        const std::string lower_path = lowercase(candidate.path);
+        const std::string lower_card = lowercase(candidate.card_name);
+        const std::string lower_camera_name = lowercase(camera_name);
 
-cv::Mat frame_to_mat(const frame& frame_value) {
-    if (frame_value.width <= 0 || frame_value.height <= 0
-        || frame_value.stride <= 0 || frame_value.data.empty()) {
+        return lower_path.find("/dev/" + lower_camera_name + "-video")
+            != std::string::npos
+            || lower_card.find("loopback") != std::string::npos
+            || lower_card.find(lower_camera_name) != std::string::npos;
+    }
+
+    std::vector<std::string>
+    enumerate_candidate_paths(const std::string& camera_name) {
+        std::vector<std::string> preferred_paths;
+        std::vector<std::string> fallback_paths;
+
+        const char* explicit_device = std::getenv("YODAU_VCAM_DEVICE");
+        if (explicit_device != nullptr && explicit_device[0] != '\0') {
+            preferred_paths.emplace_back(explicit_device);
+            return preferred_paths;
+        }
+
+        const std::string preferred_prefix = camera_name + "-video";
+
+        for (const auto& entry : std::filesystem::directory_iterator("/dev")) {
+            if (!entry.is_character_file() && !entry.is_symlink()) {
+                continue;
+            }
+
+            const std::string name = entry.path().filename().string();
+            const std::string full_path = entry.path().string();
+
+            if (has_numeric_suffix(name, preferred_prefix)) {
+                preferred_paths.push_back(full_path);
+                continue;
+            }
+
+            if (has_numeric_suffix(name, "video")) {
+                fallback_paths.push_back(full_path);
+            }
+        }
+
+        auto sort_paths = [&preferred_prefix](std::vector<std::string>& paths) {
+            std::ranges::sort(
+                paths, [&](const std::string& lhs, const std::string& rhs) {
+                    const std::string lhs_name
+                        = std::filesystem::path(lhs).filename().string();
+                    const std::string rhs_name
+                        = std::filesystem::path(rhs).filename().string();
+                    const int lhs_value = numeric_suffix_value(
+                        lhs_name,
+                        starts_with(lhs_name, preferred_prefix)
+                            ? preferred_prefix
+                            : "video"
+                    );
+                    const int rhs_value = numeric_suffix_value(
+                        rhs_name,
+                        starts_with(rhs_name, preferred_prefix)
+                            ? preferred_prefix
+                            : "video"
+                    );
+                    return lhs_value < rhs_value;
+                }
+            );
+        };
+
+        sort_paths(preferred_paths);
+        sort_paths(fallback_paths);
+
+        preferred_paths.insert(
+            preferred_paths.end(), fallback_paths.begin(), fallback_paths.end()
+        );
+        return preferred_paths;
+    }
+
+    std::optional<output_device_candidate> select_output_device(
+        const std::string& camera_name,
+        const std::unordered_set<std::string>& used_paths
+    ) {
+        std::vector<output_device_candidate> loopback_fallbacks;
+
+        for (const auto& path : enumerate_candidate_paths(camera_name)) {
+            if (used_paths.contains(path)) {
+                continue;
+            }
+
+            output_device_candidate candidate;
+            if (!query_output_device(path, candidate)) {
+                continue;
+            }
+
+            const std::string file_name
+                = std::filesystem::path(path).filename().string();
+            const bool preferred_name
+                = has_numeric_suffix(file_name, camera_name + "-video");
+            if (preferred_name) {
+                return candidate;
+            }
+
+            if (is_loopback_like_device(candidate, camera_name)) {
+                loopback_fallbacks.push_back(std::move(candidate));
+            }
+        }
+
+        if (!loopback_fallbacks.empty()) {
+            return loopback_fallbacks.front();
+        }
+
         return {};
     }
 
-    auto* bytes = const_cast<std::uint8_t*>(frame_value.data.data());
-
-    switch (frame_value.format) {
-    case pixel_format::gray8: {
-        cv::Mat gray(
-            frame_value.height, frame_value.width, CV_8UC1, bytes,
-            static_cast<size_t>(frame_value.stride)
-        );
-        cv::Mat bgr;
-        cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
-        return bgr;
-    }
-    case pixel_format::rgb24: {
-        cv::Mat rgb(
-            frame_value.height, frame_value.width, CV_8UC3, bytes,
-            static_cast<size_t>(frame_value.stride)
-        );
-        cv::Mat bgr;
-        cv::cvtColor(rgb, bgr, cv::COLOR_RGB2BGR);
-        return bgr;
-    }
-    case pixel_format::bgr24: {
-        cv::Mat bgr(
-            frame_value.height, frame_value.width, CV_8UC3, bytes,
-            static_cast<size_t>(frame_value.stride)
-        );
-        return bgr.clone();
-    }
-    case pixel_format::rgba32: {
-        cv::Mat rgba(
-            frame_value.height, frame_value.width, CV_8UC4, bytes,
-            static_cast<size_t>(frame_value.stride)
-        );
-        cv::Mat bgr;
-        cv::cvtColor(rgba, bgr, cv::COLOR_RGBA2BGR);
-        return bgr;
-    }
-    case pixel_format::bgra32: {
-        cv::Mat bgra(
-            frame_value.height, frame_value.width, CV_8UC4, bytes,
-            static_cast<size_t>(frame_value.stride)
-        );
-        cv::Mat bgr;
-        cv::cvtColor(bgra, bgr, cv::COLOR_BGRA2BGR);
-        return bgr;
-    }
+    std::string last_errno_text(const std::string& prefix) {
+        return prefix + ": " + std::strerror(errno);
     }
 
-    return {};
-}
+    int normalized_output_width(const int width) {
+        if (width <= 1) {
+            return 2;
+        }
+
+        return (width % 2 == 0) ? width : width - 1;
+    }
+
+    rgb_pixel sample_rgb_pixel(
+        const frame& frame_value, const int out_x, const int out_y,
+        const int out_width, const int out_height
+    ) {
+        rgb_pixel pixel;
+
+        if (frame_value.width <= 0 || frame_value.height <= 0
+            || frame_value.stride <= 0 || frame_value.data.empty()
+            || out_width <= 0 || out_height <= 0) {
+            return pixel;
+        }
+
+        const int src_x = std::clamp(
+            (out_x * frame_value.width) / out_width, 0, frame_value.width - 1
+        );
+        const int src_y = std::clamp(
+            (out_y * frame_value.height) / out_height, 0, frame_value.height - 1
+        );
+
+        const size_t row_offset = static_cast<size_t>(src_y)
+            * static_cast<size_t>(frame_value.stride);
+
+        switch (frame_value.format) {
+        case pixel_format::gray8: {
+            const size_t offset = row_offset + static_cast<size_t>(src_x);
+            if (offset >= frame_value.data.size()) {
+                return pixel;
+            }
+            const std::uint8_t value = frame_value.data[offset];
+            pixel.red = value;
+            pixel.green = value;
+            pixel.blue = value;
+            return pixel;
+        }
+        case pixel_format::rgb24: {
+            const size_t offset = row_offset + static_cast<size_t>(src_x) * 3u;
+            if (offset + 2u >= frame_value.data.size()) {
+                return pixel;
+            }
+            pixel.red = frame_value.data[offset];
+            pixel.green = frame_value.data[offset + 1u];
+            pixel.blue = frame_value.data[offset + 2u];
+            return pixel;
+        }
+        case pixel_format::bgr24: {
+            const size_t offset = row_offset + static_cast<size_t>(src_x) * 3u;
+            if (offset + 2u >= frame_value.data.size()) {
+                return pixel;
+            }
+            pixel.blue = frame_value.data[offset];
+            pixel.green = frame_value.data[offset + 1u];
+            pixel.red = frame_value.data[offset + 2u];
+            return pixel;
+        }
+        case pixel_format::rgba32: {
+            const size_t offset = row_offset + static_cast<size_t>(src_x) * 4u;
+            if (offset + 2u >= frame_value.data.size()) {
+                return pixel;
+            }
+            pixel.red = frame_value.data[offset];
+            pixel.green = frame_value.data[offset + 1u];
+            pixel.blue = frame_value.data[offset + 2u];
+            return pixel;
+        }
+        case pixel_format::bgra32: {
+            const size_t offset = row_offset + static_cast<size_t>(src_x) * 4u;
+            if (offset + 2u >= frame_value.data.size()) {
+                return pixel;
+            }
+            pixel.blue = frame_value.data[offset];
+            pixel.green = frame_value.data[offset + 1u];
+            pixel.red = frame_value.data[offset + 2u];
+            return pixel;
+        }
+        }
+
+        return pixel;
+    }
+
+    std::uint8_t clamp_byte(const int value) {
+        return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+    }
+
+    yuv_pixel rgb_to_yuv(const rgb_pixel& pixel) {
+        const int red = static_cast<int>(pixel.red);
+        const int green = static_cast<int>(pixel.green);
+        const int blue = static_cast<int>(pixel.blue);
+
+        yuv_pixel converted;
+        converted.y = clamp_byte(
+            ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16
+        );
+        converted.u = clamp_byte(
+            ((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128
+        );
+        converted.v = clamp_byte(
+            ((112 * red - 94 * green - 18 * blue + 128) >> 8) + 128
+        );
+        return converted;
+    }
+
+    std::vector<std::uint8_t> frame_to_yuyv(
+        const frame& frame_value, const int output_width,
+        const int output_height
+    ) {
+        const int width = normalized_output_width(output_width);
+        if (width <= 0 || output_height <= 0) {
+            return {};
+        }
+
+        std::vector<std::uint8_t> output(
+            static_cast<size_t>(width) * static_cast<size_t>(output_height) * 2u
+        );
+
+        size_t write_index = 0;
+        for (int y = 0; y < output_height; ++y) {
+            for (int x = 0; x < width; x += 2) {
+                const rgb_pixel left_rgb
+                    = sample_rgb_pixel(frame_value, x, y, width, output_height);
+                const rgb_pixel right_rgb = sample_rgb_pixel(
+                    frame_value, x + 1, y, width, output_height
+                );
+                const yuv_pixel left_yuv = rgb_to_yuv(left_rgb);
+                const yuv_pixel right_yuv = rgb_to_yuv(right_rgb);
+
+                const int averaged_u = (static_cast<int>(left_yuv.u)
+                                        + static_cast<int>(right_yuv.u))
+                    / 2;
+                const int averaged_v = (static_cast<int>(left_yuv.v)
+                                        + static_cast<int>(right_yuv.v))
+                    / 2;
+
+                output[write_index++] = left_yuv.y;
+                output[write_index++] = clamp_byte(averaged_u);
+                output[write_index++] = right_yuv.y;
+                output[write_index++] = clamp_byte(averaged_v);
+            }
+        }
+
+        return output;
+    }
+
+    bool configure_output_device(
+        const int fd, const frame& frame_value, int& out_width, int& out_height,
+        size_t& out_bytes_per_frame, std::string& out_error
+    ) {
+        v4l2_format fmt {};
+        fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+        fmt.fmt.pix.width = static_cast<std::uint32_t>(
+            normalized_output_width(frame_value.width)
+        );
+        fmt.fmt.pix.height
+            = static_cast<std::uint32_t>(std::max(1, frame_value.height));
+        fmt.fmt.pix.pixelformat = virtual_camera_pixel_format;
+        fmt.fmt.pix.field = V4L2_FIELD_NONE;
+        fmt.fmt.pix.bytesperline = fmt.fmt.pix.width * 2u;
+        fmt.fmt.pix.sizeimage = fmt.fmt.pix.bytesperline * fmt.fmt.pix.height;
+        fmt.fmt.pix.colorspace = V4L2_COLORSPACE_SRGB;
+
+        if (::ioctl(fd, VIDIOC_S_FMT, &fmt) < 0) {
+            out_error = last_errno_text("VIDIOC_S_FMT failed");
+            return false;
+        }
+
+        if (fmt.fmt.pix.pixelformat != virtual_camera_pixel_format) {
+            out_error = "virtual camera refused YUYV output format";
+            return false;
+        }
+
+        out_width = static_cast<int>(fmt.fmt.pix.width);
+        out_height = static_cast<int>(fmt.fmt.pix.height);
+        out_bytes_per_frame = static_cast<size_t>(fmt.fmt.pix.sizeimage);
+        out_error.clear();
+        return true;
+    }
+
 #endif
+
+    std::string
+    sink_status_text(const bool device_ready, const std::string& last_error) {
+        if (device_ready) {
+            return "ready";
+        }
+
+        if (!last_error.empty()) {
+            return last_error;
+        }
+
+        return "unavailable";
+    }
 
 } // namespace virtual_camera_support
 
 virtual_camera::virtual_camera(std::string virtual_camera_name)
-    : camera_name(std::move(virtual_camera_name)) {}
+    : camera_name(std::move(virtual_camera_name)) { }
+
+virtual_camera::~virtual_camera() {
+    std::scoped_lock lock(mtx);
+    for (auto& [stream_name, binding] : sink_by_stream) {
+        (void)stream_name;
+        close_sink_locked(binding);
+    }
+}
 
 void virtual_camera::publish(
     const std::string& stream_name, const frame& frame_value
 ) {
-    {
-        std::scoped_lock lock(mtx);
-        latest_by_stream[stream_name] = frame_value;
-        update_count_by_stream[stream_name] += 1;
-    }
+    std::scoped_lock lock(mtx);
 
-#ifdef YODAU_OPENCV
-    if (!virtual_camera_support::has_live_preview_display()) {
+    latest_by_stream[stream_name] = frame_value;
+    update_count_by_stream[stream_name] += 1;
+
+    sink_binding* binding = ensure_sink_locked(stream_name, frame_value);
+    if (binding == nullptr || !binding->device_ready) {
         return;
     }
 
-    cv::Mat preview = virtual_camera_support::frame_to_mat(frame_value);
-    if (preview.empty()) {
+#ifdef __linux__
+    std::vector<std::uint8_t> output_frame
+        = virtual_camera_support::frame_to_yuyv(
+            frame_value, binding->width, binding->height
+        );
+    if (output_frame.size() != binding->bytes_per_frame) {
+        binding->device_ready = false;
+        binding->last_error
+            = "virtual camera frame size does not match sink format";
+        close_sink_locked(*binding);
         return;
     }
 
-    const std::string window_title = camera_name + ":" + stream_name;
-    cv::imshow(window_title, preview);
-    cv::waitKey(1);
+    const ssize_t written
+        = ::write(binding->fd, output_frame.data(), output_frame.size());
+    if (written < 0) {
+        binding->device_ready = false;
+        binding->last_error = virtual_camera_support::last_errno_text(
+            "writing virtual camera frame failed"
+        );
+        close_sink_locked(*binding);
+        return;
+    }
+
+    if (static_cast<size_t>(written) != output_frame.size()) {
+        binding->device_ready = false;
+        binding->last_error = "virtual camera frame write was truncated";
+        close_sink_locked(*binding);
+    }
+#else
+    (void)frame_value;
 #endif
+}
+
+void virtual_camera::release(const std::string& stream_name) {
+    std::scoped_lock lock(mtx);
+
+    if (const auto sink_it = sink_by_stream.find(stream_name);
+        sink_it != sink_by_stream.end()) {
+        close_sink_locked(sink_it->second);
+        sink_by_stream.erase(sink_it);
+    }
+
+    latest_by_stream.erase(stream_name);
+    update_count_by_stream.erase(stream_name);
 }
 
 std::optional<frame>
@@ -149,6 +545,7 @@ std::vector<virtual_camera_frame_info> virtual_camera::frames() const {
 
     for (const auto& [stream_name, frame_value] : latest_by_stream) {
         const auto update_it = update_count_by_stream.find(stream_name);
+        const auto sink_it = sink_by_stream.find(stream_name);
 
         virtual_camera_frame_info info;
         info.stream_name = stream_name;
@@ -159,12 +556,17 @@ std::vector<virtual_camera_frame_info> virtual_camera::frames() const {
         if (update_it != update_count_by_stream.end()) {
             info.update_count = update_it->second;
         }
+        if (sink_it != sink_by_stream.end()) {
+            info.device_path = sink_it->second.device_path;
+            info.device_ready = sink_it->second.device_ready;
+            info.last_error = sink_it->second.last_error;
+        }
 
         out.push_back(std::move(info));
     }
 
     std::ranges::sort(
-        out, std::less<>{}, &virtual_camera_frame_info::stream_name
+        out, std::less<> {}, &virtual_camera_frame_info::stream_name
     );
     return out;
 }
@@ -174,13 +576,116 @@ void virtual_camera::dump(std::ostream& out) const {
     out << snapshots.size() << " virtual camera streams:";
 
     for (const auto& info : snapshots) {
-        out << "\n\tVirtualCamera(stream=" << info.stream_name
-            << ", frame=" << info.width << "x" << info.height
-            << ", format="
+        out << "\n\tVirtualCamera(stream=" << info.stream_name << ", device="
+            << (info.device_path.empty() ? "<none>" : info.device_path)
+            << ", state="
+            << virtual_camera_support::sink_status_text(
+                   info.device_ready, info.last_error
+               )
+            << ", frame=" << info.width << "x" << info.height << ", format="
             << virtual_camera_support::pixel_format_name(info.format)
-            << ", bytes=" << info.bytes
-            << ", updates=" << info.update_count << ")";
+            << ", bytes=" << info.bytes << ", updates=" << info.update_count
+            << ")";
     }
 }
 
+virtual_camera::sink_binding* virtual_camera::ensure_sink_locked(
+    const std::string& stream_name, const frame& frame_value
+) {
+    sink_binding& binding = sink_by_stream[stream_name];
+
+#ifdef __linux__
+    if (frame_value.width <= 0 || frame_value.height <= 0
+        || frame_value.data.empty()) {
+        binding.device_ready = false;
+        binding.last_error = "stream frame is empty";
+        return &binding;
+    }
+
+    const int required_width
+        = virtual_camera_support::normalized_output_width(frame_value.width);
+    const int required_height = std::max(1, frame_value.height);
+
+    if (binding.device_ready && binding.fd >= 0
+        && binding.width == required_width
+        && binding.height == required_height) {
+        return &binding;
+    }
+
+    close_sink_locked(binding);
+
+    if (binding.device_path.empty()) {
+        std::unordered_set<std::string> used_paths;
+        for (const auto& [other_stream_name, other_binding] : sink_by_stream) {
+            if (other_stream_name == stream_name
+                || other_binding.device_path.empty()) {
+                continue;
+            }
+            used_paths.insert(other_binding.device_path);
+        }
+
+        const auto candidate = virtual_camera_support::select_output_device(
+            camera_name, used_paths
+        );
+        if (!candidate.has_value()) {
+            binding.last_error
+                = "no compatible Linux virtual camera device available";
+            return &binding;
+        }
+
+        binding.device_path = candidate->path;
+    }
+
+    const int fd = ::open(binding.device_path.c_str(), O_RDWR | O_CLOEXEC);
+    if (fd < 0) {
+        binding.last_error = virtual_camera_support::last_errno_text(
+            "opening virtual camera device failed"
+        );
+        binding.device_path.clear();
+        return &binding;
+    }
+
+    int output_width = 0;
+    int output_height = 0;
+    size_t bytes_per_frame = 0;
+    std::string error_text;
+    if (!virtual_camera_support::configure_output_device(
+            fd, frame_value, output_width, output_height, bytes_per_frame,
+            error_text
+        )) {
+        ::close(fd);
+        binding.last_error = std::move(error_text);
+        binding.device_path.clear();
+        return &binding;
+    }
+
+    binding.fd = fd;
+    binding.width = output_width;
+    binding.height = output_height;
+    binding.bytes_per_frame = bytes_per_frame;
+    binding.device_ready = true;
+    binding.last_error.clear();
+    return &binding;
+#else
+    (void)frame_value;
+    binding.device_ready = false;
+    binding.last_error
+        = "Linux virtual camera output is unavailable on this platform";
+    return &binding;
+#endif
 }
+
+void virtual_camera::close_sink_locked(sink_binding& binding) {
+#ifdef __linux__
+    if (binding.fd >= 0) {
+        ::close(binding.fd);
+    }
+    binding.fd = -1;
+    binding.width = 0;
+    binding.height = 0;
+    binding.bytes_per_frame = 0;
+#endif
+    binding.device_ready = false;
+}
+
+} // namespace yodau::backend

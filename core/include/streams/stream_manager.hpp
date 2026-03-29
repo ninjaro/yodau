@@ -67,6 +67,9 @@ public:
     void set_event_sink(event_sink_fn fn);
     void set_event_batch_sink(event_batch_sink_fn fn);
     void set_analysis_interval_ms(int ms);
+    void
+    set_stream_analysis_interval_ms(const std::string& stream_name, int ms);
+    void clear_stream_analysis_interval_ms(const std::string& stream_name);
 
     void start_stream(const std::string& name);
     void stop_stream(const std::string& name);
@@ -83,6 +86,8 @@ private:
         frame_processor_fn& fp, processed_frame_sink_fn& pfs, event_sink_fn& es,
         event_batch_sink_fn& bes
     ) const;
+    int
+    analysis_interval_for_stream_locked(const std::string& stream_name) const;
     int current_fake_interval_ms() const;
     void run_stream_daemon(
         std::string stream_name, std::shared_ptr<stream> stream_ptr,
@@ -104,7 +109,8 @@ private:
     event_sink_fn event_sink;
     event_batch_sink_fn event_batch_sink;
 
-    int analysis_interval_ms { 200 };
+    int default_analysis_interval_ms { 200 };
+    std::unordered_map<std::string, int> analysis_interval_overrides_ms;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point>
         last_analysis_ts;
     std::unordered_map<std::string, std::jthread> daemons;

@@ -18,6 +18,9 @@ public:
 
     bool has_stream(const QString& name) const;
     QStringList stream_names() const;
+    int layout_row_count() const;
+    int layout_column_count() const;
+    int layout_cell_count() const;
 
     void add_stream(const QString& name);
     void remove_stream(const QString& name);
@@ -42,6 +45,8 @@ private:
     QWidget* grid_container;
     QGridLayout* grid_layout;
     QMap<QString, stream_cell*> tiles;
+    int last_layout_rows { 0 };
+    int last_layout_columns { 0 };
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_GRID_VIEW_HPP

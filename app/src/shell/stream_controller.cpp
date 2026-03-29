@@ -1,7 +1,7 @@
 #include "shell/stream_controller.hpp"
 #include "geometry/geometry.hpp"
-#include "shell/str_label.hpp"
 #include "monitor/runtime_bridge.hpp"
+#include "shell/str_label.hpp"
 #include "streams/stream.hpp"
 #include "widgets/settings_panel.hpp"
 
@@ -14,18 +14,25 @@
 #include <QMetaType>
 #include <QThread>
 #include <QtGlobal>
+#include <algorithm>
 #include <chrono>
 #include <functional>
+#include <utility>
 
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
-#include "widgets/stream_board.hpp"
 #include "widgets/grid_view.hpp"
+#include "widgets/stream_board.hpp"
 #include "widgets/stream_cell.hpp"
 
 Q_DECLARE_METATYPE(yodau::backend::event)
 
 namespace stream_controller_support {
+
+using steady_clock = std::chrono::steady_clock;
+
+constexpr auto fps_policy_refresh_interval = std::chrono::milliseconds(250);
+constexpr auto motion_activity_window = std::chrono::seconds(3);
 
 struct tripwire_visual_payload {
     QString direction;
@@ -33,9 +40,8 @@ struct tripwire_visual_payload {
     double speed { 1.0 };
 };
 
-tripwire_visual_payload parse_tripwire_visual_payload(
-    const std::string& message
-) {
+tripwire_visual_payload
+parse_tripwire_visual_payload(const std::string& message) {
     tripwire_visual_payload payload;
     if (message.empty()) {
         return payload;
@@ -67,9 +73,20 @@ tripwire_visual_payload parse_tripwire_visual_payload(
     return payload;
 }
 
+void prune_expired_motion_events(
+    std::deque<steady_clock::time_point>& motion_events,
+    const steady_clock::time_point now
+) {
+    while (!motion_events.empty()
+           && now - motion_events.front() > motion_activity_window) {
+        motion_events.pop_front();
+    }
+}
+
 } // namespace stream_controller_support
 
-QString stream_controller::backend_event_kind_text(yodau::backend::event_kind kind) {
+QString
+stream_controller::backend_event_kind_text(yodau::backend::event_kind kind) {
     switch (kind) {
     case yodau::backend::event_kind::motion:
         return QStringLiteral("motion");
@@ -84,8 +101,8 @@ QString stream_controller::backend_event_kind_text(yodau::backend::event_kind ki
 }
 
 stream_controller::stream_controller(
-    yodau::backend::stream_manager* mgr, settings_panel* panel, stream_board* zone,
-    yodau::monitor::runtime_bridge* monitor, QObject* parent
+    yodau::backend::stream_manager* mgr, settings_panel* panel,
+    stream_board* zone, yodau::monitor::runtime_bridge* monitor, QObject* parent
 )
     : QObject(parent)
     , backend_runtime(
@@ -100,11 +117,11 @@ stream_controller::stream_controller(
     , main_zone(zone)
     , grid(zone ? zone->grid_mode() : nullptr) {
     qRegisterMetaType<yodau::backend::event>("yodau::backend::event");
+    fps_capability = yodau::backend::detect_fps_capability_profile();
 
     init_from_backend();
 
     if (stream_mgr) {
-        stream_mgr->set_analysis_interval_ms(66);
         backend_runtime.attach(*stream_mgr);
         stream_mgr->set_event_batch_sink(
             std::bind_front(&stream_controller::on_backend_events, this)
@@ -118,17 +135,8 @@ stream_controller::stream_controller(
 
     setup_settings_connections();
     setup_grid_connections();
+    refresh_fps_policy(true);
     update_monitor_inventory();
-}
-
-void stream_controller::update_analysis_caps() {
-    if (!stream_mgr || !grid) {
-        return;
-    }
-
-    const int n = static_cast<int>(grid->stream_names().size());
-    const int interval = repaint_interval_for_count(n);
-    stream_mgr->set_analysis_interval_ms(interval);
 }
 
 void stream_controller::update_monitor_inventory() {
@@ -192,11 +200,15 @@ void stream_controller::handle_add_file(
     handle_add_stream_common(path, name, "file", loop);
 }
 
-void stream_controller::handle_add_local(const QString& source, const QString& name) {
+void stream_controller::handle_add_local(
+    const QString& source, const QString& name
+) {
     handle_add_stream_common(source, name, "local", true);
 }
 
-void stream_controller::handle_add_url(const QString& url, const QString& name) {
+void stream_controller::handle_add_url(
+    const QString& url, const QString& name
+) {
     handle_add_stream_common(url, name, "url", true);
 }
 
@@ -281,8 +293,7 @@ void stream_controller::handle_show_stream_changed(
     }
 
     emit monitor_stream_visibility_changed(name, show);
-    update_repaint_caps();
-    update_analysis_caps();
+    refresh_fps_policy(true);
     update_monitor_inventory();
     if (monitor_bridge != nullptr) {
         monitor_bridge->add_marker(
@@ -327,8 +338,7 @@ void stream_controller::on_active_stream_selected(const QString& name) {
     }
 
     sync_active_persistent();
-    update_repaint_caps();
-    update_analysis_caps();
+    refresh_fps_policy(true);
     update_monitor_inventory();
     if (monitor_bridge != nullptr) {
         monitor_bridge->add_marker(
@@ -425,7 +435,9 @@ void stream_controller::on_active_line_save_requested(
     }
 }
 
-void stream_controller::on_active_template_selected(const QString& template_name) {
+void stream_controller::on_active_template_selected(
+    const QString& template_name
+) {
     if (drawing_new_mode) {
         return;
     }
@@ -684,8 +696,7 @@ void stream_controller::register_stream_in_ui(
     settings->add_stream_entry(final_name, source_desc);
     settings->clear_add_inputs();
 
-    update_repaint_caps();
-    update_analysis_caps();
+    refresh_fps_policy(true);
     update_monitor_inventory();
 }
 
@@ -722,7 +733,8 @@ void stream_controller::handle_thumb_activate(const QString& name) {
     handle_enlarge_requested(name);
 }
 
-stream_cell* stream_controller::active_cell_checked(const QString& fail_prefix) {
+stream_cell*
+stream_controller::active_cell_checked(const QString& fail_prefix) {
     if (!stream_mgr || !main_zone || active_name.isEmpty()) {
         if (settings) {
             settings->append_active_log(
@@ -795,7 +807,8 @@ void stream_controller::log_active(const QString& msg) const {
     }
 }
 
-QString stream_controller::points_str_from_pct(const std::vector<QPointF>& pts) {
+QString
+stream_controller::points_str_from_pct(const std::vector<QPointF>& pts) {
     QStringList parts;
     parts.reserve(static_cast<int>(pts.size()));
     for (const auto& p : pts) {
@@ -839,6 +852,7 @@ void stream_controller::apply_added_line(
     );
 
     sync_active_persistent();
+    refresh_fps_policy(true);
     update_monitor_inventory();
     if (monitor_bridge != nullptr) {
         monitor_bridge->add_marker(QStringLiteral("line_added"));
@@ -870,8 +884,9 @@ stream_controller::used_template_names_for_stream(const QString& stream) const {
     return used;
 }
 
-QStringList
-stream_controller::template_candidates_excluding(const QSet<QString>& used) const {
+QStringList stream_controller::template_candidates_excluding(
+    const QSet<QString>& used
+) const {
     QStringList candidates;
     candidates.reserve(templates.size());
 
@@ -885,26 +900,213 @@ stream_controller::template_candidates_excluding(const QSet<QString>& used) cons
     return candidates;
 }
 
-void stream_controller::update_repaint_caps() {
-    if (!grid) {
+void stream_controller::refresh_fps_policy(const bool force) {
+    if (!stream_mgr || !grid) {
         return;
     }
 
-    const auto names = grid->stream_names();
-    const int n = static_cast<int>(names.size());
-    const int interval = repaint_interval_for_count(n);
+    const auto now = stream_controller_support::steady_clock::now();
+    stream_controller_support::prune_expired_motion_events(
+        recent_motion_events, now
+    );
 
-    for (const auto& name : names) {
+    if (!force && last_fps_policy_refresh.time_since_epoch().count() != 0) {
+        const auto elapsed
+            = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - last_fps_policy_refresh
+            );
+        if (elapsed < stream_controller_support::fps_policy_refresh_interval) {
+            return;
+        }
+    }
+
+    last_fps_policy_refresh = now;
+
+    const yodau::backend::fps_mode mode = backend_runtime.processing_enabled()
+        ? yodau::backend::fps_mode::playback_and_processing
+        : yodau::backend::fps_mode::playback_only;
+
+    const int configured_stream_count
+        = static_cast<int>(stream_mgr->stream_names().size());
+    const int configured_line_count
+        = static_cast<int>(stream_mgr->line_names().size());
+    const int visible_stream_count
+        = static_cast<int>(grid->stream_names().size())
+        + (active_name.isEmpty() ? 0 : 1);
+    const int active_stream_count = active_name.isEmpty() ? 0 : 1;
+    const int cell_count = grid_cell_count();
+    const int motion_count = recent_motion_count();
+    const double load_ratio = current_device_load_ratio();
+
+    const yodau::backend::fps_runtime_factors default_factors {
+        .mode = mode,
+        .role = yodau::backend::fps_stream_role::grid,
+        .configured_stream_count = configured_stream_count,
+        .visible_stream_count = visible_stream_count,
+        .active_stream_count = active_stream_count,
+        .configured_line_count = configured_line_count,
+        .stream_line_count = 0,
+        .grid_cell_count = cell_count,
+        .recent_motion_count = motion_count,
+        .device_load_ratio = load_ratio,
+    };
+
+    if (mode == yodau::backend::fps_mode::playback_and_processing) {
+        const auto default_profile = yodau::backend::recommend_fps_profile(
+            fps_capability, default_factors
+        );
+        stream_mgr->set_analysis_interval_ms(
+            default_profile.analysis_interval_ms
+        );
+    }
+
+    for (const auto& stream_name : stream_mgr->stream_names()) {
+        stream_mgr->clear_stream_analysis_interval_ms(stream_name);
+    }
+
+    processing_scale_percent_by_stream.clear();
+
+    for (const auto& name : grid->stream_names()) {
+        const yodau::backend::fps_runtime_factors factors {
+            .mode = mode,
+            .role = yodau::backend::fps_stream_role::grid,
+            .configured_stream_count = configured_stream_count,
+            .visible_stream_count = visible_stream_count,
+            .active_stream_count = active_stream_count,
+            .configured_line_count = configured_line_count,
+            .stream_line_count = line_count_for_stream(name),
+            .grid_cell_count = cell_count,
+            .recent_motion_count = motion_count,
+            .device_load_ratio = load_ratio,
+        };
+        const auto profile
+            = yodau::backend::recommend_fps_profile(fps_capability, factors);
+
         if (auto* tile = grid->peek_stream_cell(name)) {
-            tile->set_repaint_interval_ms(interval);
+            tile->set_repaint_interval_ms(profile.repaint_interval_ms);
+        }
+
+        processing_scale_percent_by_stream.insert(
+            name, profile.processing_scale_percent
+        );
+
+        if (mode == yodau::backend::fps_mode::playback_and_processing) {
+            stream_mgr->set_stream_analysis_interval_ms(
+                name.toStdString(), profile.analysis_interval_ms
+            );
         }
     }
 
     if (!active_name.isEmpty()) {
-        if (auto* cell = grid->peek_stream_cell(active_name)) {
-            cell->set_repaint_interval_ms(active_interval_ms);
+        const yodau::backend::fps_runtime_factors factors {
+            .mode = mode,
+            .role = yodau::backend::fps_stream_role::active,
+            .configured_stream_count = configured_stream_count,
+            .visible_stream_count = visible_stream_count,
+            .active_stream_count = active_stream_count,
+            .configured_line_count = configured_line_count,
+            .stream_line_count = line_count_for_stream(active_name),
+            .grid_cell_count = cell_count,
+            .recent_motion_count = motion_count,
+            .device_load_ratio = load_ratio,
+        };
+        const auto profile
+            = yodau::backend::recommend_fps_profile(fps_capability, factors);
+
+        if (main_zone != nullptr) {
+            if (auto* cell = main_zone->active_cell()) {
+                cell->set_repaint_interval_ms(profile.repaint_interval_ms);
+            }
+        }
+
+        processing_scale_percent_by_stream.insert(
+            active_name, profile.processing_scale_percent
+        );
+
+        if (mode == yodau::backend::fps_mode::playback_and_processing) {
+            stream_mgr->set_stream_analysis_interval_ms(
+                active_name.toStdString(), profile.analysis_interval_ms
+            );
         }
     }
+}
+
+int stream_controller::grid_cell_count() const {
+    if (!grid) {
+        return 0;
+    }
+
+    const int layout_cells = grid->layout_cell_count();
+    if (layout_cells > 0) {
+        return layout_cells;
+    }
+
+    return static_cast<int>(grid->stream_names().size());
+}
+
+int stream_controller::line_count_for_stream(const QString& stream_name) const {
+    if (!stream_mgr || stream_name.isEmpty()) {
+        return 0;
+    }
+
+    const auto stream_ptr = stream_mgr->find_stream(stream_name.toStdString());
+    if (!stream_ptr) {
+        return 0;
+    }
+
+    return static_cast<int>(stream_ptr->line_names().size());
+}
+
+int stream_controller::recent_motion_count() {
+    const auto now = stream_controller_support::steady_clock::now();
+    stream_controller_support::prune_expired_motion_events(
+        recent_motion_events, now
+    );
+    return static_cast<int>(recent_motion_events.size());
+}
+
+double stream_controller::current_device_load_ratio() const {
+    return std::clamp(processing_cost_ema_ms / 20.0, 0.0, 2.5);
+}
+
+void stream_controller::note_processing_cost_sample(const double elapsed_ms) {
+    if (elapsed_ms <= 0.0) {
+        return;
+    }
+
+    constexpr double smoothing = 0.18;
+
+    if (processing_cost_ema_ms <= 0.0) {
+        processing_cost_ema_ms = elapsed_ms;
+        return;
+    }
+
+    processing_cost_ema_ms
+        = processing_cost_ema_ms * (1.0 - smoothing) + elapsed_ms * smoothing;
+}
+
+QImage stream_controller::scaled_processing_image(
+    const QString& stream_name, const QImage& image
+) const {
+    if (image.isNull()) {
+        return image;
+    }
+
+    const int scale_percent = std::clamp(
+        processing_scale_percent_by_stream.value(stream_name, 100), 1, 100
+    );
+    if (scale_percent >= 100) {
+        return image;
+    }
+
+    const QSize scaled_size(
+        std::max(1, image.width() * scale_percent / 100),
+        std::max(1, image.height() * scale_percent / 100)
+    );
+
+    return image.scaled(
+        scaled_size, Qt::IgnoreAspectRatio, Qt::FastTransformation
+    );
 }
 
 void stream_controller::on_backend_events(
@@ -918,23 +1120,8 @@ void stream_controller::on_backend_events(
     }
 }
 
-int stream_controller::repaint_interval_for_count(const int n) {
-    if (n <= 2) {
-        return 33;
-    }
-
-    if (n <= 4) {
-        return 66;
-    }
-
-    if (n <= 9) {
-        return 100;
-    }
-
-    return 166;
-}
-
-stream_cell* stream_controller::tile_for_stream_name(const QString& name) const {
+stream_cell*
+stream_controller::tile_for_stream_name(const QString& name) const {
     if (main_zone && !active_name.isEmpty() && active_name == name) {
         if (auto* cell = main_zone->active_cell()) {
             return cell;
@@ -950,7 +1137,8 @@ stream_cell* stream_controller::tile_for_stream_name(const QString& name) const 
     return nullptr;
 }
 
-yodau::backend::frame stream_controller::frame_from_image(const QImage& image) const {
+yodau::backend::frame
+stream_controller::frame_from_image(const QImage& image) const {
     QImage img = image;
 
     if (img.format() != QImage::Format_RGB888) {
@@ -973,7 +1161,9 @@ yodau::backend::frame stream_controller::frame_from_image(const QImage& image) c
     return f;
 }
 
-void stream_controller::on_gui_frame(const QString& stream_name, const QImage& image) {
+void stream_controller::on_gui_frame(
+    const QString& stream_name, const QImage& image
+) {
     if (!stream_mgr) {
         return;
     }
@@ -981,8 +1171,19 @@ void stream_controller::on_gui_frame(const QString& stream_name, const QImage& i
     emit monitor_gui_frame_observed(
         stream_name, static_cast<qint64>(image.sizeInBytes())
     );
-    auto f = frame_from_image(image);
+
+    if (!backend_runtime.processing_enabled()) {
+        return;
+    }
+
+    const auto started = stream_controller_support::steady_clock::now();
+    auto f = frame_from_image(scaled_processing_image(stream_name, image));
     stream_mgr->push_frame(stream_name.toStdString(), std::move(f));
+    const auto finished = stream_controller_support::steady_clock::now();
+    const auto elapsed_ms
+        = std::chrono::duration<double, std::milli>(finished - started).count();
+    note_processing_cost_sample(elapsed_ms);
+    refresh_fps_policy(false);
 }
 
 void stream_controller::on_backend_event(const yodau::backend::event& e) {
@@ -998,7 +1199,9 @@ void stream_controller::on_backend_event(const yodau::backend::event& e) {
     on_backend_event_queued(e);
 }
 
-void stream_controller::on_backend_event_queued(yodau::backend::event event_value) {
+void stream_controller::on_backend_event_queued(
+    yodau::backend::event event_value
+) {
     const auto name = QString::fromStdString(event_value.stream_name);
     emit monitor_backend_event_observed(
         backend_event_kind_text(event_value.kind)
@@ -1030,6 +1233,9 @@ void stream_controller::on_backend_event_queued(yodau::backend::event event_valu
 
     bool allow_gui_motion = true;
     if (event_value.kind == yodau::backend::event_kind::motion) {
+        recent_motion_events.push_back(
+            stream_controller_support::steady_clock::now()
+        );
         const auto now = QDateTime::currentDateTime();
         if (last_gui_motion_event_ts.contains(name)) {
             const int age
@@ -1041,6 +1247,7 @@ void stream_controller::on_backend_event_queued(yodau::backend::event event_valu
         if (allow_gui_motion) {
             last_gui_motion_event_ts[name] = now;
         }
+        refresh_fps_policy(false);
     }
 
     if (!allow_gui_motion) {
