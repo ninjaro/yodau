@@ -1,6 +1,30 @@
 #include "cli/cli_client.hpp"
+
 #include "streams/virtual_camera.hpp"
+
 #include <iostream>
+#include <sstream>
+
+namespace yodau::backend::cli_client_support {
+
+std::string string_from_bool(const bool value) {
+    return value ? "true" : "false";
+}
+
+tripwire_dir parse_tripwire_dir(const std::string& text) {
+    if (text == "neg_to_pos") {
+        return tripwire_dir::neg_to_pos;
+    }
+    if (text == "pos_to_neg") {
+        return tripwire_dir::pos_to_neg;
+    }
+    if (text == "any") {
+        return tripwire_dir::any;
+    }
+    throw std::runtime_error("unknown dir: " + text);
+}
+
+} // namespace yodau::backend::cli_client_support
 
 yodau::backend::cli_client::cli_client(backend::stream_manager& mgr)
     : backend_runtime(
@@ -61,18 +85,25 @@ void yodau::backend::cli_client::dispatch_command(
             { "list-lines", &cli_client::cmd_list_lines },
             { "add-line", &cli_client::cmd_add_line },
             { "set-line", &cli_client::cmd_set_line },
-            { "list-virtual-cameras", &cli_client::cmd_list_virtual_cameras } };
+            { "list-virtual-cameras", &cli_client::cmd_list_virtual_cameras },
+            { "set-log-mode", &cli_client::cmd_set_log_mode },
+            { "show-log", &cli_client::cmd_show_log },
+            { "clear-log", &cli_client::cmd_clear_log } };
     const auto it = command_map.find(cmd);
     if (it == command_map.end()) {
-        std::cerr << "unknown command: " << cmd << std::endl;
+        log_command(
+            cli_log_severity::error, "cli_dispatch", "unknown command", {}, cmd
+        );
         return;
     }
     try {
         const auto method = it->second;
         (this->*method)(args);
     } catch (const std::exception& e) {
-        std::cerr << "error executing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "cli_dispatch", "command execution failed",
+            {}, cmd + ": " + e.what()
+        );
     }
 }
 
@@ -110,9 +141,16 @@ void yodau::backend::cli_client::cmd_list_streams(
         const bool show_connections = result["connections"].as<bool>();
         stream_mgr.dump_stream(std::cout, show_connections);
         std::cout << std::endl;
+        log_command(
+            cli_log_severity::debug, "stream_inventory", "listed streams", {},
+            std::string("connections=")
+                + cli_client_support::string_from_bool(show_connections)
+        );
     } catch (const cxxopts::exceptions::exception& e) {
-        std::cerr << "Error parsing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "stream_inventory",
+            "failed to parse list-streams", {}, e.what()
+        );
         std::cout << options.help() << std::endl;
     }
 }
@@ -126,10 +164,22 @@ void yodau::backend::cli_client::cmd_add_stream(
     options.positional_help("<path> [<name>] [<type>] [<loop>]");
     options.add_options()
         ("h,help", "Print help")
-        ("path", "Path to the device, media file or stream URL", cxxopts::value<std::string>())
-        ("name", "Name of the stream", cxxopts::value<std::string>()->default_value(""))
-        ("type", "Type of the stream (local/file/rtsp/http)", cxxopts::value<std::string>()->default_value(""))
-        ("loop", "Whether to loop the stream (true/false)", cxxopts::value<bool>()->default_value("true"));
+        (
+            "path", "Path to the device, media file or stream URL",
+            cxxopts::value<std::string>()
+        )
+        (
+            "name", "Name of the stream",
+            cxxopts::value<std::string>()->default_value("")
+        )
+        (
+            "type", "Type of the stream (local/file/rtsp/http)",
+            cxxopts::value<std::string>()->default_value("")
+        )
+        (
+            "loop", "Whether to loop the stream (true/false)",
+            cxxopts::value<bool>()->default_value("true")
+        );
     options.parse_positional({ "path", "name", "type", "loop" });
     try {
         const auto result = parse_with_cxxopts(cmd, args, options);
@@ -138,7 +188,10 @@ void yodau::backend::cli_client::cmd_add_stream(
             return;
         }
         if (!result.count("path")) {
-            std::cerr << "Error: 'path' argument is required." << std::endl;
+            log_command(
+                cli_log_severity::error, "stream_add",
+                "path argument is required"
+            );
             return;
         }
         const std::string path = result["path"].as<std::string>();
@@ -148,9 +201,17 @@ void yodau::backend::cli_client::cmd_add_stream(
         const auto& stream = stream_mgr.add_stream(path, name, type, loop);
         stream.dump(std::cout, true);
         std::cout << std::endl;
+        log_command(
+            cli_log_severity::info, "stream_add", "stream added",
+            stream.get_name(),
+            "type=" + stream::type_name(stream.get_type()) + " path=" + path
+                + " loop=" + cli_client_support::string_from_bool(loop)
+        );
     } catch (const cxxopts::exceptions::exception& e) {
-        std::cerr << "Error parsing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "stream_add", "failed to parse add-stream",
+            {}, e.what()
+        );
         std::cout << options.help() << std::endl;
     }
 }
@@ -172,19 +233,23 @@ void yodau::backend::cli_client::cmd_start_stream(
             return;
         }
         if (!result.count("name")) {
-            std::cerr << "Error: 'name' argument is required." << std::endl;
+            log_command(
+                cli_log_severity::error, "stream_control",
+                "stream name is required for start-stream"
+            );
             return;
         }
         const std::string name = result["name"].as<std::string>();
         stream_mgr.start_stream(name);
-        std::cout
-            << "stream started: " << name
-            << " (expects a Linux virtual camera such as /dev/yodau-video0"
-            << " or YODAU_VCAM_DEVICE; inspect with"
-            << " list-virtual-cameras)" << std::endl;
+        log_command(
+            cli_log_severity::info, "stream_control", "stream started", name,
+            "expects Linux virtual camera output or YODAU_VCAM_DEVICE"
+        );
     } catch (const cxxopts::exceptions::exception& e) {
-        std::cerr << "Error parsing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "stream_control",
+            "failed to parse start-stream", {}, e.what()
+        );
         std::cout << options.help() << std::endl;
     }
 }
@@ -206,7 +271,10 @@ void yodau::backend::cli_client::cmd_stop_stream(
             return;
         }
         if (!result.count("name")) {
-            std::cerr << "Error: 'name' argument is required." << std::endl;
+            log_command(
+                cli_log_severity::error, "stream_control",
+                "stream name is required for stop-stream"
+            );
             return;
         }
         const std::string name = result["name"].as<std::string>();
@@ -214,10 +282,14 @@ void yodau::backend::cli_client::cmd_stop_stream(
         if (auto* camera = backend_runtime.preview_camera()) {
             camera->release(name);
         }
-        std::cout << "stream stopped: " << name << std::endl;
+        log_command(
+            cli_log_severity::info, "stream_control", "stream stopped", name
+        );
     } catch (const cxxopts::exceptions::exception& e) {
-        std::cerr << "Error parsing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "stream_control",
+            "failed to parse stop-stream", {}, e.what()
+        );
         std::cout << options.help() << std::endl;
     }
 }
@@ -237,24 +309,14 @@ void yodau::backend::cli_client::cmd_list_lines(
         }
         stream_mgr.dump_lines(std::cout);
         std::cout << std::endl;
+        log_command(cli_log_severity::debug, "line_inventory", "listed lines");
     } catch (const cxxopts::exceptions::exception& e) {
-        std::cerr << "Error parsing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "line_inventory",
+            "failed to parse list-lines", {}, e.what()
+        );
         std::cout << options.help() << std::endl;
     }
-}
-
-static yodau::backend::tripwire_dir parse_tripwire_dir(const std::string& s) {
-    if (s == "neg_to_pos") {
-        return yodau::backend::tripwire_dir::neg_to_pos;
-    }
-    if (s == "pos_to_neg") {
-        return yodau::backend::tripwire_dir::pos_to_neg;
-    }
-    if (s == "any") {
-        return yodau::backend::tripwire_dir::any;
-    }
-    throw std::runtime_error("unknown dir: " + s);
 }
 
 void yodau::backend::cli_client::cmd_add_line(
@@ -265,12 +327,23 @@ void yodau::backend::cli_client::cmd_add_line(
     options.allow_unrecognised_options();
     options.positional_help("<path> [<name>] [<close>]");
     options.add_options()
-    ("h,help", "Print help")
-    ("path", "Line coordinates, e.g. 0,0;100,100", cxxopts::value<std::string>())
-    ("name", "Name of the line", cxxopts::value<std::string>()->default_value(""))
-    ("close", "Whether the line is closed (true/false)", cxxopts::value<bool>()->default_value("false"))
-    ("d,dir", "Tripwire direction (any/neg_to_pos/pos_to_neg)",
-        cxxopts::value<std::string>()->default_value("any"));
+        ("h,help", "Print help")
+        (
+            "path", "Line coordinates, e.g. 0,0;100,100",
+            cxxopts::value<std::string>()
+        )
+        (
+            "name", "Name of the line",
+            cxxopts::value<std::string>()->default_value("")
+        )
+        (
+            "close", "Whether the line is closed (true/false)",
+            cxxopts::value<bool>()->default_value("false")
+        )
+        (
+            "d,dir", "Tripwire direction (any/neg_to_pos/pos_to_neg)",
+            cxxopts::value<std::string>()->default_value("any")
+        );
     options.parse_positional({ "path", "name", "close" });
     try {
         const auto result = parse_with_cxxopts("add-line", args, options);
@@ -279,7 +352,10 @@ void yodau::backend::cli_client::cmd_add_line(
             return;
         }
         if (!result.count("path")) {
-            std::cerr << "Error: 'path' argument is required." << std::endl;
+            log_command(
+                cli_log_severity::error, "line_edit",
+                "line path is required for add-line"
+            );
             return;
         }
         const std::string path = result["path"].as<std::string>();
@@ -290,18 +366,28 @@ void yodau::backend::cli_client::cmd_add_line(
         const auto& line = stream_mgr.add_line(path, close, name);
 
         try {
-            const auto dir = parse_tripwire_dir(dir_str);
+            const auto dir = cli_client_support::parse_tripwire_dir(dir_str);
             stream_mgr.set_line_dir(line->name, dir);
         } catch (const std::exception& e) {
-            std::cerr << "bad dir: " << e.what() << std::endl;
+            log_command(
+                cli_log_severity::warning, "line_edit",
+                "invalid tripwire direction ignored", {}, e.what()
+            );
         }
 
         line->dump(std::cout);
         std::cout << std::endl;
+        log_command(
+            cli_log_severity::info, "line_edit", "line added", {},
+            "line=" + line->name
+                + " closed=" + cli_client_support::string_from_bool(close)
+        );
 
     } catch (const cxxopts::exceptions::exception& e) {
-        std::cerr << "Error parsing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "line_edit", "failed to parse add-line",
+            {}, e.what()
+        );
         std::cout << options.help() << std::endl;
     }
 }
@@ -324,8 +410,10 @@ void yodau::backend::cli_client::cmd_set_line(
             return;
         }
         if (!result.count("stream") || !result.count("line")) {
-            std::cerr << "Error: 'stream' and 'line' arguments are required."
-                      << std::endl;
+            log_command(
+                cli_log_severity::error, "line_edit",
+                "stream and line arguments are required for set-line"
+            );
             return;
         }
         const std::string stream_name = result["stream"].as<std::string>();
@@ -333,9 +421,15 @@ void yodau::backend::cli_client::cmd_set_line(
         const auto& stream = stream_mgr.set_line(stream_name, line_name);
         stream.dump(std::cout, true);
         std::cout << std::endl;
+        log_command(
+            cli_log_severity::info, "line_edit", "line attached to stream",
+            stream_name, "line=" + line_name
+        );
     } catch (const cxxopts::exceptions::exception& e) {
-        std::cerr << "Error parsing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "line_edit", "failed to parse set-line",
+            {}, e.what()
+        );
         std::cout << options.help() << std::endl;
     }
 }
@@ -359,14 +453,195 @@ void yodau::backend::cli_client::cmd_list_virtual_cameras(
         const auto* camera = backend_runtime.preview_camera();
         if (camera == nullptr) {
             std::cout << "0 virtual camera streams:" << std::endl;
+            log_command(
+                cli_log_severity::debug, "virtual_camera",
+                "listed virtual camera bindings", {}, "count=0"
+            );
             return;
         }
 
         camera->dump(std::cout);
         std::cout << std::endl;
+        log_command(
+            cli_log_severity::debug, "virtual_camera",
+            "listed virtual camera bindings"
+        );
     } catch (const cxxopts::exceptions::exception& e) {
-        std::cerr << "Error parsing command '" << cmd << "': " << e.what()
-                  << std::endl;
+        log_command(
+            cli_log_severity::error, "virtual_camera",
+            "failed to parse list-virtual-cameras", {}, e.what()
+        );
+        std::cout << options.help() << std::endl;
+    }
+}
+
+void yodau::backend::cli_client::cmd_set_log_mode(
+    const std::vector<std::string>& args
+) {
+    const std::string cmd = "set-log-mode";
+    cxxopts::Options options(cmd, "Set CLI log output mode");
+    options.allow_unrecognised_options();
+    options.add_options()("h,help", "Print help")(
+        "mode", "Log mode (release/debug)", cxxopts::value<std::string>()
+    );
+    options.parse_positional({ "mode" });
+    try {
+        const auto result = parse_with_cxxopts(cmd, args, options);
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            return;
+        }
+        if (!result.count("mode")) {
+            log_command(
+                cli_log_severity::error, "cli_log",
+                "log mode is required for set-log-mode"
+            );
+            return;
+        }
+
+        const auto mode
+            = cli_log_mode_from_string(result["mode"].as<std::string>());
+        if (!mode.has_value()) {
+            log_command(
+                cli_log_severity::error, "cli_log", "unknown log mode", {},
+                result["mode"].as<std::string>()
+            );
+            return;
+        }
+
+        {
+            std::scoped_lock lock(log_mutex);
+            active_log_mode = *mode;
+        }
+
+        log_command(
+            cli_log_severity::info, "cli_log", "log mode updated", {},
+            cli_log_mode_name(*mode)
+        );
+    } catch (const cxxopts::exceptions::exception& e) {
+        log_command(
+            cli_log_severity::error, "cli_log", "failed to parse set-log-mode",
+            {}, e.what()
+        );
+        std::cout << options.help() << std::endl;
+    }
+}
+
+void yodau::backend::cli_client::cmd_show_log(
+    const std::vector<std::string>& args
+) {
+    const std::string cmd = "show-log";
+    cxxopts::Options options(cmd, "Show CLI log history");
+    options.allow_unrecognised_options();
+    options.add_options()
+        ("h,help", "Print help")
+        (
+            "limit", "Maximum number of matching log entries to print",
+            cxxopts::value<int>()->default_value("50")
+        )
+        (
+            "severity", "Optional severity filter (debug/info/warning/error)",
+            cxxopts::value<std::string>()->default_value("")
+        )
+        (
+            "stream", "Optional stream-name filter",
+            cxxopts::value<std::string>()->default_value("")
+        )
+        (
+            "subsystem", "Optional subsystem filter",
+            cxxopts::value<std::string>()->default_value("")
+        );
+
+    try {
+        const auto result = parse_with_cxxopts(cmd, args, options);
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            return;
+        }
+
+        const int limit = result["limit"].as<int>();
+        if (limit <= 0) {
+            log_command(
+                cli_log_severity::error, "cli_log",
+                "show-log limit must be greater than zero"
+            );
+            return;
+        }
+
+        cli_log_filter filter;
+        const std::string severity_text = result["severity"].as<std::string>();
+        if (!severity_text.empty()) {
+            const auto severity = cli_log_severity_from_string(severity_text);
+            if (!severity.has_value()) {
+                log_command(
+                    cli_log_severity::error, "cli_log",
+                    "unknown severity filter", {}, severity_text
+                );
+                return;
+            }
+            filter.severity = *severity;
+        }
+        filter.stream_name = result["stream"].as<std::string>();
+        filter.subsystem = result["subsystem"].as<std::string>();
+
+        const cli_log_mode mode = current_log_mode();
+        const auto history = snapshot_log_history();
+
+        std::vector<cli_log_entry> filtered_entries;
+        filtered_entries.reserve(history.size());
+        for (const cli_log_entry& entry : history) {
+            if (cli_log_entry_matches(mode, entry, filter)) {
+                filtered_entries.push_back(entry);
+            }
+        }
+
+        const std::size_t entry_count = filtered_entries.size();
+        std::cout << entry_count << " matching log entries"
+                  << " (mode=" << cli_log_mode_name(mode) << ')' << std::endl;
+
+        const std::size_t limit_size = static_cast<std::size_t>(limit);
+        const std::size_t start_index
+            = entry_count > limit_size ? entry_count - limit_size : 0u;
+
+        for (std::size_t index = start_index; index < entry_count; ++index) {
+            std::cout << format_cli_log_entry(mode, filtered_entries[index])
+                      << std::endl;
+        }
+    } catch (const cxxopts::exceptions::exception& e) {
+        log_command(
+            cli_log_severity::error, "cli_log", "failed to parse show-log", {},
+            e.what()
+        );
+        std::cout << options.help() << std::endl;
+    }
+}
+
+void yodau::backend::cli_client::cmd_clear_log(
+    const std::vector<std::string>& args
+) {
+    const std::string cmd = "clear-log";
+    cxxopts::Options options(cmd, "Clear CLI log history");
+    options.allow_unrecognised_options();
+    options.add_options()("h,help", "Print help");
+
+    try {
+        const auto result = parse_with_cxxopts(cmd, args, options);
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            return;
+        }
+
+        {
+            std::scoped_lock lock(log_mutex);
+            log_history.clear();
+        }
+
+        std::cout << "log history cleared" << std::endl;
+    } catch (const cxxopts::exceptions::exception& e) {
+        log_command(
+            cli_log_severity::error, "cli_log", "failed to parse clear-log", {},
+            e.what()
+        );
         std::cout << options.help() << std::endl;
     }
 }
@@ -375,41 +650,110 @@ void yodau::backend::cli_client::on_backend_events(
     const std::vector<event>& events
 ) {
     for (const auto& event_value : events) {
-        print_backend_event(event_value);
+        append_log(make_event_log_entry(event_value));
     }
 }
 
-void yodau::backend::cli_client::print_backend_event(const event& event_value) {
-    std::cout << "[event] stream=" << event_value.stream_name << " kind=";
+void yodau::backend::cli_client::append_log(cli_log_entry entry, bool echo) {
+    if (entry.timestamp.time_since_epoch().count() == 0) {
+        entry.timestamp = std::chrono::system_clock::now();
+    }
+
+    std::string formatted_line;
+    {
+        std::scoped_lock lock(log_mutex);
+
+        log_history.push_back(entry);
+        if (log_history.size() > max_log_entries) {
+            const auto remove_count = log_history.size() - max_log_entries;
+            log_history.erase(
+                log_history.begin(),
+                log_history.begin() + static_cast<std::ptrdiff_t>(remove_count)
+            );
+        }
+
+        if (echo && cli_log_entry_visible(active_log_mode, entry)) {
+            formatted_line = format_cli_log_entry(active_log_mode, entry);
+        }
+    }
+
+    if (!formatted_line.empty()) {
+        std::cout << formatted_line << std::endl;
+    }
+}
+
+void yodau::backend::cli_client::log_command(
+    const cli_log_severity severity, const std::string& subsystem,
+    const std::string& message, const std::string& stream_name,
+    const std::string& detail
+) {
+    cli_log_entry entry;
+    entry.scope = cli_log_scope::command;
+    entry.severity = severity;
+    entry.subsystem = subsystem;
+    entry.stream_name = stream_name;
+    entry.message = message;
+    entry.detail = detail;
+    append_log(std::move(entry));
+}
+
+yodau::backend::cli_log_entry yodau::backend::cli_client::make_event_log_entry(
+    const event& event_value
+) const {
+    cli_log_entry entry;
+    entry.scope = cli_log_scope::event;
+    entry.subsystem = "backend_event";
+    entry.stream_name = event_value.stream_name;
 
     switch (event_value.kind) {
     case event_kind::motion:
-        std::cout << "motion";
+        entry.severity = cli_log_severity::debug;
+        entry.message = "motion detected";
         break;
     case event_kind::tripwire:
-        std::cout << "tripwire";
+        entry.severity = cli_log_severity::info;
+        entry.message = "tripwire triggered";
         break;
     case event_kind::roi:
-        std::cout << "roi";
+        entry.severity = cli_log_severity::info;
+        entry.message = "roi event";
         break;
     case event_kind::info:
     default:
-        std::cout << "info";
+        entry.severity = cli_log_severity::info;
+        entry.message = "backend info event";
         break;
     }
 
+    std::ostringstream detail;
     if (!event_value.line_name.empty()) {
-        std::cout << " line=" << event_value.line_name;
+        detail << "line=" << event_value.line_name;
     }
-
     if (event_value.pos_pct.has_value()) {
-        std::cout << " pos=(" << event_value.pos_pct->x << ","
-                  << event_value.pos_pct->y << ")";
+        if (!detail.str().empty()) {
+            detail << ' ';
+        }
+        detail << "pos=(" << event_value.pos_pct->x << ','
+               << event_value.pos_pct->y << ')';
     }
-
     if (!event_value.message.empty()) {
-        std::cout << " msg=" << event_value.message;
+        if (!detail.str().empty()) {
+            detail << ' ';
+        }
+        detail << "backend=" << event_value.message;
     }
+    entry.detail = detail.str();
+    return entry;
+}
 
-    std::cout << std::endl;
+std::vector<yodau::backend::cli_log_entry>
+yodau::backend::cli_client::snapshot_log_history() const {
+    std::scoped_lock lock(log_mutex);
+    return log_history;
+}
+
+yodau::backend::cli_log_mode
+yodau::backend::cli_client::current_log_mode() const {
+    std::scoped_lock lock(log_mutex);
+    return active_log_mode;
 }

@@ -1,6 +1,8 @@
 #ifndef YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP
 #define YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP
 
+#include "shell/frontend_log.hpp"
+
 #include <QColor>
 #include <QGroupBox>
 #include <QSet>
@@ -10,6 +12,7 @@
 class QButtonGroup;
 class QCheckBox;
 class QComboBox;
+class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
 class QPushButton;
@@ -27,6 +30,11 @@ public:
     void set_existing_names(QSet<QString> names);
     void add_existing_name(const QString& name);
     void remove_existing_name(const QString& name);
+
+    void set_log_buffer(frontend_log_buffer* buffer);
+    void set_log_mode(frontend_log_mode mode);
+    frontend_log_mode log_mode() const;
+    void append_log(frontend_log_entry entry) const;
 
     // streams tab
     void add_stream_entry(
@@ -95,6 +103,7 @@ private:
 
     // ui build
     void build_ui();
+    QWidget* build_log_toolbar();
     QWidget* build_add_tab();
     QWidget* build_streams_tab();
     QWidget* build_active_tab();
@@ -123,8 +132,16 @@ private:
     // active tab helpers
     void update_active_tools() const;
     void set_btn_color(QPushButton* btn, const QColor& c) const;
+    void refresh_log_filter_options() const;
+    bool entry_matches_log_filters(const frontend_log_entry& entry) const;
+    void rebuild_log_views() const;
+    void rebuild_log_view(QPlainTextEdit* view, frontend_log_area area) const;
 
 private slots:
+    void on_log_mode_changed(int index);
+    void on_log_severity_filter_changed(int index);
+    void on_log_stream_filter_changed(int index);
+    void on_log_subsystem_filter_changed(int index);
     void on_mode_group_clicked(int id);
     void on_local_source_changed();
     void on_url_text_changed();
@@ -146,6 +163,15 @@ private slots:
 private:
     // common
     QTabWidget* tabs;
+    QComboBox* log_mode_combo { nullptr };
+    QComboBox* log_severity_filter_combo { nullptr };
+    QComboBox* log_stream_filter_combo { nullptr };
+    QComboBox* log_subsystem_filter_combo { nullptr };
+    frontend_log_mode current_log_mode { frontend_log_mode::release };
+    int current_log_severity_filter { -1 };
+    QString current_log_stream_filter;
+    QString current_log_subsystem_filter;
+    frontend_log_buffer* shared_log_buffer { nullptr };
     QSet<QString> existing_names;
 
     // add tab

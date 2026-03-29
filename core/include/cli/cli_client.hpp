@@ -2,7 +2,10 @@
 #define YODAU_BACKEND_CLI_CLIENT_HPP
 
 #include "analysis/processing_runtime.hpp"
+#include "cli/cli_log.hpp"
+
 #include <cxxopts.hpp>
+#include <mutex>
 
 #include "streams/stream_manager.hpp"
 
@@ -29,12 +32,27 @@ private:
     void cmd_add_line(const std::vector<std::string>& args);
     void cmd_set_line(const std::vector<std::string>& args);
     void cmd_list_virtual_cameras(const std::vector<std::string>& args);
+    void cmd_set_log_mode(const std::vector<std::string>& args);
+    void cmd_show_log(const std::vector<std::string>& args);
+    void cmd_clear_log(const std::vector<std::string>& args);
     void on_backend_events(const std::vector<event>& events);
-    static void print_backend_event(const event& event_value);
+    void append_log(cli_log_entry entry, bool echo = true);
+    void log_command(
+        cli_log_severity severity, const std::string& subsystem,
+        const std::string& message, const std::string& stream_name = {},
+        const std::string& detail = {}
+    );
+    cli_log_entry make_event_log_entry(const event& event_value) const;
+    std::vector<cli_log_entry> snapshot_log_history() const;
+    cli_log_mode current_log_mode() const;
 
     processing_runtime backend_runtime;
     backend::stream_manager& stream_mgr;
+    mutable std::mutex log_mutex;
+    std::vector<cli_log_entry> log_history;
+    cli_log_mode active_log_mode { cli_log_mode::release };
+    std::size_t max_log_entries { 512 };
 };
-}
+} // namespace yodau::backend
 
 #endif // YODAU_BACKEND_CLI_CLIENT_HPP

@@ -117,7 +117,13 @@ stream_controller::stream_controller(
     , main_zone(zone)
     , grid(zone ? zone->grid_mode() : nullptr) {
     qRegisterMetaType<yodau::backend::event>("yodau::backend::event");
+    qRegisterMetaType<frontend_log_entry>("frontend_log_entry");
     fps_capability = yodau::backend::detect_fps_capability_profile();
+    log_buffer = new frontend_log_buffer(this);
+
+    if (settings != nullptr) {
+        settings->set_log_buffer(log_buffer);
+    }
 
     init_from_backend();
 
@@ -213,11 +219,10 @@ void stream_controller::handle_add_url(
 }
 
 void stream_controller::handle_detect_local_sources() {
-    if (!stream_mgr || !settings) {
+    if (!stream_mgr) {
         return;
     }
 
-    const auto ts = now_ts();
     stream_mgr->refresh_local_streams();
 
     QStringList locals;
@@ -229,15 +234,17 @@ void stream_controller::handle_detect_local_sources() {
         }
     }
 
-    settings->set_local_sources(locals);
-    settings->append_add_log(
-        QString("[%1] ok: detected %2 local sources").arg(ts).arg(locals.size())
-    );
-
     const auto cams = QMediaDevices::videoInputs();
-    // for (int i = 0; i < cams.size(); ++i) {
-    //     const auto& c = cams[i];
-    // }
+    if (settings != nullptr) {
+        settings->set_local_sources(locals);
+    }
+
+    append_log(
+        frontend_log_area::add, frontend_log_severity::info,
+        QStringLiteral("local_sources"),
+        QStringLiteral("local source inventory refreshed"), QString(),
+        QStringLiteral("backend=%1 qt=%2").arg(locals.size()).arg(cams.size())
+    );
     update_monitor_inventory();
     if (monitor_bridge != nullptr) {
         monitor_bridge->add_marker(QStringLiteral("local_sources_refreshed"));
@@ -292,6 +299,14 @@ void stream_controller::handle_show_stream_changed(
         settings->set_active_candidates(grid->stream_names());
     }
 
+    append_log(
+        frontend_log_area::streams, frontend_log_severity::info,
+        QStringLiteral("grid_visibility"),
+        show ? QStringLiteral("stream shown in grid")
+             : QStringLiteral("stream hidden from grid"),
+        name
+    );
+
     emit monitor_stream_visibility_changed(name, show);
     refresh_fps_policy(true);
     update_monitor_inventory();
@@ -304,9 +319,10 @@ void stream_controller::handle_show_stream_changed(
 }
 
 void stream_controller::handle_backend_event(const QString& text) {
-    if (settings) {
-        settings->append_active_log(text);
-    }
+    append_log(
+        frontend_log_area::active, frontend_log_severity::info,
+        QStringLiteral("backend_event"), text
+    );
 }
 
 void stream_controller::on_active_stream_selected(const QString& name) {
@@ -340,6 +356,15 @@ void stream_controller::on_active_stream_selected(const QString& name) {
     sync_active_persistent();
     refresh_fps_policy(true);
     update_monitor_inventory();
+
+    append_log(
+        frontend_log_area::active, frontend_log_severity::info,
+        QStringLiteral("active_stream"),
+        name.isEmpty() ? QStringLiteral("active stream cleared")
+                       : QStringLiteral("active stream selected"),
+        name
+    );
+
     if (monitor_bridge != nullptr) {
         monitor_bridge->add_marker(
             name.isEmpty() ? QStringLiteral("active_stream_cleared")
@@ -368,12 +393,13 @@ void stream_controller::on_active_edit_mode_changed(bool drawing_new) {
         }
     }
 
-    if (settings) {
-        settings->append_active_log(
-            QString("edit mode: %1")
-                .arg(drawing_new ? "draw new" : "use template")
-        );
-    }
+    append_log(
+        frontend_log_area::active, frontend_log_severity::info,
+        QStringLiteral("editing"),
+        drawing_new ? QStringLiteral("edit mode set to draw new")
+                    : QStringLiteral("edit mode set to use template"),
+        active_name
+    );
 }
 
 void stream_controller::on_active_line_params_changed(
@@ -391,23 +417,31 @@ void stream_controller::on_active_line_params_changed(
         }
     }
 
-    if (settings) {
-        settings->append_active_log(
-            QString("active line params: name='%1' color=%2 closed=%3")
-                .arg(draft_line_name)
-                .arg(draft_line_color.name())
-                .arg(draft_line_closed ? "true" : "false")
-        );
-    }
+    append_log(
+        frontend_log_area::active, frontend_log_severity::debug,
+        QStringLiteral("line_editor"),
+        QStringLiteral("active line draft updated"), active_name,
+        QStringLiteral("name=%1 color=%2 closed=%3")
+            .arg(draft_line_name)
+            .arg(draft_line_color.name())
+            .arg(
+                draft_line_closed ? QStringLiteral("true")
+                                  : QStringLiteral("false")
+            )
+    );
 }
 
 void stream_controller::on_active_line_save_requested(
     const QString& name, const bool closed
 ) {
-    log_active(QString("save click: name='%1' closed=%2 active='%3'")
-                   .arg(name)
-                   .arg(closed ? "true" : "false")
-                   .arg(active_name));
+    append_log(
+        frontend_log_area::active, frontend_log_severity::debug,
+        QStringLiteral("line_editor"), QStringLiteral("line save requested"),
+        active_name,
+        QStringLiteral("name=%1 closed=%2")
+            .arg(name)
+            .arg(closed ? QStringLiteral("true") : QStringLiteral("false"))
+    );
 
     auto* cell = active_cell_checked("add line");
     if (!cell) {
@@ -416,12 +450,20 @@ void stream_controller::on_active_line_save_requested(
 
     const auto pts = cell->draft_points_pct();
     if (pts.size() < 2) {
-        log_active("add line failed: need at least 2 points");
+        append_log(
+            frontend_log_area::active, frontend_log_severity::warning,
+            QStringLiteral("line_editor"),
+            QStringLiteral("line add requires at least 2 points"), active_name
+        );
         return;
     }
 
     const auto points_str = points_str_from_pct(pts);
-    log_active(QString("points_str = %1").arg(points_str));
+    append_log(
+        frontend_log_area::active, frontend_log_severity::debug,
+        QStringLiteral("line_editor"),
+        QStringLiteral("line draft points prepared"), active_name, points_str
+    );
 
     try {
         const auto lp = stream_mgr->add_line(
@@ -431,7 +473,11 @@ void stream_controller::on_active_line_save_requested(
         const auto final_name = QString::fromStdString(lp->name);
         apply_added_line(cell, final_name, pts, closed);
     } catch (const std::exception& e) {
-        log_active(QString("add line failed: %1").arg(e.what()));
+        append_log(
+            frontend_log_area::active, frontend_log_severity::error,
+            QStringLiteral("line_editor"), QStringLiteral("line add failed"),
+            active_name, QString::fromLocal8Bit(e.what())
+        );
     }
 }
 
@@ -471,12 +517,12 @@ void stream_controller::on_active_template_add_requested(
     }
 
     if (!templates.contains(template_name)) {
-        if (settings) {
-            settings->append_active_log(
-                QString("add template failed: unknown template '%1'")
-                    .arg(template_name)
-            );
-        }
+        append_log(
+            frontend_log_area::active, frontend_log_severity::warning,
+            QStringLiteral("template_editor"),
+            QStringLiteral("template add failed: unknown template"),
+            active_name, template_name
+        );
         return;
     }
 
@@ -487,11 +533,12 @@ void stream_controller::on_active_template_add_requested(
             active_name.toStdString(), template_name.toStdString()
         );
     } catch (const std::exception& e) {
-        if (settings) {
-            settings->append_active_log(
-                QString("add template failed: %1").arg(e.what())
-            );
-        }
+        append_log(
+            frontend_log_area::active, frontend_log_severity::error,
+            QStringLiteral("template_editor"),
+            QStringLiteral("template add failed"), active_name,
+            QString::fromLocal8Bit(e.what())
+        );
         return;
     }
 
@@ -504,11 +551,12 @@ void stream_controller::on_active_template_add_requested(
     per_stream_lines[active_name].push_back(inst);
     cell->add_persistent_line(inst);
 
-    if (settings) {
-        settings->append_active_log(
-            QString("template added to active: %1").arg(template_name)
-        );
-    }
+    append_log(
+        frontend_log_area::active, frontend_log_severity::info,
+        QStringLiteral("template_editor"),
+        QStringLiteral("template added to active stream"), active_name,
+        template_name
+    );
 
     cell->clear_draft();
 
@@ -626,27 +674,28 @@ void stream_controller::on_grid_stream_closed(const QString& name) {
 void stream_controller::handle_add_stream_common(
     const QString& source, const QString& name, const QString& type, bool loop
 ) {
-    if (!stream_mgr || !settings) {
+    if (!stream_mgr) {
         return;
     }
-
-    const auto ts = now_ts();
 
     if (type == "url") {
         const QUrl url(source);
         const auto scheme = url.scheme().toLower();
 
         if (!url.isValid() || scheme.isEmpty()) {
-            settings->append_add_log(
-                QString("[%1] error: invalid url '%2'").arg(ts, source)
+            append_log(
+                frontend_log_area::add, frontend_log_severity::warning,
+                QStringLiteral("stream_add"), QStringLiteral("invalid url"),
+                name, source
             );
             return;
         }
 
         if (scheme != "rtsp" && scheme != "http" && scheme != "https") {
-            settings->append_add_log(
-                QString("[%1] error: unsupported url scheme '%2'")
-                    .arg(ts, scheme)
+            append_log(
+                frontend_log_area::add, frontend_log_severity::warning,
+                QStringLiteral("stream_add"),
+                QStringLiteral("unsupported url scheme"), name, scheme
             );
             return;
         }
@@ -669,8 +718,10 @@ void stream_controller::handle_add_stream_common(
         stream_sources[final_name] = url;
         stream_loops[final_name] = loop;
 
-        settings->append_add_log(
-            QString("[%1] ok: added %2 as %3").arg(ts, source_desc, final_name)
+        append_log(
+            frontend_log_area::add, frontend_log_severity::info,
+            QStringLiteral("stream_add"), QStringLiteral("stream added"),
+            final_name, source_desc
         );
 
         register_stream_in_ui(final_name, source_desc);
@@ -679,8 +730,11 @@ void stream_controller::handle_add_stream_common(
             monitor_bridge->add_marker(QStringLiteral("stream_added"));
         }
     } catch (const std::exception& e) {
-        settings->append_add_log(
-            QString("[%1] error: add %2 failed: %3").arg(ts, type, e.what())
+        append_log(
+            frontend_log_area::add, frontend_log_severity::error,
+            QStringLiteral("stream_add"),
+            QStringLiteral("add %1 stream failed").arg(type), name,
+            QString::fromLocal8Bit(e.what())
         );
     }
 }
@@ -698,10 +752,6 @@ void stream_controller::register_stream_in_ui(
 
     refresh_fps_policy(true);
     update_monitor_inventory();
-}
-
-QString stream_controller::now_ts() {
-    return QDateTime::currentDateTime().toString("HH:mm:ss");
 }
 
 void stream_controller::handle_enlarge_requested(const QString& name) {
@@ -736,21 +786,22 @@ void stream_controller::handle_thumb_activate(const QString& name) {
 stream_cell*
 stream_controller::active_cell_checked(const QString& fail_prefix) {
     if (!stream_mgr || !main_zone || active_name.isEmpty()) {
-        if (settings) {
-            settings->append_active_log(
-                QString("%1 failed: no active stream").arg(fail_prefix)
-            );
-        }
+        append_log(
+            frontend_log_area::active, frontend_log_severity::warning,
+            QStringLiteral("active_stream"),
+            QStringLiteral("%1 failed: no active stream").arg(fail_prefix)
+        );
         return nullptr;
     }
 
     auto* cell = main_zone->active_cell();
     if (!cell) {
-        if (settings) {
-            settings->append_active_log(
-                QString("%1 failed: active cell not found").arg(fail_prefix)
-            );
-        }
+        append_log(
+            frontend_log_area::active, frontend_log_severity::warning,
+            QStringLiteral("active_stream"),
+            QStringLiteral("%1 failed: active cell not found").arg(fail_prefix),
+            active_name
+        );
         return nullptr;
     }
 
@@ -801,10 +852,41 @@ void stream_controller::apply_template_preview(const QString& template_name) {
     cell->set_draft_points_pct(tpl.pts_pct);
 }
 
-void stream_controller::log_active(const QString& msg) const {
-    if (settings) {
-        settings->append_active_log(msg);
+void stream_controller::append_log(
+    const frontend_log_area area, const frontend_log_severity severity,
+    const QString& subsystem, const QString& message,
+    const QString& stream_name, const QString& detail,
+    const QString& algorithm_id
+) const {
+    frontend_log_entry entry {
+        .timestamp = QDateTime(),
+        .area = area,
+        .severity = severity,
+        .subsystem = subsystem,
+        .stream_name = stream_name,
+        .algorithm_id = algorithm_id,
+        .message = message,
+        .detail = detail,
+    };
+
+    if (log_buffer != nullptr) {
+        log_buffer->append(std::move(entry));
+        return;
     }
+
+    if (settings != nullptr) {
+        settings->append_log(std::move(entry));
+    }
+}
+
+void stream_controller::log_active(
+    const QString& msg, const frontend_log_severity severity,
+    const QString& detail
+) const {
+    append_log(
+        frontend_log_area::active, severity, QStringLiteral("active"), msg,
+        active_name, detail
+    );
 }
 
 QString
@@ -847,8 +929,14 @@ void stream_controller::apply_added_line(
         settings->reset_active_template_form();
     }
 
-    log_active(
-        QString("line added: %1 (%2 points)").arg(final_name).arg(pts.size())
+    append_log(
+        frontend_log_area::active, frontend_log_severity::info,
+        QStringLiteral("line_editor"), QStringLiteral("line added"),
+        active_name,
+        QStringLiteral("template=%1 points=%2 closed=%3")
+            .arg(final_name)
+            .arg(pts.size())
+            .arg(closed ? QStringLiteral("true") : QStringLiteral("false"))
     );
 
     sync_active_persistent();
@@ -1203,6 +1291,58 @@ void stream_controller::on_backend_event_queued(
     yodau::backend::event event_value
 ) {
     const auto name = QString::fromStdString(event_value.stream_name);
+    const QString line_name = QString::fromStdString(event_value.line_name);
+    QString event_detail;
+
+    if (!line_name.isEmpty()) {
+        event_detail = QStringLiteral("line=%1").arg(line_name);
+    }
+
+    if (event_value.pos_pct.has_value()) {
+        const auto& position = *event_value.pos_pct;
+        const auto position_text = QStringLiteral("pos=(%1,%2)")
+                                       .arg(position.x, 0, 'f', 3)
+                                       .arg(position.y, 0, 'f', 3);
+        if (!event_detail.isEmpty()) {
+            event_detail.append(' ');
+        }
+        event_detail.append(position_text);
+    }
+
+    const auto backend_message
+        = QString::fromStdString(event_value.message).trimmed();
+    if (!backend_message.isEmpty()) {
+        if (!event_detail.isEmpty()) {
+            event_detail.append(' ');
+        }
+        event_detail.append(QStringLiteral("backend=%1").arg(backend_message));
+    }
+
+    QString log_message = QStringLiteral("backend event");
+    frontend_log_severity log_severity = frontend_log_severity::info;
+
+    switch (event_value.kind) {
+    case yodau::backend::event_kind::motion:
+        log_message = QStringLiteral("motion detected");
+        log_severity = frontend_log_severity::debug;
+        break;
+    case yodau::backend::event_kind::tripwire:
+        log_message = QStringLiteral("tripwire triggered");
+        break;
+    case yodau::backend::event_kind::roi:
+        log_message = QStringLiteral("roi event");
+        break;
+    case yodau::backend::event_kind::info:
+    default:
+        log_message = QStringLiteral("backend info event");
+        break;
+    }
+
+    append_log(
+        frontend_log_area::active, log_severity,
+        QStringLiteral("backend_event"), log_message, name, event_detail
+    );
+
     emit monitor_backend_event_observed(
         backend_event_kind_text(event_value.kind)
     );

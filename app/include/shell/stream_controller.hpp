@@ -15,6 +15,7 @@
 
 #include "analysis/fps_policy.hpp"
 #include "analysis/processing_runtime.hpp"
+#include "shell/frontend_log.hpp"
 #include "streams/stream_manager.hpp"
 #include "widgets/stream_cell.hpp"
 
@@ -96,7 +97,6 @@ private:
     void register_stream_in_ui(
         const QString& final_name, const QString& source_desc
     );
-    static QString now_ts();
 
     // grid / active helpers
     void handle_enlarge_requested(const QString& name);
@@ -108,7 +108,18 @@ private:
     void sync_active_persistent();
     void apply_template_preview(const QString& template_name);
 
-    void log_active(const QString& msg) const;
+    void append_log(
+        frontend_log_area area, frontend_log_severity severity,
+        const QString& subsystem, const QString& message,
+        const QString& stream_name = QString(),
+        const QString& detail = QString(),
+        const QString& algorithm_id = QString()
+    ) const;
+    void log_active(
+        const QString& msg,
+        frontend_log_severity severity = frontend_log_severity::info,
+        const QString& detail = QString()
+    ) const;
 
     static QString points_str_from_pct(const std::vector<QPointF>& pts);
 
@@ -146,6 +157,7 @@ private:
     settings_panel* settings { nullptr };
     stream_board* main_zone { nullptr };
     grid_view* grid { nullptr };
+    frontend_log_buffer* log_buffer { nullptr };
 
     // active state
     QString active_name;

@@ -7,6 +7,24 @@ The backend runtime now supports two rendering ownership modes:
 
 In CLI `backend_only` mode, `yodau` does not open preview windows. Instead, on Linux it tries to publish rendered frames into a V4L2 output device so the stream can be opened externally, for example with `ffplay /dev/yodau-video0`, and can appear in webcam pickers if the system exposes that loopback device to other applications.
 
+The CLI now also keeps an in-memory log history with two output modes:
+
+* `release` - concise operator-readable entries. Debug noise such as motion spam
+  is hidden.
+* `debug` - richer diagnostic entries with scope, subsystem, stream, and
+  details.
+
+```bash
+yodau> set-log-mode debug
+yodau> show-log --limit=50 --severity=warning --stream=cam0
+yodau> clear-log
+```
+
+* `show-log` reads the retained CLI log history.
+* `clear-log` clears that history.
+* `set-log-mode` changes both immediate CLI log echoing and `show-log`
+  formatting.
+
 ### Streams
 
 A *stream* represents a video source (local device, file, HTTP/HTTPS, RTSP).

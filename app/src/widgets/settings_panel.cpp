@@ -5,19 +5,66 @@
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
-#include <QDateTime>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSignalBlocker>
+#include <QStringList>
 #include <QTabWidget>
 #include <QTreeWidget>
+#include <QVBoxLayout>
+
+#include <algorithm>
+
+namespace settings_panel_support {
+
+frontend_log_entry make_log_entry(
+    const frontend_log_area area, const frontend_log_severity severity,
+    const QString& subsystem, const QString& message,
+    const QString& stream_name = QString(), const QString& detail = QString(),
+    const QString& algorithm_id = QString()
+) {
+    frontend_log_entry entry;
+    entry.area = area;
+    entry.severity = severity;
+    entry.subsystem = subsystem;
+    entry.stream_name = stream_name;
+    entry.algorithm_id = algorithm_id;
+    entry.message = message;
+    entry.detail = detail;
+    return entry;
+}
+
+QString log_filter_all_text() { return str_label("all"); }
+
+void replace_filter_combo_items(
+    QComboBox* combo, const QStringList& values, const QString& selected_value
+) {
+    if (combo == nullptr) {
+        return;
+    }
+
+    QSignalBlocker blocker(combo);
+    combo->clear();
+    combo->addItem(log_filter_all_text(), QString());
+
+    for (const QString& value : values) {
+        combo->addItem(value, value);
+    }
+
+    const int selected_index
+        = selected_value.isEmpty() ? 0 : combo->findData(selected_value);
+    combo->setCurrentIndex(selected_index >= 0 ? selected_index : 0);
+}
+
+} // namespace settings_panel_support
 
 settings_panel::settings_panel(QWidget* parent)
     : QWidget(parent)
@@ -62,6 +109,80 @@ void settings_panel::add_existing_name(const QString& name) {
 void settings_panel::remove_existing_name(const QString& name) {
     existing_names.remove(name);
     on_name_changed(name_edit->text());
+}
+
+void settings_panel::set_log_buffer(frontend_log_buffer* buffer) {
+    if (shared_log_buffer == buffer) {
+        rebuild_log_views();
+        return;
+    }
+
+    if (shared_log_buffer != nullptr) {
+        disconnect(shared_log_buffer, nullptr, this, nullptr);
+    }
+
+    shared_log_buffer = buffer;
+
+    if (shared_log_buffer != nullptr) {
+        connect(
+            shared_log_buffer, &frontend_log_buffer::entry_appended, this,
+            [this](const frontend_log_entry&) { rebuild_log_views(); }
+        );
+        connect(
+            shared_log_buffer, &frontend_log_buffer::cleared, this,
+            [this]() { rebuild_log_views(); }
+        );
+    }
+
+    rebuild_log_views();
+}
+
+void settings_panel::set_log_mode(const frontend_log_mode mode) {
+    current_log_mode = mode;
+
+    if (log_mode_combo != nullptr) {
+        QSignalBlocker blocker(log_mode_combo);
+        log_mode_combo->setCurrentIndex(
+            mode == frontend_log_mode::release ? 0 : 1
+        );
+    }
+
+    rebuild_log_views();
+}
+
+frontend_log_mode settings_panel::log_mode() const { return current_log_mode; }
+
+void settings_panel::append_log(frontend_log_entry entry) const {
+    if (shared_log_buffer != nullptr) {
+        shared_log_buffer->append(std::move(entry));
+        return;
+    }
+
+    QPlainTextEdit* target_view = nullptr;
+
+    switch (entry.area) {
+    case frontend_log_area::add:
+        target_view = add_log_view;
+        break;
+    case frontend_log_area::streams:
+        target_view = event_log_view;
+        break;
+    case frontend_log_area::active:
+        target_view = active_log_view;
+        break;
+    }
+
+    if (target_view == nullptr) {
+        return;
+    }
+
+    if (!entry_matches_log_filters(entry)) {
+        return;
+    }
+
+    target_view->appendPlainText(
+        format_frontend_log_entry(current_log_mode, entry)
+    );
 }
 
 void settings_panel::add_stream_entry(
@@ -114,8 +235,12 @@ void settings_panel::clear_stream_entries() {
 }
 
 void settings_panel::append_event(const QString& text) const {
-    auto ts = QDateTime::currentDateTime().toString("HH:mm:ss");
-    event_log_view->appendPlainText(QString("[%1] %2").arg(ts, text));
+    append_log(
+        settings_panel_support::make_log_entry(
+            frontend_log_area::streams, frontend_log_severity::info,
+            QStringLiteral("settings_panel"), text
+        )
+    );
 }
 
 void settings_panel::set_local_sources(const QStringList& sources) const {
@@ -137,7 +262,12 @@ void settings_panel::clear_add_inputs() const {
 }
 
 void settings_panel::append_add_log(const QString& text) const {
-    add_log_view->appendPlainText(text);
+    append_log(
+        settings_panel_support::make_log_entry(
+            frontend_log_area::add, frontend_log_severity::info,
+            QStringLiteral("settings_panel"), text
+        )
+    );
 }
 
 void settings_panel::set_active_candidates(const QStringList& names) const {
@@ -303,12 +433,12 @@ QColor settings_panel::active_template_preview_color() const {
 }
 
 void settings_panel::append_active_log(const QString& msg) const {
-    if (!active_log_view) {
-        return;
-    }
-
-    const auto ts = QDateTime::currentDateTime().toString("HH:mm:ss");
-    active_log_view->appendPlainText(QString("[%1] %2").arg(ts, msg));
+    append_log(
+        settings_panel_support::make_log_entry(
+            frontend_log_area::active, frontend_log_severity::info,
+            QStringLiteral("settings_panel"), msg
+        )
+    );
 }
 
 void settings_panel::clear_active_log() const {
@@ -321,7 +451,8 @@ void settings_panel::clear_active_log() const {
 void settings_panel::build_ui() {
     const auto root_layout = new QVBoxLayout(this);
     root_layout->setContentsMargins(8, 8, 8, 8);
-    root_layout->addWidget(tabs);
+    root_layout->addWidget(build_log_toolbar());
+    root_layout->addWidget(tabs, 1);
     // setLayout(root_layout);
 
     add_tab = build_add_tab();
@@ -331,6 +462,93 @@ void settings_panel::build_ui() {
     tabs->addTab(add_tab, str_label("add stream"));
     tabs->addTab(streams_tab, str_label("streams"));
     tabs->addTab(active_tab, str_label("active"));
+}
+
+QWidget* settings_panel::build_log_toolbar() {
+    const auto toolbar = new QWidget(this);
+    const auto layout = new QHBoxLayout(toolbar);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    const auto label = new QLabel(str_label("log mode"), toolbar);
+    log_mode_combo = new QComboBox(toolbar);
+    log_mode_combo->setObjectName(QStringLiteral("settings_log_mode_combo"));
+    log_mode_combo->addItem(str_label("release"));
+    log_mode_combo->addItem(str_label("debug"));
+    log_mode_combo->setCurrentIndex(
+        current_log_mode == frontend_log_mode::release ? 0 : 1
+    );
+
+    const auto severity_label = new QLabel(str_label("severity"), toolbar);
+    log_severity_filter_combo = new QComboBox(toolbar);
+    log_severity_filter_combo->setObjectName(
+        QStringLiteral("settings_log_severity_filter_combo")
+    );
+    log_severity_filter_combo->addItem(
+        settings_panel_support::log_filter_all_text(), -1
+    );
+    log_severity_filter_combo->addItem(
+        frontend_log_severity_name(frontend_log_severity::debug),
+        static_cast<int>(frontend_log_severity::debug)
+    );
+    log_severity_filter_combo->addItem(
+        frontend_log_severity_name(frontend_log_severity::info),
+        static_cast<int>(frontend_log_severity::info)
+    );
+    log_severity_filter_combo->addItem(
+        frontend_log_severity_name(frontend_log_severity::warning),
+        static_cast<int>(frontend_log_severity::warning)
+    );
+    log_severity_filter_combo->addItem(
+        frontend_log_severity_name(frontend_log_severity::error),
+        static_cast<int>(frontend_log_severity::error)
+    );
+
+    const auto stream_label = new QLabel(str_label("stream"), toolbar);
+    log_stream_filter_combo = new QComboBox(toolbar);
+    log_stream_filter_combo->setObjectName(
+        QStringLiteral("settings_log_stream_filter_combo")
+    );
+
+    const auto subsystem_label = new QLabel(str_label("subsystem"), toolbar);
+    log_subsystem_filter_combo = new QComboBox(toolbar);
+    log_subsystem_filter_combo->setObjectName(
+        QStringLiteral("settings_log_subsystem_filter_combo")
+    );
+
+    layout->addWidget(label);
+    layout->addWidget(log_mode_combo);
+    layout->addWidget(severity_label);
+    layout->addWidget(log_severity_filter_combo);
+    layout->addWidget(stream_label);
+    layout->addWidget(log_stream_filter_combo);
+    layout->addWidget(subsystem_label);
+    layout->addWidget(log_subsystem_filter_combo);
+    layout->addStretch(1);
+
+    connect(
+        log_mode_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &settings_panel::on_log_mode_changed
+    );
+    connect(
+        log_severity_filter_combo,
+        QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &settings_panel::on_log_severity_filter_changed
+    );
+    connect(
+        log_stream_filter_combo,
+        QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &settings_panel::on_log_stream_filter_changed
+    );
+    connect(
+        log_subsystem_filter_combo,
+        QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &settings_panel::on_log_subsystem_filter_changed
+    );
+
+    refresh_log_filter_options();
+
+    toolbar->setLayout(layout);
+    return toolbar;
 }
 
 QWidget* settings_panel::build_add_tab() {
@@ -436,6 +654,7 @@ QWidget* settings_panel::build_add_tab() {
     );
 
     add_log_view = new QPlainTextEdit(w);
+    add_log_view->setObjectName(QStringLiteral("settings_add_log_view"));
     add_log_view->setReadOnly(true);
     add_log_view->setMinimumHeight(120);
     layout->addWidget(add_log_view);
@@ -469,6 +688,7 @@ QWidget* settings_panel::build_streams_tab() {
     );
 
     event_log_view = new QPlainTextEdit(w);
+    event_log_view->setObjectName(QStringLiteral("settings_streams_log_view"));
     event_log_view->setReadOnly(true);
     event_log_view->setMinimumHeight(160);
     layout->addWidget(event_log_view);
@@ -488,6 +708,7 @@ QWidget* settings_panel::build_active_tab() {
     layout->addWidget(build_templates_box(w));
 
     active_log_view = new QPlainTextEdit(w);
+    active_log_view->setObjectName(QStringLiteral("settings_active_log_view"));
     active_log_view->setReadOnly(true);
     active_log_view->setMinimumHeight(160);
     active_log_view->setSizePolicy(
@@ -713,46 +934,84 @@ void settings_panel::on_choose_file() {
     );
     if (!path.isEmpty()) {
         file_path_edit->setText(path);
-        auto ts = QDateTime::currentDateTime().toString("HH:mm:ss");
-        append_add_log(QString("[%1] file selected: %2").arg(ts, path));
+        append_log(
+            settings_panel_support::make_log_entry(
+                frontend_log_area::add, frontend_log_severity::info,
+                QStringLiteral("settings_panel"),
+                QStringLiteral("file selected"), QString(), path
+            )
+        );
     }
     update_add_enabled();
 }
 
 void settings_panel::on_add_clicked() {
-    auto ts = QDateTime::currentDateTime().toString("HH:mm:ss");
-
     const auto name = resolved_name_for_current_input();
     if (!name_is_unique(name)) {
-        append_add_log(QString("[%1] error: name already exists").arg(ts));
+        append_log(
+            settings_panel_support::make_log_entry(
+                frontend_log_area::add, frontend_log_severity::warning,
+                QStringLiteral("settings_panel"),
+                QStringLiteral("stream name already exists"), name
+            )
+        );
         set_name_error(true);
         update_add_enabled();
         return;
     }
 
     if (!current_input_valid()) {
-        append_add_log(QString("[%1] error: input is incomplete").arg(ts));
+        append_log(
+            settings_panel_support::make_log_entry(
+                frontend_log_area::add, frontend_log_severity::warning,
+                QStringLiteral("settings_panel"),
+                QStringLiteral("stream add input is incomplete"), name
+            )
+        );
         update_add_enabled();
         return;
     }
 
     switch (current_mode) {
     case input_mode::file: {
-        auto path = file_path_edit->text().trimmed();
+        const auto path = file_path_edit->text().trimmed();
         const auto loop = loop_checkbox->isChecked();
-        append_add_log(QString("[%1] request add file: %2").arg(ts, path));
+        append_log(
+            settings_panel_support::make_log_entry(
+                frontend_log_area::add, frontend_log_severity::info,
+                QStringLiteral("settings_panel"),
+                QStringLiteral("requested file stream add"), name,
+                QStringLiteral("path=%1 loop=%2")
+                    .arg(
+                        path,
+                        loop ? QStringLiteral("true") : QStringLiteral("false")
+                    )
+            )
+        );
         emit add_file_stream(path, name, loop);
         break;
     }
     case input_mode::local: {
-        auto source = local_sources_combo->currentText().trimmed();
-        append_add_log(QString("[%1] request add local: %2").arg(ts, source));
+        const auto source = local_sources_combo->currentText().trimmed();
+        append_log(
+            settings_panel_support::make_log_entry(
+                frontend_log_area::add, frontend_log_severity::info,
+                QStringLiteral("settings_panel"),
+                QStringLiteral("requested local stream add"), name, source
+            )
+        );
         emit add_local_stream(source, name);
         break;
     }
     case input_mode::url: {
-        auto url = url_edit->text().trimmed();
-        append_add_log(QString("[%1] request add url: %2").arg(ts, url));
+        const auto url = url_edit->text().trimmed();
+        append_log(
+            settings_panel_support::make_log_entry(
+                frontend_log_area::add, frontend_log_severity::info,
+                QStringLiteral("settings_panel"),
+                QStringLiteral("requested url stream add"), name, url
+            )
+        );
         emit add_url_stream(url, name);
         break;
     }
@@ -761,8 +1020,13 @@ void settings_panel::on_add_clicked() {
 
 void settings_panel::on_refresh_local() {
     emit detect_local_sources_requested();
-    const auto ts = QDateTime::currentDateTime().toString("HH:mm:ss");
-    append_add_log(QString("[%1] detect local sources requested").arg(ts));
+    append_log(
+        settings_panel_support::make_log_entry(
+            frontend_log_area::add, frontend_log_severity::info,
+            QStringLiteral("settings_panel"),
+            QStringLiteral("local source detection requested")
+        )
+    );
 }
 
 void settings_panel::on_name_changed(QString) const {
@@ -846,6 +1110,158 @@ void settings_panel::set_btn_color(QPushButton* btn, const QColor& c) const {
         return;
     }
     btn->setStyleSheet(QString("background-color: %1;").arg(c.name()));
+}
+
+void settings_panel::rebuild_log_views() const {
+    refresh_log_filter_options();
+    rebuild_log_view(add_log_view, frontend_log_area::add);
+    rebuild_log_view(event_log_view, frontend_log_area::streams);
+    rebuild_log_view(active_log_view, frontend_log_area::active);
+}
+
+void settings_panel::refresh_log_filter_options() const {
+    QStringList stream_names;
+    QStringList subsystem_names;
+
+    if (shared_log_buffer != nullptr) {
+        for (const frontend_log_entry& entry : shared_log_buffer->entries()) {
+            const QString stream_name = entry.stream_name.trimmed();
+            if (!stream_name.isEmpty() && !stream_names.contains(stream_name)) {
+                stream_names.push_back(stream_name);
+            }
+
+            const QString subsystem_name = entry.subsystem.trimmed();
+            if (!subsystem_name.isEmpty()
+                && !subsystem_names.contains(subsystem_name)) {
+                subsystem_names.push_back(subsystem_name);
+            }
+        }
+    }
+
+    std::sort(
+        stream_names.begin(), stream_names.end(),
+        [](const QString& lhs, const QString& rhs) {
+            return lhs.localeAwareCompare(rhs) < 0;
+        }
+    );
+    std::sort(
+        subsystem_names.begin(), subsystem_names.end(),
+        [](const QString& lhs, const QString& rhs) {
+            return lhs.localeAwareCompare(rhs) < 0;
+        }
+    );
+
+    settings_panel_support::replace_filter_combo_items(
+        log_stream_filter_combo, stream_names, current_log_stream_filter
+    );
+    settings_panel_support::replace_filter_combo_items(
+        log_subsystem_filter_combo, subsystem_names,
+        current_log_subsystem_filter
+    );
+}
+
+bool settings_panel::entry_matches_log_filters(
+    const frontend_log_entry& entry
+) const {
+    const int active_severity_filter = log_severity_filter_combo != nullptr
+        ? log_severity_filter_combo->currentData().toInt()
+        : current_log_severity_filter;
+    const QString active_stream_filter = log_stream_filter_combo != nullptr
+        ? log_stream_filter_combo->currentData().toString()
+        : current_log_stream_filter;
+    const QString active_subsystem_filter
+        = log_subsystem_filter_combo != nullptr
+        ? log_subsystem_filter_combo->currentData().toString()
+        : current_log_subsystem_filter;
+
+    if (current_log_mode == frontend_log_mode::release
+        && entry.severity == frontend_log_severity::debug) {
+        return false;
+    }
+
+    if (active_severity_filter >= 0
+        && static_cast<int>(entry.severity) != active_severity_filter) {
+        return false;
+    }
+
+    if (!active_stream_filter.isEmpty()
+        && entry.stream_name != active_stream_filter) {
+        return false;
+    }
+
+    if (!active_subsystem_filter.isEmpty()
+        && entry.subsystem != active_subsystem_filter) {
+        return false;
+    }
+
+    return true;
+}
+
+void settings_panel::rebuild_log_view(
+    QPlainTextEdit* view, const frontend_log_area area
+) const {
+    if (view == nullptr) {
+        return;
+    }
+
+    view->clear();
+
+    if (shared_log_buffer == nullptr) {
+        return;
+    }
+
+    QStringList lines;
+
+    for (const frontend_log_entry& entry :
+         shared_log_buffer->entries_for_area(area)) {
+        if (entry_matches_log_filters(entry)) {
+            lines.push_back(format_frontend_log_entry(current_log_mode, entry));
+        }
+    }
+
+    view->setPlainText(lines.join('\n'));
+}
+
+void settings_panel::on_log_mode_changed(const int index) {
+    set_log_mode(
+        index == 0 ? frontend_log_mode::release : frontend_log_mode::debug
+    );
+}
+
+void settings_panel::on_log_severity_filter_changed(const int index) {
+    Q_UNUSED(index);
+
+    if (log_severity_filter_combo == nullptr) {
+        return;
+    }
+
+    current_log_severity_filter
+        = log_severity_filter_combo->currentData().toInt();
+    rebuild_log_views();
+}
+
+void settings_panel::on_log_stream_filter_changed(const int index) {
+    Q_UNUSED(index);
+
+    if (log_stream_filter_combo == nullptr) {
+        return;
+    }
+
+    current_log_stream_filter
+        = log_stream_filter_combo->currentData().toString();
+    rebuild_log_views();
+}
+
+void settings_panel::on_log_subsystem_filter_changed(const int index) {
+    Q_UNUSED(index);
+
+    if (log_subsystem_filter_combo == nullptr) {
+        return;
+    }
+
+    current_log_subsystem_filter
+        = log_subsystem_filter_combo->currentData().toString();
+    rebuild_log_views();
 }
 
 void settings_panel::on_active_combo_changed(const QString& text) {
@@ -953,7 +1369,13 @@ void settings_panel::on_stream_item_changed(QTreeWidgetItem* item, int column) {
 
     emit show_stream_changed(name, show);
 
-    append_event(
-        QString("show in grid: %1 = %2").arg(name, show ? "true" : "false")
+    append_log(
+        settings_panel_support::make_log_entry(
+            frontend_log_area::streams, frontend_log_severity::info,
+            QStringLiteral("settings_panel"),
+            show ? QStringLiteral("stream shown in grid")
+                 : QStringLiteral("stream hidden from grid"),
+            name
+        )
     );
 }
