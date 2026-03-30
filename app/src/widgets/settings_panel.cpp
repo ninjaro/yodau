@@ -1,10 +1,16 @@
 #include "widgets/settings_panel.hpp"
 #include "shell/str_label.hpp"
+#include "widgets/algorithm_panel.hpp"
+#include "widgets/line_profile_panel.hpp"
+#include "widgets/template_apply_panel.hpp"
 
+#include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QFile>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -18,6 +24,7 @@
 #include <QSignalBlocker>
 #include <QStringList>
 #include <QTabWidget>
+#include <QTextStream>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -43,6 +50,19 @@ frontend_log_entry make_log_entry(
 }
 
 QString log_filter_all_text() { return str_label("all"); }
+
+QString log_area_title(const frontend_log_area area) {
+    switch (area) {
+    case frontend_log_area::add:
+        return QStringLiteral("add");
+    case frontend_log_area::streams:
+        return QStringLiteral("streams");
+    case frontend_log_area::active:
+        return QStringLiteral("active");
+    }
+
+    return QStringLiteral("active");
+}
 
 void replace_filter_combo_items(
     QComboBox* combo, const QStringList& values, const QString& selected_value
@@ -87,10 +107,16 @@ settings_panel::settings_panel(QWidget* parent)
     , streams_tab(nullptr)
     , streams_list(nullptr)
     , event_log_view(nullptr) {
+    qRegisterMetaType<stream_settings>("stream_settings");
+    qRegisterMetaType<line_profile>("line_profile");
+    qRegisterMetaType<template_apply_settings>("template_apply_settings");
 
     build_ui();
     set_mode(input_mode::file);
     update_add_enabled();
+    set_active_stream_settings(stream_settings {});
+    set_active_line_profile(line_profile {});
+    set_active_template_settings(template_apply_settings {});
 }
 
 void settings_panel::set_existing_names(QSet<QString> names) {
@@ -183,6 +209,158 @@ void settings_panel::append_log(frontend_log_entry entry) const {
     target_view->appendPlainText(
         format_frontend_log_entry(current_log_mode, entry)
     );
+}
+
+QString settings_panel::compose_current_log_report() const {
+    const frontend_log_area area = current_log_area();
+    QStringList lines;
+    lines << QStringLiteral("yodau log report");
+    lines << QStringLiteral("area=%1 mode=%2 severity=%3 stream=%4 subsystem=%5")
+                 .arg(settings_panel_support::log_area_title(area))
+                 .arg(
+                     current_log_mode == frontend_log_mode::release
+                         ? QStringLiteral("release")
+                         : QStringLiteral("debug")
+                 )
+                 .arg(
+                     current_log_severity_filter < 0
+                         ? settings_panel_support::log_filter_all_text()
+                         : frontend_log_severity_name(
+                               static_cast<frontend_log_severity>(
+                                   current_log_severity_filter
+                               )
+                           )
+                 )
+                 .arg(
+                     current_log_stream_filter.isEmpty()
+                         ? settings_panel_support::log_filter_all_text()
+                         : current_log_stream_filter
+                 )
+                 .arg(
+                     current_log_subsystem_filter.isEmpty()
+                         ? settings_panel_support::log_filter_all_text()
+                         : current_log_subsystem_filter
+                 );
+
+    int visible_entry_count = 0;
+    if (shared_log_buffer != nullptr) {
+        for (const frontend_log_entry& entry :
+             shared_log_buffer->entries_for_area(area)) {
+            if (!entry_matches_log_filters(entry)) {
+                continue;
+            }
+
+            lines.push_back(
+                format_frontend_log_entry(current_log_mode, entry)
+            );
+            visible_entry_count += 1;
+        }
+    }
+
+    if (visible_entry_count == 0) {
+        lines << QStringLiteral("(no matching entries)");
+    }
+
+    return lines.join('\n');
+}
+
+QString settings_panel::compose_current_log_summary() const {
+    const frontend_log_area area = current_log_area();
+    int debug_count = 0;
+    int info_count = 0;
+    int warning_count = 0;
+    int error_count = 0;
+    QSet<QString> visible_streams;
+    QSet<QString> visible_subsystems;
+
+    if (shared_log_buffer != nullptr) {
+        for (const frontend_log_entry& entry :
+             shared_log_buffer->entries_for_area(area)) {
+            if (!entry_matches_log_filters(entry)) {
+                continue;
+            }
+
+            switch (entry.severity) {
+            case frontend_log_severity::debug:
+                debug_count += 1;
+                break;
+            case frontend_log_severity::info:
+                info_count += 1;
+                break;
+            case frontend_log_severity::warning:
+                warning_count += 1;
+                break;
+            case frontend_log_severity::error:
+                error_count += 1;
+                break;
+            }
+
+            if (!entry.stream_name.trimmed().isEmpty()) {
+                visible_streams.insert(entry.stream_name.trimmed());
+            }
+            if (!entry.subsystem.trimmed().isEmpty()) {
+                visible_subsystems.insert(entry.subsystem.trimmed());
+            }
+        }
+    }
+
+    QStringList lines;
+    lines << QStringLiteral("yodau log summary");
+    lines << QStringLiteral("area=%1").arg(
+        settings_panel_support::log_area_title(area)
+    );
+    lines << QStringLiteral("entries=%1 debug=%2 info=%3 warn=%4 error=%5")
+                 .arg(
+                     debug_count + info_count + warning_count + error_count
+                 )
+                 .arg(debug_count)
+                 .arg(info_count)
+                 .arg(warning_count)
+                 .arg(error_count);
+    lines << QStringLiteral("streams=%1 subsystems=%2")
+                 .arg(visible_streams.size())
+                 .arg(visible_subsystems.size());
+
+    QStringList stream_list = visible_streams.values();
+    QStringList subsystem_list = visible_subsystems.values();
+    std::sort(
+        stream_list.begin(), stream_list.end(),
+        [](const QString& lhs, const QString& rhs) {
+            return lhs.localeAwareCompare(rhs) < 0;
+        }
+    );
+    std::sort(
+        subsystem_list.begin(), subsystem_list.end(),
+        [](const QString& lhs, const QString& rhs) {
+            return lhs.localeAwareCompare(rhs) < 0;
+        }
+    );
+
+    if (!visible_streams.isEmpty()) {
+        lines << QStringLiteral("stream_list=%1")
+                     .arg(stream_list.join(','));
+    }
+    if (!visible_subsystems.isEmpty()) {
+        lines << QStringLiteral("subsystem_list=%1")
+                     .arg(subsystem_list.join(','));
+    }
+
+    return lines.join('\n');
+}
+
+bool settings_panel::write_current_log_report(const QString& path) const {
+    if (path.trimmed().isEmpty()) {
+        return false;
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return false;
+    }
+
+    QTextStream stream(&file);
+    stream << compose_current_log_report();
+    return stream.status() == QTextStream::Ok;
 }
 
 void settings_panel::add_stream_entry(
@@ -324,112 +502,152 @@ void settings_panel::set_active_current(const QString& name) const {
     update_active_tools();
 }
 
-void settings_panel::add_template_candidate(const QString& name) const {
-    if (!active_template_combo || name.isEmpty()) {
+void settings_panel::set_active_stream_settings(
+    const stream_settings& settings_value
+) {
+    if (active_combo == nullptr || active_labels_cb == nullptr
+        || active_algorithm_panel == nullptr) {
         return;
     }
 
-    for (int i = 0; i < active_template_combo->count(); ++i) {
-        if (active_template_combo->itemText(i) == name) {
-            update_active_tools();
-            return;
+    const QString stream_name = settings_value.stream_name.trimmed();
+    const QString none_text = str_label("none");
+
+    {
+        QSignalBlocker blocker(active_combo);
+        if (stream_name.isEmpty() || active_combo->findText(stream_name) < 0) {
+            active_combo->setCurrentText(none_text);
+        } else {
+            active_combo->setCurrentText(stream_name);
         }
     }
 
-    active_template_combo->addItem(name);
-
-    if (active_template_combo->count() == 1) {
-        active_template_combo->setCurrentIndex(0);
+    {
+        QSignalBlocker blocker(active_labels_cb);
+        active_labels_cb->setChecked(settings_value.labels_enabled);
     }
 
+    active_algorithm_panel->set_stream_settings(settings_value);
+
+    update_active_tools();
+}
+
+stream_settings settings_panel::current_active_stream_settings() const {
+    stream_settings settings_value;
+
+    if (active_combo != nullptr) {
+        const QString selected_name = active_combo->currentText().trimmed();
+        if (selected_name != str_label("none")) {
+            settings_value.stream_name = selected_name;
+        }
+    }
+
+    if (active_labels_cb != nullptr) {
+        settings_value.labels_enabled = active_labels_cb->isChecked();
+    }
+
+    if (active_algorithm_panel != nullptr) {
+        const stream_settings algorithm_settings
+            = active_algorithm_panel->current_stream_settings();
+        settings_value.algorithm_id = algorithm_settings.algorithm_id;
+        settings_value.algorithm_preset = algorithm_settings.algorithm_preset;
+        settings_value.algorithm_overlay_enabled
+            = algorithm_settings.algorithm_overlay_enabled;
+    } else {
+        settings_value.algorithm_id = default_frontend_algorithm_id();
+        settings_value.algorithm_preset = default_algorithm_preset_id(
+            settings_value.algorithm_id
+        );
+    }
+
+    return settings_value;
+}
+
+void settings_panel::add_template_candidate(const QString& name) const {
+    if (active_template_panel == nullptr || name.isEmpty()) {
+        return;
+    }
+
+    active_template_panel->add_template_candidate(name);
     update_active_tools();
 }
 
 void settings_panel::set_template_candidates(const QStringList& names) const {
-    if (!active_template_combo) {
+    if (active_template_panel == nullptr) {
         return;
     }
 
-    const QString none_text = str_label("none");
-
-    active_template_combo->blockSignals(true);
-
-    active_template_combo->clear();
-    active_template_combo->addItem(none_text, QVariant());
-
-    QSet<QString> seen;
-    for (const auto& n : names) {
-        const auto t = n.trimmed();
-        if (t.isEmpty()) {
-            continue;
-        }
-        if (t == none_text) {
-            continue;
-        }
-        if (seen.contains(t)) {
-            continue;
-        }
-        seen.insert(t);
-        active_template_combo->addItem(t);
-    }
-
-    active_template_combo->setCurrentIndex(0);
-
-    active_template_combo->blockSignals(false);
-
+    active_template_panel->set_template_candidates(names);
     update_active_tools();
 }
 
-void settings_panel::reset_active_line_form() {
-    if (!active_line_name_edit || !active_line_closed_cb
-        || !active_line_color_btn) {
+void settings_panel::set_active_line_profile(const line_profile& profile) {
+    if (active_line_panel == nullptr) {
         return;
     }
 
-    active_line_name_edit->clear();
+    active_line_panel->set_line_profile(profile);
+}
 
-    {
-        QSignalBlocker b(active_line_closed_cb);
-        active_line_closed_cb->setChecked(false);
+line_profile settings_panel::current_active_line_profile() const {
+    return active_line_panel != nullptr ? active_line_panel->current_line_profile()
+                                        : line_profile {};
+}
+
+void settings_panel::set_active_template_settings(
+    const template_apply_settings& settings_value
+) {
+    if (active_template_panel == nullptr) {
+        return;
     }
 
-    active_line_color = Qt::red;
-    active_line_color_btn->setStyleSheet(
-        QString("background-color: %1;").arg(active_line_color.name())
-    );
+    active_template_panel->set_template_settings(settings_value);
+}
 
-    emit active_line_params_changed(QString(), active_line_color, false);
+template_apply_settings settings_panel::current_active_template_settings() const {
+    return active_template_panel != nullptr
+        ? active_template_panel->current_template_settings()
+        : template_apply_settings {};
+}
+
+void settings_panel::reset_active_line_form() {
+    if (active_line_panel == nullptr) {
+        return;
+    }
+
+    active_line_panel->reset_form();
+    emit active_line_profile_changed(current_active_line_profile());
 }
 
 void settings_panel::reset_active_template_form() {
-    if (!active_template_combo) {
+    if (active_template_panel == nullptr) {
         return;
     }
-    const int idx = active_template_combo->findText(str_label("none"));
-    if (idx >= 0) {
-        active_template_combo->setCurrentIndex(idx);
-    } else {
-        active_template_combo->setCurrentIndex(-1);
-    }
+
+    active_template_panel->reset_form();
+    emit active_template_settings_changed(current_active_template_settings());
 }
 
 void settings_panel::set_active_line_closed(bool closed) const {
-    if (!active_line_closed_cb) {
+    if (active_line_panel == nullptr) {
         return;
     }
-    QSignalBlocker b(active_line_closed_cb);
-    active_line_closed_cb->setChecked(closed);
+
+    active_line_panel->set_line_closed(closed);
 }
 
 QString settings_panel::active_template_current() const {
-    if (!active_template_combo) {
+    if (active_template_panel == nullptr) {
         return {};
     }
-    return active_template_combo->currentText().trimmed();
+
+    return active_template_panel->current_template_name();
 }
 
 QColor settings_panel::active_template_preview_color() const {
-    return active_template_color;
+    return active_template_panel != nullptr
+        ? active_template_panel->preview_color()
+        : QColor(Qt::red);
 }
 
 void settings_panel::append_active_log(const QString& msg) const {
@@ -515,6 +733,16 @@ QWidget* settings_panel::build_log_toolbar() {
         QStringLiteral("settings_log_subsystem_filter_combo")
     );
 
+    copy_logs_btn = new QPushButton(str_label("copy logs"), toolbar);
+    copy_logs_btn->setObjectName(QStringLiteral("settings_copy_logs_button"));
+    copy_summary_btn
+        = new QPushButton(str_label("copy summary"), toolbar);
+    copy_summary_btn->setObjectName(
+        QStringLiteral("settings_copy_summary_button")
+    );
+    save_logs_btn = new QPushButton(str_label("save logs"), toolbar);
+    save_logs_btn->setObjectName(QStringLiteral("settings_save_logs_button"));
+
     layout->addWidget(label);
     layout->addWidget(log_mode_combo);
     layout->addWidget(severity_label);
@@ -523,6 +751,9 @@ QWidget* settings_panel::build_log_toolbar() {
     layout->addWidget(log_stream_filter_combo);
     layout->addWidget(subsystem_label);
     layout->addWidget(log_subsystem_filter_combo);
+    layout->addWidget(copy_logs_btn);
+    layout->addWidget(copy_summary_btn);
+    layout->addWidget(save_logs_btn);
     layout->addStretch(1);
 
     connect(
@@ -543,6 +774,18 @@ QWidget* settings_panel::build_log_toolbar() {
         log_subsystem_filter_combo,
         QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &settings_panel::on_log_subsystem_filter_changed
+    );
+    connect(
+        copy_logs_btn, &QPushButton::clicked, this,
+        &settings_panel::on_copy_logs_clicked
+    );
+    connect(
+        copy_summary_btn, &QPushButton::clicked, this,
+        &settings_panel::on_copy_summary_clicked
+    );
+    connect(
+        save_logs_btn, &QPushButton::clicked, this,
+        &settings_panel::on_save_logs_clicked
     );
 
     refresh_log_filter_options();
@@ -703,6 +946,15 @@ QWidget* settings_panel::build_active_tab() {
     layout->setSpacing(10);
 
     layout->addWidget(build_active_stream_box(w));
+    active_algorithm_panel = new algorithm_panel(w);
+    active_algorithm_panel->setObjectName(
+        QStringLiteral("settings_active_algorithm_panel")
+    );
+    layout->addWidget(active_algorithm_panel);
+    connect(
+        active_algorithm_panel, &algorithm_panel::settings_changed, this,
+        &settings_panel::on_algorithm_panel_settings_changed
+    );
     layout->addWidget(build_edit_mode_box(w));
     layout->addWidget(build_new_line_box(w));
     layout->addWidget(build_templates_box(w));
@@ -726,18 +978,22 @@ QWidget* settings_panel::build_active_stream_box(QWidget* parent) {
 
     active_combo = new QComboBox(box);
     active_combo->setEditable(false);
+    active_combo->setObjectName(QStringLiteral("settings_active_stream_combo"));
     active_combo->addItem(str_label("none"), QVariant());
 
     box_layout->addWidget(active_combo);
     box->setLayout(box_layout);
 
     active_labels_cb = new QCheckBox(str_label("labels"), box);
+    active_labels_cb->setObjectName(
+        QStringLiteral("settings_active_labels_checkbox")
+    );
     active_labels_cb->setChecked(true);
     box_layout->addWidget(active_labels_cb);
 
     connect(
         active_labels_cb, &QCheckBox::toggled, this,
-        &settings_panel::active_labels_enabled_changed
+        &settings_panel::on_active_labels_toggled
     );
 
     connect(
@@ -776,100 +1032,45 @@ QWidget* settings_panel::build_edit_mode_box(QWidget* parent) {
 }
 
 QWidget* settings_panel::build_new_line_box(QWidget* parent) {
-    active_line_box = new QGroupBox(str_label("new line"), parent);
-    const auto v = new QVBoxLayout(active_line_box);
-
-    active_line_name_edit = new QLineEdit(active_line_box);
-    active_line_name_edit->setPlaceholderText(
-        str_label("template name (optional)")
-    );
-    v->addWidget(active_line_name_edit);
-
-    active_line_closed_cb = new QCheckBox(str_label("closed"), active_line_box);
-    active_line_closed_cb->setChecked(false);
-    v->addWidget(active_line_closed_cb);
-
-    active_line_color_btn
-        = new QPushButton(str_label("color"), active_line_box);
-    set_btn_color(active_line_color_btn, active_line_color);
-    v->addWidget(active_line_color_btn);
-
-    active_line_undo_btn
-        = new QPushButton(str_label("undo point"), active_line_box);
-    v->addWidget(active_line_undo_btn);
-
-    connect(
-        active_line_undo_btn, &QPushButton::clicked, this,
-        &settings_panel::on_active_line_undo_clicked
-    );
-
-    active_line_save_btn
-        = new QPushButton(str_label("add line"), active_line_box);
-    v->addWidget(active_line_save_btn);
-
-    active_line_box->setLayout(v);
-
-    connect(
-        active_line_color_btn, &QPushButton::clicked, this,
-        &settings_panel::on_active_line_color_clicked
+    active_line_panel = new line_profile_panel(parent);
+    active_line_panel->setObjectName(
+        QStringLiteral("settings_active_line_profile_panel")
     );
 
     connect(
-        active_line_name_edit, &QLineEdit::editingFinished, this,
-        &settings_panel::on_active_line_name_finished
+        active_line_panel, &line_profile_panel::profile_changed, this,
+        &settings_panel::active_line_profile_changed
     );
-
     connect(
-        active_line_closed_cb, &QCheckBox::toggled, this,
-        &settings_panel::on_active_line_closed_toggled
+        active_line_panel, &line_profile_panel::save_requested, this,
+        &settings_panel::active_line_save_requested
     );
-
     connect(
-        active_line_save_btn, &QPushButton::clicked, this,
-        &settings_panel::on_active_line_save_clicked
+        active_line_panel, &line_profile_panel::undo_requested, this,
+        &settings_panel::active_line_undo_requested
     );
 
     update_active_tools();
-    return active_line_box;
+    return active_line_panel;
 }
 
 QWidget* settings_panel::build_templates_box(QWidget* parent) {
-    active_templates_box = new QGroupBox(str_label("templates"), parent);
-    const auto v = new QVBoxLayout(active_templates_box);
-
-    active_template_combo = new QComboBox(active_templates_box);
-    active_template_combo->setEditable(false);
-    active_template_combo->addItem(str_label("none"), QVariant());
-    v->addWidget(active_template_combo);
-
-    connect(
-        active_template_combo, &QComboBox::currentTextChanged, this,
-        &settings_panel::on_active_template_combo_changed
-    );
-
-    active_template_color_btn
-        = new QPushButton(str_label("color"), active_templates_box);
-    set_btn_color(active_template_color_btn, active_template_color);
-    v->addWidget(active_template_color_btn);
-
-    active_template_add_btn
-        = new QPushButton(str_label("add template"), active_templates_box);
-    v->addWidget(active_template_add_btn);
-
-    active_templates_box->setLayout(v);
-
-    connect(
-        active_template_color_btn, &QPushButton::clicked, this,
-        &settings_panel::on_active_template_color_clicked
+    active_template_panel = new template_apply_panel(parent);
+    active_template_panel->setObjectName(
+        QStringLiteral("settings_active_template_apply_panel")
     );
 
     connect(
-        active_template_add_btn, &QPushButton::clicked, this,
-        &settings_panel::on_active_template_add_clicked
+        active_template_panel, &template_apply_panel::settings_changed, this,
+        &settings_panel::active_template_settings_changed
+    );
+    connect(
+        active_template_panel, &template_apply_panel::add_requested, this,
+        &settings_panel::active_template_add_requested
     );
 
     update_active_tools();
-    return active_templates_box;
+    return active_template_panel;
 }
 
 void settings_panel::set_mode(const input_mode mode) {
@@ -1089,27 +1290,23 @@ void settings_panel::update_active_tools() const {
         active_mode_box->setEnabled(has_active);
     }
 
-    if (active_line_box) {
+    if (active_algorithm_panel) {
+        active_algorithm_panel->set_stream_active(has_active);
+    }
+
+    if (active_line_panel) {
         const bool show_line = has_active && drawing_mode;
-        active_line_box->setVisible(show_line);
-        active_line_box->setEnabled(show_line);
+        active_line_panel->set_panel_active(show_line);
     }
 
     const bool has_templates
-        = active_template_combo && active_template_combo->count() > 0;
+        = active_template_panel != nullptr
+        && active_template_panel->has_template_candidates();
 
-    if (active_templates_box) {
+    if (active_template_panel) {
         const bool show_tpl = has_active && has_templates && !drawing_mode;
-        active_templates_box->setVisible(show_tpl);
-        active_templates_box->setEnabled(show_tpl);
+        active_template_panel->set_panel_active(show_tpl);
     }
-}
-
-void settings_panel::set_btn_color(QPushButton* btn, const QColor& c) const {
-    if (!btn) {
-        return;
-    }
-    btn->setStyleSheet(QString("background-color: %1;").arg(c.name()));
 }
 
 void settings_panel::rebuild_log_views() const {
@@ -1197,6 +1394,22 @@ bool settings_panel::entry_matches_log_filters(
     return true;
 }
 
+frontend_log_area settings_panel::current_log_area() const {
+    if (tabs == nullptr) {
+        return frontend_log_area::active;
+    }
+
+    switch (tabs->currentIndex()) {
+    case 0:
+        return frontend_log_area::add;
+    case 1:
+        return frontend_log_area::streams;
+    case 2:
+    default:
+        return frontend_log_area::active;
+    }
+}
+
 void settings_panel::rebuild_log_view(
     QPlainTextEdit* view, const frontend_log_area area
 ) const {
@@ -1264,96 +1477,60 @@ void settings_panel::on_log_subsystem_filter_changed(const int index) {
     rebuild_log_views();
 }
 
-void settings_panel::on_active_combo_changed(const QString& text) {
-    if (text == str_label("none")) {
-        emit active_stream_selected(QString());
-    } else {
-        emit active_stream_selected(text);
+void settings_panel::on_copy_logs_clicked() {
+    if (QApplication::clipboard() == nullptr) {
+        return;
     }
+
+    QApplication::clipboard()->setText(compose_current_log_report());
+}
+
+void settings_panel::on_copy_summary_clicked() {
+    if (QApplication::clipboard() == nullptr) {
+        return;
+    }
+
+    QApplication::clipboard()->setText(compose_current_log_summary());
+}
+
+void settings_panel::on_save_logs_clicked() {
+    const QString default_name = QStringLiteral(
+        "yodau-log-report.txt"
+    );
+    const QString path = QFileDialog::getSaveFileName(
+        this, str_label("save log report"), default_name,
+        str_label("Text files (*.txt);;All files (*)")
+    );
+    if (path.isEmpty()) {
+        return;
+    }
+
+    write_current_log_report(path);
+}
+
+void settings_panel::on_active_combo_changed(const QString& text) {
     update_active_tools();
+    Q_UNUSED(text);
+    emit active_stream_settings_changed(current_active_stream_settings());
+}
+
+void settings_panel::on_active_labels_toggled(bool checked) {
+    Q_UNUSED(checked);
+
+    emit active_stream_settings_changed(current_active_stream_settings());
+}
+
+void settings_panel::on_algorithm_panel_settings_changed(
+    stream_settings settings_value
+) {
+    Q_UNUSED(settings_value);
+
+    emit active_stream_settings_changed(current_active_stream_settings());
 }
 
 void settings_panel::on_active_mode_clicked(int id) {
     emit active_edit_mode_changed(id == 0);
     update_active_tools();
-}
-
-void settings_panel::on_active_line_color_clicked() {
-    const auto c = QColorDialog::getColor(
-        active_line_color, this, str_label("choose color")
-    );
-    if (!c.isValid()) {
-        return;
-    }
-
-    active_line_color = c;
-    set_btn_color(active_line_color_btn, active_line_color);
-
-    emit active_line_params_changed(
-        active_line_name_edit->text().trimmed(), active_line_color,
-        active_line_closed_cb->isChecked()
-    );
-}
-
-void settings_panel::on_active_line_undo_clicked() {
-    emit active_line_undo_requested();
-}
-
-void settings_panel::on_active_line_save_clicked() {
-    emit active_line_save_requested(
-        active_line_name_edit->text().trimmed(),
-        active_line_closed_cb->isChecked()
-    );
-}
-
-void settings_panel::on_active_line_name_finished() {
-    emit active_line_params_changed(
-        active_line_name_edit->text().trimmed(), active_line_color,
-        active_line_closed_cb->isChecked()
-    );
-}
-
-void settings_panel::on_active_line_closed_toggled(bool checked) {
-    Q_UNUSED(checked);
-
-    emit active_line_params_changed(
-        active_line_name_edit->text().trimmed(), active_line_color,
-        active_line_closed_cb->isChecked()
-    );
-}
-
-void settings_panel::on_active_template_combo_changed(const QString& text) {
-    if (text.isEmpty() || text == str_label("none")) {
-        emit active_template_selected(QString());
-    } else {
-        emit active_template_selected(text);
-    }
-}
-
-void settings_panel::on_active_template_color_clicked() {
-    const auto c = QColorDialog::getColor(
-        active_template_color, this, str_label("choose color")
-    );
-    if (!c.isValid()) {
-        return;
-    }
-
-    active_template_color = c;
-    set_btn_color(active_template_color_btn, active_template_color);
-    emit active_template_color_changed(active_template_color);
-}
-
-void settings_panel::on_active_template_add_clicked() {
-    if (!active_template_combo) {
-        return;
-    }
-
-    const auto t = active_template_combo->currentText();
-    if (t.isEmpty() || t == str_label("none")) {
-        return;
-    }
-
-    emit active_template_add_requested(t, active_template_color);
 }
 
 void settings_panel::on_stream_item_changed(QTreeWidgetItem* item, int column) {

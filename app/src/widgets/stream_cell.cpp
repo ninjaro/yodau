@@ -6,6 +6,7 @@
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QFontMetrics>
 #include <QPen>
 #include <QPolygonF>
 #include <QPushButton>
@@ -47,6 +48,340 @@ struct hit_projection {
 
 double clamp_unit(double value) {
     return std::clamp(value, 0.0, 1.0);
+}
+
+QColor color_with_alpha(QColor color, const int alpha) {
+    color.setAlpha(std::clamp(alpha, 0, 255));
+    return color;
+}
+
+struct line_wave_style {
+    double amplitude_k { 1.0 };
+    double speed_k { 1.0 };
+    double spread_k { 1.0 };
+    double frequency_k { 1.0 };
+    double damping_k { 1.0 };
+    double glow_width_k { 1.0 };
+};
+
+double normalized_numeric_value(const QString& text) {
+    bool ok = false;
+    const double value = text.toDouble(&ok);
+    if (!ok || value <= 0.0) {
+        return -1.0;
+    }
+
+    return value;
+}
+
+double line_length_scale(const QString& length_text) {
+    const QString normalized = normalized_line_length_text(length_text);
+
+    if (normalized == QStringLiteral("short")) {
+        return 0.8;
+    }
+    if (normalized == QStringLiteral("long")) {
+        return 1.35;
+    }
+
+    const double numeric_value = normalized_numeric_value(normalized);
+    if (numeric_value > 0.0) {
+        return std::clamp(numeric_value, 0.6, 1.8);
+    }
+
+    return 1.0;
+}
+
+double line_response_scale(const QString& response_text) {
+    const QString normalized = normalized_line_response_text(response_text);
+
+    if (normalized == QStringLiteral("dry")) {
+        return 0.82;
+    }
+    if (normalized == QStringLiteral("resonant")) {
+        return 1.35;
+    }
+
+    const double numeric_value = normalized_numeric_value(normalized);
+    if (numeric_value > 0.0) {
+        return std::clamp(numeric_value, 0.6, 1.8);
+    }
+
+    return 1.0;
+}
+
+line_wave_style line_wave_style_for_line(
+    const stream_cell::line_instance& line_value
+) {
+    const double width_scale = std::clamp(
+        static_cast<double>(line_width_visual_value(line_value.width_text))
+            / 3.0,
+        0.6, 2.2
+    );
+    const double length_scale = line_length_scale(line_value.length_text);
+    const double response_scale = line_response_scale(line_value.response_text);
+
+    line_wave_style style;
+    style.amplitude_k = std::clamp(
+        0.74 + width_scale * 0.24 + (response_scale - 1.0) * 0.28,
+        0.55, 1.85
+    );
+    style.speed_k = std::clamp(
+        1.08 - (width_scale - 1.0) * 0.18 - (length_scale - 1.0) * 0.40,
+        0.55, 1.45
+    );
+    style.spread_k = std::clamp(
+        0.84 + width_scale * 0.18 + length_scale * 0.20
+            + (response_scale - 1.0) * 0.18,
+        0.65, 1.95
+    );
+    style.frequency_k = std::clamp(
+        1.16 - (width_scale - 1.0) * 0.16 - (length_scale - 1.0) * 0.42,
+        0.5, 1.65
+    );
+    style.damping_k = std::clamp(
+        1.08 - (width_scale - 1.0) * 0.08 - (length_scale - 1.0) * 0.16
+            - (response_scale - 1.0) * 0.48,
+        0.45, 1.55
+    );
+    style.glow_width_k = std::clamp(
+        0.9 + width_scale * 0.16 + (response_scale - 1.0) * 0.14,
+        0.75, 1.55
+    );
+    return style;
+}
+
+double event_region_scale(const stream_settings& settings_value) {
+    const QString algorithm_id = normalized_frontend_algorithm_id(
+        settings_value.algorithm_id
+    );
+    const QString preset_id = normalized_algorithm_preset_id(
+        algorithm_id, settings_value.algorithm_preset
+    );
+
+    if (algorithm_id == QStringLiteral("spot_grid")) {
+        if (preset_id == QStringLiteral("coarse")) {
+            return 0.12;
+        }
+        if (preset_id == QStringLiteral("dense")) {
+            return 0.2;
+        }
+        return 0.16;
+    }
+
+    if (algorithm_id == QStringLiteral("contour_mask")) {
+        if (preset_id == QStringLiteral("outline")) {
+            return 0.14;
+        }
+        if (preset_id == QStringLiteral("mask_heavy")) {
+            return 0.22;
+        }
+        return 0.18;
+    }
+
+    if (preset_id == QStringLiteral("simple")) {
+        return 0.11;
+    }
+    if (preset_id == QStringLiteral("debug")) {
+        return 0.2;
+    }
+    return 0.15;
+}
+
+int spot_grid_dimension(const stream_settings& settings_value) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+
+    if (preset_id == QStringLiteral("coarse")) {
+        return 2;
+    }
+    if (preset_id == QStringLiteral("dense")) {
+        return 4;
+    }
+    return 3;
+}
+
+QRectF overlay_region_rect(
+    const QRect& rect_value, const QPointF& center, const stream_settings& settings_value
+) {
+    const double scale = event_region_scale(settings_value);
+    const double region_width = rect_value.width() * scale;
+    const double region_height = rect_value.height() * scale;
+
+    QRectF region(
+        center.x() - region_width * 0.5, center.y() - region_height * 0.5,
+        region_width, region_height
+    );
+
+    const QRectF bounds = rect_value.adjusted(8, 8, -8, -8);
+    if (region.left() < bounds.left()) {
+        region.moveLeft(bounds.left());
+    }
+    if (region.top() < bounds.top()) {
+        region.moveTop(bounds.top());
+    }
+    if (region.right() > bounds.right()) {
+        region.moveRight(bounds.right());
+    }
+    if (region.bottom() > bounds.bottom()) {
+        region.moveBottom(bounds.bottom());
+    }
+
+    return region;
+}
+
+void draw_baseline_overlay(
+    QPainter& painter, const QPointF& center, const double radius,
+    const QColor& color, const stream_settings& settings_value, const double life_k
+) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+    const int ring_count = preset_id == QStringLiteral("debug") ? 3 : 2;
+    const double spread = preset_id == QStringLiteral("simple") ? 2.2 : 3.0;
+
+    for (int i = 0; i < ring_count; i += 1) {
+        const double factor
+            = 1.0 + spread * (static_cast<double>(i) / ring_count);
+        QPen pen(color_with_alpha(color, static_cast<int>(180.0 * life_k)));
+        pen.setWidthF(1.5 + i * 0.7);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(center, radius * factor, radius * factor);
+    }
+
+    if (preset_id == QStringLiteral("debug")) {
+        QPen cross_pen(color_with_alpha(color, static_cast<int>(160.0 * life_k)));
+        cross_pen.setWidthF(1.0);
+        cross_pen.setStyle(Qt::DashLine);
+        painter.setPen(cross_pen);
+        painter.drawLine(
+            QPointF(center.x() - radius * 4.0, center.y()),
+            QPointF(center.x() + radius * 4.0, center.y())
+        );
+        painter.drawLine(
+            QPointF(center.x(), center.y() - radius * 4.0),
+            QPointF(center.x(), center.y() + radius * 4.0)
+        );
+    }
+}
+
+void draw_spot_grid_overlay(
+    QPainter& painter, const QRectF& region, const QPointF& center,
+    const double radius, const QColor& color, const stream_settings& settings_value,
+    const double life_k
+) {
+    const int dimension = spot_grid_dimension(settings_value);
+    const double cell_width = region.width() / dimension;
+    const double cell_height = region.height() / dimension;
+
+    QPen border_pen(color_with_alpha(color, static_cast<int>(150.0 * life_k)));
+    border_pen.setWidthF(1.2);
+    painter.setPen(border_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(region, 6.0, 6.0);
+
+    for (int row = 1; row < dimension; row += 1) {
+        painter.drawLine(
+            QPointF(region.left(), region.top() + row * cell_height),
+            QPointF(region.right(), region.top() + row * cell_height)
+        );
+    }
+    for (int col = 1; col < dimension; col += 1) {
+        painter.drawLine(
+            QPointF(region.left() + col * cell_width, region.top()),
+            QPointF(region.left() + col * cell_width, region.bottom())
+        );
+    }
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color_with_alpha(color, static_cast<int>(96.0 * life_k)));
+
+    for (int row = 0; row < dimension; row += 1) {
+        for (int col = 0; col < dimension; col += 1) {
+            const QPointF spot_center(
+                region.left() + (col + 0.5) * cell_width,
+                region.top() + (row + 0.5) * cell_height
+            );
+            painter.drawEllipse(spot_center, radius * 0.45, radius * 0.45);
+        }
+    }
+
+    painter.setBrush(color_with_alpha(color, static_cast<int>(180.0 * life_k)));
+    painter.drawEllipse(center, radius * 0.9, radius * 0.9);
+}
+
+void draw_contour_mask_overlay(
+    QPainter& painter, const QRectF& region, const QPointF& center,
+    const double radius, const QColor& color, const stream_settings& settings_value,
+    const double life_k
+) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+
+    if (preset_id == QStringLiteral("mask_heavy")) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color_with_alpha(color, static_cast<int>(42.0 * life_k)));
+        painter.drawRoundedRect(region, 10.0, 10.0);
+    }
+
+    QPen mask_pen(color_with_alpha(color, static_cast<int>(170.0 * life_k)));
+    mask_pen.setWidthF(preset_id == QStringLiteral("outline") ? 1.6 : 2.2);
+    mask_pen.setStyle(
+        preset_id == QStringLiteral("outline") ? Qt::DashLine : Qt::SolidLine
+    );
+    painter.setPen(mask_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(region, 10.0, 10.0);
+
+    QPolygonF contour;
+    contour << QPointF(center.x(), region.top())
+            << QPointF(region.right(), center.y())
+            << QPointF(center.x(), region.bottom())
+            << QPointF(region.left(), center.y());
+    painter.drawPolygon(contour);
+
+    if (preset_id != QStringLiteral("outline")) {
+        painter.drawEllipse(center, region.width() * 0.28, region.height() * 0.28);
+    }
+
+    painter.setPen(QPen(color_with_alpha(color, static_cast<int>(190.0 * life_k)), 1.2));
+    painter.drawLine(
+        QPointF(center.x() - radius * 1.8, center.y()),
+        QPointF(center.x() + radius * 1.8, center.y())
+    );
+}
+
+void draw_algorithm_overlay(
+    QPainter& painter, const QRect& rect_value, const QPointF& center,
+    const double radius, const QColor& color, const stream_settings& settings_value,
+    const double life_k
+) {
+    const QString algorithm_id = normalized_frontend_algorithm_id(
+        settings_value.algorithm_id
+    );
+
+    if (algorithm_id == QStringLiteral("spot_grid")) {
+        draw_spot_grid_overlay(
+            painter, overlay_region_rect(rect_value, center, settings_value),
+            center, radius, color, settings_value, life_k
+        );
+        return;
+    }
+
+    if (algorithm_id == QStringLiteral("contour_mask")) {
+        draw_contour_mask_overlay(
+            painter, overlay_region_rect(rect_value, center, settings_value),
+            center, radius, color, settings_value, life_k
+        );
+        return;
+    }
+
+    draw_baseline_overlay(
+        painter, center, radius, color, settings_value, life_k
+    );
 }
 
 double point_distance_pct(const QPointF& a_pct, const QPointF& b_pct) {
@@ -273,6 +608,11 @@ stream_cell::stream_cell(const QString& stream_name, QWidget* parent)
     , sink(nullptr)
     , camera(nullptr)
     , session(nullptr) {
+    stream_settings_value.stream_name = stream_name;
+    stream_settings_value.algorithm_id = default_frontend_algorithm_id();
+    stream_settings_value.algorithm_preset = default_algorithm_preset_id(
+        stream_settings_value.algorithm_id
+    );
     build_ui();
     setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -296,6 +636,10 @@ QColor stream_cell::draft_color() const { return draft_line_color; }
 
 bool stream_cell::is_draft_preview() const { return draft_preview; }
 
+stream_settings stream_cell::current_stream_settings() const {
+    return stream_settings_value;
+}
+
 void stream_cell::set_active(const bool val) {
     if (active == val) {
         return;
@@ -318,12 +662,32 @@ void stream_cell::set_drawing_enabled(const bool on) {
     update();
 }
 
+void stream_cell::set_stream_settings(const stream_settings& settings_value) {
+    stream_settings_value = settings_value;
+    if (stream_settings_value.stream_name.trimmed().isEmpty()) {
+        stream_settings_value.stream_name = name;
+    }
+    stream_settings_value.algorithm_id = normalized_frontend_algorithm_id(
+        stream_settings_value.algorithm_id
+    );
+    stream_settings_value.algorithm_preset = normalized_algorithm_preset_id(
+        stream_settings_value.algorithm_id,
+        stream_settings_value.algorithm_preset
+    );
+    update();
+}
+
 void stream_cell::set_draft_params(
-    const QString& n, const QColor& color, const bool closed
+    const QString& n, const QColor& color, const bool closed,
+    const QString& width_text, const QString& length_text,
+    const QString& response_text
 ) {
     draft_line_name = n;
     draft_line_color = color;
     draft_line_closed = closed;
+    draft_line_width_text = normalized_line_width_text(width_text);
+    draft_line_length_text = normalized_line_length_text(length_text);
+    draft_line_response_text = normalized_line_response_text(response_text);
     update();
 }
 
@@ -336,6 +700,9 @@ void stream_cell::clear_draft() {
     draft_line_points_pct.clear();
     hover_point_pct.reset();
     draft_preview = false;
+    draft_line_width_text = default_line_width_text();
+    draft_line_length_text = default_line_length_text();
+    draft_line_response_text = default_line_response_text();
     update();
 }
 
@@ -510,8 +877,6 @@ void stream_cell::paintEvent(QPaintEvent* event) {
         p.drawText(r, Qt::AlignCenter, txt);
     }
 
-    draw_stream_name(p);
-
     p.drawRect(rect().adjusted(0, 0, -1, -1));
     p.setRenderHint(QPainter::Antialiasing, true);
 
@@ -535,6 +900,7 @@ void stream_cell::paintEvent(QPaintEvent* event) {
     draw_hover_point(p);
     draw_hover_coords(p);
     draw_preview_segment(p);
+    draw_stream_name(p);
 }
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
@@ -722,8 +1088,8 @@ void stream_cell::draw_persistent(QPainter& p) const {
                 }
 
                 const double falloff_pct = 30.0;
-                const double base_w = 2.0;
-                const double peak_w = 22.0;
+                const double base_w = line_width_visual_value(l.width_text);
+                const double peak_w = base_w + 20.0;
 
                 bool has_hit = false;
                 QVector<hit_info> hit_points;
@@ -818,7 +1184,8 @@ void stream_cell::draw_persistent(QPainter& p) const {
         }
 
         draw_poly_with_points(
-            p, l.pts_pct, l.color, l.closed, Qt::SolidLine, 2.0
+            p, l.pts_pct, l.color, l.closed, Qt::SolidLine,
+            line_width_visual_value(l.width_text)
         );
         draw_wave_overlay(p, l);
 
@@ -843,7 +1210,7 @@ void stream_cell::draw_draft(QPainter& p) const {
 
     draw_poly_with_points(
         p, draft_line_points_pct, draft_line_color, draft_line_closed,
-        Qt::DashLine, 2.0
+        Qt::DashLine, line_width_visual_value(draft_line_width_text)
     );
 }
 
@@ -881,7 +1248,9 @@ void stream_cell::draw_preview_segment(QPainter& p) const {
     }
 
     QPen pen(draft_line_color);
-    pen.setWidthF(1.5);
+    pen.setWidthF(
+        std::max(1.5, line_width_visual_value(draft_line_width_text) * 0.75)
+    );
     pen.setStyle(Qt::DashLine);
     p.setPen(pen);
 
@@ -904,6 +1273,62 @@ void stream_cell::draw_stream_name(QPainter& p) const {
     QRect r = rect().adjusted(6, 6, -6, -6);
     p.setPen(palette().color(QPalette::Text));
     p.drawText(r, Qt::AlignLeft | Qt::AlignTop, name);
+
+    const QString badge_text = algorithm_badge_text(
+        stream_settings_value.algorithm_id,
+        stream_settings_value.algorithm_preset,
+        stream_settings_value.algorithm_overlay_enabled
+    );
+    const QColor badge_color = algorithm_badge_color(
+        stream_settings_value.algorithm_id
+    );
+
+    QFont badge_font = p.font();
+    const double badge_point_size = badge_font.pointSizeF() > 0.0
+        ? badge_font.pointSizeF()
+        : 9.0;
+    badge_font.setPointSizeF(std::max(8.0, badge_point_size - 0.5));
+    p.setFont(badge_font);
+
+    const QFontMetrics badge_metrics(badge_font);
+    QRect badge_rect = badge_metrics.boundingRect(badge_text);
+    badge_rect.adjust(-8, -4, 8, 4);
+    badge_rect.moveTopRight(QPoint(r.right(), r.top()));
+
+    QColor badge_fill = badge_color;
+    badge_fill.setAlpha(active ? 208 : 176);
+    p.setPen(Qt::NoPen);
+    p.setBrush(badge_fill);
+    p.drawRoundedRect(badge_rect, 8.0, 8.0);
+
+    p.setPen(Qt::white);
+    p.drawText(badge_rect, Qt::AlignCenter, badge_text);
+
+    if (!active) {
+        return;
+    }
+
+    QFont summary_font = p.font();
+    const double summary_point_size = summary_font.pointSizeF() > 0.0
+        ? summary_font.pointSizeF()
+        : 9.0;
+    summary_font.setPointSizeF(std::max(8.0, summary_point_size - 1.0));
+    p.setFont(summary_font);
+    p.setPen(palette().color(QPalette::Text));
+
+    const QString summary = algorithm_summary_text(
+        stream_settings_value.algorithm_id,
+        stream_settings_value.algorithm_preset,
+        stream_settings_value.algorithm_overlay_enabled
+    );
+    const QFontMetrics summary_metrics(summary_font);
+    const QString elided_summary = summary_metrics.elidedText(
+        summary, Qt::ElideRight, std::max(80, r.width() - 12)
+    );
+
+    QRect summary_rect = r;
+    summary_rect.adjust(0, 18, 0, 0);
+    p.drawText(summary_rect, Qt::AlignLeft | Qt::AlignTop, elided_summary);
 }
 
 QPointF stream_cell::label_pos_px(const line_instance& l) const {
@@ -968,10 +1393,32 @@ void stream_cell::draw_events(QPainter& p) {
 
         const double x = r.left() + w * (e.pos_pct.x() / 100.0);
         const double y = r.top() + h * (e.pos_pct.y() / 100.0);
+        const QPointF center(x, y);
+
+        if (stream_settings_value.algorithm_overlay_enabled) {
+            stream_cell_support::draw_algorithm_overlay(
+                p, r, center, radius, c, stream_settings_value, k
+            );
+        }
 
         p.setPen(Qt::NoPen);
-        p.setBrush(c);
-        p.drawEllipse(QPointF(x, y), radius, radius);
+        p.setBrush(
+            stream_cell_support::color_with_alpha(
+                c,
+                stream_settings_value.algorithm_overlay_enabled
+                    ? static_cast<int>(210.0 * k)
+                    : a
+            )
+        );
+        p.drawEllipse(
+            center,
+            stream_settings_value.algorithm_overlay_enabled
+                ? radius * 0.55
+                : radius,
+            stream_settings_value.algorithm_overlay_enabled
+                ? radius * 0.55
+                : radius
+        );
     }
 
     events = std::move(alive);
@@ -1047,6 +1494,8 @@ void stream_cell::draw_wave_overlay(
         return;
     }
 
+    const auto wave_style
+        = stream_cell_support::line_wave_style_for_line(line_value);
     const qint64 now_ms = animation_clock.elapsed();
     QPolygonF wave_poly;
     bool has_visible_wave = false;
@@ -1097,16 +1546,34 @@ void stream_cell::draw_wave_overlay(
     }
 
     QColor glow = line_value.color.lighter(160);
-    glow.setAlpha(110);
+    glow.setAlpha(
+        std::clamp(
+            static_cast<int>(110.0 * wave_style.glow_width_k), 80, 180
+        )
+    );
     QPen glow_pen(glow);
-    glow_pen.setWidthF(4.5);
+    glow_pen.setWidthF(
+        2.8 + line_width_visual_value(line_value.width_text)
+            * 0.42 * wave_style.glow_width_k
+    );
     p.setPen(glow_pen);
     p.drawPolyline(wave_poly);
 
     QColor wave_color = line_value.color.lighter(125);
-    wave_color.setAlpha(220);
+    wave_color.setAlpha(
+        std::clamp(
+            static_cast<int>(208.0 + (wave_style.amplitude_k - 1.0) * 36.0),
+            160, 245
+        )
+    );
     QPen wave_pen(wave_color);
-    wave_pen.setWidthF(2.5);
+    wave_pen.setWidthF(
+        std::max(
+            1.8,
+            line_width_visual_value(line_value.width_text)
+                * (0.52 + (wave_style.spread_k - 1.0) * 0.18)
+        )
+    );
     p.setPen(wave_pen);
     p.drawPolyline(wave_poly);
 }
@@ -1147,6 +1614,8 @@ void stream_cell::add_line_wave(
     const double clamped_speed = std::clamp(speed, 0.25, 2.5);
     const int displacement_sign
         = direction == QStringLiteral("pos_to_neg") ? -1 : 1;
+    const auto wave_style
+        = stream_cell_support::line_wave_style_for_line(*line_value);
 
     auto& pulses = line_waves[key];
 
@@ -1155,11 +1624,25 @@ void stream_cell::add_line_wave(
         pulse.source_segment_index = projection->segment_index;
         pulse.start_ms = now_ms;
         pulse.origin_path_pos = projection->path_pos;
-        pulse.amplitude = 5.0 + 9.0 * clamped_strength * clamped_speed;
-        pulse.speed = 18.0 + 38.0 * clamped_speed;
-        pulse.spread = 7.0 + 10.0 * clamped_strength;
-        pulse.frequency_hz = 2.2 + 1.6 * clamped_speed;
-        pulse.damping_per_s = 1.1 + 0.8 * (1.2 - std::min(clamped_strength, 1.2));
+        pulse.amplitude = std::clamp(
+            (5.0 + 9.0 * clamped_strength * clamped_speed)
+                * wave_style.amplitude_k,
+            3.0, 24.0
+        );
+        pulse.speed = std::clamp(
+            (18.0 + 38.0 * clamped_speed) * wave_style.speed_k, 10.0, 80.0
+        );
+        pulse.spread = std::clamp(
+            (7.0 + 10.0 * clamped_strength) * wave_style.spread_k, 4.0, 28.0
+        );
+        pulse.frequency_hz = std::clamp(
+            (2.2 + 1.6 * clamped_speed) * wave_style.frequency_k, 1.0, 7.5
+        );
+        pulse.damping_per_s = std::clamp(
+            (1.1 + 0.8 * (1.2 - std::min(clamped_strength, 1.2)))
+                * wave_style.damping_k,
+            0.35, 2.2
+        );
         pulse.travel_sign = travel_sign;
         pulse.displacement_sign = displacement_sign;
 

@@ -2,6 +2,7 @@
 #define YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP
 
 #include "shell/frontend_log.hpp"
+#include "shell/frontend_settings.hpp"
 
 #include <QColor>
 #include <QGroupBox>
@@ -20,6 +21,9 @@ class QRadioButton;
 class QTabWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
+class algorithm_panel;
+class line_profile_panel;
+class template_apply_panel;
 
 class settings_panel final : public QWidget {
     Q_OBJECT
@@ -35,6 +39,9 @@ public:
     void set_log_mode(frontend_log_mode mode);
     frontend_log_mode log_mode() const;
     void append_log(frontend_log_entry entry) const;
+    QString compose_current_log_report() const;
+    QString compose_current_log_summary() const;
+    bool write_current_log_report(const QString& path) const;
 
     // streams tab
     void add_stream_entry(
@@ -54,10 +61,18 @@ public:
     // active tab: streams
     void set_active_candidates(const QStringList& names) const;
     void set_active_current(const QString& name) const;
+    void set_active_stream_settings(const stream_settings& settings_value);
+    stream_settings current_active_stream_settings() const;
 
     // active tab: templates / lines
     void add_template_candidate(const QString& name) const;
     void set_template_candidates(const QStringList& names) const;
+    void set_active_line_profile(const line_profile& profile);
+    line_profile current_active_line_profile() const;
+    void set_active_template_settings(
+        const template_apply_settings& settings_value
+    );
+    template_apply_settings current_active_template_settings() const;
 
     void reset_active_line_form();
     void reset_active_template_form();
@@ -81,21 +96,19 @@ signals:
     void show_stream_changed(const QString& name, bool show);
 
     // active tab
-    void active_stream_selected(const QString& name);
+    void active_stream_settings_changed(stream_settings settings_value);
 
     void active_edit_mode_changed(bool drawing_new);
 
-    void active_line_params_changed(
-        const QString& name, const QColor& color, bool closed
-    );
-    void active_line_save_requested(const QString& name, bool closed);
+    void active_line_profile_changed(line_profile profile_value);
+    void active_line_save_requested(line_profile profile_value);
     void active_line_undo_requested();
-    void active_labels_enabled_changed(bool on);
 
-    void active_template_selected(const QString& template_name);
-    void active_template_color_changed(const QColor& color);
     void active_template_add_requested(
-        const QString& template_name, const QColor& color
+        template_apply_settings settings_value
+    );
+    void active_template_settings_changed(
+        template_apply_settings settings_value
     );
 
 private:
@@ -131,9 +144,9 @@ private:
 
     // active tab helpers
     void update_active_tools() const;
-    void set_btn_color(QPushButton* btn, const QColor& c) const;
     void refresh_log_filter_options() const;
     bool entry_matches_log_filters(const frontend_log_entry& entry) const;
+    frontend_log_area current_log_area() const;
     void rebuild_log_views() const;
     void rebuild_log_view(QPlainTextEdit* view, frontend_log_area area) const;
 
@@ -142,21 +155,16 @@ private slots:
     void on_log_severity_filter_changed(int index);
     void on_log_stream_filter_changed(int index);
     void on_log_subsystem_filter_changed(int index);
+    void on_copy_logs_clicked();
+    void on_copy_summary_clicked();
+    void on_save_logs_clicked();
     void on_mode_group_clicked(int id);
     void on_local_source_changed();
     void on_url_text_changed();
     void on_active_combo_changed(const QString& text);
+    void on_active_labels_toggled(bool checked);
+    void on_algorithm_panel_settings_changed(stream_settings settings_value);
     void on_active_mode_clicked(int id);
-
-    void on_active_line_color_clicked();
-    void on_active_line_undo_clicked();
-    void on_active_line_save_clicked();
-    void on_active_line_name_finished();
-    void on_active_line_closed_toggled(bool checked);
-
-    void on_active_template_combo_changed(const QString& text);
-    void on_active_template_color_clicked();
-    void on_active_template_add_clicked();
 
     void on_stream_item_changed(QTreeWidgetItem* item, int column);
 
@@ -167,6 +175,9 @@ private:
     QComboBox* log_severity_filter_combo { nullptr };
     QComboBox* log_stream_filter_combo { nullptr };
     QComboBox* log_subsystem_filter_combo { nullptr };
+    QPushButton* copy_logs_btn { nullptr };
+    QPushButton* copy_summary_btn { nullptr };
+    QPushButton* save_logs_btn { nullptr };
     frontend_log_mode current_log_mode { frontend_log_mode::release };
     int current_log_severity_filter { -1 };
     QString current_log_stream_filter;
@@ -208,25 +219,15 @@ private:
     QWidget* active_tab { nullptr };
     QComboBox* active_combo { nullptr };
     QCheckBox* active_labels_cb = nullptr;
+    algorithm_panel* active_algorithm_panel { nullptr };
 
     QGroupBox* active_mode_box = nullptr;
     QButtonGroup* active_mode_group { nullptr };
     QRadioButton* active_mode_draw_radio { nullptr };
     QRadioButton* active_mode_template_radio { nullptr };
 
-    QGroupBox* active_line_box { nullptr };
-    QLineEdit* active_line_name_edit { nullptr };
-    QCheckBox* active_line_closed_cb { nullptr };
-    QPushButton* active_line_color_btn { nullptr };
-    QColor active_line_color { Qt::red };
-    QPushButton* active_line_undo_btn { nullptr };
-    QPushButton* active_line_save_btn { nullptr };
-
-    QGroupBox* active_templates_box { nullptr };
-    QComboBox* active_template_combo { nullptr };
-    QPushButton* active_template_color_btn { nullptr };
-    QColor active_template_color { Qt::red };
-    QPushButton* active_template_add_btn { nullptr };
+    line_profile_panel* active_line_panel { nullptr };
+    template_apply_panel* active_template_panel { nullptr };
 
     QPlainTextEdit* active_log_view = nullptr;
 };

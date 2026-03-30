@@ -1,6 +1,8 @@
 #ifndef YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP
 #define YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP
 
+#include "shell/frontend_settings.hpp"
+
 #include <QCamera>
 #include <QCameraDevice>
 #include <QColor>
@@ -42,6 +44,9 @@ public:
         QString template_name;
         QColor color { Qt::red };
         bool closed { false };
+        QString width_text { default_line_width_text() };
+        QString length_text { default_line_length_text() };
+        QString response_text { default_line_response_text() };
         std::vector<QPointF> pts_pct;
     };
 
@@ -56,12 +61,19 @@ public:
     [[nodiscard]] QColor draft_color() const;
 
     bool is_draft_preview() const;
+    stream_settings current_stream_settings() const;
 
     void set_active(bool val);
     void set_drawing_enabled(bool on);
+    void set_stream_settings(const stream_settings& settings_value);
 
     void
-    set_draft_params(const QString& name, const QColor& color, bool closed);
+    set_draft_params(
+        const QString& name, const QColor& color, bool closed,
+        const QString& width_text = default_line_width_text(),
+        const QString& length_text = default_line_length_text(),
+        const QString& response_text = default_line_response_text()
+    );
     void set_draft_points_pct(const std::vector<QPointF>& pts);
     void clear_draft();
 
@@ -174,10 +186,14 @@ private:
     bool drawing_enabled { false };
     bool draft_preview { false };
     bool labels_enabled { true };
+    stream_settings stream_settings_value;
 
     QString draft_line_name;
     QColor draft_line_color { Qt::red };
     bool draft_line_closed { false };
+    QString draft_line_width_text { default_line_width_text() };
+    QString draft_line_length_text { default_line_length_text() };
+    QString draft_line_response_text { default_line_response_text() };
     std::vector<QPointF> draft_line_points_pct;
     std::optional<QPointF> hover_point_pct;
 

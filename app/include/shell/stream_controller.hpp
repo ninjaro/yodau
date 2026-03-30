@@ -15,13 +15,19 @@
 
 #include "analysis/fps_policy.hpp"
 #include "analysis/processing_runtime.hpp"
+#include "shell/active_edit_session.hpp"
 #include "shell/frontend_log.hpp"
+#include "shell/frontend_settings.hpp"
+#include "shell/processing_feedback_state.hpp"
+#include "shell/stream_catalog_state.hpp"
+#include "shell/stream_route_state.hpp"
+#include "shell/stream_widget_bridge.hpp"
 #include "streams/stream_manager.hpp"
-#include "widgets/stream_cell.hpp"
 
 class stream_board;
 class grid_view;
 class settings_panel;
+class stream_cell;
 
 namespace yodau::monitor {
 class runtime_bridge;
@@ -64,26 +70,22 @@ signals:
 
 private slots:
     // active tab
-    void on_active_stream_selected(const QString& name);
+    void on_active_stream_settings_changed(stream_settings settings_value);
     void on_active_edit_mode_changed(bool drawing_new);
-    void on_active_line_params_changed(
-        const QString& name, const QColor& color, bool closed
-    );
-    void on_active_line_save_requested(const QString& name, bool closed);
+    void on_active_line_profile_changed(line_profile profile_value);
+    void on_active_line_save_requested(line_profile profile_value);
 
-    void on_active_template_selected(const QString& template_name);
-    void on_active_template_color_changed(const QColor& color);
     void on_active_template_add_requested(
-        const QString& template_name, const QColor& color
+        template_apply_settings settings_value
+    );
+    void on_active_template_settings_changed(
+        template_apply_settings settings_value
     );
 
     void on_active_line_undo_requested();
-    void on_active_labels_enabled_changed(bool on);
     void on_backend_event_queued(yodau::backend::event event_value);
 
 private:
-    static QString backend_event_kind_text(yodau::backend::event_kind kind);
-
     // setup
     void setup_settings_connections();
     void setup_grid_connections();
@@ -104,9 +106,9 @@ private:
     void handle_thumb_activate(const QString& name);
 
     stream_cell* active_cell_checked(const QString& fail_prefix);
-
-    void sync_active_persistent();
-    void apply_template_preview(const QString& template_name);
+    void set_active_stream(const QString& name);
+    stream_settings settings_for_stream(const QString& name) const;
+    QString algorithm_id_for_stream(const QString& name) const;
 
     void append_log(
         frontend_log_area area, frontend_log_severity severity,
@@ -123,18 +125,9 @@ private:
 
     static QString points_str_from_pct(const std::vector<QPointF>& pts);
 
-    void apply_added_line(
-        stream_cell* cell, const QString& final_name,
-        const std::vector<QPointF>& pts, bool closed
-    );
-    void sync_active_cell_lines() const;
-    QSet<QString> used_template_names_for_stream(const QString& stream) const;
-    QStringList template_candidates_excluding(const QSet<QString>& used) const;
-
     void refresh_fps_policy(bool force = false);
     int grid_cell_count() const;
     int line_count_for_stream(const QString& stream_name) const;
-    int recent_motion_count();
     double current_device_load_ratio() const;
     void note_processing_cost_sample(double elapsed_ms);
     QImage scaled_processing_image(
@@ -144,7 +137,6 @@ private:
 
     void on_backend_event(const yodau::backend::event& e);
     void on_backend_events(const std::vector<yodau::backend::event>& evs);
-    stream_cell* tile_for_stream_name(const QString& name) const;
 
     yodau::backend::frame frame_from_image(const QImage& image) const;
 
@@ -160,31 +152,15 @@ private:
     frontend_log_buffer* log_buffer { nullptr };
 
     // active state
-    QString active_name;
-    bool drawing_new_mode { true };
-    bool active_labels_enabled { true };
+    active_edit_session edit_session;
+    processing_feedback_state feedback_state;
+    stream_catalog_state catalog_state;
+    stream_route_state route_state;
+    stream_widget_bridge widget_bridge;
 
-    QString draft_line_name;
-    QColor draft_line_color { Qt::red };
-    bool draft_line_closed { false };
-
-    struct tpl_line {
-        std::vector<QPointF> pts_pct;
-        bool closed { false };
-    };
-
-    QMap<QString, tpl_line> templates;
-    QMap<QString, std::vector<stream_cell::line_instance>> per_stream_lines;
-
-    QMap<QString, QUrl> stream_sources;
-    QMap<QString, bool> stream_loops;
-
-    QHash<QString, QDateTime> last_gui_motion_event_ts;
-    int motion_gui_interval_ms { 80 };
     yodau::backend::fps_capability_profile fps_capability;
     QHash<QString, int> processing_scale_percent_by_stream;
     double processing_cost_ema_ms { 0.0 };
-    std::deque<std::chrono::steady_clock::time_point> recent_motion_events;
     std::chrono::steady_clock::time_point last_fps_policy_refresh {};
 };
 
