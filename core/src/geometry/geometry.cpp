@@ -79,6 +79,31 @@ bool yodau::backend::line::operator==(const line& other) const {
     return true;
 }
 
+void yodau::backend::line_profile::normalize() {
+    if (visual_width <= point::epsilon) {
+        visual_width = 1.0f;
+    }
+    if (interaction_width <= point::epsilon) {
+        interaction_width = visual_width;
+    }
+    if (effective_length <= point::epsilon) {
+        effective_length = 1.0f;
+    }
+    damping = std::clamp(damping, 0.0f, 1.0f);
+}
+
+bool yodau::backend::line_profile::operator==(
+    const line_profile& other
+) const {
+    return line_name == other.line_name
+        && std::fabs(visual_width - other.visual_width) < point::epsilon
+        && std::fabs(interaction_width - other.interaction_width)
+            < point::epsilon
+        && std::fabs(effective_length - other.effective_length)
+            < point::epsilon
+        && std::fabs(damping - other.damping) < point::epsilon;
+}
+
 yodau::backend::line_ptr yodau::backend::make_line(
     std::vector<point> points, std::string name, bool closed
 ) {
@@ -88,6 +113,21 @@ yodau::backend::line_ptr yodau::backend::make_line(
     line_ptr->closed = closed;
     line_ptr->normalize();
     return line_ptr;
+}
+
+yodau::backend::line_profile yodau::backend::make_line_profile(
+    std::string line_name, const float visual_width,
+    const float interaction_width, const float effective_length,
+    const float damping
+) {
+    line_profile profile;
+    profile.line_name = std::move(line_name);
+    profile.visual_width = visual_width;
+    profile.interaction_width = interaction_width;
+    profile.effective_length = effective_length;
+    profile.damping = damping;
+    profile.normalize();
+    return profile;
 }
 
 std::vector<yodau::backend::point>

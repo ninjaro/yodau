@@ -137,6 +137,67 @@ void add_motion_path_cells(
     );
 }
 
+bool frame_to_bgr_and_gray(
+    const frame& frame_value, cv::Mat& bgr, cv::Mat& gray
+) {
+    if (frame_value.width <= 0 || frame_value.height <= 0
+        || frame_value.stride <= 0 || frame_value.data.empty()) {
+        return false;
+    }
+
+    auto* bytes = const_cast<std::uint8_t*>(frame_value.data.data());
+
+    switch (frame_value.format) {
+    case pixel_format::gray8: {
+        cv::Mat input(
+            frame_value.height, frame_value.width, CV_8UC1, bytes,
+            static_cast<size_t>(frame_value.stride)
+        );
+        gray = input.clone();
+        cv::cvtColor(input, bgr, cv::COLOR_GRAY2BGR);
+        return true;
+    }
+    case pixel_format::rgb24: {
+        cv::Mat input(
+            frame_value.height, frame_value.width, CV_8UC3, bytes,
+            static_cast<size_t>(frame_value.stride)
+        );
+        cv::cvtColor(input, bgr, cv::COLOR_RGB2BGR);
+        cv::cvtColor(input, gray, cv::COLOR_RGB2GRAY);
+        return true;
+    }
+    case pixel_format::bgr24: {
+        cv::Mat input(
+            frame_value.height, frame_value.width, CV_8UC3, bytes,
+            static_cast<size_t>(frame_value.stride)
+        );
+        bgr = input;
+        cv::cvtColor(input, gray, cv::COLOR_BGR2GRAY);
+        return true;
+    }
+    case pixel_format::rgba32: {
+        cv::Mat input(
+            frame_value.height, frame_value.width, CV_8UC4, bytes,
+            static_cast<size_t>(frame_value.stride)
+        );
+        cv::cvtColor(input, bgr, cv::COLOR_RGBA2BGR);
+        cv::cvtColor(input, gray, cv::COLOR_RGBA2GRAY);
+        return true;
+    }
+    case pixel_format::bgra32: {
+        cv::Mat input(
+            frame_value.height, frame_value.width, CV_8UC4, bytes,
+            static_cast<size_t>(frame_value.stride)
+        );
+        cv::cvtColor(input, bgr, cv::COLOR_BGRA2BGR);
+        cv::cvtColor(input, gray, cv::COLOR_BGRA2GRAY);
+        return true;
+    }
+    }
+
+    return false;
+}
+
 } // namespace opencv_client_support
 
 cv::Mat
@@ -713,13 +774,12 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
         return out;
     }
 
-    cv::Mat bgr(
-        f.height, f.width, CV_8UC3, const_cast<std::uint8_t*>(f.data.data()),
-        static_cast<size_t>(f.stride)
-    );
-
+    cv::Mat bgr;
     cv::Mat gray;
-    cv::cvtColor(bgr, gray, cv::COLOR_BGR2GRAY);
+    if (!opencv_client_support::frame_to_bgr_and_gray(f, bgr, gray)) {
+        return out;
+    }
+
     cv::GaussianBlur(gray, gray, cv::Size(5, 5), 0.0);
 
 #ifdef YODAU_DUMP_DEBUG_FRAMES
@@ -764,6 +824,13 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
             return out;
         }
         prev_gray = it->second;
+
+        if (prev_gray.empty() || prev_gray.size() != gray.size()
+            || prev_gray.type() != gray.type()) {
+            it->second = gray.clone();
+            return out;
+        }
+
         it->second = gray.clone();
     }
 

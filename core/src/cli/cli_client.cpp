@@ -1,7 +1,9 @@
 #include "cli/cli_client.hpp"
 
+#include "analysis/default_processing_hooks.hpp"
 #include "streams/virtual_camera.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 
@@ -24,6 +26,10 @@ tripwire_dir parse_tripwire_dir(const std::string& text) {
     throw std::runtime_error("unknown dir: " + text);
 }
 
+std::string normalized_algorithm_command(std::string text) {
+    return processing_algorithm_registry::normalized_algorithm_id(text);
+}
+
 } // namespace yodau::backend::cli_client_support
 
 yodau::backend::cli_client::cli_client(backend::stream_manager& mgr)
@@ -31,6 +37,7 @@ yodau::backend::cli_client::cli_client(backend::stream_manager& mgr)
           processing_runtime_options {
               .mode = render_mode::backend_only,
               .enable_virtual_camera = true,
+              .algorithm_id = default_processing_algorithm_id(),
           }
       )
     , stream_mgr(mgr) {
@@ -79,12 +86,15 @@ void yodau::backend::cli_client::dispatch_command(
         std::string, void (cli_client::*)(const std::vector<std::string>& args)>
         command_map
         = { { "list-streams", &cli_client::cmd_list_streams },
+            { "list-algorithms", &cli_client::cmd_list_algorithms },
             { "add-stream", &cli_client::cmd_add_stream },
             { "start-stream", &cli_client::cmd_start_stream },
             { "stop-stream", &cli_client::cmd_stop_stream },
             { "list-lines", &cli_client::cmd_list_lines },
             { "add-line", &cli_client::cmd_add_line },
             { "set-line", &cli_client::cmd_set_line },
+            { "set-stream-algorithm", &cli_client::cmd_set_stream_algorithm },
+            { "set-default-algorithm", &cli_client::cmd_set_default_algorithm },
             { "list-virtual-cameras", &cli_client::cmd_list_virtual_cameras },
             { "set-log-mode", &cli_client::cmd_set_log_mode },
             { "show-log", &cli_client::cmd_show_log },
@@ -150,6 +160,73 @@ void yodau::backend::cli_client::cmd_list_streams(
         log_command(
             cli_log_severity::error, "stream_inventory",
             "failed to parse list-streams", {}, e.what()
+        );
+        std::cout << options.help() << std::endl;
+    }
+}
+
+void yodau::backend::cli_client::cmd_list_algorithms(
+    const std::vector<std::string>& args
+) {
+    const std::string cmd = "list-algorithms";
+    cxxopts::Options options(cmd, "List available backend algorithms");
+    options.allow_unrecognised_options();
+    options.add_options()("h,help", "Print help");
+
+    try {
+        const auto result = parse_with_cxxopts(cmd, args, options);
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            return;
+        }
+
+        const std::vector<std::string> algorithm_ids
+            = backend_runtime.available_algorithm_ids();
+        const std::string default_algorithm_id
+            = backend_runtime.default_algorithm_id();
+        const auto overrides = backend_runtime.stream_algorithm_overrides();
+        const auto& registry = default_processing_algorithm_registry();
+
+        std::cout << algorithm_ids.size()
+                  << " algorithms (default=" << default_algorithm_id << "):"
+                  << std::endl;
+        for (const std::string& algorithm_id : algorithm_ids) {
+            std::cout << "\t" << algorithm_id;
+            if (const auto entry = registry.find(algorithm_id)) {
+                std::cout << " (" << entry->display_name << ")";
+            }
+            if (algorithm_id == default_algorithm_id) {
+                std::cout << " [default]";
+            }
+            std::cout << std::endl;
+        }
+
+        if (overrides.empty()) {
+            std::cout << "0 stream overrides" << std::endl;
+        } else {
+            std::vector<std::pair<std::string, std::string>> override_rows(
+                overrides.begin(), overrides.end()
+            );
+            std::sort(override_rows.begin(), override_rows.end());
+
+            std::cout << override_rows.size() << " stream overrides:"
+                      << std::endl;
+            for (const auto& [stream_name, algorithm_id] : override_rows) {
+                std::cout << "\t" << stream_name << " -> " << algorithm_id
+                          << std::endl;
+            }
+        }
+
+        log_command(
+            cli_log_severity::debug, "algorithm_inventory",
+            "listed algorithms", {},
+            "count=" + std::to_string(algorithm_ids.size())
+                + " default=" + default_algorithm_id
+        );
+    } catch (const cxxopts::exceptions::exception& e) {
+        log_command(
+            cli_log_severity::error, "algorithm_inventory",
+            "failed to parse list-algorithms", {}, e.what()
         );
         std::cout << options.help() << std::endl;
     }
@@ -343,6 +420,26 @@ void yodau::backend::cli_client::cmd_add_line(
         (
             "d,dir", "Tripwire direction (any/neg_to_pos/pos_to_neg)",
             cxxopts::value<std::string>()->default_value("any")
+        )
+        (
+            "visual-width",
+            "Backend visual width for the line profile",
+            cxxopts::value<float>()
+        )
+        (
+            "interaction-width",
+            "Backend interaction width for the line profile",
+            cxxopts::value<float>()
+        )
+        (
+            "effective-length",
+            "Backend effective length for the line profile",
+            cxxopts::value<float>()
+        )
+        (
+            "damping",
+            "Backend damping value for the line profile",
+            cxxopts::value<float>()
         );
     options.parse_positional({ "path", "name", "close" });
     try {
@@ -364,6 +461,31 @@ void yodau::backend::cli_client::cmd_add_line(
         const std::string dir_str = result["dir"].as<std::string>();
 
         const auto& line = stream_mgr.add_line(path, close, name);
+
+        if (result.count("visual-width") || result.count("interaction-width")
+            || result.count("effective-length") || result.count("damping")) {
+            auto profile
+                = stream_mgr.find_line_profile(line->name).value_or(
+                    make_line_profile(line->name)
+                );
+
+            if (result.count("visual-width")) {
+                profile.visual_width = result["visual-width"].as<float>();
+            }
+            if (result.count("interaction-width")) {
+                profile.interaction_width
+                    = result["interaction-width"].as<float>();
+            }
+            if (result.count("effective-length")) {
+                profile.effective_length
+                    = result["effective-length"].as<float>();
+            }
+            if (result.count("damping")) {
+                profile.damping = result["damping"].as<float>();
+            }
+
+            stream_mgr.set_line_profile(std::move(profile));
+        }
 
         try {
             const auto dir = cli_client_support::parse_tripwire_dir(dir_str);
@@ -429,6 +551,130 @@ void yodau::backend::cli_client::cmd_set_line(
         log_command(
             cli_log_severity::error, "line_edit", "failed to parse set-line",
             {}, e.what()
+        );
+        std::cout << options.help() << std::endl;
+    }
+}
+
+void yodau::backend::cli_client::cmd_set_stream_algorithm(
+    const std::vector<std::string>& args
+) {
+    const std::string cmd = "set-stream-algorithm";
+    cxxopts::Options options(cmd, "Set or clear a stream-specific algorithm");
+    options.allow_unrecognised_options();
+    options.add_options()
+        ("h,help", "Print help")
+        ("stream", "Stream name", cxxopts::value<std::string>())
+        (
+            "algorithm",
+            "Algorithm id (or default/reset/clear to use the default algorithm)",
+            cxxopts::value<std::string>()
+        );
+    options.parse_positional({ "stream", "algorithm" });
+
+    try {
+        const auto result = parse_with_cxxopts(cmd, args, options);
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            return;
+        }
+        if (!result.count("stream") || !result.count("algorithm")) {
+            log_command(
+                cli_log_severity::error, "algorithm_control",
+                "stream and algorithm arguments are required for set-stream-algorithm"
+            );
+            return;
+        }
+
+        const std::string stream_name = result["stream"].as<std::string>();
+        if (!stream_mgr.find_stream(stream_name)) {
+            log_command(
+                cli_log_severity::error, "algorithm_control",
+                "stream not found for set-stream-algorithm", stream_name
+            );
+            return;
+        }
+
+        const std::string algorithm_text = result["algorithm"].as<std::string>();
+        const std::string normalized_algorithm
+            = cli_client_support::normalized_algorithm_command(algorithm_text);
+
+        if (normalized_algorithm == "default" || normalized_algorithm == "reset"
+            || normalized_algorithm == "clear") {
+            backend_runtime.clear_stream_algorithm(stream_name);
+            log_command(
+                cli_log_severity::info, "algorithm_control",
+                "stream algorithm reset to default", stream_name,
+                "algorithm=" + backend_runtime.default_algorithm_id()
+            );
+            return;
+        }
+
+        if (!backend_runtime.set_stream_algorithm(stream_name, algorithm_text)) {
+            log_command(
+                cli_log_severity::error, "algorithm_control",
+                "unknown stream algorithm", stream_name, algorithm_text
+            );
+            return;
+        }
+
+        log_command(
+            cli_log_severity::info, "algorithm_control",
+            "stream algorithm updated", stream_name,
+            "algorithm=" + backend_runtime.algorithm_id_for_stream(stream_name)
+        );
+    } catch (const cxxopts::exceptions::exception& e) {
+        log_command(
+            cli_log_severity::error, "algorithm_control",
+            "failed to parse set-stream-algorithm", {}, e.what()
+        );
+        std::cout << options.help() << std::endl;
+    }
+}
+
+void yodau::backend::cli_client::cmd_set_default_algorithm(
+    const std::vector<std::string>& args
+) {
+    const std::string cmd = "set-default-algorithm";
+    cxxopts::Options options(cmd, "Set the default algorithm for new streams");
+    options.allow_unrecognised_options();
+    options.add_options()
+        ("h,help", "Print help")
+        ("algorithm", "Algorithm id", cxxopts::value<std::string>());
+    options.parse_positional({ "algorithm" });
+
+    try {
+        const auto result = parse_with_cxxopts(cmd, args, options);
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            return;
+        }
+        if (!result.count("algorithm")) {
+            log_command(
+                cli_log_severity::error, "algorithm_control",
+                "algorithm is required for set-default-algorithm"
+            );
+            return;
+        }
+
+        const std::string algorithm_text = result["algorithm"].as<std::string>();
+        if (!backend_runtime.set_default_algorithm(algorithm_text)) {
+            log_command(
+                cli_log_severity::error, "algorithm_control",
+                "unknown default algorithm", {}, algorithm_text
+            );
+            return;
+        }
+
+        log_command(
+            cli_log_severity::info, "algorithm_control",
+            "default algorithm updated", {},
+            backend_runtime.default_algorithm_id()
+        );
+    } catch (const cxxopts::exceptions::exception& e) {
+        log_command(
+            cli_log_severity::error, "algorithm_control",
+            "failed to parse set-default-algorithm", {}, e.what()
         );
         std::cout << options.help() << std::endl;
     }
@@ -726,7 +972,15 @@ yodau::backend::cli_log_entry yodau::backend::cli_client::make_event_log_entry(
     }
 
     std::ostringstream detail;
+    const std::string algorithm_id
+        = backend_runtime.algorithm_id_for_stream(event_value.stream_name);
+    if (!algorithm_id.empty()) {
+        detail << "algorithm=" << algorithm_id;
+    }
     if (!event_value.line_name.empty()) {
+        if (!detail.str().empty()) {
+            detail << ' ';
+        }
         detail << "line=" << event_value.line_name;
     }
     if (event_value.pos_pct.has_value()) {

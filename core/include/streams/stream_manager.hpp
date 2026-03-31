@@ -1,11 +1,12 @@
 #ifndef YODAU_BACKEND_STREAM_MANAGER_HPP
 #define YODAU_BACKEND_STREAM_MANAGER_HPP
+#include "streams/analysis_scheduler.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
-#include <chrono>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <stop_token>
 #include <thread>
 #include <unordered_map>
@@ -46,6 +47,14 @@ public:
         const std::string& points, bool closed = false,
         const std::string& name = {}
     );
+    void set_line_profile(line_profile profile_value);
+    std::optional<line_profile>
+    find_line_profile(const std::string& line_name) const;
+    void
+    set_stream_line_profile(const std::string& stream_name, line_profile profile_value);
+    std::optional<line_profile> find_stream_line_profile(
+        const std::string& stream_name, const std::string& line_name
+    ) const;
     stream&
     set_line(const std::string& stream_name, const std::string& line_name);
     std::shared_ptr<const stream> find_stream(const std::string& name) const;
@@ -86,8 +95,6 @@ private:
         frame_processor_fn& fp, processed_frame_sink_fn& pfs, event_sink_fn& es,
         event_batch_sink_fn& bes
     ) const;
-    int
-    analysis_interval_for_stream_locked(const std::string& stream_name) const;
     int current_fake_interval_ms() const;
     void run_stream_daemon(
         std::string stream_name, std::shared_ptr<stream> stream_ptr,
@@ -97,6 +104,7 @@ private:
     static bool is_linux_capture_ok(const stream& s);
     std::unordered_map<std::string, std::shared_ptr<stream>> streams;
     std::unordered_map<std::string, line_ptr> lines;
+    std::unordered_map<std::string, line_profile> line_profiles;
 
     size_t stream_idx { 0 };
     size_t line_idx { 0 };
@@ -109,10 +117,7 @@ private:
     event_sink_fn event_sink;
     event_batch_sink_fn event_batch_sink;
 
-    int default_analysis_interval_ms { 200 };
-    std::unordered_map<std::string, int> analysis_interval_overrides_ms;
-    std::unordered_map<std::string, std::chrono::steady_clock::time_point>
-        last_analysis_ts;
+    analysis_scheduler scheduler;
     std::unordered_map<std::string, std::jthread> daemons;
     std::jthread fake_thread;
     int fake_interval_ms { 700 };

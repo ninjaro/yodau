@@ -5,6 +5,7 @@
 #include "shell/stream_widget_bridge.hpp"
 #include "streams/stream_manager.hpp"
 
+#include <algorithm>
 #include <QStringList>
 #include <utility>
 
@@ -12,6 +13,81 @@ namespace active_edit_actions_support {
 
 QString backend_unavailable_detail() {
     return QStringLiteral("backend stream manager unavailable");
+}
+
+float effective_length_value(const QString& length_text) {
+    const QString normalized = normalized_line_length_text(length_text);
+    if (normalized == QStringLiteral("short")) {
+        return 0.75f;
+    }
+    if (normalized == QStringLiteral("long")) {
+        return 1.35f;
+    }
+
+    bool ok = false;
+    const float numeric_value = normalized.toFloat(&ok);
+    if (ok && numeric_value > 0.0f) {
+        return std::clamp(numeric_value, 0.25f, 4.0f);
+    }
+
+    return 1.0f;
+}
+
+float damping_value(const QString& response_text) {
+    const QString normalized = normalized_line_response_text(response_text);
+    if (normalized == QStringLiteral("dry")) {
+        return 0.25f;
+    }
+    if (normalized == QStringLiteral("resonant")) {
+        return 0.8f;
+    }
+
+    bool ok = false;
+    const float numeric_value = normalized.toFloat(&ok);
+    if (ok && numeric_value >= 0.0f) {
+        return std::clamp(numeric_value, 0.0f, 1.0f);
+    }
+
+    return 0.5f;
+}
+
+float interaction_width_value(
+    const QString& width_text, const float visual_width
+) {
+    const QString normalized = normalized_line_width_text(width_text);
+    if (normalized == QStringLiteral("string_light")) {
+        return visual_width * 1.2f;
+    }
+    if (normalized == QStringLiteral("string_heavy")) {
+        return visual_width * 1.3f;
+    }
+    return visual_width;
+}
+
+yodau::backend::line_profile backend_profile_from_line_editor(
+    const QString& line_name, const line_profile& profile_value
+) {
+    const float visual_width
+        = static_cast<float>(line_width_visual_value(profile_value.width_text));
+    return yodau::backend::make_line_profile(
+        line_name.toStdString(), visual_width,
+        interaction_width_value(profile_value.width_text, visual_width),
+        effective_length_value(profile_value.length_text),
+        damping_value(profile_value.response_text)
+    );
+}
+
+yodau::backend::line_profile backend_profile_from_template_settings(
+    const QString& line_name, const template_apply_settings& settings_value
+) {
+    const float visual_width
+        = static_cast<float>(line_width_visual_value(settings_value.width_text));
+    return yodau::backend::make_line_profile(
+        line_name.toStdString(), visual_width,
+        interaction_width_value(settings_value.width_text, visual_width),
+        effective_length_value(settings_value.length_text),
+        damping_value(settings_value.response_text)
+    );
 }
 
 } // namespace active_edit_actions_support
@@ -55,6 +131,11 @@ active_edit_actions::line_save_result active_edit_actions::save_active_line(
         );
 
         result.final_name = QString::fromStdString(line_ptr->name);
+        stream_mgr_->set_line_profile(
+            active_edit_actions_support::backend_profile_from_line_editor(
+                result.final_name, result.profile
+            )
+        );
         stream_mgr_->set_line(
             active_name.toStdString(), result.final_name.toStdString()
         );
@@ -100,6 +181,12 @@ active_edit_actions::apply_active_template(
         stream_mgr_->set_line(
             active_name.toStdString(),
             result.settings.template_name.toStdString()
+        );
+        stream_mgr_->set_stream_line_profile(
+            active_name.toStdString(),
+            active_edit_actions_support::backend_profile_from_template_settings(
+                result.settings.template_name, result.settings
+            )
         );
     } catch (const std::exception& e) {
         result.status = template_apply_status::backend_error;

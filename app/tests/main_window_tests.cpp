@@ -43,6 +43,8 @@
 #include <QTimeZone>
 #include <QtTest/QtTest>
 
+#include <cmath>
+
 namespace main_window_tests_support {
 
 frontend_log_entry make_log_entry(
@@ -181,6 +183,27 @@ void main_window_tests::active_edit_actions_apply_lines_and_templates_against_ba
         edit_session.stream_lines(QStringLiteral("cam-1")).front().template_name,
         QStringLiteral("north")
     );
+    const auto stored_backend_profile = stream_mgr.find_line_profile("north");
+    QVERIFY(stored_backend_profile.has_value());
+    QVERIFY(std::fabs(stored_backend_profile->visual_width - 6.5f) < 0.01f);
+    QVERIFY(
+        std::fabs(stored_backend_profile->interaction_width - 8.45f) < 0.01f
+    );
+    QVERIFY(
+        std::fabs(stored_backend_profile->effective_length - 1.35f) < 0.01f
+    );
+    QVERIFY(std::fabs(stored_backend_profile->damping - 0.8f) < 0.01f);
+
+    const auto attached_backend_profile
+        = stream_mgr.find_stream_line_profile("cam-1", "north");
+    QVERIFY(attached_backend_profile.has_value());
+    QVERIFY(
+        std::fabs(
+            attached_backend_profile->visual_width
+            - stored_backend_profile->visual_width
+        )
+        < 0.01f
+    );
     QCOMPARE(static_cast<int>(active_cell->draft_points_pct().size()), 0);
     QCOMPARE(panel.current_active_line_profile().name, QString());
 
@@ -227,6 +250,26 @@ void main_window_tests::active_edit_actions_apply_lines_and_templates_against_ba
     QCOMPARE(static_cast<int>(stream_mgr.stream_lines("cam-1").size()), 1);
     QCOMPARE(static_cast<int>(edit_session.stream_lines(QStringLiteral("cam-1")).size()), 2);
     QCOMPARE(panel.current_active_template_settings().template_name, QString());
+    const auto global_profile_after_apply = stream_mgr.find_line_profile("north");
+    QVERIFY(global_profile_after_apply.has_value());
+    QVERIFY(
+        std::fabs(
+            global_profile_after_apply->visual_width
+            - stored_backend_profile->visual_width
+        )
+        < 0.01f
+    );
+    const auto stream_profile_after_apply
+        = stream_mgr.find_stream_line_profile("cam-1", "north");
+    QVERIFY(stream_profile_after_apply.has_value());
+    QVERIFY(std::fabs(stream_profile_after_apply->visual_width - 2.0f) < 0.01f);
+    QVERIFY(
+        std::fabs(stream_profile_after_apply->interaction_width - 2.0f) < 0.01f
+    );
+    QVERIFY(
+        std::fabs(stream_profile_after_apply->effective_length - 0.75f) < 0.01f
+    );
+    QVERIFY(std::fabs(stream_profile_after_apply->damping - 0.25f) < 0.01f);
 
     active_cell->set_draft_points_pct(
         {
@@ -762,7 +805,12 @@ void main_window_tests::active_stream_workflow_tracks_selection_logs_and_follow_
     );
     QCOMPARE(
         algorithm_update.entries.front().severity,
-        frontend_log_severity::warning
+        frontend_log_severity::info
+    );
+    QVERIFY(
+        algorithm_update.entries.front().detail.contains(
+            QStringLiteral("backend runtime uses spot_grid")
+        )
     );
     QVERIFY(
         algorithm_update.entries.front().detail.contains(
@@ -2639,11 +2687,11 @@ void main_window_tests::settings_panel_exports_current_filtered_log_report() {
     );
     buffer.append(
         main_window_tests_support::make_log_entry(
-            timestamp, frontend_log_area::active, frontend_log_severity::warning,
+            timestamp, frontend_log_area::active, frontend_log_severity::info,
             QStringLiteral("stream_settings"),
             QStringLiteral("algorithm preference updated"),
             QStringLiteral("cam-1"),
-            QStringLiteral("backend runtime still uses baseline processing"),
+            QStringLiteral("backend runtime uses contour_mask"),
             QStringLiteral("contour_mask")
         )
     );

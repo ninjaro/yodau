@@ -25,12 +25,15 @@ private:
         cxxopts::Options& options
     );
     void cmd_list_streams(const std::vector<std::string>& args);
+    void cmd_list_algorithms(const std::vector<std::string>& args);
     void cmd_add_stream(const std::vector<std::string>& args);
     void cmd_start_stream(const std::vector<std::string>& args);
     void cmd_stop_stream(const std::vector<std::string>& args);
     void cmd_list_lines(const std::vector<std::string>& args);
     void cmd_add_line(const std::vector<std::string>& args);
     void cmd_set_line(const std::vector<std::string>& args);
+    void cmd_set_stream_algorithm(const std::vector<std::string>& args);
+    void cmd_set_default_algorithm(const std::vector<std::string>& args);
     void cmd_list_virtual_cameras(const std::vector<std::string>& args);
     void cmd_set_log_mode(const std::vector<std::string>& args);
     void cmd_show_log(const std::vector<std::string>& args);

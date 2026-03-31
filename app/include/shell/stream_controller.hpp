@@ -101,6 +101,9 @@ private:
     void handle_enlarge_requested(const QString& name);
     void handle_back_to_grid();
     void handle_thumb_activate(const QString& name);
+    void sync_backend_stream_algorithm(
+        const QString& stream_name, const QString& algorithm_id
+    );
 
     void set_active_stream(const QString& name);
     stream_settings settings_for_stream(const QString& name) const;

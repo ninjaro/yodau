@@ -42,6 +42,7 @@ stream_controller::stream_controller(
           yodau::backend::processing_runtime_options {
               .mode = yodau::backend::render_mode::frontend_only,
               .enable_virtual_camera = false,
+              .algorithm_id = default_frontend_algorithm_id().toStdString(),
           }
       )
     , stream_mgr(mgr)
@@ -66,7 +67,6 @@ stream_controller::stream_controller(
     qRegisterMetaType<template_apply_settings>("template_apply_settings");
     fps_capability = yodau::backend::detect_fps_capability_profile();
     log_buffer = new frontend_log_buffer(this);
-
     if (settings != nullptr) {
         settings->set_log_buffer(log_buffer);
         edit_controller.initialize_editor_state();
@@ -223,9 +223,17 @@ void stream_controller::set_active_stream(const QString& name) {
 void stream_controller::on_active_stream_settings_changed(
     stream_settings settings_value
 ) {
+    settings_value = stream_catalog_state::normalized_stream_settings(
+        std::move(settings_value)
+    );
+    const QString stream_name = settings_value.stream_name;
+    const QString algorithm_id = settings_value.algorithm_id;
+
     apply_active_stream_result(
         stream_workflow.apply_stream_settings(std::move(settings_value))
     );
+
+    sync_backend_stream_algorithm(stream_name, algorithm_id);
 }
 
 void stream_controller::on_active_edit_mode_changed(bool drawing_new) {
@@ -343,6 +351,29 @@ void stream_controller::handle_back_to_grid() {
 
 void stream_controller::handle_thumb_activate(const QString& name) {
     handle_enlarge_requested(name);
+}
+
+void stream_controller::sync_backend_stream_algorithm(
+    const QString& stream_name, const QString& algorithm_id
+) {
+    if (stream_name.isEmpty()) {
+        return;
+    }
+
+    const QString normalized_algorithm_id
+        = normalized_frontend_algorithm_id(algorithm_id);
+    if (backend_runtime.set_stream_algorithm(
+            stream_name.toStdString(), normalized_algorithm_id.toStdString()
+        )) {
+        return;
+    }
+
+    append_log(
+        frontend_log_area::active, frontend_log_severity::error,
+        QStringLiteral("stream_settings"),
+        QStringLiteral("backend algorithm update failed"), stream_name,
+        normalized_algorithm_id, normalized_algorithm_id
+    );
 }
 
 void stream_controller::append_log_entry(frontend_log_entry entry) const {

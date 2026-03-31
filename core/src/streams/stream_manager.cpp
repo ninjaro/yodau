@@ -20,6 +20,15 @@ void yodau::backend::stream_manager::dump_lines(std::ostream& out) const {
     for (const auto& line : lines | std::views::values) {
         out << "\n\t";
         line->dump(out);
+
+        const auto profile_it = line_profiles.find(line->name);
+        const line_profile profile = profile_it != line_profiles.end()
+            ? profile_it->second
+            : make_line_profile(line->name);
+        out << " profile(width=" << profile.visual_width
+            << ", interaction=" << profile.interaction_width
+            << ", length=" << profile.effective_length
+            << ", damping=" << profile.damping << ")";
     }
 }
 
@@ -106,7 +115,105 @@ yodau::backend::line_ptr yodau::backend::stream_manager::add_line(
     }
     auto new_line = make_line(std::move(parsed_points), line_name, closed);
     lines.emplace(line_name, new_line);
+    line_profiles.emplace(line_name, make_line_profile(line_name));
     return new_line;
+}
+
+void yodau::backend::stream_manager::set_line_profile(
+    line_profile profile_value
+) {
+    std::scoped_lock lock(mtx);
+
+    profile_value.normalize();
+    if (profile_value.line_name.empty()) {
+        throw std::runtime_error("line name is required for line profile");
+    }
+
+    if (!lines.contains(profile_value.line_name)) {
+        throw std::runtime_error("line not found: " + profile_value.line_name);
+    }
+
+    line_profiles[profile_value.line_name] = profile_value;
+    for (const auto& stream_ptr : streams | std::views::values) {
+        if (stream_ptr) {
+            stream_ptr->set_line_profile(profile_value);
+        }
+    }
+}
+
+std::optional<yodau::backend::line_profile>
+yodau::backend::stream_manager::find_line_profile(
+    const std::string& line_name
+) const {
+    std::scoped_lock lock(mtx);
+
+    if (!lines.contains(line_name)) {
+        return std::nullopt;
+    }
+
+    const auto profile_it = line_profiles.find(line_name);
+    if (profile_it == line_profiles.end()) {
+        return make_line_profile(line_name);
+    }
+
+    return profile_it->second;
+}
+
+void yodau::backend::stream_manager::set_stream_line_profile(
+    const std::string& stream_name, line_profile profile_value
+) {
+    std::shared_ptr<stream> stream_ptr;
+
+    {
+        std::scoped_lock lock(mtx);
+
+        profile_value.normalize();
+        if (profile_value.line_name.empty()) {
+            throw std::runtime_error("line name is required for line profile");
+        }
+
+        if (!lines.contains(profile_value.line_name)) {
+            throw std::runtime_error("line not found: " + profile_value.line_name);
+        }
+
+        const auto stream_it = streams.find(stream_name);
+        if (stream_it == streams.end() || !stream_it->second) {
+            throw std::runtime_error("stream not found: " + stream_name);
+        }
+
+        stream_ptr = stream_it->second;
+    }
+
+    if (!stream_ptr->find_line_profile(profile_value.line_name).has_value()) {
+        throw std::runtime_error(
+            "line not connected to stream: " + profile_value.line_name
+        );
+    }
+
+    stream_ptr->set_line_profile(std::move(profile_value));
+}
+
+std::optional<yodau::backend::line_profile>
+yodau::backend::stream_manager::find_stream_line_profile(
+    const std::string& stream_name, const std::string& line_name
+) const {
+    std::shared_ptr<stream> stream_ptr;
+
+    {
+        std::scoped_lock lock(mtx);
+        const auto stream_it = streams.find(stream_name);
+        if (stream_it == streams.end()) {
+            return std::nullopt;
+        }
+
+        stream_ptr = stream_it->second;
+    }
+
+    if (!stream_ptr) {
+        return std::nullopt;
+    }
+
+    return stream_ptr->find_line_profile(line_name);
 }
 
 yodau::backend::stream& yodau::backend::stream_manager::set_line(
@@ -121,7 +228,14 @@ yodau::backend::stream& yodau::backend::stream_manager::set_line(
     if (line_it == lines.end()) {
         throw std::runtime_error("line not found: " + line_name);
     }
-    stream_it->second->connect_line(line_it->second);
+    const auto profile_it = line_profiles.find(line_name);
+    stream_it->second->connect_line(
+        line_it->second,
+        profile_it != line_profiles.end() ? std::optional<line_profile>(profile_it->second)
+                                          : std::optional<line_profile>(
+                                                make_line_profile(line_name)
+                                            )
+    );
     return *stream_it->second;
 }
 
@@ -236,8 +350,6 @@ yodau::backend::stream_manager::process_frame(
 ) {
     std::shared_ptr<stream> sp;
     frame_processor_fn fp;
-    const auto now = std::chrono::steady_clock::now();
-    bool allow = false;
 
     {
         std::scoped_lock lock(mtx);
@@ -248,27 +360,9 @@ yodau::backend::stream_manager::process_frame(
 
         fp = frame_processor;
         sp = it->second;
-
-        const auto last_it = last_analysis_ts.find(stream_name);
-        const int analysis_interval_ms
-            = analysis_interval_for_stream_locked(stream_name);
-        if (last_it == last_analysis_ts.end()) {
-            last_analysis_ts[stream_name] = now;
-            allow = true;
-        } else {
-            const auto dt
-                = std::chrono::duration_cast<std::chrono::milliseconds>(
-                      now - last_it->second
-                )
-                      .count();
-            if (dt >= analysis_interval_ms) {
-                last_analysis_ts[stream_name] = now;
-                allow = true;
-            }
-        }
     }
 
-    if (!allow || !sp || !fp) {
+    if (!sp || !fp || !scheduler.should_process(stream_name)) {
         return {};
     }
 
@@ -295,33 +389,19 @@ void yodau::backend::stream_manager::set_event_batch_sink(
 }
 
 void yodau::backend::stream_manager::set_analysis_interval_ms(int ms) {
-    if (ms <= 0) {
-        return;
-    }
-    std::scoped_lock lock(mtx);
-    default_analysis_interval_ms = ms;
+    scheduler.set_default_interval_ms(ms);
 }
 
 void yodau::backend::stream_manager::set_stream_analysis_interval_ms(
     const std::string& stream_name, const int ms
 ) {
-    if (stream_name.empty() || ms <= 0) {
-        return;
-    }
-
-    std::scoped_lock lock(mtx);
-    analysis_interval_overrides_ms[stream_name] = ms;
+    scheduler.set_stream_interval_ms(stream_name, ms);
 }
 
 void yodau::backend::stream_manager::clear_stream_analysis_interval_ms(
     const std::string& stream_name
 ) {
-    if (stream_name.empty()) {
-        return;
-    }
-
-    std::scoped_lock lock(mtx);
-    analysis_interval_overrides_ms.erase(stream_name);
+    scheduler.clear_stream_interval_ms(stream_name);
 }
 
 void yodau::backend::stream_manager::start_stream(const std::string& name) {
@@ -458,6 +538,14 @@ void yodau::backend::stream_manager::set_line_dir(
     new_ptr->dir = dir;
 
     it->second = new_ptr;
+    const line_profile profile_value = line_profiles.contains(line_name)
+        ? line_profiles.at(line_name)
+        : make_line_profile(line_name);
+    for (const auto& stream_ptr : streams | std::views::values) {
+        if (stream_ptr && stream_ptr->find_line_profile(line_name).has_value()) {
+            stream_ptr->connect_line(new_ptr, profile_value);
+        }
+    }
 }
 
 std::vector<std::shared_ptr<yodau::backend::stream>>
@@ -489,18 +577,6 @@ void yodau::backend::stream_manager::snapshot_hooks(
 int yodau::backend::stream_manager::current_fake_interval_ms() const {
     std::scoped_lock lock(mtx);
     return fake_interval_ms;
-}
-
-int yodau::backend::stream_manager::analysis_interval_for_stream_locked(
-    const std::string& stream_name
-) const {
-    const auto interval_it = analysis_interval_overrides_ms.find(stream_name);
-    if (interval_it != analysis_interval_overrides_ms.end()
-        && interval_it->second > 0) {
-        return interval_it->second;
-    }
-
-    return default_analysis_interval_ms;
 }
 
 void yodau::backend::stream_manager::run_stream_daemon(

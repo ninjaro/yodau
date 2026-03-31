@@ -2,10 +2,12 @@
 
 The backend runtime now supports two rendering ownership modes:
 
-* `backend_only` - used by the CLI. OpenCV capture, detection, line overlay rendering, and the backend-owned virtual camera all run in the backend library.
+* `backend_only` - used by the CLI. OpenCV capture, detection, and backend-owned preview routing now run in the backend library through `processing_preview_router`, which renders line, event, and algorithm overlays before optional virtual-camera publication.
 * `frontend_only` - used by the Qt app. Qt decodes and draws frames, while the backend library only performs detection and emits events.
 
 In CLI `backend_only` mode, `yodau` does not open preview windows. Instead, on Linux it tries to publish rendered frames into a V4L2 output device so the stream can be opened externally, for example with `ffplay /dev/yodau-video0`, and can appear in webcam pickers if the system exposes that loopback device to other applications.
+That backend preview path now consumes `processing_result.overlays` in addition
+to the generic stream-line and event markers.
 
 The CLI now also keeps an in-memory log history with two output modes:
 
@@ -24,6 +26,61 @@ yodau> clear-log
 * `clear-log` clears that history.
 * `set-log-mode` changes both immediate CLI log echoing and `show-log`
   formatting.
+
+### Algorithms
+
+The backend now exposes three concrete processing algorithms:
+
+* `motion_baseline` - current OpenCV-heavy tripwire baseline.
+* `spot_grid` - cheaper grid/downsampled motion detector.
+* `contour_mask` - contour/mask-driven detector with centroid-path tripwire
+  checks.
+
+Algorithm selection is scoped per stream at runtime:
+
+* one stream uses one active algorithm at a time
+* the runtime has a default algorithm for streams without an override
+* a stream override can be changed while the stream exists; the next processed
+  frames use the new algorithm
+
+```bash
+yodau> list-algorithms
+yodau> set-default-algorithm spot_grid
+yodau> set-stream-algorithm cam0 contour_mask
+yodau> set-stream-algorithm cam0 default
+```
+
+* `list-algorithms` prints the current default plus stream-specific overrides.
+* `set-default-algorithm` changes the fallback algorithm for streams without
+  an override.
+* `set-stream-algorithm` sets one algorithm for one stream.
+* Passing `default`, `reset`, or `clear` to `set-stream-algorithm` removes the
+  stream override and falls back to the current default.
+* The current default remains `motion_baseline` until changed explicitly.
+
+### Benchmarks
+
+The repo now also exposes a Stage 0 benchmark harness for backend algorithm
+comparison. It currently replays synthetic fixtures that match the scenario ids
+documented in `BENCHMARKS.md`, while recorded clips and richer metrics are
+still follow-up work.
+
+```bash
+cmake -S . -B /tmp/yodau-bench-build -DECOSYSTEM_BUILD_BENCHMARKS=ON
+cmake --build /tmp/yodau-bench-build --target backend_benchmarks__bench
+/tmp/yodau-bench-build/yodau_bench --benchmark_filter='replay/.*/single_day_sparse'
+```
+
+Catalog files live under:
+
+* `benchmarks/scenarios/`
+* `benchmarks/hardware_profiles/`
+* `benchmarks/reports/`
+
+When run with `--benchmark_format=json`, the harness now emits counters for
+synthetic FPS, avg/p95 latency, RSS, false positives, missed events, and
+expected/detected tripwire counts, while Google Benchmark's JSON also carries
+the CPU-time fields.
 
 ### Streams
 
@@ -86,11 +143,20 @@ yodau> list-virtual-cameras
 
 A *line* describes a polyline or polygon in normalized coordinates. Lines can later be attached to streams.
 
+The current backend `line` type is geometry-only. It does not store visual
+width, effective string length, damping/response, or other richer string-like
+semantics. Those fields now have a separate backend `line_profile` foothold,
+and frontend save/apply flows plus CLI line creation now populate that profile.
+The core line contract still stays geometry-only, while backend-only preview
+routing currently uses the profile's visual width.
+
 Each line has:
 
 * `name` - line identifier.
 * `path` - sequence of points.
 * `close` - whether the line is treated as closed (polygon).
+* `dir` - optional tripwire crossing direction (`any`, `neg_to_pos`,
+  `pos_to_neg`).
 
 Coordinates are specified and stored as **floating-point percentages** in the range `[0.0, 100.0]`, where:
 
@@ -100,7 +166,9 @@ Coordinates are specified and stored as **floating-point percentages** in the ra
 #### add-line
 
 ```bash
-yodau> add-line --path=<coords> [--name=<name>] [--close=<0|1>]
+yodau> add-line --path=<coords> [--name=<name>] [--close=<0|1>] \
+                [--visual-width=<float>] [--interaction-width=<float>] \
+                [--effective-length=<float>] [--damping=<float>]
 ```
 
 * `path` is required.
@@ -109,12 +177,15 @@ yodau> add-line --path=<coords> [--name=<name>] [--close=<0|1>]
 * If `name` is omitted, a name like `line_0`, `line_1`, ... is auto-generated.
 * `path` is a semicolon-separated list of points, each point as `x,y`.
   Parentheses around points are allowed but ignored.
+* Optional profile flags update the separate backend `line_profile` record
+  instead of widening the geometry-only `line` itself.
 
 Examples:
 
 ```bash
 yodau> add-line --path=0,0;100,0
 yodau> add-line --path=10,20;20,20;20,80;10,80 --name=door --close=1
+yodau> add-line --path=0,50;100,50 --name=trip --visual-width=5 --interaction-width=6 --effective-length=1.4 --damping=0.75
 yodau> add-line --path=33.3,10;66.6,10;50,50
 ```
 
@@ -122,8 +193,8 @@ yodau> add-line --path=33.3,10;66.6,10;50,50
 yodau> list-lines
 # Example output:
 2 lines:
-    Line(name=line_0, closed=false, points=[(0, 0); (100, 0)])
-    Line(name=door, closed=true, points=[(10, 20); (20, 20); (20, 80); (10, 80)])
+    Line(name=line_0, closed=false, points=[(0, 0); (100, 0)]) profile(width=1, interaction=1, length=1, damping=0.5)
+    Line(name=door, closed=true, points=[(10, 20); (20, 20); (20, 80); (10, 80)]) profile(width=5, interaction=6, length=1.4, damping=0.75)
 ```
 
 ```bash

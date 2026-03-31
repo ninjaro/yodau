@@ -36,6 +36,7 @@ yodau::backend::stream::stream(stream&& other) noexcept
 
     std::scoped_lock lock(other.lines_mtx);
     lines = std::move(other.lines);
+    line_profiles = std::move(other.line_profiles);
 }
 
 yodau::backend::stream&
@@ -52,6 +53,7 @@ yodau::backend::stream::operator=(stream&& other) noexcept {
     loop = other.loop;
     active = other.active;
     lines = std::move(other.lines);
+    line_profiles = std::move(other.line_profiles);
 
     return *this;
 }
@@ -136,12 +138,49 @@ yodau::backend::stream_pipeline yodau::backend::stream::pipeline() const {
 
 void yodau::backend::stream::deactivate() { active = stream_pipeline::none; }
 
-void yodau::backend::stream::connect_line(line_ptr line) {
+void yodau::backend::stream::connect_line(
+    line_ptr line, std::optional<line_profile> profile
+) {
     if (!line) {
         return;
     }
+
+    line_profile connected_profile = profile.value_or(make_line_profile(line->name));
+    connected_profile.line_name = line->name;
+    connected_profile.normalize();
+
     std::scoped_lock lock(lines_mtx);
-    lines.emplace(line->name, line);
+    lines.insert_or_assign(line->name, line);
+    line_profiles.insert_or_assign(line->name, connected_profile);
+}
+
+void yodau::backend::stream::set_line_profile(line_profile profile_value) {
+    if (profile_value.line_name.empty()) {
+        return;
+    }
+
+    std::scoped_lock lock(lines_mtx);
+    if (!lines.contains(profile_value.line_name)) {
+        return;
+    }
+
+    profile_value.normalize();
+    line_profiles.insert_or_assign(profile_value.line_name, profile_value);
+}
+
+std::optional<yodau::backend::line_profile>
+yodau::backend::stream::find_line_profile(const std::string& line_name) const {
+    std::scoped_lock lock(lines_mtx);
+    if (!lines.contains(line_name)) {
+        return std::nullopt;
+    }
+
+    const auto profile_it = line_profiles.find(line_name);
+    if (profile_it == line_profiles.end()) {
+        return make_line_profile(line_name);
+    }
+
+    return profile_it->second;
 }
 
 std::vector<std::string> yodau::backend::stream::line_names() const {

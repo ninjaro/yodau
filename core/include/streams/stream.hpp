@@ -2,6 +2,7 @@
 #define YODAU_BACKEND_STREAM_HPP
 #include "geometry/geometry.hpp"
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 namespace yodau::backend {
@@ -35,7 +36,9 @@ public:
     stream_pipeline pipeline() const;
     void deactivate();
 
-    void connect_line(line_ptr line);
+    void connect_line(line_ptr line, std::optional<line_profile> profile = std::nullopt);
+    void set_line_profile(line_profile profile_value);
+    std::optional<line_profile> find_line_profile(const std::string& line_name) const;
     std::vector<std::string> line_names() const;
     std::vector<line_ptr> lines_snapshot() const;
 
@@ -46,6 +49,7 @@ private:
     bool loop { true };
     stream_pipeline active { stream_pipeline::none };
     std::unordered_map<std::string, line_ptr> lines;
+    std::unordered_map<std::string, line_profile> line_profiles;
     mutable std::mutex lines_mtx;
 };
 }

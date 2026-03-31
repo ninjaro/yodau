@@ -5,19 +5,8 @@
 namespace active_stream_workflow_support {
 
 QString algorithm_detail_text(const stream_settings& settings_value) {
-    const bool baseline_selected
-        = settings_value.algorithm_id == QStringLiteral("motion_baseline");
-
-    return QStringLiteral("%1; preset=%2 overlay=%3")
-        .arg(
-            baseline_selected
-                ? QStringLiteral(
-                      "frontend and backend both use baseline processing"
-                  )
-                : QStringLiteral(
-                      "frontend preference stored; backend runtime still uses baseline processing"
-                  )
-        )
+    return QStringLiteral("backend runtime uses %1; preset=%2 overlay=%3")
+        .arg(settings_value.algorithm_id)
         .arg(settings_value.algorithm_preset)
         .arg(
             settings_value.algorithm_overlay_enabled ? QStringLiteral("true")
@@ -71,13 +60,9 @@ active_stream_workflow::apply_stream_settings(
     }
 
     if (result.algorithm_changed) {
-        const bool baseline_selected
-            = result.settings.algorithm_id == QStringLiteral("motion_baseline");
-
         transition.entries.push_back(
             make_entry(
-                baseline_selected ? frontend_log_severity::info
-                                  : frontend_log_severity::warning,
+                frontend_log_severity::info,
                 QStringLiteral("stream_settings"),
                 QStringLiteral("algorithm preference updated"),
                 result.settings.stream_name,
