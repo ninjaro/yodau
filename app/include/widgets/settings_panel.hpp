@@ -5,25 +5,15 @@
 #include "shell/frontend_settings.hpp"
 
 #include <QColor>
-#include <QGroupBox>
 #include <QSet>
 #include <QStringList>
 #include <QWidget>
 
-class QButtonGroup;
-class QCheckBox;
-class QComboBox;
-class QLabel;
-class QLineEdit;
-class QPlainTextEdit;
-class QPushButton;
-class QRadioButton;
 class QTabWidget;
-class QTreeWidget;
-class QTreeWidgetItem;
-class algorithm_panel;
-class line_profile_panel;
-class template_apply_panel;
+class active_editor_panel;
+class log_toolbar_panel;
+class stream_inventory_panel;
+class stream_source_panel;
 
 class settings_panel final : public QWidget {
     Q_OBJECT
@@ -112,124 +102,35 @@ signals:
     );
 
 private:
-    enum class input_mode { file, local, url };
-
     // ui build
     void build_ui();
-    QWidget* build_log_toolbar();
     QWidget* build_add_tab();
     QWidget* build_streams_tab();
     QWidget* build_active_tab();
-
-    QWidget* build_active_stream_box(QWidget* parent);
-    QWidget* build_edit_mode_box(QWidget* parent);
-    QWidget* build_new_line_box(QWidget* parent);
-    QWidget* build_templates_box(QWidget* parent);
-
-    // add tab helpers
-    void set_mode(input_mode mode);
-    void update_add_tools() const;
-    void update_add_enabled() const;
-
-    void on_choose_file();
-    void on_add_clicked();
-    void on_refresh_local();
-    void on_name_changed(QString text) const;
-
-    QString resolved_name_for_current_input() const;
-    bool name_is_unique(const QString& name) const;
-    bool current_input_valid() const;
-
-    void set_name_error(bool error) const;
-
-    // active tab helpers
-    void update_active_tools() const;
-    void refresh_log_filter_options() const;
-    bool entry_matches_log_filters(const frontend_log_entry& entry) const;
     frontend_log_area current_log_area() const;
-    void rebuild_log_views() const;
-    void rebuild_log_view(QPlainTextEdit* view, frontend_log_area area) const;
 
 private slots:
-    void on_log_mode_changed(int index);
-    void on_log_severity_filter_changed(int index);
-    void on_log_stream_filter_changed(int index);
-    void on_log_subsystem_filter_changed(int index);
     void on_copy_logs_clicked();
     void on_copy_summary_clicked();
     void on_save_logs_clicked();
-    void on_mode_group_clicked(int id);
-    void on_local_source_changed();
-    void on_url_text_changed();
-    void on_active_combo_changed(const QString& text);
-    void on_active_labels_toggled(bool checked);
-    void on_algorithm_panel_settings_changed(stream_settings settings_value);
-    void on_active_mode_clicked(int id);
-
-    void on_stream_item_changed(QTreeWidgetItem* item, int column);
 
 private:
     // common
     QTabWidget* tabs;
-    QComboBox* log_mode_combo { nullptr };
-    QComboBox* log_severity_filter_combo { nullptr };
-    QComboBox* log_stream_filter_combo { nullptr };
-    QComboBox* log_subsystem_filter_combo { nullptr };
-    QPushButton* copy_logs_btn { nullptr };
-    QPushButton* copy_summary_btn { nullptr };
-    QPushButton* save_logs_btn { nullptr };
-    frontend_log_mode current_log_mode { frontend_log_mode::release };
-    int current_log_severity_filter { -1 };
-    QString current_log_stream_filter;
-    QString current_log_subsystem_filter;
-    frontend_log_buffer* shared_log_buffer { nullptr };
+    log_toolbar_panel* log_toolbar_widget { nullptr };
     QSet<QString> existing_names;
 
     // add tab
-    QWidget* add_tab;
-    QLineEdit* name_edit;
-
-    QButtonGroup* mode_group;
-    QRadioButton* file_radio;
-    QRadioButton* local_radio;
-    QRadioButton* url_radio;
-    input_mode current_mode;
-
-    QGroupBox* add_file_box = nullptr;
-    QLineEdit* file_path_edit;
-    QPushButton* choose_file_btn;
-    QCheckBox* loop_checkbox;
-
-    QGroupBox* add_local_box = nullptr;
-    QComboBox* local_sources_combo;
-    QPushButton* refresh_local_btn;
-
-    QGroupBox* add_url_box = nullptr;
-    QLineEdit* url_edit;
-
-    QPushButton* add_btn;
-    QPlainTextEdit* add_log_view;
+    QWidget* add_tab { nullptr };
+    stream_source_panel* source_panel { nullptr };
 
     // streams tab
     QWidget* streams_tab;
-    QTreeWidget* streams_list;
-    QPlainTextEdit* event_log_view;
+    stream_inventory_panel* inventory_panel { nullptr };
 
     // active tab
     QWidget* active_tab { nullptr };
-    QComboBox* active_combo { nullptr };
-    QCheckBox* active_labels_cb = nullptr;
-    algorithm_panel* active_algorithm_panel { nullptr };
-
-    QGroupBox* active_mode_box = nullptr;
-    QButtonGroup* active_mode_group { nullptr };
-    QRadioButton* active_mode_draw_radio { nullptr };
-    QRadioButton* active_mode_template_radio { nullptr };
-
-    line_profile_panel* active_line_panel { nullptr };
-    template_apply_panel* active_template_panel { nullptr };
-
-    QPlainTextEdit* active_log_view = nullptr;
+    active_editor_panel* active_editor_panel_widget { nullptr };
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP

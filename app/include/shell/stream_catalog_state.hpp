@@ -13,6 +13,9 @@ class stream_catalog_state final {
 public:
     static stream_settings
     default_stream_settings(const QString& stream_name = QString());
+    static stream_settings normalized_stream_settings(
+        stream_settings settings_value
+    );
     static QStringList detected_local_sources(
         const std::vector<std::string>& backend_names
     );

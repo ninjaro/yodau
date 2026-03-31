@@ -15,11 +15,17 @@
 
 #include "analysis/fps_policy.hpp"
 #include "analysis/processing_runtime.hpp"
+#include "shell/active_edit_actions.hpp"
+#include "shell/active_edit_controller.hpp"
 #include "shell/active_edit_session.hpp"
+#include "shell/active_edit_workflow.hpp"
+#include "shell/active_stream_state.hpp"
+#include "shell/active_stream_workflow.hpp"
 #include "shell/frontend_log.hpp"
 #include "shell/frontend_settings.hpp"
 #include "shell/processing_feedback_state.hpp"
 #include "shell/stream_catalog_state.hpp"
+#include "shell/stream_catalog_workflow.hpp"
 #include "shell/stream_route_state.hpp"
 #include "shell/stream_widget_bridge.hpp"
 #include "streams/stream_manager.hpp"
@@ -91,25 +97,17 @@ private:
     void setup_grid_connections();
     void on_grid_stream_closed(const QString& name);
 
-    // add helpers
-    void handle_add_stream_common(
-        const QString& source, const QString& name, const QString& type,
-        bool loop
-    );
-    void register_stream_in_ui(
-        const QString& final_name, const QString& source_desc
-    );
-
     // grid / active helpers
     void handle_enlarge_requested(const QString& name);
     void handle_back_to_grid();
     void handle_thumb_activate(const QString& name);
 
-    stream_cell* active_cell_checked(const QString& fail_prefix);
     void set_active_stream(const QString& name);
     stream_settings settings_for_stream(const QString& name) const;
     QString algorithm_id_for_stream(const QString& name) const;
 
+    void append_log_entry(frontend_log_entry entry) const;
+    void append_log_entries(const QVector<frontend_log_entry>& entries) const;
     void append_log(
         frontend_log_area area, frontend_log_severity severity,
         const QString& subsystem, const QString& message,
@@ -117,13 +115,15 @@ private:
         const QString& detail = QString(),
         const QString& algorithm_id = QString()
     ) const;
-    void log_active(
-        const QString& msg,
-        frontend_log_severity severity = frontend_log_severity::info,
-        const QString& detail = QString()
-    ) const;
-
-    static QString points_str_from_pct(const std::vector<QPointF>& pts);
+    void apply_active_edit_result(
+        const active_edit_workflow::transition_result& result
+    );
+    void apply_active_stream_result(
+        const active_stream_workflow::transition_result& result
+    );
+    void apply_catalog_result(
+        const stream_catalog_workflow::transition_result& result
+    );
 
     void refresh_fps_policy(bool force = false);
     int grid_cell_count() const;
@@ -157,6 +157,12 @@ private:
     stream_catalog_state catalog_state;
     stream_route_state route_state;
     stream_widget_bridge widget_bridge;
+    stream_catalog_workflow catalog_workflow;
+    active_stream_state active_streams;
+    active_stream_workflow stream_workflow;
+    active_edit_controller edit_controller;
+    active_edit_actions edit_actions;
+    active_edit_workflow edit_workflow;
 
     yodau::backend::fps_capability_profile fps_capability;
     QHash<QString, int> processing_scale_percent_by_stream;

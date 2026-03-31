@@ -1,7 +1,6 @@
 #include "shell/stream_controller.hpp"
 #include "geometry/geometry.hpp"
 #include "monitor/runtime_bridge.hpp"
-#include "shell/str_label.hpp"
 #include "streams/stream.hpp"
 #include "widgets/settings_panel.hpp"
 
@@ -9,7 +8,6 @@
 #include <QColor>
 #include <QDateTime>
 #include <QImage>
-#include <QMediaDevices>
 #include <QMetaObject>
 #include <QMetaType>
 #include <QThread>
@@ -51,7 +49,16 @@ stream_controller::stream_controller(
     , settings(panel)
     , main_zone(zone)
     , grid(zone ? zone->grid_mode() : nullptr)
-    , widget_bridge(zone, panel) {
+    , widget_bridge(zone, panel)
+    , catalog_workflow(mgr, panel, catalog_state, widget_bridge)
+    , active_streams(catalog_state, route_state, widget_bridge, edit_session)
+    , stream_workflow(active_streams)
+    , edit_controller(edit_session, widget_bridge)
+    , edit_actions(mgr, edit_session, widget_bridge, edit_controller)
+    , edit_workflow(
+          route_state, catalog_state, widget_bridge, edit_controller,
+          edit_actions
+      ) {
     qRegisterMetaType<yodau::backend::event>("yodau::backend::event");
     qRegisterMetaType<frontend_log_entry>("frontend_log_entry");
     qRegisterMetaType<stream_settings>("stream_settings");
@@ -62,7 +69,7 @@ stream_controller::stream_controller(
 
     if (settings != nullptr) {
         settings->set_log_buffer(log_buffer);
-        widget_bridge.initialize_editor_state(edit_session);
+        edit_controller.initialize_editor_state();
     }
 
     init_from_backend();
@@ -96,7 +103,7 @@ void stream_controller::update_monitor_inventory() {
         = static_cast<int>(stream_mgr->stream_names().size());
     const int visible_streams
         = grid != nullptr ? static_cast<int>(grid->stream_names().size()) : 0;
-    const int active_streams = route_state.has_active_stream() ? 1 : 0;
+    const int active_stream_count = route_state.has_active_stream() ? 1 : 0;
     const int configured_lines
         = static_cast<int>(stream_mgr->line_names().size());
 
@@ -108,85 +115,37 @@ void stream_controller::update_monitor_inventory() {
     }
 
     monitor_bridge->set_inventory(
-        configured_streams, visible_streams, active_streams, configured_lines,
+        configured_streams, visible_streams, active_stream_count, configured_lines,
         detected_local_sources
     );
 }
 
 void stream_controller::init_from_backend() {
-    if (!stream_mgr || !settings) {
-        return;
-    }
-
-    QSet<QString> names;
-
-    const auto backend_names = stream_mgr->stream_names();
-    for (auto& n : backend_names) {
-        const auto qname = QString::fromStdString(n);
-        names.insert(qname);
-        catalog_state.ensure_stream(qname);
-
-        QString desc = str_label("<unknown>");
-        const auto s = stream_mgr->find_stream(n);
-        if (s) {
-            // const auto t = s->get_type();
-            const auto path = QString::fromStdString(s->get_path());
-            const auto type = QString::fromStdString(
-                yodau::backend::stream::type_name(s->get_type())
-            );
-            desc = QString("%1:%2").arg(type, path);
-        }
-
-        settings->add_stream_entry(qname, desc);
-    }
-
-    settings->set_existing_names(names);
+    catalog_workflow.seed_from_backend();
 }
 
 void stream_controller::handle_add_file(
     const QString& path, const QString& name, const bool loop
 ) {
-    handle_add_stream_common(path, name, "file", loop);
+    apply_catalog_result(catalog_workflow.add_stream(path, name, "file", loop));
 }
 
 void stream_controller::handle_add_local(
     const QString& source, const QString& name
 ) {
-    handle_add_stream_common(source, name, "local", true);
+    apply_catalog_result(
+        catalog_workflow.add_stream(source, name, "local", true)
+    );
 }
 
 void stream_controller::handle_add_url(
     const QString& url, const QString& name
 ) {
-    handle_add_stream_common(url, name, "url", true);
+    apply_catalog_result(catalog_workflow.add_stream(url, name, "url", true));
 }
 
 void stream_controller::handle_detect_local_sources() {
-    if (!stream_mgr) {
-        return;
-    }
-
-    stream_mgr->refresh_local_streams();
-
-    const auto backend_names = stream_mgr->stream_names();
-    const QStringList locals
-        = stream_catalog_state::detected_local_sources(backend_names);
-
-    const auto cams = QMediaDevices::videoInputs();
-    if (settings != nullptr) {
-        settings->set_local_sources(locals);
-    }
-
-    append_log(
-        frontend_log_area::add, frontend_log_severity::info,
-        QStringLiteral("local_sources"),
-        QStringLiteral("local source inventory refreshed"), QString(),
-        QStringLiteral("backend=%1 qt=%2").arg(locals.size()).arg(cams.size())
-    );
-    update_monitor_inventory();
-    if (monitor_bridge != nullptr) {
-        monitor_bridge->add_marker(QStringLiteral("local_sources_refreshed"));
-    }
+    apply_catalog_result(catalog_workflow.detect_local_sources());
 }
 
 void stream_controller::handle_show_stream_changed(
@@ -197,41 +156,27 @@ void stream_controller::handle_show_stream_changed(
     }
 
     if (show) {
-        grid->add_stream(name);
-        if (auto* tile = grid->peek_stream_cell(name)) {
+        stream_widget_bridge::grid_stream_binding binding;
+        const auto s = stream_mgr->find_stream(name.toStdString());
+        if (s) {
+            binding.loop = s->is_looping();
+            binding.path = QString::fromStdString(s->get_path());
+            binding.type = QString::fromStdString(
+                yodau::backend::stream::type_name(s->get_type())
+            );
+        }
+
+        if (auto* tile = widget_bridge.show_stream_in_grid(
+                name, settings_for_stream(name), edit_session, binding
+            )) {
             connect(
                 tile, &stream_cell::frame_ready, this,
                 &stream_controller::on_gui_frame, Qt::UniqueConnection
             );
-            tile->set_persistent_lines(edit_session.stream_lines(name));
-            tile->set_stream_settings(settings_for_stream(name));
-
-            const auto s = stream_mgr->find_stream(name.toStdString());
-            if (s) {
-                tile->set_loop(s->is_looping());
-                const auto path = QString::fromStdString(s->get_path());
-                const auto type = s->get_type();
-
-                if (type == yodau::backend::stream_type::local) {
-                    tile->set_camera_id(path.toUtf8());
-                } else if (type == yodau::backend::stream_type::file) {
-                    tile->set_source(QUrl::fromLocalFile(path));
-                } else {
-                    tile->set_source(QUrl(path));
-                }
-            }
         }
     } else {
-        grid->remove_stream(name);
-        if (route_state.hide_stream(name) && main_zone) {
-            if (auto* cell = main_zone->take_active_cell()) {
-                cell->deleteLater();
-            }
-            widget_bridge.sync_active_selection(QString(), stream_settings {});
-        }
+        widget_bridge.hide_stream_from_grid(name, route_state.hide_stream(name));
     }
-
-    widget_bridge.sync_active_candidates();
 
     append_log(
         frontend_log_area::streams, frontend_log_severity::info,
@@ -272,429 +217,51 @@ void stream_controller::set_active_stream(const QString& name) {
         return;
     }
 
-    route_state.set_active_stream(name);
-    const QString active_name = route_state.active_stream_name();
-
-    const stream_settings current_stream_settings
-        = settings_for_stream(active_name);
-    widget_bridge.apply_active_stream(
-        active_name, current_stream_settings, edit_session
-    );
-    widget_bridge.sync_active_persistent(active_name, edit_session);
-    refresh_fps_policy(true);
-    update_monitor_inventory();
-
-    append_log(
-        frontend_log_area::active, frontend_log_severity::info,
-        QStringLiteral("active_stream"),
-        active_name.isEmpty() ? QStringLiteral("active stream cleared")
-                              : QStringLiteral("active stream selected"),
-        active_name
-    );
-
-    if (monitor_bridge != nullptr) {
-        monitor_bridge->add_marker(
-            active_name.isEmpty() ? QStringLiteral("active_stream_cleared")
-                                  : QStringLiteral("active_stream_selected")
-        );
-    }
+    apply_active_stream_result(stream_workflow.set_active_stream(name));
 }
 
 void stream_controller::on_active_stream_settings_changed(
     stream_settings settings_value
 ) {
-    settings_value.stream_name = settings_value.stream_name.trimmed();
-    settings_value.algorithm_id
-        = normalized_frontend_algorithm_id(settings_value.algorithm_id);
-    settings_value.algorithm_preset = normalized_algorithm_preset_id(
-        settings_value.algorithm_id, settings_value.algorithm_preset
+    apply_active_stream_result(
+        stream_workflow.apply_stream_settings(std::move(settings_value))
     );
-
-    const QString active_name = route_state.active_stream_name();
-    const QString previous_active_name = active_name;
-    if (settings_value.stream_name != previous_active_name) {
-        set_active_stream(settings_value.stream_name);
-        return;
-    }
-
-    if (settings_value.stream_name.isEmpty()) {
-        return;
-    }
-
-    const stream_settings previous_settings
-        = settings_for_stream(settings_value.stream_name);
-    catalog_state.set_stream_settings(settings_value);
-    widget_bridge.sync_stream_visual_settings(
-        settings_value.stream_name, settings_value, route_state
-    );
-
-    if (settings != nullptr && settings_value.stream_name == active_name) {
-        widget_bridge.sync_active_selection(active_name, settings_value);
-    }
-
-    if (previous_settings.labels_enabled != settings_value.labels_enabled) {
-        append_log(
-            frontend_log_area::active, frontend_log_severity::info,
-            QStringLiteral("stream_settings"),
-            settings_value.labels_enabled
-                ? QStringLiteral("line labels enabled")
-                : QStringLiteral("line labels disabled"),
-            settings_value.stream_name
-        );
-    }
-
-    if (previous_settings.algorithm_id != settings_value.algorithm_id) {
-        const bool baseline_selected
-            = settings_value.algorithm_id
-            == QStringLiteral("motion_baseline");
-
-        append_log(
-            frontend_log_area::active,
-            baseline_selected ? frontend_log_severity::info
-                              : frontend_log_severity::warning,
-            QStringLiteral("stream_settings"),
-            QStringLiteral("algorithm preference updated"),
-            settings_value.stream_name,
-            QStringLiteral("%1; preset=%2 overlay=%3")
-                .arg(
-                    baseline_selected
-                        ? QStringLiteral(
-                              "frontend and backend both use baseline processing"
-                          )
-                        : QStringLiteral(
-                              "frontend preference stored; backend runtime still uses baseline processing"
-                          )
-                )
-                .arg(settings_value.algorithm_preset)
-                .arg(
-                    settings_value.algorithm_overlay_enabled
-                        ? QStringLiteral("true")
-                        : QStringLiteral("false")
-                ),
-            settings_value.algorithm_id
-        );
-    }
 }
 
 void stream_controller::on_active_edit_mode_changed(bool drawing_new) {
-    const QString active_name = route_state.active_stream_name();
-    edit_session.set_drawing_new_mode(drawing_new);
-
-    if (auto* cell = widget_bridge.active_cell()) {
-        cell->clear_draft();
-        cell->set_drawing_enabled(drawing_new);
-
-        if (drawing_new) {
-            const line_profile& draft_line_profile
-                = edit_session.draft_line_profile();
-            cell->set_draft_params(
-                draft_line_profile.name, draft_line_profile.color,
-                draft_line_profile.closed, draft_line_profile.width_text,
-                draft_line_profile.length_text,
-                draft_line_profile.response_text
-            );
-        } else if (settings) {
-            settings->set_active_template_settings(
-                edit_session.active_template_settings()
-            );
-            widget_bridge.apply_template_preview(
-                edit_session.active_template_settings().template_name,
-                edit_session
-            );
-        }
-    }
-
-    append_log(
-        frontend_log_area::active, frontend_log_severity::info,
-        QStringLiteral("editing"),
-        drawing_new ? QStringLiteral("edit mode set to draw new")
-                    : QStringLiteral("edit mode set to use template"),
-        active_name
-    );
+    apply_active_edit_result(edit_workflow.set_drawing_new_mode(drawing_new));
 }
 
 void stream_controller::on_active_line_profile_changed(line_profile profile_value) {
-    const QString active_name = route_state.active_stream_name();
-    edit_session.set_draft_line_profile(std::move(profile_value));
-    const line_profile& draft_line_profile = edit_session.draft_line_profile();
-
-    if (settings != nullptr) {
-        settings->set_active_line_profile(draft_line_profile);
-    }
-
-    if (auto* cell = widget_bridge.active_cell()) {
-        cell->set_draft_params(
-            draft_line_profile.name, draft_line_profile.color,
-            draft_line_profile.closed, draft_line_profile.width_text,
-            draft_line_profile.length_text, draft_line_profile.response_text
-        );
-    }
-
-    append_log(
-        frontend_log_area::active, frontend_log_severity::debug,
-        QStringLiteral("line_editor"),
-        QStringLiteral("active line draft updated"), active_name,
-        QStringLiteral("name=%1 color=%2 closed=%3 %4")
-            .arg(draft_line_profile.name)
-            .arg(draft_line_profile.color.name())
-            .arg(
-                draft_line_profile.closed ? QStringLiteral("true")
-                                          : QStringLiteral("false")
-            )
-            .arg(
-                line_profile_summary_text(
-                    draft_line_profile.width_text,
-                    draft_line_profile.length_text,
-                    draft_line_profile.response_text
-                )
-            ),
-        algorithm_id_for_stream(active_name)
+    apply_active_edit_result(
+        edit_workflow.apply_line_profile(std::move(profile_value))
     );
 }
 
 void stream_controller::on_active_line_save_requested(line_profile profile_value) {
-    const QString active_name = route_state.active_stream_name();
-    edit_session.set_draft_line_profile(std::move(profile_value));
-    const line_profile& draft_line_profile = edit_session.draft_line_profile();
-
-    append_log(
-        frontend_log_area::active, frontend_log_severity::debug,
-        QStringLiteral("line_editor"), QStringLiteral("line save requested"),
-        active_name,
-        QStringLiteral("name=%1 closed=%2 %3")
-            .arg(draft_line_profile.name)
-            .arg(
-                draft_line_profile.closed ? QStringLiteral("true")
-                                          : QStringLiteral("false")
-            )
-            .arg(
-                line_profile_summary_text(
-                    draft_line_profile.width_text,
-                    draft_line_profile.length_text,
-                    draft_line_profile.response_text
-                )
-            ),
-        algorithm_id_for_stream(active_name)
+    apply_active_edit_result(
+        edit_workflow.save_active_line(std::move(profile_value))
     );
-
-    auto* cell = active_cell_checked("add line");
-    if (!cell) {
-        return;
-    }
-
-    const auto pts = cell->draft_points_pct();
-    if (pts.size() < 2) {
-        append_log(
-            frontend_log_area::active, frontend_log_severity::warning,
-            QStringLiteral("line_editor"),
-            QStringLiteral("line add requires at least 2 points"), active_name,
-            QString(), algorithm_id_for_stream(active_name)
-        );
-        return;
-    }
-
-    const auto points_str = points_str_from_pct(pts);
-    append_log(
-        frontend_log_area::active, frontend_log_severity::debug,
-        QStringLiteral("line_editor"),
-        QStringLiteral("line draft points prepared"), active_name, points_str,
-        algorithm_id_for_stream(active_name)
-    );
-
-    try {
-        const auto lp = stream_mgr->add_line(
-            points_str.toStdString(), draft_line_profile.closed,
-            draft_line_profile.name.toStdString()
-        );
-
-        const auto final_name = QString::fromStdString(lp->name);
-        const stream_cell::line_instance inst = edit_session.store_saved_line(
-            active_name, final_name, pts, draft_line_profile.closed
-        );
-
-        cell->add_persistent_line(inst);
-        stream_mgr->set_line(
-            active_name.toStdString(), final_name.toStdString()
-        );
-
-        cell->clear_draft();
-        cell->set_draft_params(
-            QString(), QColor(Qt::red), false, default_line_width_text(),
-            default_line_length_text(), default_line_response_text()
-        );
-
-        edit_session.reset_draft_line_profile();
-
-        if (settings) {
-            settings->set_active_line_profile(edit_session.draft_line_profile());
-            settings->reset_active_line_form();
-            settings->add_template_candidate(final_name);
-            settings->reset_active_template_form();
-        }
-
-        append_log(
-            frontend_log_area::active, frontend_log_severity::info,
-            QStringLiteral("line_editor"), QStringLiteral("line added"),
-            active_name,
-            QStringLiteral("template=%1 points=%2 closed=%3 %4")
-                .arg(final_name)
-                .arg(pts.size())
-                .arg(
-                    inst.closed ? QStringLiteral("true")
-                                : QStringLiteral("false")
-                )
-                .arg(
-                    line_profile_summary_text(
-                        inst.width_text, inst.length_text, inst.response_text
-                    )
-                ),
-            algorithm_id_for_stream(active_name)
-        );
-
-        widget_bridge.sync_active_persistent(active_name, edit_session);
-        refresh_fps_policy(true);
-        update_monitor_inventory();
-        if (monitor_bridge != nullptr) {
-            monitor_bridge->add_marker(QStringLiteral("line_added"));
-        }
-    } catch (const std::exception& e) {
-        append_log(
-            frontend_log_area::active, frontend_log_severity::error,
-            QStringLiteral("line_editor"), QStringLiteral("line add failed"),
-            active_name, QString::fromLocal8Bit(e.what()),
-            algorithm_id_for_stream(active_name)
-        );
-    }
 }
 
 void stream_controller::on_active_template_add_requested(
     template_apply_settings settings_value
 ) {
-    const QString active_name = route_state.active_stream_name();
-    edit_session.set_active_template_settings(std::move(settings_value));
-    const template_apply_settings& active_template_settings
-        = edit_session.active_template_settings();
-
-    auto* cell = active_cell_checked("add template");
-    if (!cell) {
-        return;
-    }
-
-    if (!edit_session.has_template(active_template_settings.template_name)) {
-        append_log(
-            frontend_log_area::active, frontend_log_severity::warning,
-            QStringLiteral("template_editor"),
-            QStringLiteral("template add failed: unknown template"),
-            active_name, active_template_settings.template_name,
-            algorithm_id_for_stream(active_name)
-        );
-        return;
-    }
-
-    try {
-        stream_mgr->set_line(
-            active_name.toStdString(),
-            active_template_settings.template_name.toStdString()
-        );
-    } catch (const std::exception& e) {
-        append_log(
-            frontend_log_area::active, frontend_log_severity::error,
-            QStringLiteral("template_editor"),
-            QStringLiteral("template add failed"), active_name,
-            QString::fromLocal8Bit(e.what()),
-            algorithm_id_for_stream(active_name)
-        );
-        return;
-    }
-
-    const stream_cell::line_instance inst = edit_session.store_applied_template_line(
-        active_name, active_template_settings
+    apply_active_edit_result(
+        edit_workflow.apply_active_template(std::move(settings_value))
     );
-    cell->add_persistent_line(inst);
-
-    append_log(
-        frontend_log_area::active, frontend_log_severity::info,
-        QStringLiteral("template_editor"),
-        QStringLiteral("template added to active stream"), active_name,
-        QStringLiteral("%1 %2")
-            .arg(active_template_settings.template_name)
-            .arg(
-                line_profile_summary_text(
-                    active_template_settings.width_text,
-                    active_template_settings.length_text,
-                    active_template_settings.response_text
-                )
-            ),
-        algorithm_id_for_stream(active_name)
-    );
-
-    cell->clear_draft();
-
-    if (settings) {
-        settings->reset_active_template_form();
-    }
-
-    widget_bridge.sync_active_persistent(active_name, edit_session);
 }
 
 void stream_controller::on_active_template_settings_changed(
     template_apply_settings settings_value
 ) {
-    const QString active_name = route_state.active_stream_name();
-    const QString previous_template_name
-        = edit_session.active_template_settings().template_name;
-    const bool inherit_template_profile
-        = settings_value.template_name.trimmed() != previous_template_name;
-    settings_value = edit_session.resolved_template_settings(
-        std::move(settings_value), inherit_template_profile
-    );
-    edit_session.set_active_template_settings(settings_value);
-    const template_apply_settings& active_template_settings
-        = edit_session.active_template_settings();
-
-    if (settings != nullptr) {
-        settings->set_active_template_settings(active_template_settings);
-    }
-
-    if (edit_session.drawing_new_mode()) {
-        return;
-    }
-
-    widget_bridge.apply_template_preview(
-        active_template_settings.template_name, edit_session
-    );
-
-    append_log(
-        frontend_log_area::active, frontend_log_severity::debug,
-        QStringLiteral("template_editor"),
-        QStringLiteral("template preview updated"), active_name,
-        QStringLiteral("template=%1 color=%2 %3")
-            .arg(active_template_settings.template_name)
-            .arg(active_template_settings.color.name())
-            .arg(
-                line_profile_summary_text(
-                active_template_settings.width_text,
-                active_template_settings.length_text,
-                active_template_settings.response_text
-                )
-            ),
-        algorithm_id_for_stream(active_name)
+    apply_active_edit_result(
+        edit_workflow.apply_template_settings(std::move(settings_value))
     );
 }
 
 void stream_controller::on_active_line_undo_requested() {
-    auto* cell = widget_bridge.active_cell();
-    if (!cell) {
-        return;
-    }
-
-    auto pts = cell->draft_points_pct();
-    if (pts.empty()) {
-        return;
-    }
-
-    pts.pop_back();
-    cell->set_draft_points_pct(pts);
+    edit_workflow.undo_last_draft_point();
 }
 
 void stream_controller::setup_settings_connections() {
@@ -760,72 +327,6 @@ void stream_controller::on_grid_stream_closed(const QString& name) {
     }
 }
 
-void stream_controller::handle_add_stream_common(
-    const QString& source, const QString& name, const QString& type, bool loop
-) {
-    if (!stream_mgr) {
-        return;
-    }
-
-    const stream_route_state::add_source_validation validation
-        = stream_route_state::validate_add_source(source, type);
-    if (!validation.valid) {
-        append_log(
-            frontend_log_area::add, frontend_log_severity::warning,
-            QStringLiteral("stream_add"), validation.message, name,
-            validation.detail
-        );
-        return;
-    }
-
-    try {
-        const auto& s = stream_mgr->add_stream(
-            source.toStdString(), name.toStdString(), type.toStdString(), loop
-        );
-
-        const auto final_name = QString::fromStdString(s.get_name());
-        const auto source_desc
-            = stream_route_state::source_description(source, type);
-
-        append_log(
-            frontend_log_area::add, frontend_log_severity::info,
-            QStringLiteral("stream_add"), QStringLiteral("stream added"),
-            final_name, source_desc
-        );
-
-        register_stream_in_ui(final_name, source_desc);
-        update_monitor_inventory();
-        if (monitor_bridge != nullptr) {
-            monitor_bridge->add_marker(QStringLiteral("stream_added"));
-        }
-    } catch (const std::exception& e) {
-        append_log(
-            frontend_log_area::add, frontend_log_severity::error,
-            QStringLiteral("stream_add"),
-            QStringLiteral("add %1 stream failed").arg(type), name,
-            QString::fromLocal8Bit(e.what())
-        );
-    }
-}
-
-void stream_controller::register_stream_in_ui(
-    const QString& final_name, const QString& source_desc
-) {
-    catalog_state.ensure_stream(final_name);
-
-    if (!settings) {
-        return;
-    }
-
-    settings->add_existing_name(final_name);
-    settings->add_stream_entry(final_name, source_desc);
-    settings->clear_add_inputs();
-    widget_bridge.sync_active_candidates();
-
-    refresh_fps_policy(true);
-    update_monitor_inventory();
-}
-
 void stream_controller::handle_enlarge_requested(const QString& name) {
     const QString next_active_name
         = route_state.next_active_stream_for_enlarge(name);
@@ -844,29 +345,23 @@ void stream_controller::handle_thumb_activate(const QString& name) {
     handle_enlarge_requested(name);
 }
 
-stream_cell*
-stream_controller::active_cell_checked(const QString& fail_prefix) {
-    if (!stream_mgr || !main_zone || !route_state.has_active_stream()) {
-        append_log(
-            frontend_log_area::active, frontend_log_severity::warning,
-            QStringLiteral("active_stream"),
-            QStringLiteral("%1 failed: no active stream").arg(fail_prefix)
-        );
-        return nullptr;
+void stream_controller::append_log_entry(frontend_log_entry entry) const {
+    if (log_buffer != nullptr) {
+        log_buffer->append(std::move(entry));
+        return;
     }
 
-    auto* cell = widget_bridge.active_cell();
-    if (!cell) {
-        append_log(
-            frontend_log_area::active, frontend_log_severity::warning,
-            QStringLiteral("active_stream"),
-            QStringLiteral("%1 failed: active cell not found").arg(fail_prefix),
-            route_state.active_stream_name()
-        );
-        return nullptr;
+    if (settings != nullptr) {
+        settings->append_log(std::move(entry));
     }
+}
 
-    return cell;
+void stream_controller::append_log_entries(
+    const QVector<frontend_log_entry>& entries
+) const {
+    for (const frontend_log_entry& entry : entries) {
+        append_log_entry(entry);
+    }
 }
 
 void stream_controller::append_log(
@@ -891,34 +386,61 @@ void stream_controller::append_log(
         .detail = detail,
     };
 
-    if (log_buffer != nullptr) {
-        log_buffer->append(std::move(entry));
-        return;
+    append_log_entry(std::move(entry));
+}
+
+void stream_controller::apply_active_edit_result(
+    const active_edit_workflow::transition_result& result
+) {
+    append_log_entries(result.entries);
+
+    if (result.refresh_fps) {
+        refresh_fps_policy(true);
     }
 
-    if (settings != nullptr) {
-        settings->append_log(std::move(entry));
+    if (result.update_monitor_inventory) {
+        update_monitor_inventory();
+    }
+
+    if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
+        monitor_bridge->add_marker(result.monitor_marker);
     }
 }
 
-void stream_controller::log_active(
-    const QString& msg, const frontend_log_severity severity,
-    const QString& detail
-) const {
-    append_log(
-        frontend_log_area::active, severity, QStringLiteral("active"), msg,
-        route_state.active_stream_name(), detail
-    );
+void stream_controller::apply_active_stream_result(
+    const active_stream_workflow::transition_result& result
+) {
+    append_log_entries(result.entries);
+
+    if (result.refresh_fps) {
+        refresh_fps_policy(true);
+    }
+
+    if (result.update_monitor_inventory) {
+        update_monitor_inventory();
+    }
+
+    if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
+        monitor_bridge->add_marker(result.monitor_marker);
+    }
 }
 
-QString
-stream_controller::points_str_from_pct(const std::vector<QPointF>& pts) {
-    QStringList parts;
-    parts.reserve(static_cast<int>(pts.size()));
-    for (const auto& p : pts) {
-        parts << QString("(%1,%2)").arg(p.x(), 0, 'f', 3).arg(p.y(), 0, 'f', 3);
+void stream_controller::apply_catalog_result(
+    const stream_catalog_workflow::transition_result& result
+) {
+    append_log_entries(result.entries);
+
+    if (result.refresh_fps) {
+        refresh_fps_policy(true);
     }
-    return parts.join("; ");
+
+    if (result.update_monitor_inventory) {
+        update_monitor_inventory();
+    }
+
+    if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
+        monitor_bridge->add_marker(result.monitor_marker);
+    }
 }
 
 void stream_controller::refresh_fps_policy(const bool force) {

@@ -1,0 +1,163 @@
+#include "shell/stream_catalog_workflow.hpp"
+
+#include "shell/stream_catalog_state.hpp"
+#include "shell/stream_route_state.hpp"
+#include "shell/stream_widget_bridge.hpp"
+#include "shell/str_label.hpp"
+#include "streams/stream.hpp"
+#include "streams/stream_manager.hpp"
+#include "widgets/settings_panel.hpp"
+
+#include <QCameraDevice>
+#include <QMediaDevices>
+#include <utility>
+
+stream_catalog_workflow::stream_catalog_workflow(
+    yodau::backend::stream_manager* stream_mgr, settings_panel* settings,
+    stream_catalog_state& catalog_state, stream_widget_bridge& widget_bridge
+)
+    : stream_mgr_(stream_mgr)
+    , settings_(settings)
+    , catalog_state_(catalog_state)
+    , widget_bridge_(widget_bridge) {}
+
+void stream_catalog_workflow::seed_from_backend() const {
+    if (stream_mgr_ == nullptr) {
+        return;
+    }
+
+    for (const std::string& name : stream_mgr_->stream_names()) {
+        const QString qname = QString::fromStdString(name);
+        catalog_state_.ensure_stream(qname);
+        register_stream_in_ui(qname, describe_stream_source(*stream_mgr_, name));
+    }
+}
+
+stream_catalog_workflow::transition_result
+stream_catalog_workflow::detect_local_sources() const {
+    transition_result transition;
+    if (stream_mgr_ == nullptr) {
+        return transition;
+    }
+
+    stream_mgr_->refresh_local_streams();
+
+    const QStringList locals = stream_catalog_state::detected_local_sources(
+        stream_mgr_->stream_names()
+    );
+    if (settings_ != nullptr) {
+        settings_->set_local_sources(locals);
+    }
+
+    const auto cameras = QMediaDevices::videoInputs();
+    transition.entries.push_back(
+        make_add_entry(
+            frontend_log_severity::info, QStringLiteral("local_sources"),
+            QStringLiteral("local source inventory refreshed"), QString(),
+            QStringLiteral("backend=%1 qt=%2")
+                .arg(locals.size())
+                .arg(cameras.size())
+        )
+    );
+    transition.update_monitor_inventory = true;
+    transition.monitor_marker = QStringLiteral("local_sources_refreshed");
+
+    return transition;
+}
+
+stream_catalog_workflow::transition_result
+stream_catalog_workflow::add_stream(
+    const QString& source, const QString& name, const QString& type, const bool loop
+) const {
+    transition_result transition;
+    if (stream_mgr_ == nullptr) {
+        return transition;
+    }
+
+    const stream_route_state::add_source_validation validation
+        = stream_route_state::validate_add_source(source, type);
+    if (!validation.valid) {
+        transition.entries.push_back(
+            make_add_entry(
+                frontend_log_severity::warning, QStringLiteral("stream_add"),
+                validation.message, name, validation.detail
+            )
+        );
+        return transition;
+    }
+
+    try {
+        const auto& stream = stream_mgr_->add_stream(
+            source.toStdString(), name.toStdString(), type.toStdString(), loop
+        );
+
+        const QString final_name = QString::fromStdString(stream.get_name());
+        const QString source_desc = stream_route_state::source_description(
+            source, type
+        );
+
+        transition.entries.push_back(
+            make_add_entry(
+                frontend_log_severity::info, QStringLiteral("stream_add"),
+                QStringLiteral("stream added"), final_name, source_desc
+            )
+        );
+
+        register_stream_in_ui(final_name, source_desc);
+        transition.refresh_fps = true;
+        transition.update_monitor_inventory = true;
+        transition.monitor_marker = QStringLiteral("stream_added");
+        return transition;
+    } catch (const std::exception& error) {
+        transition.entries.push_back(
+            make_add_entry(
+                frontend_log_severity::error, QStringLiteral("stream_add"),
+                QStringLiteral("add %1 stream failed").arg(type), name,
+                QString::fromLocal8Bit(error.what())
+            )
+        );
+        return transition;
+    }
+}
+
+frontend_log_entry stream_catalog_workflow::make_add_entry(
+    const frontend_log_severity severity, const QString& subsystem,
+    const QString& message, const QString& stream_name, const QString& detail
+) {
+    return frontend_log_entry {
+        .timestamp = QDateTime(),
+        .area = frontend_log_area::add,
+        .severity = severity,
+        .subsystem = subsystem,
+        .stream_name = stream_name,
+        .algorithm_id = QString(),
+        .message = message,
+        .detail = detail,
+    };
+}
+
+QString stream_catalog_workflow::unknown_source_description() {
+    return str_label("<unknown>");
+}
+
+QString stream_catalog_workflow::describe_stream_source(
+    const yodau::backend::stream_manager& stream_mgr, const std::string& name
+) {
+    const auto stream_ptr = stream_mgr.find_stream(name);
+    if (!stream_ptr) {
+        return unknown_source_description();
+    }
+
+    const QString path = QString::fromStdString(stream_ptr->get_path());
+    const QString type = QString::fromStdString(
+        yodau::backend::stream::type_name(stream_ptr->get_type())
+    );
+    return QStringLiteral("%1:%2").arg(type, path);
+}
+
+void stream_catalog_workflow::register_stream_in_ui(
+    const QString& final_name, const QString& source_desc
+) const {
+    catalog_state_.ensure_stream(final_name);
+    widget_bridge_.register_stream_entry(final_name, source_desc);
+}

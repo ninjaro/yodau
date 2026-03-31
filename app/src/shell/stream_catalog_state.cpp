@@ -9,14 +9,26 @@ QString trimmed_name(const QString& value) { return value.trimmed(); }
 stream_settings stream_catalog_state::default_stream_settings(
     const QString& stream_name
 ) {
-    return stream_settings {
+    return normalized_stream_settings(stream_settings {
         .stream_name = normalized_stream_name(stream_name),
         .labels_enabled = true,
         .algorithm_id = default_frontend_algorithm_id(),
         .algorithm_preset = default_algorithm_preset_id(
             default_frontend_algorithm_id()
         ),
-    };
+    });
+}
+
+stream_settings stream_catalog_state::normalized_stream_settings(
+    stream_settings settings_value
+) {
+    settings_value.stream_name = normalized_stream_name(settings_value.stream_name);
+    settings_value.algorithm_id
+        = normalized_frontend_algorithm_id(settings_value.algorithm_id);
+    settings_value.algorithm_preset = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+    return settings_value;
 }
 
 QStringList stream_catalog_state::detected_local_sources(
@@ -47,16 +59,10 @@ void stream_catalog_state::ensure_stream(const QString& stream_name) {
 }
 
 void stream_catalog_state::set_stream_settings(stream_settings settings_value) {
-    settings_value.stream_name = normalized_stream_name(settings_value.stream_name);
+    settings_value = normalized_stream_settings(std::move(settings_value));
     if (settings_value.stream_name.isEmpty()) {
         return;
     }
-
-    settings_value.algorithm_id
-        = normalized_frontend_algorithm_id(settings_value.algorithm_id);
-    settings_value.algorithm_preset = normalized_algorithm_preset_id(
-        settings_value.algorithm_id, settings_value.algorithm_preset
-    );
 
     settings_by_stream_[settings_value.stream_name] = std::move(settings_value);
 }
