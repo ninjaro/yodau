@@ -1,8 +1,21 @@
 #include "shell/stream_catalog_state.hpp"
 
+#include <algorithm>
+
 namespace stream_catalog_state_support {
 
 QString trimmed_name(const QString& value) { return value.trimmed(); }
+
+int normalized_manual_fps(const int fps, const int fallback) {
+    return std::clamp(fps > 0 ? fps : fallback, 1, 120);
+}
+
+int normalized_manual_processing_pixels(const int pixels) {
+    return std::clamp(
+        pixels > 0 ? pixels : default_manual_processing_pixels(),
+        16 * 16, 7680 * 4320
+    );
+}
 
 } // namespace stream_catalog_state_support
 
@@ -28,6 +41,18 @@ stream_settings stream_catalog_state::normalized_stream_settings(
     settings_value.algorithm_preset = normalized_algorithm_preset_id(
         settings_value.algorithm_id, settings_value.algorithm_preset
     );
+    settings_value.manual_display_fps
+        = stream_catalog_state_support::normalized_manual_fps(
+            settings_value.manual_display_fps, default_manual_display_fps()
+        );
+    settings_value.manual_backend_fps
+        = stream_catalog_state_support::normalized_manual_fps(
+            settings_value.manual_backend_fps, default_manual_backend_fps()
+        );
+    settings_value.manual_processing_pixels
+        = stream_catalog_state_support::normalized_manual_processing_pixels(
+            settings_value.manual_processing_pixels
+        );
     return settings_value;
 }
 

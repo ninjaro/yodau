@@ -217,6 +217,13 @@ bool processing_runtime::has_virtual_camera() const {
         && preview_router_value->has_virtual_camera();
 }
 
+void processing_runtime::set_processed_frame_observer(
+    processed_frame_observer_fn observer
+) {
+    std::scoped_lock lock(observer_mtx);
+    processed_frame_observer = std::move(observer);
+}
+
 std::optional<processing_result>
 processing_runtime::latest_processing_result(
     const std::string& stream_name
@@ -310,6 +317,16 @@ processing_runtime::process_frame(const stream& s, const frame& f) {
         std::scoped_lock lock(latest_results_mtx);
         latest_results_by_stream[s.get_name()] = result;
     }
+
+    processed_frame_observer_fn observer;
+    {
+        std::scoped_lock lock(observer_mtx);
+        observer = processed_frame_observer;
+    }
+    if (observer) {
+        observer(s, f, result);
+    }
+
     return result.events;
 }
 

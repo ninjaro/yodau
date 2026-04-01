@@ -32,6 +32,7 @@ public:
         stream_settings previous_settings;
         bool labels_changed { false };
         bool algorithm_changed { false };
+        bool processing_policy_changed { false };
     };
 
     active_stream_state(

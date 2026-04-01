@@ -2,6 +2,7 @@
 #define YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP
 
 #include "shell/frontend_settings.hpp"
+#include "shell/frontend_log.hpp"
 
 #include <QCamera>
 #include <QCameraDevice>
@@ -62,10 +63,14 @@ public:
 
     bool is_draft_preview() const;
     stream_settings current_stream_settings() const;
+    stream_runtime_metrics current_runtime_metrics() const;
+    frontend_log_mode current_log_mode() const;
 
     void set_active(bool val);
     void set_drawing_enabled(bool on);
     void set_stream_settings(const stream_settings& settings_value);
+    void set_runtime_metrics(const stream_runtime_metrics& metrics);
+    void set_log_mode(frontend_log_mode mode);
 
     void
     set_draft_params(
@@ -131,6 +136,7 @@ private:
     void draw_hover_coords(QPainter& p) const;
     void draw_preview_segment(QPainter& p) const;
     void draw_stream_name(QPainter& p) const;
+    void draw_runtime_metrics(QPainter& p) const;
 
     QPointF label_pos_px(const line_instance& l) const;
 
@@ -187,6 +193,8 @@ private:
     bool draft_preview { false };
     bool labels_enabled { true };
     stream_settings stream_settings_value;
+    stream_runtime_metrics runtime_metrics_value;
+    frontend_log_mode log_mode_value { frontend_log_mode::release };
 
     QString draft_line_name;
     QColor draft_line_color { Qt::red };

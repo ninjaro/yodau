@@ -77,6 +77,16 @@ QString frontend_log_severity_name(const frontend_log_severity severity) {
     }
 }
 
+QString frontend_log_mode_name(const frontend_log_mode mode) {
+    switch (mode) {
+    case frontend_log_mode::debug:
+        return QStringLiteral("debug");
+    case frontend_log_mode::release:
+    default:
+        return QStringLiteral("release");
+    }
+}
+
 QString format_frontend_log_entry(
     const frontend_log_mode mode, const frontend_log_entry& entry
 ) {

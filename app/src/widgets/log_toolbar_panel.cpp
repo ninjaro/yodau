@@ -102,6 +102,7 @@ bool log_toolbar_panel::append_entry(frontend_log_entry entry) const {
 }
 
 void log_toolbar_panel::set_log_mode(const frontend_log_mode mode) {
+    const bool changed = current_log_mode != mode;
     current_log_mode = mode;
 
     if (log_mode_combo != nullptr) {
@@ -112,6 +113,9 @@ void log_toolbar_panel::set_log_mode(const frontend_log_mode mode) {
     }
 
     emit view_state_changed();
+    if (changed) {
+        emit log_mode_changed(current_log_mode);
+    }
 }
 
 frontend_log_mode log_toolbar_panel::log_mode() const {

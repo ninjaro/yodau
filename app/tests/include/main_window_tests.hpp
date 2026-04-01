@@ -34,9 +34,12 @@ private slots:
     void settings_panel_round_trips_structured_settings();
     void settings_panel_exposes_explicit_edit_panels();
     void settings_panel_emits_structured_stream_settings();
+    void settings_panel_emits_log_mode_changes();
     void settings_panel_updates_algorithm_presets_by_selection();
     void settings_panel_exports_current_filtered_log_report();
+    void stream_widget_bridge_syncs_visible_log_mode();
     void stream_cell_tracks_stream_settings();
+    void stream_cell_status_badges_render_different_modes();
     void stream_cell_overlay_modes_render_different_event_regions();
     void stream_cell_line_profiles_render_different_wave_regions();
 };

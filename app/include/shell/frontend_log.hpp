@@ -10,6 +10,8 @@ enum class frontend_log_area { add, streams, active };
 enum class frontend_log_severity { debug, info, warning, error };
 enum class frontend_log_mode { release, debug };
 
+Q_DECLARE_METATYPE(frontend_log_mode)
+
 struct frontend_log_entry {
     QDateTime timestamp;
     frontend_log_area area { frontend_log_area::active };
@@ -25,6 +27,7 @@ Q_DECLARE_METATYPE(frontend_log_entry)
 
 QString frontend_log_area_name(frontend_log_area area);
 QString frontend_log_severity_name(frontend_log_severity severity);
+QString frontend_log_mode_name(frontend_log_mode mode);
 QString format_frontend_log_entry(
     frontend_log_mode mode, const frontend_log_entry& entry
 );

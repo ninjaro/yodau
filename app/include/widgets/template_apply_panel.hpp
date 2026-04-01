@@ -33,6 +33,7 @@ signals:
 private slots:
     void on_template_changed(const QString& text);
     void on_color_clicked();
+    void on_parameter_mode_changed(int index);
     void on_width_changed(const QString& text);
     void on_length_changed(const QString& text);
     void on_response_changed(const QString& text);
@@ -40,12 +41,19 @@ private slots:
 
 private:
     void build_ui();
+    QString current_parameter_mode_id() const;
+    void refresh_parameter_mode_labels();
     void refresh_summary();
 
     QComboBox* template_combo { nullptr };
     QPushButton* color_button { nullptr };
+    QComboBox* parameter_mode_combo { nullptr };
+    QLabel* parameter_mode_hint_label { nullptr };
+    QLabel* width_label { nullptr };
     QComboBox* width_combo { nullptr };
+    QLabel* length_label { nullptr };
     QComboBox* length_combo { nullptr };
+    QLabel* response_label { nullptr };
     QComboBox* response_combo { nullptr };
     QPushButton* add_button { nullptr };
     QLabel* summary_label { nullptr };

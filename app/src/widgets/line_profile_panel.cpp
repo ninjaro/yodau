@@ -146,6 +146,13 @@ void line_profile_panel::on_name_finished() {
     emit profile_changed(current_line_profile());
 }
 
+void line_profile_panel::on_parameter_mode_changed(const int index) {
+    Q_UNUSED(index);
+
+    refresh_parameter_mode_labels();
+    refresh_summary();
+}
+
 void line_profile_panel::on_width_changed(const QString& text) {
     Q_UNUSED(text);
 
@@ -193,7 +200,27 @@ void line_profile_panel::build_ui() {
     line_profile_panel_support::set_button_color(color_button, current_color);
     layout->addWidget(color_button);
 
-    layout->addWidget(new QLabel(str_label("line width"), this));
+    parameter_mode_combo = new QComboBox(this);
+    parameter_mode_combo->setObjectName(
+        QStringLiteral("settings_active_line_parameter_mode_combo")
+    );
+    for (const QString& mode_id : line_parameter_mode_ids()) {
+        parameter_mode_combo->addItem(
+            line_parameter_mode_display_name(mode_id), mode_id
+        );
+    }
+    parameter_mode_combo->setCurrentIndex(0);
+    layout->addWidget(parameter_mode_combo);
+
+    parameter_mode_hint_label = new QLabel(this);
+    parameter_mode_hint_label->setObjectName(
+        QStringLiteral("settings_active_line_parameter_mode_hint_label")
+    );
+    parameter_mode_hint_label->setWordWrap(true);
+    layout->addWidget(parameter_mode_hint_label);
+
+    width_label = new QLabel(this);
+    layout->addWidget(width_label);
     width_combo = new QComboBox(this);
     width_combo->setEditable(true);
     width_combo->setObjectName(QStringLiteral("settings_active_line_width_combo"));
@@ -203,7 +230,8 @@ void line_profile_panel::build_ui() {
     width_combo->setCurrentText(default_line_width_text());
     layout->addWidget(width_combo);
 
-    layout->addWidget(new QLabel(str_label("string length"), this));
+    length_label = new QLabel(this);
+    layout->addWidget(length_label);
     length_combo = new QComboBox(this);
     length_combo->setEditable(true);
     length_combo->setObjectName(
@@ -215,7 +243,8 @@ void line_profile_panel::build_ui() {
     length_combo->setCurrentText(default_line_length_text());
     layout->addWidget(length_combo);
 
-    layout->addWidget(new QLabel(str_label("response"), this));
+    response_label = new QLabel(this);
+    layout->addWidget(response_label);
     response_combo = new QComboBox(this);
     response_combo->setEditable(true);
     response_combo->setObjectName(
@@ -257,6 +286,11 @@ void line_profile_panel::build_ui() {
         &line_profile_panel::on_name_finished
     );
     connect(
+        parameter_mode_combo,
+        QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &line_profile_panel::on_parameter_mode_changed
+    );
+    connect(
         width_combo, &QComboBox::currentTextChanged, this,
         &line_profile_panel::on_width_changed
     );
@@ -274,6 +308,36 @@ void line_profile_panel::build_ui() {
     );
 
     setLayout(layout);
+    refresh_parameter_mode_labels();
+}
+
+QString line_profile_panel::current_parameter_mode_id() const {
+    return parameter_mode_combo != nullptr
+        ? normalized_line_parameter_mode_id(
+              parameter_mode_combo->currentData().toString()
+          )
+        : default_line_parameter_mode_id();
+}
+
+void line_profile_panel::refresh_parameter_mode_labels() {
+    const QString mode_id = current_parameter_mode_id();
+
+    if (width_label != nullptr) {
+        width_label->setText(str_label("%1").arg(line_width_label_text(mode_id)));
+    }
+    if (length_label != nullptr) {
+        length_label->setText(str_label("%1").arg(line_length_label_text(mode_id)));
+    }
+    if (response_label != nullptr) {
+        response_label->setText(
+            str_label("%1").arg(line_response_label_text(mode_id))
+        );
+    }
+    if (parameter_mode_hint_label != nullptr) {
+        parameter_mode_hint_label->setText(
+            line_parameter_mode_hint_text(mode_id)
+        );
+    }
 }
 
 void line_profile_panel::refresh_summary() {
@@ -283,7 +347,8 @@ void line_profile_panel::refresh_summary() {
 
     const line_profile profile = current_line_profile();
     QString text = line_profile_summary_text(
-        profile.width_text, profile.length_text, profile.response_text
+        profile.width_text, profile.length_text, profile.response_text,
+        current_parameter_mode_id()
     );
     text += profile.closed ? QStringLiteral(" closed") : QStringLiteral(" open");
 

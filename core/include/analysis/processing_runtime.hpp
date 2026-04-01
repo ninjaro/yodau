@@ -4,6 +4,7 @@
 #include "analysis/processing_algorithm.hpp"
 #include "streams/stream_manager.hpp"
 
+#include <functional>
 #include <mutex>
 #include <memory>
 #include <optional>
@@ -28,6 +29,10 @@ std::string render_mode_name(render_mode mode);
 
 class processing_runtime {
 public:
+    using processed_frame_observer_fn = std::function<void(
+        const stream& s, const frame& frame_value, const processing_result& result
+    )>;
+
     explicit processing_runtime(
         processing_runtime_options runtime_options = {}
     );
@@ -58,6 +63,7 @@ public:
     bool clear_stream_algorithm(const std::string& stream_name);
     bool processing_enabled() const;
     bool has_virtual_camera() const;
+    void set_processed_frame_observer(processed_frame_observer_fn observer);
     std::optional<processing_result>
     latest_processing_result(const std::string& stream_name) const;
     virtual_camera* preview_camera();
@@ -87,6 +93,8 @@ private:
         active_algorithms_by_stream;
     mutable std::mutex latest_results_mtx;
     std::unordered_map<std::string, processing_result> latest_results_by_stream;
+    mutable std::mutex observer_mtx;
+    processed_frame_observer_fn processed_frame_observer;
 };
 
 }

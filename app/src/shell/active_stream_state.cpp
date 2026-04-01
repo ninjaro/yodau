@@ -71,6 +71,20 @@ active_stream_state::settings_result active_stream_state::apply_stream_settings(
         = result.previous_settings.labels_enabled != result.settings.labels_enabled;
     result.algorithm_changed
         = result.previous_settings.algorithm_id != result.settings.algorithm_id;
+    result.algorithm_changed = result.algorithm_changed
+        || result.previous_settings.algorithm_preset
+            != result.settings.algorithm_preset
+        || result.previous_settings.algorithm_overlay_enabled
+            != result.settings.algorithm_overlay_enabled;
+    result.processing_policy_changed
+        = result.previous_settings.manual_processing_policy_enabled
+            != result.settings.manual_processing_policy_enabled
+        || result.previous_settings.manual_display_fps
+            != result.settings.manual_display_fps
+        || result.previous_settings.manual_backend_fps
+            != result.settings.manual_backend_fps
+        || result.previous_settings.manual_processing_pixels
+            != result.settings.manual_processing_pixels;
 
     widget_bridge_.sync_stream_visual_settings(
         result.settings.stream_name, result.settings, route_state_

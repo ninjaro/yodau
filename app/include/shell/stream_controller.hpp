@@ -89,6 +89,9 @@ private slots:
     );
 
     void on_active_line_undo_requested();
+    void on_backend_frame_processed(
+        QString stream_name, int width, int height
+    );
     void on_backend_event_queued(yodau::backend::event event_value);
 
 private:
@@ -133,6 +136,20 @@ private:
     int line_count_for_stream(const QString& stream_name) const;
     double current_device_load_ratio() const;
     void note_processing_cost_sample(double elapsed_ms);
+    void note_input_frame_observed(
+        const QString& stream_name, int width, int height
+    );
+    void note_backend_frame_observed(
+        const QString& stream_name, int width, int height
+    );
+    void sync_runtime_metrics_for_stream(const QString& stream_name);
+    void sync_visible_runtime_metrics();
+    static int interval_ms_for_fps(int fps);
+    static int fps_for_interval_ms(int interval_ms);
+    static double update_fps_ema(
+        std::chrono::steady_clock::time_point& last_sample,
+        double& ema_fps, std::chrono::steady_clock::time_point now
+    );
     QImage scaled_processing_image(
         const QString& stream_name, const QImage& image
     ) const;
@@ -169,6 +186,14 @@ private:
 
     yodau::backend::fps_capability_profile fps_capability;
     QHash<QString, int> processing_scale_percent_by_stream;
+    QHash<QString, stream_runtime_metrics> runtime_metrics_by_stream;
+    struct stream_rate_tracker {
+        std::chrono::steady_clock::time_point last_input_frame {};
+        std::chrono::steady_clock::time_point last_backend_frame {};
+        double input_fps_ema { 0.0 };
+        double backend_fps_ema { 0.0 };
+    };
+    QHash<QString, stream_rate_tracker> rate_trackers_by_stream;
     double processing_cost_ema_ms { 0.0 };
     std::chrono::steady_clock::time_point last_fps_policy_refresh {};
 };

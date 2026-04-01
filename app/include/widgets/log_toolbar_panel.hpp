@@ -29,6 +29,7 @@ public:
 
 signals:
     void view_state_changed();
+    void log_mode_changed(frontend_log_mode mode);
     void copy_logs_requested();
     void copy_summary_requested();
     void save_logs_requested();

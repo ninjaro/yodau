@@ -122,6 +122,10 @@ stream_cell* stream_widget_bridge::show_stream_in_grid(
     tile->set_persistent_lines(edit_session.stream_lines(name));
     tile->set_stream_settings(settings_value);
     tile->set_labels_enabled(settings_value.labels_enabled);
+    tile->set_log_mode(
+        settings_ != nullptr ? settings_->log_mode()
+                             : frontend_log_mode::release
+    );
     stream_widget_bridge_support::apply_grid_stream_binding(tile, binding);
     editor_bridge_.sync_active_candidates();
     return tile;
@@ -146,6 +150,24 @@ void stream_widget_bridge::hide_stream_from_grid(
 
 void stream_widget_bridge::sync_active_candidates() const {
     editor_bridge_.sync_active_candidates();
+}
+
+void stream_widget_bridge::sync_visible_log_mode(
+    const frontend_log_mode mode
+) const {
+    if (grid_ != nullptr) {
+        for (const QString& name : grid_->stream_names()) {
+            if (auto* tile = grid_->peek_stream_cell(name)) {
+                tile->set_log_mode(mode);
+            }
+        }
+    }
+
+    if (main_zone_ != nullptr) {
+        if (auto* cell = main_zone_->active_cell()) {
+            cell->set_log_mode(mode);
+        }
+    }
 }
 
 void stream_widget_bridge::sync_active_selection(

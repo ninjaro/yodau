@@ -34,6 +34,7 @@ private slots:
     void on_undo_clicked();
     void on_save_clicked();
     void on_name_finished();
+    void on_parameter_mode_changed(int index);
     void on_width_changed(const QString& text);
     void on_length_changed(const QString& text);
     void on_response_changed(const QString& text);
@@ -41,13 +42,20 @@ private slots:
 
 private:
     void build_ui();
+    QString current_parameter_mode_id() const;
+    void refresh_parameter_mode_labels();
     void refresh_summary();
 
     QLineEdit* name_edit { nullptr };
     QCheckBox* closed_checkbox { nullptr };
     QPushButton* color_button { nullptr };
+    QComboBox* parameter_mode_combo { nullptr };
+    QLabel* parameter_mode_hint_label { nullptr };
+    QLabel* width_label { nullptr };
     QComboBox* width_combo { nullptr };
+    QLabel* length_label { nullptr };
     QComboBox* length_combo { nullptr };
+    QLabel* response_label { nullptr };
     QComboBox* response_combo { nullptr };
     QPushButton* undo_button { nullptr };
     QPushButton* save_button { nullptr };

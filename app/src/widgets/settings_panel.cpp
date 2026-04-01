@@ -38,6 +38,7 @@ settings_panel::settings_panel(QWidget* parent)
     , add_tab(nullptr)
     , streams_tab(nullptr) {
     qRegisterMetaType<stream_settings>("stream_settings");
+    qRegisterMetaType<frontend_log_mode>("frontend_log_mode");
     qRegisterMetaType<line_profile>("line_profile");
     qRegisterMetaType<template_apply_settings>("template_apply_settings");
 
@@ -332,11 +333,15 @@ void settings_panel::build_ui() {
     const auto root_layout = new QVBoxLayout(this);
     root_layout->setContentsMargins(8, 8, 8, 8);
     log_toolbar_widget = new log_toolbar_panel(this);
-    root_layout->addWidget(log_toolbar_widget);
     root_layout->addWidget(tabs, 1);
+    root_layout->addWidget(log_toolbar_widget);
     connect(
         log_toolbar_widget, &log_toolbar_panel::copy_logs_requested, this,
         &settings_panel::on_copy_logs_clicked
+    );
+    connect(
+        log_toolbar_widget, &log_toolbar_panel::log_mode_changed, this,
+        &settings_panel::log_mode_changed
     );
     connect(
         log_toolbar_widget, &log_toolbar_panel::copy_summary_requested, this,

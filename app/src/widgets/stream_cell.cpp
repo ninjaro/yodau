@@ -55,6 +55,12 @@ QColor color_with_alpha(QColor color, const int alpha) {
     return color;
 }
 
+QColor log_mode_badge_color(const frontend_log_mode mode) {
+    return mode == frontend_log_mode::debug
+        ? QColor(QStringLiteral("#bc6c25"))
+        : QColor(QStringLiteral("#3a5a40"));
+}
+
 struct line_wave_style {
     double amplitude_k { 1.0 };
     double speed_k { 1.0 };
@@ -640,6 +646,14 @@ stream_settings stream_cell::current_stream_settings() const {
     return stream_settings_value;
 }
 
+stream_runtime_metrics stream_cell::current_runtime_metrics() const {
+    return runtime_metrics_value;
+}
+
+frontend_log_mode stream_cell::current_log_mode() const {
+    return log_mode_value;
+}
+
 void stream_cell::set_active(const bool val) {
     if (active == val) {
         return;
@@ -674,6 +688,20 @@ void stream_cell::set_stream_settings(const stream_settings& settings_value) {
         stream_settings_value.algorithm_id,
         stream_settings_value.algorithm_preset
     );
+    update();
+}
+
+void stream_cell::set_runtime_metrics(const stream_runtime_metrics& metrics) {
+    runtime_metrics_value = metrics;
+    update();
+}
+
+void stream_cell::set_log_mode(const frontend_log_mode mode) {
+    if (log_mode_value == mode) {
+        return;
+    }
+
+    log_mode_value = mode;
     update();
 }
 
@@ -901,6 +929,7 @@ void stream_cell::paintEvent(QPaintEvent* event) {
     draw_hover_coords(p);
     draw_preview_segment(p);
     draw_stream_name(p);
+    draw_runtime_metrics(p);
 }
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
@@ -1282,6 +1311,12 @@ void stream_cell::draw_stream_name(QPainter& p) const {
     const QColor badge_color = algorithm_badge_color(
         stream_settings_value.algorithm_id
     );
+    const QString log_badge_text = QStringLiteral("log %1").arg(
+        frontend_log_mode_name(log_mode_value)
+    );
+    const QColor log_badge_fill = stream_cell_support::log_mode_badge_color(
+        log_mode_value
+    );
 
     QFont badge_font = p.font();
     const double badge_point_size = badge_font.pointSizeF() > 0.0
@@ -1293,10 +1328,26 @@ void stream_cell::draw_stream_name(QPainter& p) const {
     const QFontMetrics badge_metrics(badge_font);
     QRect badge_rect = badge_metrics.boundingRect(badge_text);
     badge_rect.adjust(-8, -4, 8, 4);
-    badge_rect.moveTopRight(QPoint(r.right(), r.top()));
+    badge_rect.moveBottomRight(QPoint(r.right(), r.bottom()));
+
+    QRect log_badge_rect = badge_metrics.boundingRect(log_badge_text);
+    log_badge_rect.adjust(-8, -4, 8, 4);
+    log_badge_rect.moveBottomRight(
+        QPoint(r.right(), badge_rect.top() - 6)
+    );
 
     QColor badge_fill = badge_color;
     badge_fill.setAlpha(active ? 208 : 176);
+    p.setPen(Qt::NoPen);
+    p.setBrush(
+        stream_cell_support::color_with_alpha(
+            log_badge_fill, active ? 188 : 160
+        )
+    );
+    p.drawRoundedRect(log_badge_rect, 8.0, 8.0);
+    p.setPen(Qt::white);
+    p.drawText(log_badge_rect, Qt::AlignCenter, log_badge_text);
+
     p.setPen(Qt::NoPen);
     p.setBrush(badge_fill);
     p.drawRoundedRect(badge_rect, 8.0, 8.0);
@@ -1329,6 +1380,54 @@ void stream_cell::draw_stream_name(QPainter& p) const {
     QRect summary_rect = r;
     summary_rect.adjust(0, 18, 0, 0);
     p.drawText(summary_rect, Qt::AlignLeft | Qt::AlignTop, elided_summary);
+}
+
+void stream_cell::draw_runtime_metrics(QPainter& p) const {
+    const QString metrics_text = stream_runtime_metrics_text(runtime_metrics_value);
+    if (metrics_text.trimmed().isEmpty()) {
+        return;
+    }
+
+    QFont metrics_font = p.font();
+    const double metrics_point_size = metrics_font.pointSizeF() > 0.0
+        ? metrics_font.pointSizeF()
+        : 9.0;
+    metrics_font.setPointSizeF(std::max(7.5, metrics_point_size - 1.0));
+    p.setFont(metrics_font);
+
+    const QRect bounds = rect().adjusted(6, 6, -6, -6);
+    const QFontMetrics metrics(metrics_font);
+    const QString rendered_text = (!active && bounds.width() < 220)
+        ? QStringLiteral(
+              "v %1 | b %2"
+          )
+              .arg(
+                  runtime_metrics_value.input_fps > 0.0
+                      ? QString::number(runtime_metrics_value.input_fps, 'f', 1)
+                      : QStringLiteral("--")
+              )
+              .arg(
+                  runtime_metrics_value.backend_fps > 0.0
+                      ? QString::number(runtime_metrics_value.backend_fps, 'f', 1)
+                      : QStringLiteral("--")
+              )
+        : metrics_text;
+
+    QRect metrics_rect = metrics.boundingRect(
+        QRect(0, 0, std::max(120, bounds.width() - 80), bounds.height()),
+        Qt::TextWordWrap, rendered_text
+    );
+    metrics_rect.adjust(-8, -4, 8, 4);
+    metrics_rect.moveBottomLeft(QPoint(bounds.left(), bounds.bottom()));
+
+    QColor metrics_fill(Qt::black);
+    metrics_fill.setAlpha(active ? 164 : 136);
+    p.setPen(Qt::NoPen);
+    p.setBrush(metrics_fill);
+    p.drawRoundedRect(metrics_rect, 8.0, 8.0);
+
+    p.setPen(Qt::white);
+    p.drawText(metrics_rect, Qt::AlignLeft | Qt::AlignVCenter, rendered_text);
 }
 
 QPointF stream_cell::label_pos_px(const line_instance& l) const {

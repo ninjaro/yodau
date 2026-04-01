@@ -37,6 +37,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSignalSpy>
+#include <QSpinBox>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTreeWidget>
@@ -77,6 +78,22 @@ QImage render_stream_cell_event_region(const stream_settings& settings_value) {
     cell.render(&image);
 
     return image.copy(QRect(16, 12, 88, 68));
+}
+
+QImage render_stream_cell_status_region(
+    const stream_settings& settings_value, const frontend_log_mode log_mode
+) {
+    stream_cell cell(QStringLiteral("cam-status"));
+    cell.resize(240, 180);
+    cell.setStyleSheet(QStringLiteral("background-color: black; color: white;"));
+    cell.set_stream_settings(settings_value);
+    cell.set_log_mode(log_mode);
+
+    QImage image(cell.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::black);
+    cell.render(&image);
+
+    return image.copy(QRect(96, 118, 136, 54));
 }
 
 QImage render_stream_cell_wave_region(const stream_cell::line_instance& line_value) {
@@ -665,6 +682,7 @@ void main_window_tests::active_stream_state_tracks_selection_and_settings_applic
     QCOMPARE(updated_cam2.previous_settings.labels_enabled, true);
     QVERIFY(updated_cam2.labels_changed);
     QVERIFY(updated_cam2.algorithm_changed);
+    QVERIFY(!updated_cam2.processing_policy_changed);
     QCOMPARE(updated_cam2.settings.algorithm_id, QStringLiteral("contour_mask"));
     QCOMPARE(updated_cam2.settings.algorithm_preset, QStringLiteral("mask_heavy"));
     QVERIFY(updated_cam2.settings.algorithm_overlay_enabled);
@@ -679,6 +697,53 @@ void main_window_tests::active_stream_state_tracks_selection_and_settings_applic
         panel.current_active_stream_settings().algorithm_preset,
         QStringLiteral("mask_heavy")
     );
+
+    const auto preset_update = active_streams.apply_stream_settings(
+        stream_settings {
+            .stream_name = QStringLiteral("cam-2"),
+            .labels_enabled = false,
+            .algorithm_id = QStringLiteral("contour mask"),
+            .algorithm_preset = QStringLiteral("balanced"),
+            .algorithm_overlay_enabled = false,
+        }
+    );
+
+    QCOMPARE(
+        preset_update.outcome_value,
+        active_stream_state::settings_result::outcome::updated
+    );
+    QVERIFY(!preset_update.labels_changed);
+    QVERIFY(preset_update.algorithm_changed);
+    QVERIFY(!preset_update.processing_policy_changed);
+    QCOMPARE(preset_update.settings.algorithm_id, QStringLiteral("contour_mask"));
+    QCOMPARE(preset_update.settings.algorithm_preset, QStringLiteral("balanced"));
+    QVERIFY(!preset_update.settings.algorithm_overlay_enabled);
+
+    const auto processing_update = active_streams.apply_stream_settings(
+        stream_settings {
+            .stream_name = QStringLiteral("cam-2"),
+            .labels_enabled = false,
+            .algorithm_id = QStringLiteral("contour mask"),
+            .algorithm_preset = QStringLiteral("balanced"),
+            .algorithm_overlay_enabled = false,
+            .manual_processing_policy_enabled = true,
+            .manual_display_fps = 21,
+            .manual_backend_fps = 8,
+            .manual_processing_pixels = 640 * 360,
+        }
+    );
+
+    QCOMPARE(
+        processing_update.outcome_value,
+        active_stream_state::settings_result::outcome::updated
+    );
+    QVERIFY(!processing_update.labels_changed);
+    QVERIFY(!processing_update.algorithm_changed);
+    QVERIFY(processing_update.processing_policy_changed);
+    QVERIFY(processing_update.settings.manual_processing_policy_enabled);
+    QCOMPARE(processing_update.settings.manual_display_fps, 21);
+    QCOMPARE(processing_update.settings.manual_backend_fps, 8);
+    QCOMPARE(processing_update.settings.manual_processing_pixels, 640 * 360);
 
     const auto switched_to_cam1 = active_streams.apply_stream_settings(
         stream_settings {
@@ -788,6 +853,38 @@ void main_window_tests::active_stream_workflow_tracks_selection_logs_and_follow_
     QVERIFY(!updated_cam2.refresh_fps);
     QVERIFY(!updated_cam2.update_monitor_inventory);
 
+    const auto preset_update = workflow.apply_stream_settings(
+        stream_settings {
+            .stream_name = QStringLiteral("cam-2"),
+            .labels_enabled = false,
+            .algorithm_id = QStringLiteral("contour mask"),
+            .algorithm_preset = QStringLiteral("balanced"),
+            .algorithm_overlay_enabled = false,
+        }
+    );
+
+    QCOMPARE(preset_update.entries.size(), 1);
+    QCOMPARE(
+        preset_update.entries.front().message,
+        QStringLiteral("algorithm preference updated")
+    );
+    QVERIFY(
+        preset_update.entries.front().detail.contains(
+            QStringLiteral("backend runtime uses contour_mask")
+        )
+    );
+    QVERIFY(
+        preset_update.entries.front().detail.contains(
+            QStringLiteral("preset=balanced")
+        )
+    );
+    QVERIFY(
+        preset_update.entries.front().detail.contains(
+            QStringLiteral("overlay=false")
+        )
+    );
+    QVERIFY(!preset_update.refresh_fps);
+
     const auto algorithm_update = workflow.apply_stream_settings(
         stream_settings {
             .stream_name = QStringLiteral("cam-2"),
@@ -821,6 +918,34 @@ void main_window_tests::active_stream_workflow_tracks_selection_logs_and_follow_
         algorithm_update.entries.front().algorithm_id,
         QStringLiteral("spot_grid")
     );
+    QVERIFY(!algorithm_update.refresh_fps);
+
+    const auto processing_update = workflow.apply_stream_settings(
+        stream_settings {
+            .stream_name = QStringLiteral("cam-2"),
+            .labels_enabled = false,
+            .algorithm_id = QStringLiteral("spot_grid"),
+            .algorithm_preset = QStringLiteral("dense"),
+            .algorithm_overlay_enabled = false,
+            .manual_processing_policy_enabled = true,
+            .manual_display_fps = 18,
+            .manual_backend_fps = 9,
+            .manual_processing_pixels = 320 * 180,
+        }
+    );
+
+    QCOMPARE(processing_update.entries.size(), 1);
+    QCOMPARE(
+        processing_update.entries.front().message,
+        QStringLiteral("processing tuning updated")
+    );
+    QVERIFY(
+        processing_update.entries.front().detail.contains(
+            QStringLiteral("display_fps=18")
+        )
+    );
+    QVERIFY(processing_update.refresh_fps);
+    QVERIFY(!processing_update.update_monitor_inventory);
 
     const auto switched_to_cam1 = workflow.apply_stream_settings(
         stream_settings {
@@ -1135,6 +1260,13 @@ void main_window_tests::stream_catalog_state_tracks_settings_and_local_sources()
         fallback_settings.algorithm_id, QStringLiteral("motion_baseline")
     );
     QCOMPARE(fallback_settings.algorithm_preset, QStringLiteral("balanced"));
+    QVERIFY(!fallback_settings.manual_processing_policy_enabled);
+    QCOMPARE(fallback_settings.manual_display_fps, default_manual_display_fps());
+    QCOMPARE(fallback_settings.manual_backend_fps, default_manual_backend_fps());
+    QCOMPARE(
+        fallback_settings.manual_processing_pixels,
+        default_manual_processing_pixels()
+    );
 
     catalog_state.ensure_stream(QStringLiteral(" cam-1 "));
     const stream_settings ensured_settings
@@ -1152,6 +1284,10 @@ void main_window_tests::stream_catalog_state_tracks_settings_and_local_sources()
             .algorithm_id = QStringLiteral("contour mask"),
             .algorithm_preset = QStringLiteral("debug"),
             .algorithm_overlay_enabled = true,
+            .manual_processing_policy_enabled = true,
+            .manual_display_fps = 37,
+            .manual_backend_fps = 11,
+            .manual_processing_pixels = 640 * 360,
         }
     );
 
@@ -1162,6 +1298,10 @@ void main_window_tests::stream_catalog_state_tracks_settings_and_local_sources()
     QCOMPARE(saved_settings.algorithm_id, QStringLiteral("contour_mask"));
     QCOMPARE(saved_settings.algorithm_preset, QStringLiteral("mask_heavy"));
     QVERIFY(saved_settings.algorithm_overlay_enabled);
+    QVERIFY(saved_settings.manual_processing_policy_enabled);
+    QCOMPARE(saved_settings.manual_display_fps, 37);
+    QCOMPARE(saved_settings.manual_backend_fps, 11);
+    QCOMPARE(saved_settings.manual_processing_pixels, 640 * 360);
 
     const QStringList locals = stream_catalog_state::detected_local_sources(
         std::vector<std::string> {
@@ -1578,6 +1718,53 @@ void main_window_tests::
     QCOMPARE(panel.current_active_stream_settings().stream_name, QString());
 }
 
+void main_window_tests::stream_widget_bridge_syncs_visible_log_mode() {
+    settings_panel panel;
+    panel.set_log_mode(frontend_log_mode::debug);
+
+    stream_board board;
+    stream_widget_bridge widget_bridge(&board, &panel);
+    active_edit_session edit_session;
+
+    auto* cam1_tile = widget_bridge.show_stream_in_grid(
+        QStringLiteral("cam-1"),
+        stream_settings {
+            .stream_name = QStringLiteral("cam-1"),
+            .labels_enabled = true,
+            .algorithm_id = QStringLiteral("motion_baseline"),
+            .algorithm_preset = QStringLiteral("balanced"),
+            .algorithm_overlay_enabled = false,
+        },
+        edit_session, stream_widget_bridge::grid_stream_binding {}
+    );
+    auto* cam2_tile = widget_bridge.show_stream_in_grid(
+        QStringLiteral("cam-2"),
+        stream_settings {
+            .stream_name = QStringLiteral("cam-2"),
+            .labels_enabled = true,
+            .algorithm_id = QStringLiteral("contour_mask"),
+            .algorithm_preset = QStringLiteral("mask_heavy"),
+            .algorithm_overlay_enabled = true,
+        },
+        edit_session, stream_widget_bridge::grid_stream_binding {}
+    );
+
+    QVERIFY(cam1_tile != nullptr);
+    QVERIFY(cam2_tile != nullptr);
+    QCOMPARE(cam1_tile->current_log_mode(), frontend_log_mode::debug);
+    QCOMPARE(cam2_tile->current_log_mode(), frontend_log_mode::debug);
+
+    board.set_active_stream(QStringLiteral("cam-2"));
+    QVERIFY(board.active_cell() != nullptr);
+    QCOMPARE(board.active_cell()->current_log_mode(), frontend_log_mode::debug);
+
+    panel.set_log_mode(frontend_log_mode::release);
+    widget_bridge.sync_visible_log_mode(panel.log_mode());
+
+    QCOMPARE(cam1_tile->current_log_mode(), frontend_log_mode::release);
+    QCOMPARE(board.active_cell()->current_log_mode(), frontend_log_mode::release);
+}
+
 void main_window_tests::
     stream_inventory_panel_tracks_entries_and_visibility_signal() {
     stream_inventory_panel panel;
@@ -1721,6 +1908,12 @@ void main_window_tests::
     auto* active_labels_checkbox = panel.findChild<QCheckBox*>(
         QStringLiteral("settings_active_labels_checkbox")
     );
+    auto* operator_profile_combo = panel.findChild<QComboBox*>(
+        QStringLiteral("settings_active_operator_profile_combo")
+    );
+    auto* operator_profile_summary = panel.findChild<QLabel*>(
+        QStringLiteral("settings_active_operator_profile_summary_label")
+    );
     auto* algorithm_combo = panel.findChild<QComboBox*>(
         QStringLiteral("settings_active_algorithm_combo")
     );
@@ -1730,15 +1923,33 @@ void main_window_tests::
     auto* overlay_checkbox = panel.findChild<QCheckBox*>(
         QStringLiteral("settings_active_algorithm_overlay_checkbox")
     );
+    auto* manual_processing_checkbox = panel.findChild<QCheckBox*>(
+        QStringLiteral("settings_active_manual_processing_checkbox")
+    );
+    auto* manual_display_fps_spin = panel.findChild<QSpinBox*>(
+        QStringLiteral("settings_active_display_fps_spin")
+    );
+    auto* manual_backend_fps_spin = panel.findChild<QSpinBox*>(
+        QStringLiteral("settings_active_backend_fps_spin")
+    );
+    auto* manual_processing_pixels_spin = panel.findChild<QSpinBox*>(
+        QStringLiteral("settings_active_processing_pixels_spin")
+    );
     auto* template_radio = panel.findChild<QRadioButton*>(
         QStringLiteral("settings_active_mode_template_radio")
     );
 
     QVERIFY(active_stream_combo != nullptr);
     QVERIFY(active_labels_checkbox != nullptr);
+    QVERIFY(operator_profile_combo != nullptr);
+    QVERIFY(operator_profile_summary != nullptr);
     QVERIFY(algorithm_combo != nullptr);
     QVERIFY(preset_combo != nullptr);
     QVERIFY(overlay_checkbox != nullptr);
+    QVERIFY(manual_processing_checkbox != nullptr);
+    QVERIFY(manual_display_fps_spin != nullptr);
+    QVERIFY(manual_backend_fps_spin != nullptr);
+    QVERIFY(manual_processing_pixels_spin != nullptr);
     QVERIFY(template_radio != nullptr);
 
     QVERIFY(!panel.has_active_stream());
@@ -1756,8 +1967,26 @@ void main_window_tests::
             settings_value.algorithm_id, QStringLiteral("motion_baseline")
         );
         QCOMPARE(settings_value.algorithm_preset, QStringLiteral("balanced"));
+        QVERIFY(!settings_value.manual_processing_policy_enabled);
+        QCOMPARE(
+            settings_value.manual_display_fps, default_manual_display_fps()
+        );
+        QCOMPARE(
+            settings_value.manual_backend_fps, default_manual_backend_fps()
+        );
+        QCOMPARE(
+            settings_value.manual_processing_pixels,
+            default_manual_processing_pixels()
+        );
     }
     QVERIFY(panel.has_active_stream());
+    QCOMPARE(
+        operator_profile_combo->currentData().toString(),
+        QStringLiteral("balanced")
+    );
+    QVERIFY(
+        operator_profile_summary->text().contains(QStringLiteral("balanced"))
+    );
 
     const int contour_mask_index
         = algorithm_combo->findData(QStringLiteral("contour_mask"));
@@ -1772,21 +2001,50 @@ void main_window_tests::
         QCOMPARE(
             settings_value.algorithm_id, QStringLiteral("contour_mask")
         );
-        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("outline"));
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("balanced"));
     }
     QCOMPARE(
-        preset_combo->currentData().toString(), QStringLiteral("outline")
+        preset_combo->currentData().toString(), QStringLiteral("balanced")
+    );
+    QCOMPARE(
+        operator_profile_combo->currentData().toString(),
+        QStringLiteral("balanced")
     );
 
-    overlay_checkbox->setChecked(true);
+    const int debug_heavy_index
+        = operator_profile_combo->findData(QStringLiteral("debug_heavy"));
+    QVERIFY(debug_heavy_index >= 0);
+    operator_profile_combo->setCurrentIndex(debug_heavy_index);
     QCOMPARE(stream_settings_spy.size(), 1);
     {
         const auto args = stream_settings_spy.takeFirst();
         const stream_settings settings_value
             = qvariant_cast<stream_settings>(args.at(0));
         QCOMPARE(settings_value.stream_name, QStringLiteral("cam-1"));
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("mask_heavy"));
         QVERIFY(settings_value.algorithm_overlay_enabled);
     }
+    QCOMPARE(
+        preset_combo->currentData().toString(), QStringLiteral("mask_heavy")
+    );
+    QVERIFY(
+        operator_profile_summary->text().contains(QStringLiteral("debug-heavy"))
+    );
+
+    overlay_checkbox->setChecked(false);
+    QCOMPARE(stream_settings_spy.size(), 1);
+    {
+        const auto args = stream_settings_spy.takeFirst();
+        const stream_settings settings_value
+            = qvariant_cast<stream_settings>(args.at(0));
+        QCOMPARE(settings_value.stream_name, QStringLiteral("cam-1"));
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("mask_heavy"));
+        QVERIFY(!settings_value.algorithm_overlay_enabled);
+    }
+    QCOMPARE(
+        operator_profile_combo->currentData().toString(),
+        QStringLiteral("custom")
+    );
 
     active_labels_checkbox->setChecked(false);
     QCOMPARE(stream_settings_spy.size(), 1);
@@ -1800,6 +2058,33 @@ void main_window_tests::
             settings_value.algorithm_id, QStringLiteral("contour_mask")
         );
     }
+
+    manual_processing_checkbox->setChecked(true);
+    QCOMPARE(stream_settings_spy.size(), 1);
+    {
+        const auto args = stream_settings_spy.takeFirst();
+        const stream_settings settings_value
+            = qvariant_cast<stream_settings>(args.at(0));
+        QVERIFY(settings_value.manual_processing_policy_enabled);
+        QCOMPARE(
+            settings_value.manual_display_fps, default_manual_display_fps()
+        );
+    }
+
+    manual_display_fps_spin->setValue(18);
+    manual_backend_fps_spin->setValue(9);
+    manual_processing_pixels_spin->setValue(320 * 180);
+    QCOMPARE(stream_settings_spy.size(), 3);
+    {
+        const auto args = stream_settings_spy.takeLast();
+        const stream_settings settings_value
+            = qvariant_cast<stream_settings>(args.at(0));
+        QVERIFY(settings_value.manual_processing_policy_enabled);
+        QCOMPARE(settings_value.manual_display_fps, 18);
+        QCOMPARE(settings_value.manual_backend_fps, 9);
+        QCOMPARE(settings_value.manual_processing_pixels, 320 * 180);
+    }
+    stream_settings_spy.clear();
 
     template_radio->click();
     QCOMPARE(edit_mode_spy.size(), 1);
@@ -2111,6 +2396,41 @@ void main_window_tests::frontend_settings_normalize_algorithm_and_line_width() {
         )
             .contains(QStringLiteral("point-style motion regions"))
     );
+    QCOMPARE(
+        normalized_operator_profile_id(QStringLiteral("debug-heavy")),
+        QStringLiteral("debug_heavy")
+    );
+    QCOMPARE(
+        [] {
+            stream_settings settings_value;
+            settings_value.algorithm_id = QStringLiteral("spot_grid");
+            return apply_operator_profile(
+                       settings_value, QStringLiteral("simple")
+            )
+                .algorithm_preset;
+        }(),
+        QStringLiteral("coarse")
+    );
+    QCOMPARE(
+        [] {
+            stream_settings settings_value;
+            settings_value.algorithm_id = QStringLiteral("contour_mask");
+            settings_value.algorithm_preset = QStringLiteral("mask_heavy");
+            settings_value.algorithm_overlay_enabled = true;
+            return inferred_operator_profile_id(settings_value);
+        }(),
+        QStringLiteral("debug_heavy")
+    );
+    QVERIFY(
+        [] {
+            stream_settings settings_value;
+            settings_value.algorithm_id = QStringLiteral("contour_mask");
+            settings_value.algorithm_preset = QStringLiteral("mask_heavy");
+            settings_value.algorithm_overlay_enabled = true;
+            return operator_profile_summary_text(settings_value);
+        }()
+            .contains(QStringLiteral("debug-heavy"))
+    );
 
     QCOMPARE(
         normalized_line_width_text(QStringLiteral("String Heavy")),
@@ -2398,6 +2718,10 @@ void main_window_tests::settings_panel_round_trips_structured_settings() {
             .algorithm_id = QStringLiteral("contour mask"),
             .algorithm_preset = QStringLiteral("mask_heavy"),
             .algorithm_overlay_enabled = true,
+            .manual_processing_policy_enabled = true,
+            .manual_display_fps = 19,
+            .manual_backend_fps = 8,
+            .manual_processing_pixels = 640 * 360,
         }
     );
 
@@ -2407,6 +2731,10 @@ void main_window_tests::settings_panel_round_trips_structured_settings() {
     QCOMPARE(active_stream.algorithm_id, QStringLiteral("contour_mask"));
     QCOMPARE(active_stream.algorithm_preset, QStringLiteral("mask_heavy"));
     QCOMPARE(active_stream.algorithm_overlay_enabled, true);
+    QVERIFY(active_stream.manual_processing_policy_enabled);
+    QCOMPARE(active_stream.manual_display_fps, 19);
+    QCOMPARE(active_stream.manual_backend_fps, 8);
+    QCOMPARE(active_stream.manual_processing_pixels, 640 * 360);
 
     panel.set_active_line_profile(
         line_profile {
@@ -2517,10 +2845,30 @@ void main_window_tests::settings_panel_emits_structured_stream_settings() {
     auto* active_labels_checkbox = panel.findChild<QCheckBox*>(
         QStringLiteral("settings_active_labels_checkbox")
     );
+    auto* operator_profile_combo = panel.findChild<QComboBox*>(
+        QStringLiteral("settings_active_operator_profile_combo")
+    );
+    auto* manual_processing_checkbox = panel.findChild<QCheckBox*>(
+        QStringLiteral("settings_active_manual_processing_checkbox")
+    );
+    auto* manual_display_fps_spin = panel.findChild<QSpinBox*>(
+        QStringLiteral("settings_active_display_fps_spin")
+    );
+    auto* manual_backend_fps_spin = panel.findChild<QSpinBox*>(
+        QStringLiteral("settings_active_backend_fps_spin")
+    );
+    auto* manual_processing_pixels_spin = panel.findChild<QSpinBox*>(
+        QStringLiteral("settings_active_processing_pixels_spin")
+    );
 
     QVERIFY(active_stream_combo != nullptr);
     QVERIFY(active_algorithm_combo != nullptr);
     QVERIFY(active_labels_checkbox != nullptr);
+    QVERIFY(operator_profile_combo != nullptr);
+    QVERIFY(manual_processing_checkbox != nullptr);
+    QVERIFY(manual_display_fps_spin != nullptr);
+    QVERIFY(manual_backend_fps_spin != nullptr);
+    QVERIFY(manual_processing_pixels_spin != nullptr);
 
     active_stream_combo->setCurrentText(QStringLiteral("cam-1"));
 
@@ -2537,6 +2885,7 @@ void main_window_tests::settings_panel_emits_structured_stream_settings() {
         );
         QCOMPARE(settings_value.algorithm_preset, QStringLiteral("balanced"));
         QCOMPARE(settings_value.algorithm_overlay_enabled, false);
+        QVERIFY(!settings_value.manual_processing_policy_enabled);
     }
 
     const int contour_mask_index
@@ -2553,8 +2902,45 @@ void main_window_tests::settings_panel_emits_structured_stream_settings() {
         QCOMPARE(
             settings_value.algorithm_id, QStringLiteral("contour_mask")
         );
-        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("outline"));
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("balanced"));
     }
+
+    const int debug_heavy_index
+        = operator_profile_combo->findData(QStringLiteral("debug_heavy"));
+    QVERIFY(debug_heavy_index >= 0);
+    operator_profile_combo->setCurrentIndex(debug_heavy_index);
+
+    QCOMPARE(stream_settings_spy.count(), 1);
+    {
+        const auto args = stream_settings_spy.takeFirst();
+        const stream_settings settings_value
+            = qvariant_cast<stream_settings>(args.at(0));
+        QCOMPARE(settings_value.stream_name, QStringLiteral("cam-1"));
+        QCOMPARE(
+            settings_value.algorithm_id, QStringLiteral("contour_mask")
+        );
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("mask_heavy"));
+        QVERIFY(settings_value.algorithm_overlay_enabled);
+    }
+
+    manual_processing_checkbox->setChecked(true);
+    manual_display_fps_spin->setValue(20);
+    manual_backend_fps_spin->setValue(10);
+    manual_processing_pixels_spin->setValue(512 * 512);
+
+    QVERIFY(stream_settings_spy.count() >= 3);
+    {
+        const auto args = stream_settings_spy.takeLast();
+        const stream_settings settings_value
+            = qvariant_cast<stream_settings>(args.at(0));
+        QVERIFY(settings_value.manual_processing_policy_enabled);
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("mask_heavy"));
+        QVERIFY(settings_value.algorithm_overlay_enabled);
+        QCOMPARE(settings_value.manual_display_fps, 20);
+        QCOMPARE(settings_value.manual_backend_fps, 10);
+        QCOMPARE(settings_value.manual_processing_pixels, 512 * 512);
+    }
+    stream_settings_spy.clear();
 
     active_labels_checkbox->setChecked(false);
 
@@ -2568,8 +2954,41 @@ void main_window_tests::settings_panel_emits_structured_stream_settings() {
         QCOMPARE(
             settings_value.algorithm_id, QStringLiteral("contour_mask")
         );
-        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("outline"));
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("mask_heavy"));
+        QVERIFY(settings_value.algorithm_overlay_enabled);
+        QVERIFY(settings_value.manual_processing_policy_enabled);
+        QCOMPARE(settings_value.manual_display_fps, 20);
     }
+}
+
+void main_window_tests::settings_panel_emits_log_mode_changes() {
+    settings_panel panel;
+
+    QSignalSpy log_mode_spy(&panel, &settings_panel::log_mode_changed);
+    auto* log_mode_combo = panel.findChild<QComboBox*>(
+        QStringLiteral("settings_log_mode_combo")
+    );
+
+    QVERIFY(log_mode_combo != nullptr);
+    QCOMPARE(panel.log_mode(), frontend_log_mode::release);
+
+    log_mode_combo->setCurrentIndex(1);
+
+    QCOMPARE(log_mode_spy.count(), 1);
+    QCOMPARE(
+        log_mode_spy.takeFirst().at(0).value<frontend_log_mode>(),
+        frontend_log_mode::debug
+    );
+    QCOMPARE(panel.log_mode(), frontend_log_mode::debug);
+
+    log_mode_combo->setCurrentIndex(0);
+
+    QCOMPARE(log_mode_spy.count(), 1);
+    QCOMPARE(
+        log_mode_spy.takeFirst().at(0).value<frontend_log_mode>(),
+        frontend_log_mode::release
+    );
+    QCOMPARE(panel.log_mode(), frontend_log_mode::release);
 }
 
 void main_window_tests::settings_panel_updates_algorithm_presets_by_selection() {
@@ -2592,6 +3011,9 @@ void main_window_tests::settings_panel_updates_algorithm_presets_by_selection() 
     auto* algorithm_combo = panel.findChild<QComboBox*>(
         QStringLiteral("settings_active_algorithm_combo")
     );
+    auto* operator_profile_combo = panel.findChild<QComboBox*>(
+        QStringLiteral("settings_active_operator_profile_combo")
+    );
     auto* preset_combo = panel.findChild<QComboBox*>(
         QStringLiteral("settings_active_algorithm_preset_combo")
     );
@@ -2603,6 +3025,7 @@ void main_window_tests::settings_panel_updates_algorithm_presets_by_selection() 
     );
 
     QVERIFY(algorithm_combo != nullptr);
+    QVERIFY(operator_profile_combo != nullptr);
     QVERIFY(preset_combo != nullptr);
     QVERIFY(overlay_checkbox != nullptr);
     QVERIFY(summary_label != nullptr);
@@ -2621,19 +3044,20 @@ void main_window_tests::settings_panel_updates_algorithm_presets_by_selection() 
         QCOMPARE(
             settings_value.algorithm_id, QStringLiteral("contour_mask")
         );
-        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("outline"));
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("balanced"));
         QCOMPARE(settings_value.algorithm_overlay_enabled, false);
     }
 
     QCOMPARE(
-        preset_combo->itemData(0).toString(), QStringLiteral("outline")
+        preset_combo->currentData().toString(), QStringLiteral("balanced")
     );
-    QCOMPARE(
-        preset_combo->itemData(2).toString(), QStringLiteral("mask_heavy")
-    );
+    QCOMPARE(operator_profile_combo->currentData().toString(), QStringLiteral("balanced"));
     QVERIFY(summary_label->text().contains(QStringLiteral("contours and masks")));
 
-    overlay_checkbox->setChecked(true);
+    const int debug_heavy_index
+        = operator_profile_combo->findData(QStringLiteral("debug_heavy"));
+    QVERIFY(debug_heavy_index >= 0);
+    operator_profile_combo->setCurrentIndex(debug_heavy_index);
     QCOMPARE(stream_settings_spy.count(), 1);
     {
         const auto args = stream_settings_spy.takeFirst();
@@ -2642,13 +3066,14 @@ void main_window_tests::settings_panel_updates_algorithm_presets_by_selection() 
         QCOMPARE(
             settings_value.algorithm_id, QStringLiteral("contour_mask")
         );
+        QCOMPARE(settings_value.algorithm_preset, QStringLiteral("mask_heavy"));
         QCOMPARE(settings_value.algorithm_overlay_enabled, true);
     }
+    QCOMPARE(
+        preset_combo->currentData().toString(), QStringLiteral("mask_heavy")
+    );
 
-    const int mask_heavy_index
-        = preset_combo->findData(QStringLiteral("mask_heavy"));
-    QVERIFY(mask_heavy_index >= 0);
-    preset_combo->setCurrentIndex(mask_heavy_index);
+    overlay_checkbox->setChecked(false);
 
     QCOMPARE(stream_settings_spy.count(), 1);
     {
@@ -2656,8 +3081,9 @@ void main_window_tests::settings_panel_updates_algorithm_presets_by_selection() 
         const stream_settings settings_value
             = qvariant_cast<stream_settings>(args.at(0));
         QCOMPARE(settings_value.algorithm_preset, QStringLiteral("mask_heavy"));
-        QCOMPARE(settings_value.algorithm_overlay_enabled, true);
+        QCOMPARE(settings_value.algorithm_overlay_enabled, false);
     }
+    QCOMPARE(operator_profile_combo->currentData().toString(), QStringLiteral("custom"));
 }
 
 void main_window_tests::settings_panel_exports_current_filtered_log_report() {
@@ -2744,6 +3170,10 @@ void main_window_tests::stream_cell_tracks_stream_settings() {
             .algorithm_id = QStringLiteral("contour"),
             .algorithm_preset = QStringLiteral("debug"),
             .algorithm_overlay_enabled = true,
+            .manual_processing_policy_enabled = true,
+            .manual_display_fps = 17,
+            .manual_backend_fps = 9,
+            .manual_processing_pixels = 320 * 240,
         }
     );
 
@@ -2752,6 +3182,76 @@ void main_window_tests::stream_cell_tracks_stream_settings() {
     QCOMPARE(settings_value.algorithm_id, QStringLiteral("contour_mask"));
     QCOMPARE(settings_value.algorithm_preset, QStringLiteral("mask_heavy"));
     QCOMPARE(settings_value.algorithm_overlay_enabled, true);
+    QVERIFY(settings_value.manual_processing_policy_enabled);
+    QCOMPARE(settings_value.manual_display_fps, 17);
+    QCOMPARE(settings_value.manual_backend_fps, 9);
+    QCOMPARE(settings_value.manual_processing_pixels, 320 * 240);
+
+    cell.set_log_mode(frontend_log_mode::debug);
+    QCOMPARE(cell.current_log_mode(), frontend_log_mode::debug);
+
+    cell.set_runtime_metrics(
+        stream_runtime_metrics {
+            .input_fps = 29.7,
+            .backend_fps = 9.8,
+            .input_width = 1280,
+            .input_height = 720,
+            .processed_width = 320,
+            .processed_height = 180,
+            .effective_display_fps = 17,
+            .effective_backend_fps = 9,
+            .effective_processing_pixels = 320 * 180,
+            .manual_policy_active = true,
+        }
+    );
+    const stream_runtime_metrics metrics = cell.current_runtime_metrics();
+    QCOMPARE(metrics.processed_width, 320);
+    QCOMPARE(metrics.processed_height, 180);
+    QCOMPARE(metrics.effective_backend_fps, 9);
+    QVERIFY(metrics.manual_policy_active);
+}
+
+void main_window_tests::stream_cell_status_badges_render_different_modes() {
+    const stream_settings balanced_status {
+        .stream_name = QStringLiteral("cam-status"),
+        .labels_enabled = true,
+        .algorithm_id = QStringLiteral("motion_baseline"),
+        .algorithm_preset = QStringLiteral("balanced"),
+        .algorithm_overlay_enabled = false,
+    };
+    const stream_settings debug_heavy_status {
+        .stream_name = QStringLiteral("cam-status"),
+        .labels_enabled = true,
+        .algorithm_id = QStringLiteral("contour_mask"),
+        .algorithm_preset = QStringLiteral("mask_heavy"),
+        .algorithm_overlay_enabled = true,
+    };
+
+    const QImage release_status
+        = main_window_tests_support::render_stream_cell_status_region(
+            balanced_status, frontend_log_mode::release
+        );
+    const QImage debug_status
+        = main_window_tests_support::render_stream_cell_status_region(
+            balanced_status, frontend_log_mode::debug
+        );
+    const QImage debug_heavy_algorithm_status
+        = main_window_tests_support::render_stream_cell_status_region(
+            debug_heavy_status, frontend_log_mode::debug
+        );
+
+    QVERIFY(
+        main_window_tests_support::differing_pixel_count(
+            release_status, debug_status
+        )
+            > 0
+    );
+    QVERIFY(
+        main_window_tests_support::differing_pixel_count(
+            debug_status, debug_heavy_algorithm_status
+        )
+            > 0
+    );
 }
 
 void main_window_tests::stream_cell_overlay_modes_render_different_event_regions() {

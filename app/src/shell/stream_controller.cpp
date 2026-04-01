@@ -14,6 +14,7 @@
 #include <QtGlobal>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <utility>
 
@@ -63,6 +64,7 @@ stream_controller::stream_controller(
     qRegisterMetaType<yodau::backend::event>("yodau::backend::event");
     qRegisterMetaType<frontend_log_entry>("frontend_log_entry");
     qRegisterMetaType<stream_settings>("stream_settings");
+    qRegisterMetaType<stream_runtime_metrics>("stream_runtime_metrics");
     qRegisterMetaType<line_profile>("line_profile");
     qRegisterMetaType<template_apply_settings>("template_apply_settings");
     fps_capability = yodau::backend::detect_fps_capability_profile();
@@ -75,6 +77,26 @@ stream_controller::stream_controller(
     init_from_backend();
 
     if (stream_mgr) {
+        backend_runtime.set_processed_frame_observer(
+            [this](
+                const yodau::backend::stream& stream_value,
+                const yodau::backend::frame& frame_value,
+                const yodau::backend::processing_result& result
+            ) {
+                Q_UNUSED(result);
+
+                QMetaObject::invokeMethod(
+                    this, "on_backend_frame_processed",
+                    Qt::QueuedConnection,
+                    Q_ARG(
+                        QString,
+                        QString::fromStdString(stream_value.get_name())
+                    ),
+                    Q_ARG(int, frame_value.width),
+                    Q_ARG(int, frame_value.height)
+                );
+            }
+        );
         backend_runtime.attach(*stream_mgr);
         stream_mgr->set_event_batch_sink(
             std::bind_front(&stream_controller::on_backend_events, this)
@@ -86,6 +108,7 @@ stream_controller::stream_controller(
         widget_bridge.sync_active_selection(
             route_state.active_stream_name(), stream_settings {}
         );
+        widget_bridge.sync_visible_log_mode(settings->log_mode());
     }
 
     setup_settings_connections();
@@ -280,6 +303,12 @@ void stream_controller::setup_settings_connections() {
     connect(
         settings, &settings_panel::active_stream_settings_changed, this,
         &stream_controller::on_active_stream_settings_changed
+    );
+    connect(
+        settings, &settings_panel::log_mode_changed, this,
+        [this](const frontend_log_mode mode) {
+            widget_bridge.sync_visible_log_mode(mode);
+        }
     );
 
     connect(
@@ -538,20 +567,35 @@ void stream_controller::refresh_fps_policy(const bool force) {
     processing_scale_percent_by_stream.clear();
 
     for (const auto& name : grid->stream_names()) {
-        const yodau::backend::fps_runtime_factors factors {
-            .mode = mode,
-            .role = yodau::backend::fps_stream_role::grid,
-            .configured_stream_count = configured_stream_count,
-            .visible_stream_count = visible_stream_count,
-            .active_stream_count = active_stream_count,
-            .configured_line_count = configured_line_count,
-            .stream_line_count = line_count_for_stream(name),
-            .grid_cell_count = cell_count,
-            .recent_motion_count = motion_count,
-            .device_load_ratio = load_ratio,
-        };
-        const auto profile
-            = yodau::backend::recommend_fps_profile(fps_capability, factors);
+        const stream_settings settings_value = settings_for_stream(name);
+        yodau::backend::fps_stream_profile profile;
+
+        if (settings_value.manual_processing_policy_enabled) {
+            profile.repaint_interval_ms = interval_ms_for_fps(
+                settings_value.manual_display_fps
+            );
+            profile.analysis_interval_ms
+                = mode == yodau::backend::fps_mode::playback_and_processing
+                ? interval_ms_for_fps(settings_value.manual_backend_fps)
+                : 0;
+            profile.processing_scale_percent = 100;
+        } else {
+            const yodau::backend::fps_runtime_factors factors {
+                .mode = mode,
+                .role = yodau::backend::fps_stream_role::grid,
+                .configured_stream_count = configured_stream_count,
+                .visible_stream_count = visible_stream_count,
+                .active_stream_count = active_stream_count,
+                .configured_line_count = configured_line_count,
+                .stream_line_count = line_count_for_stream(name),
+                .grid_cell_count = cell_count,
+                .recent_motion_count = motion_count,
+                .device_load_ratio = load_ratio,
+            };
+            profile = yodau::backend::recommend_fps_profile(
+                fps_capability, factors
+            );
+        }
 
         if (auto* tile = grid->peek_stream_cell(name)) {
             tile->set_repaint_interval_ms(profile.repaint_interval_ms);
@@ -560,6 +604,34 @@ void stream_controller::refresh_fps_policy(const bool force) {
         processing_scale_percent_by_stream.insert(
             name, profile.processing_scale_percent
         );
+
+        stream_runtime_metrics metrics = runtime_metrics_by_stream.value(name);
+        metrics.manual_policy_active
+            = settings_value.manual_processing_policy_enabled;
+        metrics.effective_display_fps = fps_for_interval_ms(
+            profile.repaint_interval_ms
+        );
+        metrics.effective_backend_fps
+            = mode == yodau::backend::fps_mode::playback_and_processing
+            ? fps_for_interval_ms(profile.analysis_interval_ms)
+            : 0;
+        if (mode != yodau::backend::fps_mode::playback_and_processing) {
+            metrics.backend_fps = 0.0;
+        }
+        if (settings_value.manual_processing_policy_enabled) {
+            metrics.effective_processing_pixels
+                = settings_value.manual_processing_pixels;
+        } else if (metrics.input_width > 0 && metrics.input_height > 0) {
+            const double scale = static_cast<double>(
+                                     profile.processing_scale_percent
+                                 )
+                / 100.0;
+            metrics.effective_processing_pixels = static_cast<int>(std::lround(
+                static_cast<double>(metrics.input_width * metrics.input_height)
+                * scale * scale
+            ));
+        }
+        runtime_metrics_by_stream.insert(name, metrics);
 
         if (mode == yodau::backend::fps_mode::playback_and_processing) {
             stream_mgr->set_stream_analysis_interval_ms(
@@ -570,20 +642,35 @@ void stream_controller::refresh_fps_policy(const bool force) {
 
     const QString active_name = route_state.active_stream_name();
     if (!active_name.isEmpty()) {
-        const yodau::backend::fps_runtime_factors factors {
-            .mode = mode,
-            .role = yodau::backend::fps_stream_role::active,
-            .configured_stream_count = configured_stream_count,
-            .visible_stream_count = visible_stream_count,
-            .active_stream_count = active_stream_count,
-            .configured_line_count = configured_line_count,
-            .stream_line_count = line_count_for_stream(active_name),
-            .grid_cell_count = cell_count,
-            .recent_motion_count = motion_count,
-            .device_load_ratio = load_ratio,
-        };
-        const auto profile
-            = yodau::backend::recommend_fps_profile(fps_capability, factors);
+        const stream_settings settings_value = settings_for_stream(active_name);
+        yodau::backend::fps_stream_profile profile;
+
+        if (settings_value.manual_processing_policy_enabled) {
+            profile.repaint_interval_ms = interval_ms_for_fps(
+                settings_value.manual_display_fps
+            );
+            profile.analysis_interval_ms
+                = mode == yodau::backend::fps_mode::playback_and_processing
+                ? interval_ms_for_fps(settings_value.manual_backend_fps)
+                : 0;
+            profile.processing_scale_percent = 100;
+        } else {
+            const yodau::backend::fps_runtime_factors factors {
+                .mode = mode,
+                .role = yodau::backend::fps_stream_role::active,
+                .configured_stream_count = configured_stream_count,
+                .visible_stream_count = visible_stream_count,
+                .active_stream_count = active_stream_count,
+                .configured_line_count = configured_line_count,
+                .stream_line_count = line_count_for_stream(active_name),
+                .grid_cell_count = cell_count,
+                .recent_motion_count = motion_count,
+                .device_load_ratio = load_ratio,
+            };
+            profile = yodau::backend::recommend_fps_profile(
+                fps_capability, factors
+            );
+        }
 
         if (main_zone != nullptr) {
             if (auto* cell = widget_bridge.active_cell()) {
@@ -595,12 +682,42 @@ void stream_controller::refresh_fps_policy(const bool force) {
             active_name, profile.processing_scale_percent
         );
 
+        stream_runtime_metrics metrics = runtime_metrics_by_stream.value(active_name);
+        metrics.manual_policy_active
+            = settings_value.manual_processing_policy_enabled;
+        metrics.effective_display_fps = fps_for_interval_ms(
+            profile.repaint_interval_ms
+        );
+        metrics.effective_backend_fps
+            = mode == yodau::backend::fps_mode::playback_and_processing
+            ? fps_for_interval_ms(profile.analysis_interval_ms)
+            : 0;
+        if (mode != yodau::backend::fps_mode::playback_and_processing) {
+            metrics.backend_fps = 0.0;
+        }
+        if (settings_value.manual_processing_policy_enabled) {
+            metrics.effective_processing_pixels
+                = settings_value.manual_processing_pixels;
+        } else if (metrics.input_width > 0 && metrics.input_height > 0) {
+            const double scale = static_cast<double>(
+                                     profile.processing_scale_percent
+                                 )
+                / 100.0;
+            metrics.effective_processing_pixels = static_cast<int>(std::lround(
+                static_cast<double>(metrics.input_width * metrics.input_height)
+                * scale * scale
+            ));
+        }
+        runtime_metrics_by_stream.insert(active_name, metrics);
+
         if (mode == yodau::backend::fps_mode::playback_and_processing) {
             stream_mgr->set_stream_analysis_interval_ms(
                 active_name.toStdString(), profile.analysis_interval_ms
             );
         }
     }
+
+    sync_visible_runtime_metrics();
 }
 
 int stream_controller::grid_cell_count() const {
@@ -633,6 +750,106 @@ double stream_controller::current_device_load_ratio() const {
     return std::clamp(processing_cost_ema_ms / 20.0, 0.0, 2.5);
 }
 
+void stream_controller::note_input_frame_observed(
+    const QString& stream_name, const int width, const int height
+) {
+    if (stream_name.isEmpty()) {
+        return;
+    }
+
+    auto& tracker = rate_trackers_by_stream[stream_name];
+    const auto now = stream_controller_support::steady_clock::now();
+    stream_runtime_metrics metrics = runtime_metrics_by_stream.value(stream_name);
+    metrics.input_fps = update_fps_ema(
+        tracker.last_input_frame, tracker.input_fps_ema, now
+    );
+    metrics.input_width = width;
+    metrics.input_height = height;
+    runtime_metrics_by_stream.insert(stream_name, metrics);
+    sync_runtime_metrics_for_stream(stream_name);
+}
+
+void stream_controller::note_backend_frame_observed(
+    const QString& stream_name, const int width, const int height
+) {
+    if (stream_name.isEmpty()) {
+        return;
+    }
+
+    auto& tracker = rate_trackers_by_stream[stream_name];
+    const auto now = stream_controller_support::steady_clock::now();
+    stream_runtime_metrics metrics = runtime_metrics_by_stream.value(stream_name);
+    metrics.backend_fps = update_fps_ema(
+        tracker.last_backend_frame, tracker.backend_fps_ema, now
+    );
+    metrics.processed_width = width;
+    metrics.processed_height = height;
+    metrics.effective_processing_pixels = width > 0 && height > 0
+        ? width * height
+        : metrics.effective_processing_pixels;
+    runtime_metrics_by_stream.insert(stream_name, metrics);
+    sync_runtime_metrics_for_stream(stream_name);
+}
+
+void stream_controller::sync_runtime_metrics_for_stream(
+    const QString& stream_name
+) {
+    if (stream_name.isEmpty()) {
+        return;
+    }
+
+    if (auto* tile = widget_bridge.tile_for_stream_name(stream_name, route_state)) {
+        tile->set_runtime_metrics(runtime_metrics_by_stream.value(stream_name));
+    }
+}
+
+void stream_controller::sync_visible_runtime_metrics() {
+    if (grid != nullptr) {
+        for (const QString& name : grid->stream_names()) {
+            sync_runtime_metrics_for_stream(name);
+        }
+    }
+
+    const QString active_name = route_state.active_stream_name();
+    if (!active_name.isEmpty()) {
+        sync_runtime_metrics_for_stream(active_name);
+    }
+}
+
+int stream_controller::interval_ms_for_fps(const int fps) {
+    return fps <= 0 ? 0 : std::max(1, static_cast<int>(std::lround(1000.0 / fps)));
+}
+
+int stream_controller::fps_for_interval_ms(const int interval_ms) {
+    return interval_ms <= 0
+        ? 0
+        : std::max(1, static_cast<int>(std::lround(1000.0 / interval_ms)));
+}
+
+double stream_controller::update_fps_ema(
+    std::chrono::steady_clock::time_point& last_sample, double& ema_fps,
+    const std::chrono::steady_clock::time_point now
+) {
+    if (last_sample.time_since_epoch().count() == 0) {
+        last_sample = now;
+        return ema_fps;
+    }
+
+    const double elapsed_ms
+        = std::chrono::duration<double, std::milli>(now - last_sample).count();
+    last_sample = now;
+    if (elapsed_ms <= 1.0) {
+        return ema_fps;
+    }
+
+    const double sample_fps = 1000.0 / elapsed_ms;
+    constexpr double smoothing = 0.18;
+    ema_fps = ema_fps <= 0.0 ? sample_fps
+                             : ema_fps * (1.0 - smoothing)
+            + sample_fps * smoothing;
+    return ema_fps;
+}
+
 void stream_controller::note_processing_cost_sample(const double elapsed_ms) {
     if (elapsed_ms <= 0.0) {
         return;
@@ -654,6 +871,31 @@ QImage stream_controller::scaled_processing_image(
 ) const {
     if (image.isNull()) {
         return image;
+    }
+
+    const stream_settings settings_value = settings_for_stream(stream_name);
+    if (settings_value.manual_processing_policy_enabled) {
+        const qint64 current_pixels
+            = static_cast<qint64>(image.width()) * image.height();
+        const qint64 target_pixels = std::max(
+            1, settings_value.manual_processing_pixels
+        );
+        if (target_pixels >= current_pixels) {
+            return image;
+        }
+
+        const double scale = std::sqrt(
+            static_cast<double>(target_pixels)
+            / static_cast<double>(current_pixels)
+        );
+        const QSize scaled_size(
+            std::max(1, static_cast<int>(std::lround(image.width() * scale))),
+            std::max(1, static_cast<int>(std::lround(image.height() * scale)))
+        );
+
+        return image.scaled(
+            scaled_size, Qt::IgnoreAspectRatio, Qt::FastTransformation
+        );
     }
 
     const int scale_percent = std::clamp(
@@ -718,19 +960,36 @@ void stream_controller::on_gui_frame(
     emit monitor_gui_frame_observed(
         stream_name, static_cast<qint64>(image.sizeInBytes())
     );
+    note_input_frame_observed(stream_name, image.width(), image.height());
 
     if (!backend_runtime.processing_enabled()) {
         return;
     }
 
     const auto started = stream_controller_support::steady_clock::now();
-    auto f = frame_from_image(scaled_processing_image(stream_name, image));
+    const QImage processing_image
+        = scaled_processing_image(stream_name, image);
+    stream_runtime_metrics metrics = runtime_metrics_by_stream.value(stream_name);
+    metrics.processed_width = processing_image.width();
+    metrics.processed_height = processing_image.height();
+    metrics.effective_processing_pixels
+        = processing_image.width() * processing_image.height();
+    runtime_metrics_by_stream.insert(stream_name, metrics);
+    sync_runtime_metrics_for_stream(stream_name);
+
+    auto f = frame_from_image(processing_image);
     stream_mgr->push_frame(stream_name.toStdString(), std::move(f));
     const auto finished = stream_controller_support::steady_clock::now();
     const auto elapsed_ms
         = std::chrono::duration<double, std::milli>(finished - started).count();
     note_processing_cost_sample(elapsed_ms);
     refresh_fps_policy(false);
+}
+
+void stream_controller::on_backend_frame_processed(
+    QString stream_name, const int width, const int height
+) {
+    note_backend_frame_observed(stream_name, width, height);
 }
 
 void stream_controller::on_backend_event(const yodau::backend::event& e) {

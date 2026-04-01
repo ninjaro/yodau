@@ -87,6 +87,7 @@ signals:
 
     // active tab
     void active_stream_settings_changed(stream_settings settings_value);
+    void log_mode_changed(frontend_log_mode mode);
 
     void active_edit_mode_changed(bool drawing_new);
 

@@ -14,6 +14,20 @@ QString algorithm_detail_text(const stream_settings& settings_value) {
         );
 }
 
+QString processing_policy_detail_text(const stream_settings& settings_value) {
+    return QStringLiteral(
+               "manual=%1 display_fps=%2 backend_fps=%3 processing_pixels=%4"
+           )
+        .arg(
+            settings_value.manual_processing_policy_enabled
+                ? QStringLiteral("true")
+                : QStringLiteral("false")
+        )
+        .arg(settings_value.manual_display_fps)
+        .arg(settings_value.manual_backend_fps)
+        .arg(settings_value.manual_processing_pixels);
+}
+
 } // namespace active_stream_workflow_support
 
 active_stream_workflow::active_stream_workflow(
@@ -72,6 +86,22 @@ active_stream_workflow::apply_stream_settings(
                 result.settings.algorithm_id
             )
         );
+    }
+
+    if (result.processing_policy_changed) {
+        transition.entries.push_back(
+            make_entry(
+                frontend_log_severity::info,
+                QStringLiteral("stream_processing"),
+                QStringLiteral("processing tuning updated"),
+                result.settings.stream_name,
+                active_stream_workflow_support::processing_policy_detail_text(
+                    result.settings
+                ),
+                result.settings.algorithm_id
+            )
+        );
+        transition.refresh_fps = true;
     }
 
     return transition;
