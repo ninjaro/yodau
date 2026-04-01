@@ -8,6 +8,68 @@
 
 #include <QColor>
 
+#include <algorithm>
+
+namespace active_editor_bridge_support {
+
+std::vector<stream_cell::line_instance> filtered_active_lines(
+    const QString& active_name, const active_edit_session& edit_session
+) {
+    const auto edit_request = edit_session.active_line_edit();
+    if (!edit_request.has_value() || edit_request->stream_name != active_name
+        || edit_request->source_line_name.isEmpty()) {
+        return edit_session.stream_lines(active_name);
+    }
+
+    std::vector<stream_cell::line_instance> filtered;
+    for (const auto& line_value : edit_session.stream_lines(active_name)) {
+        if (line_value.template_name.trimmed()
+            == edit_request->source_line_name.trimmed()) {
+            continue;
+        }
+        filtered.push_back(line_value);
+    }
+    return filtered;
+}
+
+std::optional<stream_cell::line_instance> active_line_edit_preview(
+    const QString& active_name, const active_edit_session& edit_session
+) {
+    const auto edit_request = edit_session.active_line_edit();
+    if (!edit_request.has_value() || edit_request->stream_name != active_name
+        || edit_request->source_line_name.isEmpty()
+        || edit_request->points_pct.isEmpty()) {
+        return std::nullopt;
+    }
+
+    const auto source_line = edit_session.find_stream_line(
+        active_name, edit_request->source_line_name
+    );
+    if (!source_line.has_value()) {
+        return std::nullopt;
+    }
+
+    stream_cell::line_instance preview_line = *source_line;
+    preview_line.template_name = edit_request->profile.name;
+    preview_line.color = edit_request->profile.color;
+    preview_line.color_mode_id = edit_request->profile.color_mode_id;
+    preview_line.closed = edit_request->profile.closed;
+    preview_line.width_text = edit_request->profile.width_text;
+    preview_line.length_text = edit_request->profile.length_text;
+    preview_line.response_text = edit_request->profile.response_text;
+    preview_line.pts_pct.reserve(
+        static_cast<std::vector<QPointF>::size_type>(
+            edit_request->points_pct.size()
+        )
+    );
+    for (const QPointF& point_value : edit_request->points_pct) {
+        preview_line.pts_pct.push_back(point_value);
+    }
+    return preview_line;
+}
+
+} // namespace active_editor_bridge_support
+
 active_editor_bridge::active_editor_bridge(
     stream_board* main_zone, settings_panel* settings
 )
@@ -73,8 +135,8 @@ void active_editor_bridge::sync_active_selection(
         return;
     }
 
+    Q_UNUSED(settings_value);
     settings_->set_active_current(active_name);
-    settings_->set_active_stream_settings(settings_value);
 }
 
 void active_editor_bridge::apply_active_stream(
@@ -100,6 +162,44 @@ void active_editor_bridge::apply_active_stream(
 
     cell->set_stream_settings(settings_value);
     cell->set_labels_enabled(settings_value.labels_enabled);
+    if (settings_ != nullptr) {
+        QObject::connect(
+            cell, &stream_cell::line_edit_point_selected, settings_,
+            &settings_panel::select_active_line_edit_point,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_shape_drag_requested, settings_,
+            &settings_panel::translate_active_line_edit_shape,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_point_move_requested, settings_,
+            &settings_panel::move_active_line_edit_point,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_point_split_requested, settings_,
+            &settings_panel::split_active_line_edit_point,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_shape_rotate_requested, settings_,
+            &settings_panel::rotate_active_line_edit_shape,
+            Qt::UniqueConnection
+        );
+    }
+    const auto line_edit_preview
+        = active_editor_bridge_support::active_line_edit_preview(
+            active_name, edit_session
+        );
+    cell->set_line_edit_preview(line_edit_preview);
+
+    if (line_edit_preview.has_value()) {
+        cell->set_drawing_enabled(false);
+        return;
+    }
+
     cell->clear_draft();
     cell->set_drawing_enabled(edit_session.drawing_new_mode());
 
@@ -107,8 +207,9 @@ void active_editor_bridge::apply_active_stream(
         const line_profile& draft_line_profile = edit_session.draft_line_profile();
         cell->set_draft_params(
             draft_line_profile.name, draft_line_profile.color,
-            draft_line_profile.closed, draft_line_profile.width_text,
-            draft_line_profile.length_text, draft_line_profile.response_text
+            draft_line_profile.closed, draft_line_profile.color_mode_id,
+            draft_line_profile.width_text, draft_line_profile.length_text,
+            draft_line_profile.response_text
         );
         return;
     }
@@ -125,13 +226,28 @@ void active_editor_bridge::sync_active_persistent(
     if (active_name.isEmpty()) {
         if (settings_ != nullptr) {
             settings_->set_template_candidates({});
+            settings_->set_active_lines({});
         }
         return;
     }
 
     if (main_zone_ != nullptr) {
         if (auto* cell = main_zone_->active_cell()) {
-            cell->set_persistent_lines(edit_session.stream_lines(active_name));
+            const auto line_edit_preview
+                = active_editor_bridge_support::active_line_edit_preview(
+                    active_name, edit_session
+                );
+            cell->set_persistent_lines(
+                active_editor_bridge_support::filtered_active_lines(
+                    active_name, edit_session
+                )
+            );
+            cell->set_line_edit_preview(line_edit_preview);
+            if (line_edit_preview.has_value()) {
+                cell->set_drawing_enabled(false);
+            } else {
+                cell->set_drawing_enabled(edit_session.drawing_new_mode());
+            }
         }
     }
 
@@ -139,6 +255,7 @@ void active_editor_bridge::sync_active_persistent(
         return;
     }
 
+    settings_->set_active_lines(edit_session.stream_lines(active_name));
     const QSet<QString> used
         = edit_session.used_template_names_for_stream(active_name);
     settings_->set_template_candidates(
@@ -173,6 +290,7 @@ void active_editor_bridge::apply_template_preview(
 
     cell->set_draft_params(
         template_name, color, template_value->closed,
+        active_template_settings.color_mode_id,
         active_template_settings.width_text,
         active_template_settings.length_text,
         active_template_settings.response_text

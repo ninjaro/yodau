@@ -1,15 +1,16 @@
 #include "widgets/stream_source_panel.hpp"
 
 #include "shell/str_label.hpp"
-#include "widgets/log_area_view.hpp"
 
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFileInfo>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QRadioButton>
@@ -86,18 +87,6 @@ void stream_source_panel::clear_inputs() const {
     update_add_enabled();
 }
 
-void stream_source_panel::set_log_toolbar(log_toolbar_panel* toolbar) {
-    if (add_log_view != nullptr) {
-        add_log_view->set_log_toolbar(toolbar);
-    }
-}
-
-bool stream_source_panel::append_log_entry(
-    const frontend_log_entry& entry
-) const {
-    return add_log_view != nullptr && add_log_view->append_entry(entry);
-}
-
 void stream_source_panel::build_ui() {
     const auto layout = new QVBoxLayout(this);
     layout->setSpacing(10);
@@ -132,6 +121,11 @@ void stream_source_panel::build_ui() {
     mode_layout->addWidget(local_radio);
     mode_layout->addWidget(url_radio);
     layout->addWidget(mode_box);
+
+    summary_label = new QLabel(this);
+    summary_label->setObjectName(QStringLiteral("settings_add_summary_label"));
+    summary_label->setWordWrap(true);
+    layout->addWidget(summary_label);
 
     connect(
         mode_group, &QButtonGroup::idClicked, this,
@@ -209,11 +203,6 @@ void stream_source_panel::build_ui() {
     connect(
         add_btn, &QPushButton::clicked, this, &stream_source_panel::on_add_clicked
     );
-
-    add_log_view = new log_area_view(frontend_log_area::add, this);
-    add_log_view->setObjectName(QStringLiteral("settings_add_log_view"));
-    add_log_view->setMinimumHeight(120);
-    layout->addWidget(add_log_view);
 }
 
 void stream_source_panel::set_mode(const input_mode mode) {
@@ -279,6 +268,93 @@ void stream_source_panel::update_add_enabled() const {
 
     const QString name = resolved_name_for_current_input();
     add_btn->setEnabled(name_is_unique(name) && current_input_valid());
+    refresh_summary();
+}
+
+void stream_source_panel::refresh_summary() const {
+    if (summary_label == nullptr) {
+        return;
+    }
+
+    const QString resolved_name = resolved_name_for_current_input();
+    const QString target_name = resolved_name.isEmpty()
+        ? QStringLiteral("backend auto-name")
+        : resolved_name;
+    const QString readiness = add_btn != nullptr && add_btn->isEnabled()
+        ? QStringLiteral("ready")
+        : QStringLiteral("waiting");
+
+    switch (current_mode) {
+    case input_mode::file: {
+        const QString path = file_path_edit != nullptr
+            ? file_path_edit->text().trimmed()
+            : QString();
+        if (path.isEmpty()) {
+            summary_label->setText(
+                QStringLiteral(
+                    "File mode waits for a clip or recording path before the "
+                    "stream can be added."
+                )
+            );
+            return;
+        }
+
+        const QString file_name = QFileInfo(path).fileName();
+        summary_label->setText(
+            QStringLiteral("%1 | file %2 as %3 | loop %4")
+                .arg(readiness)
+                .arg(file_name.isEmpty() ? path : file_name)
+                .arg(target_name)
+                .arg(
+                    loop_checkbox != nullptr && loop_checkbox->isChecked()
+                        ? QStringLiteral("on")
+                        : QStringLiteral("off")
+                )
+        );
+        return;
+    }
+    case input_mode::local: {
+        const QString source = local_sources_combo != nullptr
+            ? local_sources_combo->currentText().trimmed()
+            : QString();
+        if (source.isEmpty()) {
+            summary_label->setText(
+                QStringLiteral(
+                    "Local mode waits for a detected camera source."
+                )
+            );
+            return;
+        }
+
+        summary_label->setText(
+            QStringLiteral("%1 | local source %2 as %3")
+                .arg(readiness)
+                .arg(source)
+                .arg(target_name)
+        );
+        return;
+    }
+    case input_mode::url: {
+        const QString url = url_edit != nullptr ? url_edit->text().trimmed()
+                                                : QString();
+        if (url.isEmpty()) {
+            summary_label->setText(
+                QStringLiteral(
+                    "URL mode waits for a network stream address."
+                )
+            );
+            return;
+        }
+
+        summary_label->setText(
+            QStringLiteral("%1 | url %2 as %3")
+                .arg(readiness)
+                .arg(url)
+                .arg(target_name)
+        );
+        return;
+    }
+    }
 }
 
 QString stream_source_panel::resolved_name_for_current_input() const {

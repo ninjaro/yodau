@@ -75,11 +75,19 @@ signals:
     void monitor_backend_event_observed(const QString& kind);
 
 private slots:
-    // active tab
+    // stream settings tab
+    void on_stream_settings_selection_changed(const QString& name);
     void on_active_stream_settings_changed(stream_settings settings_value);
+
+    // line dock
+    void on_active_stream_selected(const QString& name);
     void on_active_edit_mode_changed(bool drawing_new);
     void on_active_line_profile_changed(line_profile profile_value);
     void on_active_line_save_requested(line_profile profile_value);
+    void on_active_line_enabled_changed(const QString& line_name, bool enabled);
+    void on_active_line_edit_preview_changed(line_edit_request request);
+    void on_active_line_edit_preview_cleared();
+    void on_active_line_edit_save_requested(line_edit_request request);
 
     void on_active_template_add_requested(
         template_apply_settings settings_value
@@ -119,7 +127,17 @@ private:
         const QString& subsystem, const QString& message,
         const QString& stream_name = QString(),
         const QString& detail = QString(),
-        const QString& algorithm_id = QString()
+        const QString& algorithm_id = QString(),
+        const QString& line_name = QString(),
+        const QString& event_type = QString(),
+        const QColor& line_color = QColor()
+    ) const;
+    QColor resolved_log_line_color(
+        const QString& stream_name, const QString& line_name
+    ) const;
+    QColor resolved_overlay_line_color(
+        const QString& stream_name, const QString& line_name,
+        const QColor& fallback_color
     ) const;
     void apply_active_edit_result(
         const active_edit_workflow::transition_result& result

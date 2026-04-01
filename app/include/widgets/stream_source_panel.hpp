@@ -14,8 +14,7 @@ class QGroupBox;
 class QLineEdit;
 class QPushButton;
 class QRadioButton;
-class log_area_view;
-class log_toolbar_panel;
+class QLabel;
 
 class stream_source_panel final : public QWidget {
     Q_OBJECT
@@ -29,8 +28,6 @@ public:
 
     void set_local_sources(const QStringList& sources) const;
     void clear_inputs() const;
-    void set_log_toolbar(log_toolbar_panel* toolbar);
-    bool append_log_entry(const frontend_log_entry& entry) const;
 
 signals:
     void add_file_stream(const QString& path, const QString& name, bool loop);
@@ -46,6 +43,7 @@ private:
     void set_mode(input_mode mode);
     void update_tools() const;
     void update_add_enabled() const;
+    void refresh_summary() const;
 
     QString resolved_name_for_current_input() const;
     bool name_is_unique(const QString& name) const;
@@ -70,6 +68,7 @@ private:
     QRadioButton* file_radio { nullptr };
     QRadioButton* local_radio { nullptr };
     QRadioButton* url_radio { nullptr };
+    QLabel* summary_label { nullptr };
 
     QGroupBox* add_file_box { nullptr };
     QLineEdit* file_path_edit { nullptr };
@@ -84,7 +83,6 @@ private:
     QLineEdit* url_edit { nullptr };
 
     QPushButton* add_btn { nullptr };
-    log_area_view* add_log_view { nullptr };
 };
 
 #endif // YODAU_FRONTEND_WIDGETS_STREAM_SOURCE_PANEL_HPP

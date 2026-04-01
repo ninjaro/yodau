@@ -67,6 +67,7 @@ stream_controller::stream_controller(
     qRegisterMetaType<stream_runtime_metrics>("stream_runtime_metrics");
     qRegisterMetaType<line_profile>("line_profile");
     qRegisterMetaType<template_apply_settings>("template_apply_settings");
+    qRegisterMetaType<line_edit_request>("line_edit_request");
     fps_capability = yodau::backend::detect_fps_capability_profile();
     log_buffer = new frontend_log_buffer(this);
     if (settings != nullptr) {
@@ -112,6 +113,11 @@ stream_controller::stream_controller(
     }
 
     setup_settings_connections();
+    if (settings != nullptr) {
+        on_stream_settings_selection_changed(
+            settings->current_active_stream_settings().stream_name
+        );
+    }
     setup_grid_connections();
     refresh_fps_policy(true);
     update_monitor_inventory();
@@ -259,6 +265,18 @@ void stream_controller::on_active_stream_settings_changed(
     sync_backend_stream_algorithm(stream_name, algorithm_id);
 }
 
+void stream_controller::on_stream_settings_selection_changed(const QString& name) {
+    if (settings == nullptr) {
+        return;
+    }
+
+    settings->set_active_stream_settings(catalog_state.settings_for(name));
+}
+
+void stream_controller::on_active_stream_selected(const QString& name) {
+    set_active_stream(name);
+}
+
 void stream_controller::on_active_edit_mode_changed(bool drawing_new) {
     apply_active_edit_result(edit_workflow.set_drawing_new_mode(drawing_new));
 }
@@ -272,6 +290,34 @@ void stream_controller::on_active_line_profile_changed(line_profile profile_valu
 void stream_controller::on_active_line_save_requested(line_profile profile_value) {
     apply_active_edit_result(
         edit_workflow.save_active_line(std::move(profile_value))
+    );
+}
+
+void stream_controller::on_active_line_enabled_changed(
+    const QString& line_name, const bool enabled
+) {
+    apply_active_edit_result(
+        edit_workflow.set_active_line_enabled(line_name, enabled)
+    );
+}
+
+void stream_controller::on_active_line_edit_preview_changed(
+    line_edit_request request
+) {
+    apply_active_edit_result(
+        edit_workflow.apply_line_edit_preview(std::move(request))
+    );
+}
+
+void stream_controller::on_active_line_edit_preview_cleared() {
+    apply_active_edit_result(edit_workflow.clear_line_edit_preview());
+}
+
+void stream_controller::on_active_line_edit_save_requested(
+    line_edit_request request
+) {
+    apply_active_edit_result(
+        edit_workflow.save_active_line_edit(std::move(request))
     );
 }
 
@@ -301,6 +347,10 @@ void stream_controller::setup_settings_connections() {
     }
 
     connect(
+        settings, &settings_panel::stream_settings_selection_changed, this,
+        &stream_controller::on_stream_settings_selection_changed
+    );
+    connect(
         settings, &settings_panel::active_stream_settings_changed, this,
         &stream_controller::on_active_stream_settings_changed
     );
@@ -309,6 +359,11 @@ void stream_controller::setup_settings_connections() {
         [this](const frontend_log_mode mode) {
             widget_bridge.sync_visible_log_mode(mode);
         }
+    );
+
+    connect(
+        settings, &settings_panel::active_stream_selected, this,
+        &stream_controller::on_active_stream_selected
     );
 
     connect(
@@ -324,6 +379,23 @@ void stream_controller::setup_settings_connections() {
     connect(
         settings, &settings_panel::active_line_save_requested, this,
         &stream_controller::on_active_line_save_requested
+    );
+
+    connect(
+        settings, &settings_panel::active_line_enabled_changed, this,
+        &stream_controller::on_active_line_enabled_changed
+    );
+    connect(
+        settings, &settings_panel::active_line_edit_preview_changed, this,
+        &stream_controller::on_active_line_edit_preview_changed
+    );
+    connect(
+        settings, &settings_panel::active_line_edit_preview_cleared, this,
+        &stream_controller::on_active_line_edit_preview_cleared
+    );
+    connect(
+        settings, &settings_panel::active_line_edit_save_requested, this,
+        &stream_controller::on_active_line_edit_save_requested
     );
 
     connect(
@@ -428,7 +500,8 @@ void stream_controller::append_log(
     const frontend_log_area area, const frontend_log_severity severity,
     const QString& subsystem, const QString& message,
     const QString& stream_name, const QString& detail,
-    const QString& algorithm_id
+    const QString& algorithm_id, const QString& line_name,
+    const QString& event_type, const QColor& line_color
 ) const {
     const QString resolved_algorithm_id = stream_name.isEmpty()
         ? QString()
@@ -441,12 +514,105 @@ void stream_controller::append_log(
         .severity = severity,
         .subsystem = subsystem,
         .stream_name = stream_name,
+        .line_name = line_name,
         .algorithm_id = resolved_algorithm_id,
+        .event_type = event_type,
         .message = message,
         .detail = detail,
+        .line_color = line_color,
     };
 
     append_log_entry(std::move(entry));
+}
+
+QColor stream_controller::resolved_log_line_color(
+    const QString& stream_name, const QString& line_name
+) const {
+    if (stream_name.trimmed().isEmpty() || line_name.trimmed().isEmpty()) {
+        return {};
+    }
+
+    const auto& stream_lines = edit_session.stream_lines(stream_name);
+    const int line_count = std::max(
+        1,
+        static_cast<int>(std::count_if(
+            stream_lines.cbegin(), stream_lines.cend(),
+            [](const stream_cell::line_instance& line_value) {
+                return line_value.enabled;
+            }
+        ))
+    );
+    int enabled_line_index = 0;
+    for (int line_index = 0; line_index < static_cast<int>(stream_lines.size());
+         line_index += 1) {
+        const auto& line_value = stream_lines[static_cast<size_t>(line_index)];
+        if (!line_value.enabled) {
+            continue;
+        }
+        if (line_value.template_name.trimmed() != line_name.trimmed()) {
+            enabled_line_index += 1;
+            continue;
+        }
+
+        const QString color_mode_id = normalized_line_color_mode_id(
+            line_value.color_mode_id
+        );
+        if (color_mode_id == QStringLiteral("manual")
+            && line_value.color.isValid()) {
+            return line_value.color;
+        }
+
+        return auto_palette_line_color(enabled_line_index, line_count);
+    }
+
+    return {};
+}
+
+QColor stream_controller::resolved_overlay_line_color(
+    const QString& stream_name, const QString& line_name,
+    const QColor& fallback_color
+) const {
+    if (stream_name.trimmed().isEmpty() || line_name.trimmed().isEmpty()) {
+        return fallback_color;
+    }
+
+    const auto& stream_lines = edit_session.stream_lines(stream_name);
+    const int line_count = std::max(
+        1,
+        static_cast<int>(std::count_if(
+            stream_lines.cbegin(), stream_lines.cend(),
+            [](const stream_cell::line_instance& line_value) {
+                return line_value.enabled;
+            }
+        ))
+    );
+    int enabled_line_index = 0;
+    for (int line_index = 0; line_index < static_cast<int>(stream_lines.size());
+         line_index += 1) {
+        const auto& line_value = stream_lines[static_cast<size_t>(line_index)];
+        if (!line_value.enabled) {
+            continue;
+        }
+        if (line_value.template_name.trimmed() != line_name.trimmed()) {
+            enabled_line_index += 1;
+            continue;
+        }
+
+        const QString color_mode_id = normalized_line_color_mode_id(
+            line_value.color_mode_id
+        );
+        if (color_mode_id == QStringLiteral("negative_auto")) {
+            return fallback_color;
+        }
+        if (color_mode_id == QStringLiteral("manual")
+            && line_value.color.isValid()) {
+            return line_value.color;
+        }
+
+        return auto_palette_line_color(enabled_line_index, line_count);
+    }
+
+    return fallback_color;
 }
 
 void stream_controller::apply_active_edit_result(
@@ -1014,7 +1180,9 @@ void stream_controller::on_backend_event_queued(
     append_log(
         frontend_log_area::active, feedback.log_severity,
         QStringLiteral("backend_event"), feedback.log_message,
-        feedback.stream_name, feedback.log_detail
+        feedback.stream_name, feedback.log_detail, QString(),
+        feedback.line_name, feedback.kind_text,
+        resolved_log_line_color(feedback.stream_name, feedback.line_name)
     );
 
     emit monitor_backend_event_observed(
@@ -1037,14 +1205,21 @@ void stream_controller::on_backend_event_queued(
         return;
     }
 
-    if (feedback.tripwire_visual.has_value() && !feedback.line_name.isEmpty()) {
+    if (!feedback.line_name.isEmpty()) {
+        const processing_feedback_state::tripwire_visual_feedback visual
+            = feedback.tripwire_visual.value_or(
+                processing_feedback_state::tripwire_visual_feedback {}
+            );
         tile->highlight_line_at(
             feedback.line_name, *feedback.overlay_position_pct,
-            feedback.tripwire_visual->strength,
-            feedback.tripwire_visual->direction,
-            feedback.tripwire_visual->speed
+            visual.strength, visual.direction, visual.speed
         );
     }
 
-    tile->add_event(*feedback.overlay_position_pct, feedback.overlay_color);
+    tile->add_event(
+        *feedback.overlay_position_pct,
+        resolved_overlay_line_color(
+            feedback.stream_name, feedback.line_name, feedback.overlay_color
+        )
+    );
 }

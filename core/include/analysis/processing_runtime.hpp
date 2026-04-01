@@ -2,6 +2,7 @@
 #define YODAU_BACKEND_ANALYSIS_PROCESSING_RUNTIME_HPP
 
 #include "analysis/processing_algorithm.hpp"
+#include "analysis/processing_motion_region_filter.hpp"
 #include "streams/stream_manager.hpp"
 
 #include <functional>
@@ -86,6 +87,7 @@ private:
     void clear_latest_processing_result(const std::string& stream_name);
 
     processing_runtime_options runtime_options;
+    processing_motion_region_filter motion_region_filter_value;
     std::unique_ptr<processing_preview_router> preview_router_value;
     mutable std::mutex algorithms_mtx;
     std::unordered_map<std::string, std::string> algorithm_overrides_by_stream;

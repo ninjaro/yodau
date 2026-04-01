@@ -313,6 +313,7 @@ processing_runtime::process_frame(const stream& s, const frame& f) {
     }
 
     processing_result result = algorithm->process_frame(s, f);
+    result = motion_region_filter_value.apply(s, std::move(result));
     {
         std::scoped_lock lock(latest_results_mtx);
         latest_results_by_stream[s.get_name()] = result;

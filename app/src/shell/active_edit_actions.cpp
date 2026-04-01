@@ -15,6 +15,25 @@ QString backend_unavailable_detail() {
     return QStringLiteral("backend stream manager unavailable");
 }
 
+line_edit_request normalized_line_edit_request(line_edit_request request) {
+    request.stream_name = request.stream_name.trimmed();
+    request.source_line_name = request.source_line_name.trimmed();
+    request.profile.name = request.profile.name.trimmed();
+    request.profile.color_mode_id = normalized_line_color_mode_id(
+        request.profile.color_mode_id
+    );
+    request.profile.width_text = normalized_line_width_text(
+        request.profile.width_text
+    );
+    request.profile.length_text = normalized_line_length_text(
+        request.profile.length_text
+    );
+    request.profile.response_text = normalized_line_response_text(
+        request.profile.response_text
+    );
+    return request;
+}
+
 float effective_length_value(const QString& length_text) {
     const QString normalized = normalized_line_length_text(length_text);
     if (normalized == QStringLiteral("short")) {
@@ -87,6 +106,19 @@ yodau::backend::line_profile backend_profile_from_template_settings(
         interaction_width_value(settings_value.width_text, visual_width),
         effective_length_value(settings_value.length_text),
         damping_value(settings_value.response_text)
+    );
+}
+
+yodau::backend::line_profile backend_profile_from_line_instance(
+    const stream_cell::line_instance& line_value
+) {
+    const float visual_width
+        = static_cast<float>(line_width_visual_value(line_value.width_text));
+    return yodau::backend::make_line_profile(
+        line_value.template_name.toStdString(), visual_width,
+        interaction_width_value(line_value.width_text, visual_width),
+        effective_length_value(line_value.length_text),
+        damping_value(line_value.response_text)
     );
 }
 
@@ -204,6 +236,165 @@ active_edit_actions::apply_active_template(
 
     result.status = template_apply_status::applied;
     return result;
+}
+
+active_edit_actions::line_toggle_result
+active_edit_actions::set_stream_line_enabled(
+    const QString& stream_name, const QString& line_name, const bool enabled
+) const {
+    line_toggle_result result;
+    result.stream_name = stream_name.trimmed();
+    result.line_name = line_name.trimmed();
+    result.enabled = enabled;
+
+    const auto line_value = edit_session_.find_stream_line(
+        result.stream_name, result.line_name
+    );
+    if (!line_value.has_value()) {
+        return result;
+    }
+
+    result.line = *line_value;
+
+    if (stream_mgr_ == nullptr) {
+        result.status = line_toggle_status::backend_error;
+        result.error_detail = active_edit_actions_support::backend_unavailable_detail();
+        return result;
+    }
+
+    try {
+        if (enabled) {
+            stream_mgr_->set_line(
+                result.stream_name.toStdString(), result.line_name.toStdString()
+            );
+            stream_mgr_->set_stream_line_profile(
+                result.stream_name.toStdString(),
+                active_edit_actions_support::backend_profile_from_line_instance(
+                    result.line
+                )
+            );
+        } else {
+            stream_mgr_->clear_stream_line(
+                result.stream_name.toStdString(), result.line_name.toStdString()
+            );
+        }
+    } catch (const std::exception& e) {
+        result.status = line_toggle_status::backend_error;
+        result.error_detail = QString::fromLocal8Bit(e.what());
+        return result;
+    }
+
+    if (!edit_session_.set_stream_line_enabled(
+            result.stream_name, result.line_name, enabled
+        )) {
+        result.status = line_toggle_status::missing_line;
+        return result;
+    }
+
+    result.line.enabled = enabled;
+    widget_bridge_.sync_active_persistent(result.stream_name, edit_session_);
+    result.status = line_toggle_status::updated;
+    return result;
+}
+
+active_edit_actions::line_edit_save_result
+active_edit_actions::save_active_line_edit(
+    const QString& active_name, line_edit_request request
+) const {
+    line_edit_save_result result;
+    result.request = active_edit_actions_support::normalized_line_edit_request(
+        std::move(request)
+    );
+    result.request.stream_name = active_name.trimmed();
+    result.point_count = static_cast<int>(result.request.points_pct.size());
+    if (result.request.profile.name.isEmpty()) {
+        result.status = line_edit_save_status::missing_name;
+        return result;
+    }
+
+    if (result.request.points_pct.size() < 2) {
+        result.status = line_edit_save_status::insufficient_points;
+        return result;
+    }
+
+    std::vector<QPointF> points;
+    points.reserve(
+        static_cast<std::vector<QPointF>::size_type>(
+            result.request.points_pct.size()
+        )
+    );
+    for (const QPointF& point_value : result.request.points_pct) {
+        points.push_back(point_value);
+    }
+    result.points_text = points_str_from_pct(points);
+
+    const auto source_line = edit_session_.find_stream_line(
+        result.request.stream_name, result.request.source_line_name
+    );
+    if (!source_line.has_value()) {
+        result.status = line_edit_save_status::missing_source_line;
+        return result;
+    }
+
+    result.source_line = *source_line;
+
+    if (stream_mgr_ == nullptr) {
+        result.status = line_edit_save_status::backend_error;
+        result.error_detail = active_edit_actions_support::backend_unavailable_detail();
+        return result;
+    }
+
+    try {
+        const auto line_ptr = stream_mgr_->add_line(
+            result.points_text.toStdString(), result.request.profile.closed,
+            result.request.profile.name.toStdString()
+        );
+
+        result.final_name = QString::fromStdString(line_ptr->name);
+        stream_mgr_->set_line_profile(
+            active_edit_actions_support::backend_profile_from_line_editor(
+                result.final_name, result.request.profile
+            )
+        );
+        stream_mgr_->set_line(
+            result.request.stream_name.toStdString(),
+            result.final_name.toStdString()
+        );
+        stream_mgr_->clear_stream_line(
+            result.request.stream_name.toStdString(),
+            result.request.source_line_name.toStdString()
+        );
+
+        edit_session_.detach_stream_line(
+            result.request.stream_name, result.request.source_line_name
+        );
+
+        stream_cell::line_instance line_value = result.source_line;
+        line_value.template_name = result.final_name;
+        line_value.color = result.request.profile.color;
+        line_value.color_mode_id = result.request.profile.color_mode_id;
+        line_value.closed = result.request.profile.closed;
+        line_value.width_text = result.request.profile.width_text;
+        line_value.length_text = result.request.profile.length_text;
+        line_value.response_text = result.request.profile.response_text;
+        line_value.enabled = true;
+        line_value.pts_pct = std::move(points);
+
+        result.line = edit_session_.store_stream_line(
+            result.request.stream_name, std::move(line_value)
+        );
+        edit_controller_.reset_after_line_edit_saved();
+        widget_bridge_.sync_active_persistent(
+            result.request.stream_name, edit_session_
+        );
+
+        result.status = line_edit_save_status::saved;
+        return result;
+    } catch (const std::exception& e) {
+        result.status = line_edit_save_status::backend_error;
+        result.error_detail = QString::fromLocal8Bit(e.what());
+        return result;
+    }
 }
 
 QString active_edit_actions::points_str_from_pct(

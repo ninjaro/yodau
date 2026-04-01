@@ -13,6 +13,14 @@ QString format_release_log_entry(const frontend_log_entry& entry) {
         parts << entry.stream_name;
     }
 
+    if (!entry.event_type.isEmpty()) {
+        parts << entry.event_type;
+    }
+
+    if (!entry.line_name.isEmpty()) {
+        parts << QString("line=%1").arg(entry.line_name);
+    }
+
     if (!entry.message.isEmpty()) {
         parts << entry.message;
     }
@@ -34,8 +42,16 @@ QString format_debug_log_entry(const frontend_log_entry& entry) {
         parts << QString("stream=%1").arg(entry.stream_name);
     }
 
+    if (!entry.line_name.isEmpty()) {
+        parts << QString("line=%1").arg(entry.line_name);
+    }
+
     if (!entry.algorithm_id.isEmpty()) {
         parts << QString("alg=%1").arg(entry.algorithm_id);
+    }
+
+    if (!entry.event_type.isEmpty()) {
+        parts << QString("event=%1").arg(entry.event_type);
     }
 
     if (!entry.message.isEmpty()) {

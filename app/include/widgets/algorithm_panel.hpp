@@ -13,7 +13,10 @@ class algorithm_panel final : public QGroupBox {
     Q_OBJECT
 
 public:
-    explicit algorithm_panel(QWidget* parent = nullptr);
+    explicit algorithm_panel(
+        QString object_prefix = QStringLiteral("settings_active"),
+        QWidget* parent = nullptr
+    );
 
     void set_stream_settings(const stream_settings& settings_value);
     stream_settings current_stream_settings() const;
@@ -32,11 +35,13 @@ private:
     void refresh_preset_options();
     void refresh_summary();
     stream_settings normalized_settings(stream_settings settings_value) const;
+    QString object_name(const QString& suffix) const;
 
     QComboBox* algorithm_combo { nullptr };
     QComboBox* preset_combo { nullptr };
     QCheckBox* overlay_checkbox { nullptr };
     QLabel* summary_label { nullptr };
+    QString object_prefix_;
     stream_settings current_settings;
 };
 

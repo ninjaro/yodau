@@ -8,6 +8,8 @@
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
+#include <utility>
+
 namespace algorithm_panel_support {
 
 void populate_algorithm_combo(QComboBox* combo) {
@@ -38,8 +40,9 @@ void populate_preset_combo(QComboBox* combo, const QString& algorithm_id) {
 
 } // namespace algorithm_panel_support
 
-algorithm_panel::algorithm_panel(QWidget* parent)
-    : QGroupBox(str_label("algorithm"), parent) {
+algorithm_panel::algorithm_panel(QString object_prefix, QWidget* parent)
+    : QGroupBox(str_label("algorithm"), parent)
+    , object_prefix_(std::move(object_prefix)) {
     build_ui();
     set_stream_settings(stream_settings {});
 }
@@ -112,28 +115,24 @@ void algorithm_panel::build_ui() {
     const auto form = new QFormLayout();
 
     algorithm_combo = new QComboBox(this);
-    algorithm_combo->setObjectName(QStringLiteral("settings_active_algorithm_combo"));
+    algorithm_combo->setObjectName(object_name(QStringLiteral("algorithm_combo")));
     algorithm_panel_support::populate_algorithm_combo(algorithm_combo);
     form->addRow(str_label("algorithm"), algorithm_combo);
 
     preset_combo = new QComboBox(this);
-    preset_combo->setObjectName(
-        QStringLiteral("settings_active_algorithm_preset_combo")
-    );
+    preset_combo->setObjectName(object_name(QStringLiteral("algorithm_preset_combo")));
     form->addRow(str_label("preset"), preset_combo);
 
     overlay_checkbox = new QCheckBox(str_label("diagnostic overlay"), this);
     overlay_checkbox->setObjectName(
-        QStringLiteral("settings_active_algorithm_overlay_checkbox")
+        object_name(QStringLiteral("algorithm_overlay_checkbox"))
     );
     form->addRow(QString(), overlay_checkbox);
 
     layout->addLayout(form);
 
     summary_label = new QLabel(this);
-    summary_label->setObjectName(
-        QStringLiteral("settings_active_algorithm_summary_label")
-    );
+    summary_label->setObjectName(object_name(QStringLiteral("algorithm_summary_label")));
     summary_label->setWordWrap(true);
     layout->addWidget(summary_label);
 
@@ -191,4 +190,8 @@ algorithm_panel::normalized_settings(stream_settings settings_value) const {
         settings_value.algorithm_id, settings_value.algorithm_preset
     );
     return settings_value;
+}
+
+QString algorithm_panel::object_name(const QString& suffix) const {
+    return QStringLiteral("%1_%2").arg(object_prefix_, suffix);
 }

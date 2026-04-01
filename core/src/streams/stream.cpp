@@ -154,6 +154,16 @@ void yodau::backend::stream::connect_line(
     line_profiles.insert_or_assign(line->name, connected_profile);
 }
 
+void yodau::backend::stream::disconnect_line(const std::string& line_name) {
+    if (line_name.empty()) {
+        return;
+    }
+
+    std::scoped_lock lock(lines_mtx);
+    lines.erase(line_name);
+    line_profiles.erase(line_name);
+}
+
 void yodau::backend::stream::set_line_profile(line_profile profile_value) {
     if (profile_value.line_name.empty()) {
         return;

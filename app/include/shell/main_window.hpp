@@ -56,6 +56,8 @@ private:
 
     QStackedWidget* zones_stack { nullptr };
     QDockWidget* settings_dock { nullptr };
+    QDockWidget* line_dock { nullptr };
+    QDockWidget* log_dock { nullptr };
 };
 
 #endif // YODAU_FRONTEND_SHELL_MAIN_WINDOW_HPP

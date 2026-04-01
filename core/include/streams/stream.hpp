@@ -37,6 +37,7 @@ public:
     void deactivate();
 
     void connect_line(line_ptr line, std::optional<line_profile> profile = std::nullopt);
+    void disconnect_line(const std::string& line_name);
     void set_line_profile(line_profile profile_value);
     std::optional<line_profile> find_line_profile(const std::string& line_name) const;
     std::vector<std::string> line_names() const;

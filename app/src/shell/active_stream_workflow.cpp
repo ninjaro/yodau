@@ -73,6 +73,18 @@ active_stream_workflow::apply_stream_settings(
         );
     }
 
+    if (result.standard_labels_changed) {
+        transition.entries.push_back(
+            make_entry(
+                frontend_log_severity::info, QStringLiteral("stream_settings"),
+                result.settings.standard_labels_enabled
+                    ? QStringLiteral("standard labels enabled")
+                    : QStringLiteral("standard labels disabled"),
+                result.settings.stream_name
+            )
+        );
+    }
+
     if (result.algorithm_changed) {
         transition.entries.push_back(
             make_entry(
@@ -118,9 +130,12 @@ frontend_log_entry active_stream_workflow::make_entry(
         .severity = severity,
         .subsystem = subsystem,
         .stream_name = stream_name,
+        .line_name = QString(),
         .algorithm_id = algorithm_id,
+        .event_type = QString(),
         .message = message,
         .detail = detail,
+        .line_color = QColor(),
     };
 }
 

@@ -18,23 +18,33 @@ class active_stream_panel final : public QWidget {
     Q_OBJECT
 
 public:
-    explicit active_stream_panel(QWidget* parent = nullptr);
+    enum class panel_mode {
+        stream_settings,
+        line_editor,
+    };
+
+    explicit active_stream_panel(
+        panel_mode mode, QString object_prefix, QWidget* parent = nullptr
+    );
 
     void set_active_candidates(const QStringList& names) const;
     void set_active_current(const QString& name) const;
     void set_stream_settings(const stream_settings& settings_value);
     stream_settings current_stream_settings() const;
+    QWidget* take_edit_mode_widget();
 
     bool has_active_stream() const;
     bool drawing_new_mode() const;
 
 signals:
+    void stream_selected(const QString& name);
     void stream_settings_changed(stream_settings settings_value);
     void edit_mode_changed(bool drawing_new);
 
 private slots:
     void on_active_combo_changed(const QString& text);
     void on_active_labels_toggled(bool checked);
+    void on_standard_labels_toggled(bool checked);
     void on_operator_profile_changed(int index);
     void on_algorithm_panel_settings_changed(stream_settings settings_value);
     void on_active_mode_clicked(int id);
@@ -51,8 +61,11 @@ private:
     void refresh_processing_policy_state() const;
     void refresh_processing_policy_summary();
 
+    QString object_name(const QString& suffix) const;
+
     QComboBox* active_combo { nullptr };
     QCheckBox* active_labels_cb { nullptr };
+    QCheckBox* standard_labels_cb { nullptr };
     QGroupBox* operator_profile_box { nullptr };
     QComboBox* operator_profile_combo { nullptr };
     QLabel* operator_profile_summary_label { nullptr };
@@ -68,6 +81,8 @@ private:
     QButtonGroup* active_mode_group { nullptr };
     QRadioButton* active_mode_draw_radio { nullptr };
     QRadioButton* active_mode_template_radio { nullptr };
+    panel_mode mode_ { panel_mode::stream_settings };
+    QString object_prefix_;
     QString last_algorithm_id_ { default_frontend_algorithm_id() };
 };
 

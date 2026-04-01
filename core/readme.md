@@ -29,22 +29,32 @@ yodau> clear-log
 
 ### Algorithms
 
-The backend now exposes three concrete processing algorithms:
+The backend now exposes four concrete processing algorithms:
 
 * `motion_baseline` - current OpenCV-heavy tripwire baseline.
+* `hybrid_auto` - adaptive selector that chooses between the concrete
+  detectors per stream based on recent motion density and recent processing
+  cost.
 * `spot_grid` - cheaper grid/downsampled motion detector.
 * `contour_mask` - contour/mask-driven detector with centroid-path tripwire
   checks.
 
 Algorithm selection is scoped per stream at runtime:
 
-* one stream uses one active algorithm at a time
+* one stream uses one active algorithm id at a time
 * the runtime has a default algorithm for streams without an override
 * a stream override can be changed while the stream exists; the next processed
   frames use the new algorithm
+* `hybrid_auto` still fits that contract; it is one selectable algorithm id,
+  but internally it can delegate to different concrete detectors per stream as
+  scene conditions or recent load change
+* closed stream polygons now also act as detector-neutral motion regions in the
+  runtime: motion output outside those regions is suppressed, and matched
+  regions emit `roi` events with the region line name
 
 ```bash
 yodau> list-algorithms
+yodau> set-default-algorithm auto
 yodau> set-default-algorithm spot_grid
 yodau> set-stream-algorithm cam0 contour_mask
 yodau> set-stream-algorithm cam0 default
@@ -54,6 +64,7 @@ yodau> set-stream-algorithm cam0 default
 * `set-default-algorithm` changes the fallback algorithm for streams without
   an override.
 * `set-stream-algorithm` sets one algorithm for one stream.
+* `auto`, `adaptive`, and `hybrid` normalize to `hybrid_auto`.
 * Passing `default`, `reset`, or `clear` to `set-stream-algorithm` removes the
   stream override and falls back to the current default.
 * The current default remains `motion_baseline` until changed explicitly.

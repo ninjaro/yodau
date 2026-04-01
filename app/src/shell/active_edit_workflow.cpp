@@ -83,6 +83,28 @@ QString template_applied_detail(
         );
 }
 
+QString line_toggle_detail(const QString& line_name, const bool enabled) {
+    return QStringLiteral("line=%1 enabled=%2")
+        .arg(line_name)
+        .arg(enabled ? QStringLiteral("true") : QStringLiteral("false"));
+}
+
+QString line_edit_preview_detail(const line_edit_request& request) {
+    return QStringLiteral("source=%1 new=%2 points=%3")
+        .arg(request.source_line_name)
+        .arg(request.profile.name)
+        .arg(request.points_pct.size());
+}
+
+QString line_edit_saved_detail(
+    const active_edit_actions::line_edit_save_result& result
+) {
+    return QStringLiteral("source=%1 saved=%2 points=%3")
+        .arg(result.request.source_line_name)
+        .arg(result.final_name)
+        .arg(result.point_count);
+}
+
 } // namespace active_edit_workflow_support
 
 active_edit_workflow::active_edit_workflow(
@@ -284,6 +306,187 @@ active_edit_workflow::apply_active_template(
     return result;
 }
 
+active_edit_workflow::transition_result
+active_edit_workflow::set_active_line_enabled(
+    const QString& line_name, const bool enabled
+) const {
+    transition_result result;
+    const active_context context = current_context();
+    if (!route_state_.has_active_stream()) {
+        return active_cell_failure(
+            enabled ? QStringLiteral("enable line")
+                    : QStringLiteral("disable line")
+        );
+    }
+
+    const auto action_result = edit_actions_.set_stream_line_enabled(
+        context.active_name, line_name, enabled
+    );
+
+    if (action_result.status == active_edit_actions::line_toggle_status::missing_line) {
+        result.entries.push_back(
+            make_active_entry(
+                context, frontend_log_severity::warning,
+                QStringLiteral("line_editor"),
+                enabled ? QStringLiteral("line enable failed")
+                        : QStringLiteral("line disable failed"),
+                line_name
+            )
+        );
+        return result;
+    }
+
+    if (action_result.status == active_edit_actions::line_toggle_status::backend_error) {
+        result.entries.push_back(
+            make_active_entry(
+                context, frontend_log_severity::error,
+                QStringLiteral("line_editor"),
+                enabled ? QStringLiteral("line enable failed")
+                        : QStringLiteral("line disable failed"),
+                action_result.error_detail
+            )
+        );
+        return result;
+    }
+
+    result.entries.push_back(
+        make_active_entry(
+            context, frontend_log_severity::info, QStringLiteral("line_editor"),
+            enabled ? QStringLiteral("line enabled")
+                    : QStringLiteral("line disabled"),
+            active_edit_workflow_support::line_toggle_detail(line_name, enabled)
+        )
+    );
+    result.refresh_fps = true;
+    result.monitor_marker = enabled ? QStringLiteral("line_enabled")
+                                    : QStringLiteral("line_disabled");
+    return result;
+}
+
+active_edit_workflow::transition_result
+active_edit_workflow::apply_line_edit_preview(line_edit_request request) const {
+    transition_result result;
+    const active_context context = current_context();
+    if (!route_state_.has_active_stream()) {
+        return active_cell_failure(QStringLiteral("edit line"));
+    }
+
+    request.stream_name = context.active_name;
+    const line_edit_request applied_request
+        = edit_controller_.apply_line_edit_preview(std::move(request));
+    result.entries.push_back(
+        make_active_entry(
+            context, frontend_log_severity::debug,
+            QStringLiteral("line_editor"),
+            QStringLiteral("line edit preview updated"),
+            active_edit_workflow_support::line_edit_preview_detail(applied_request)
+        )
+    );
+    return result;
+}
+
+active_edit_workflow::transition_result
+active_edit_workflow::clear_line_edit_preview() const {
+    transition_result result;
+    const active_context context = current_context();
+    edit_controller_.clear_line_edit_preview();
+    result.entries.push_back(
+        make_active_entry(
+            context, frontend_log_severity::debug,
+            QStringLiteral("line_editor"),
+            QStringLiteral("line edit preview cleared")
+        )
+    );
+    return result;
+}
+
+active_edit_workflow::transition_result
+active_edit_workflow::save_active_line_edit(line_edit_request request) const {
+    transition_result result;
+    const active_context context = current_context();
+    if (!route_state_.has_active_stream()) {
+        return active_cell_failure(QStringLiteral("save edited line"));
+    }
+
+    request.stream_name = context.active_name;
+    const auto action_result = edit_actions_.save_active_line_edit(
+        context.active_name, std::move(request)
+    );
+
+    result.entries.push_back(
+        make_active_entry(
+            context, frontend_log_severity::debug,
+            QStringLiteral("line_editor"),
+            QStringLiteral("line edit save requested"),
+            active_edit_workflow_support::line_edit_preview_detail(
+                action_result.request
+            )
+        )
+    );
+
+    if (action_result.status
+        == active_edit_actions::line_edit_save_status::missing_name) {
+        result.entries.push_back(
+            make_active_entry(
+                context, frontend_log_severity::warning,
+                QStringLiteral("line_editor"),
+                QStringLiteral("edited line save failed: name required")
+            )
+        );
+        return result;
+    }
+
+    if (action_result.status
+        == active_edit_actions::line_edit_save_status::insufficient_points) {
+        result.entries.push_back(
+            make_active_entry(
+                context, frontend_log_severity::warning,
+                QStringLiteral("line_editor"),
+                QStringLiteral("edited line save requires at least 2 points")
+            )
+        );
+        return result;
+    }
+
+    if (action_result.status
+        == active_edit_actions::line_edit_save_status::missing_source_line) {
+        result.entries.push_back(
+            make_active_entry(
+                context, frontend_log_severity::warning,
+                QStringLiteral("line_editor"),
+                QStringLiteral("edited line source not available"),
+                action_result.request.source_line_name
+            )
+        );
+        return result;
+    }
+
+    if (action_result.status
+        == active_edit_actions::line_edit_save_status::backend_error) {
+        result.entries.push_back(
+            make_active_entry(
+                context, frontend_log_severity::error,
+                QStringLiteral("line_editor"),
+                QStringLiteral("edited line save failed"),
+                action_result.error_detail
+            )
+        );
+        return result;
+    }
+
+    result.entries.push_back(
+        make_active_entry(
+            context, frontend_log_severity::info, QStringLiteral("line_editor"),
+            QStringLiteral("edited line saved"),
+            active_edit_workflow_support::line_edit_saved_detail(action_result)
+        )
+    );
+    result.refresh_fps = true;
+    result.update_monitor_inventory = true;
+    result.monitor_marker = QStringLiteral("line_edited");
+    return result;
+}
+
 void active_edit_workflow::undo_last_draft_point() const {
     edit_controller_.undo_last_draft_point();
 }
@@ -352,8 +555,11 @@ frontend_log_entry active_edit_workflow::make_active_entry(
         .severity = severity,
         .subsystem = subsystem,
         .stream_name = context.active_name,
+        .line_name = QString(),
         .algorithm_id = context.algorithm_id,
+        .event_type = QString(),
         .message = message,
         .detail = detail,
+        .line_color = QColor(),
     };
 }

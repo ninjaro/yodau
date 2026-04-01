@@ -1,6 +1,7 @@
 #ifndef YODAU_FRONTEND_SHELL_FRONTEND_LOG_HPP
 #define YODAU_FRONTEND_SHELL_FRONTEND_LOG_HPP
 
+#include <QColor>
 #include <QDateTime>
 #include <QObject>
 #include <QString>
@@ -18,9 +19,12 @@ struct frontend_log_entry {
     frontend_log_severity severity { frontend_log_severity::info };
     QString subsystem;
     QString stream_name;
+    QString line_name;
     QString algorithm_id;
+    QString event_type;
     QString message;
     QString detail;
+    QColor line_color;
 };
 
 Q_DECLARE_METATYPE(frontend_log_entry)

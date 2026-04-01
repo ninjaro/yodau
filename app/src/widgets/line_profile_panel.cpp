@@ -52,7 +52,8 @@ line_profile_panel::line_profile_panel(QWidget* parent)
 
 void line_profile_panel::set_line_profile(const line_profile& profile) {
     if (name_edit == nullptr || closed_checkbox == nullptr
-        || color_button == nullptr || width_combo == nullptr
+        || color_button == nullptr || color_mode_combo == nullptr
+        || advanced_settings_checkbox == nullptr || width_combo == nullptr
         || length_combo == nullptr || response_combo == nullptr) {
         return;
     }
@@ -67,6 +68,14 @@ void line_profile_panel::set_line_profile(const line_profile& profile) {
     }
 
     current_color = profile.color.isValid() ? profile.color : QColor(Qt::red);
+    {
+        QSignalBlocker blocker(color_mode_combo);
+        const QString color_mode_id = normalized_line_color_mode_id(
+            profile.color_mode_id
+        );
+        const int color_mode_index = color_mode_combo->findData(color_mode_id);
+        color_mode_combo->setCurrentIndex(color_mode_index >= 0 ? color_mode_index : 0);
+    }
     line_profile_panel_support::set_button_color(color_button, current_color);
     line_profile_panel_support::set_editable_combo_value(
         width_combo, normalized_line_width_text(profile.width_text)
@@ -78,6 +87,9 @@ void line_profile_panel::set_line_profile(const line_profile& profile) {
         response_combo, normalized_line_response_text(profile.response_text)
     );
 
+    refresh_color_controls();
+    refresh_advanced_settings_controls();
+    refresh_parameter_mode_labels();
     refresh_summary();
 }
 
@@ -89,6 +101,7 @@ line_profile line_profile_panel::current_line_profile() const {
     }
 
     profile.color = current_color;
+    profile.color_mode_id = current_color_mode_id();
     profile.closed
         = closed_checkbox != nullptr && closed_checkbox->isChecked();
     profile.width_text = width_combo != nullptr
@@ -122,6 +135,10 @@ void line_profile_panel::set_line_closed(const bool closed) {
 }
 
 void line_profile_panel::on_color_clicked() {
+    if (current_color_mode_id() != QStringLiteral("manual")) {
+        return;
+    }
+
     const QColor color = QColorDialog::getColor(
         current_color, this, str_label("choose color")
     );
@@ -135,6 +152,17 @@ void line_profile_panel::on_color_clicked() {
     emit profile_changed(current_line_profile());
 }
 
+void line_profile_panel::on_random_color_clicked() {
+    if (current_color_mode_id() != QStringLiteral("manual")) {
+        return;
+    }
+
+    current_color = random_manual_line_color();
+    line_profile_panel_support::set_button_color(color_button, current_color);
+    refresh_summary();
+    emit profile_changed(current_line_profile());
+}
+
 void line_profile_panel::on_undo_clicked() { emit undo_requested(); }
 
 void line_profile_panel::on_save_clicked() {
@@ -142,6 +170,23 @@ void line_profile_panel::on_save_clicked() {
 }
 
 void line_profile_panel::on_name_finished() {
+    refresh_summary();
+    emit profile_changed(current_line_profile());
+}
+
+void line_profile_panel::on_color_mode_changed(const int index) {
+    Q_UNUSED(index);
+
+    refresh_color_controls();
+    refresh_summary();
+    emit profile_changed(current_line_profile());
+}
+
+void line_profile_panel::on_advanced_settings_toggled(const bool checked) {
+    Q_UNUSED(checked);
+
+    refresh_advanced_settings_controls();
+    refresh_parameter_mode_labels();
     refresh_summary();
     emit profile_changed(current_line_profile());
 }
@@ -195,10 +240,36 @@ void line_profile_panel::build_ui() {
     );
     layout->addWidget(closed_checkbox);
 
+    color_mode_combo = new QComboBox(this);
+    color_mode_combo->setObjectName(
+        QStringLiteral("settings_active_line_color_mode_combo")
+    );
+    for (const QString& mode_id : line_color_mode_ids()) {
+        color_mode_combo->addItem(
+            line_color_mode_display_name(mode_id), mode_id
+        );
+    }
+    layout->addWidget(color_mode_combo);
+
     color_button = new QPushButton(str_label("color"), this);
     color_button->setObjectName(QStringLiteral("settings_active_line_color_button"));
     line_profile_panel_support::set_button_color(color_button, current_color);
     layout->addWidget(color_button);
+
+    random_color_button = new QPushButton(str_label("random color"), this);
+    random_color_button->setObjectName(
+        QStringLiteral("settings_active_line_random_color_button")
+    );
+    layout->addWidget(random_color_button);
+
+    advanced_settings_checkbox = new QCheckBox(
+        str_label("advanced settings"), this
+    );
+    advanced_settings_checkbox->setObjectName(
+        QStringLiteral("settings_active_line_advanced_checkbox")
+    );
+    advanced_settings_checkbox->setChecked(false);
+    layout->addWidget(advanced_settings_checkbox);
 
     parameter_mode_combo = new QComboBox(this);
     parameter_mode_combo->setObjectName(
@@ -274,6 +345,10 @@ void line_profile_panel::build_ui() {
         &line_profile_panel::on_color_clicked
     );
     connect(
+        random_color_button, &QPushButton::clicked, this,
+        &line_profile_panel::on_random_color_clicked
+    );
+    connect(
         undo_button, &QPushButton::clicked, this,
         &line_profile_panel::on_undo_clicked
     );
@@ -284,6 +359,15 @@ void line_profile_panel::build_ui() {
     connect(
         name_edit, &QLineEdit::editingFinished, this,
         &line_profile_panel::on_name_finished
+    );
+    connect(
+        color_mode_combo,
+        QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &line_profile_panel::on_color_mode_changed
+    );
+    connect(
+        advanced_settings_checkbox, &QCheckBox::toggled, this,
+        &line_profile_panel::on_advanced_settings_toggled
     );
     connect(
         parameter_mode_combo,
@@ -308,15 +392,79 @@ void line_profile_panel::build_ui() {
     );
 
     setLayout(layout);
+    refresh_color_controls();
+    refresh_advanced_settings_controls();
     refresh_parameter_mode_labels();
 }
 
+QString line_profile_panel::current_color_mode_id() const {
+    return color_mode_combo != nullptr
+        ? normalized_line_color_mode_id(color_mode_combo->currentData().toString())
+        : default_line_color_mode_id();
+}
+
 QString line_profile_panel::current_parameter_mode_id() const {
+    if (!advanced_settings_enabled()) {
+        return default_line_parameter_mode_id();
+    }
+
     return parameter_mode_combo != nullptr
         ? normalized_line_parameter_mode_id(
               parameter_mode_combo->currentData().toString()
           )
         : default_line_parameter_mode_id();
+}
+
+bool line_profile_panel::advanced_settings_enabled() const {
+    return advanced_settings_checkbox != nullptr
+        && advanced_settings_checkbox->isChecked();
+}
+
+void line_profile_panel::refresh_color_controls() {
+    const bool manual_color
+        = current_color_mode_id() == QStringLiteral("manual");
+
+    if (color_button != nullptr) {
+        color_button->setVisible(manual_color);
+        color_button->setEnabled(manual_color);
+    }
+    if (random_color_button != nullptr) {
+        random_color_button->setVisible(manual_color);
+        random_color_button->setEnabled(manual_color);
+    }
+}
+
+void line_profile_panel::refresh_advanced_settings_controls() {
+    const bool advanced_enabled = advanced_settings_enabled();
+
+    if (parameter_mode_combo != nullptr) {
+        parameter_mode_combo->setVisible(advanced_enabled);
+        parameter_mode_combo->setEnabled(advanced_enabled);
+    }
+    if (parameter_mode_hint_label != nullptr) {
+        parameter_mode_hint_label->setVisible(advanced_enabled);
+    }
+    if (width_label != nullptr) {
+        width_label->setVisible(advanced_enabled);
+    }
+    if (width_combo != nullptr) {
+        width_combo->setVisible(advanced_enabled);
+        width_combo->setEnabled(advanced_enabled);
+    }
+    if (length_label != nullptr) {
+        length_label->setVisible(advanced_enabled);
+    }
+    if (length_combo != nullptr) {
+        length_combo->setVisible(advanced_enabled);
+        length_combo->setEnabled(advanced_enabled);
+    }
+    if (response_label != nullptr) {
+        response_label->setVisible(advanced_enabled);
+    }
+    if (response_combo != nullptr) {
+        response_combo->setVisible(advanced_enabled);
+        response_combo->setEnabled(advanced_enabled);
+    }
 }
 
 void line_profile_panel::refresh_parameter_mode_labels() {
@@ -351,6 +499,12 @@ void line_profile_panel::refresh_summary() {
         current_parameter_mode_id()
     );
     text += profile.closed ? QStringLiteral(" closed") : QStringLiteral(" open");
+    text += QStringLiteral(" color=%1").arg(
+        line_color_mode_display_name(profile.color_mode_id)
+    );
+    if (profile.color_mode_id == QStringLiteral("manual")) {
+        text += QStringLiteral(" %1").arg(profile.color.name(QColor::HexRgb));
+    }
 
     if (!profile.name.isEmpty()) {
         text = QStringLiteral("%1: %2").arg(profile.name, text);

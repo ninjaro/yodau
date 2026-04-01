@@ -130,9 +130,12 @@ frontend_log_entry stream_catalog_workflow::make_add_entry(
         .severity = severity,
         .subsystem = subsystem,
         .stream_name = stream_name,
+        .line_name = QString(),
         .algorithm_id = QString(),
+        .event_type = QString(),
         .message = message,
         .detail = detail,
+        .line_color = QColor(),
     };
 }
 

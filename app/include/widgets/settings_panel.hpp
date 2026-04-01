@@ -3,6 +3,7 @@
 
 #include "shell/frontend_log.hpp"
 #include "shell/frontend_settings.hpp"
+#include "widgets/stream_cell.hpp"
 
 #include <QColor>
 #include <QSet>
@@ -11,6 +12,7 @@
 
 class QTabWidget;
 class active_editor_panel;
+class active_stream_panel;
 class log_toolbar_panel;
 class stream_inventory_panel;
 class stream_source_panel;
@@ -32,6 +34,8 @@ public:
     QString compose_current_log_report() const;
     QString compose_current_log_summary() const;
     bool write_current_log_report(const QString& path) const;
+    log_toolbar_panel* take_log_toolbar_widget();
+    QWidget* take_active_editor_widget();
 
     // streams tab
     void add_stream_entry(
@@ -68,6 +72,16 @@ public:
     void reset_active_template_form();
 
     void set_active_line_closed(bool closed) const;
+    void set_active_lines(const std::vector<stream_cell::line_instance>& lines);
+    bool select_active_line_edit_point(int visible_index) const;
+    bool translate_active_line_edit_shape(const QPointF& delta_pct) const;
+    bool move_active_line_edit_point(
+        int visible_index, const QPointF& point_pct
+    ) const;
+    bool split_active_line_edit_point(int visible_index) const;
+    bool rotate_active_line_edit_shape(
+        double delta_degrees, int visible_pivot_index = -1
+    ) const;
 
     QString active_template_current() const;
     QColor active_template_preview_color() const;
@@ -85,15 +99,21 @@ signals:
     // streams tab
     void show_stream_changed(const QString& name, bool show);
 
-    // active tab
+    // stream settings tab
+    void stream_settings_selection_changed(const QString& name);
     void active_stream_settings_changed(stream_settings settings_value);
     void log_mode_changed(frontend_log_mode mode);
 
+    // line dock
+    void active_stream_selected(const QString& name);
     void active_edit_mode_changed(bool drawing_new);
-
     void active_line_profile_changed(line_profile profile_value);
     void active_line_save_requested(line_profile profile_value);
     void active_line_undo_requested();
+    void active_line_enabled_changed(const QString& line_name, bool enabled);
+    void active_line_edit_preview_changed(line_edit_request request);
+    void active_line_edit_preview_cleared();
+    void active_line_edit_save_requested(line_edit_request request);
 
     void active_template_add_requested(
         template_apply_settings settings_value
@@ -105,10 +125,10 @@ signals:
 private:
     // ui build
     void build_ui();
-    QWidget* build_add_tab();
     QWidget* build_streams_tab();
-    QWidget* build_active_tab();
-    frontend_log_area current_log_area() const;
+    QWidget* build_stream_settings_tab();
+    QStringList configured_stream_names() const;
+    void sync_stream_settings_candidates() const;
 
 private slots:
     void on_copy_logs_clicked();
@@ -121,16 +141,16 @@ private:
     log_toolbar_panel* log_toolbar_widget { nullptr };
     QSet<QString> existing_names;
 
-    // add tab
-    QWidget* add_tab { nullptr };
-    stream_source_panel* source_panel { nullptr };
-
     // streams tab
+    stream_source_panel* source_panel { nullptr };
     QWidget* streams_tab;
     stream_inventory_panel* inventory_panel { nullptr };
 
-    // active tab
-    QWidget* active_tab { nullptr };
+    // stream settings tab
+    QWidget* stream_settings_tab { nullptr };
+    active_stream_panel* stream_settings_panel_widget { nullptr };
+
+    // line dock
     active_editor_panel* active_editor_panel_widget { nullptr };
 };
 

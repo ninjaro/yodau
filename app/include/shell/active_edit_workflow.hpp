@@ -41,6 +41,13 @@ public:
     ) const;
     [[nodiscard]] transition_result
     apply_active_template(template_apply_settings settings_value) const;
+    [[nodiscard]] transition_result
+    set_active_line_enabled(const QString& line_name, bool enabled) const;
+    [[nodiscard]] transition_result
+    apply_line_edit_preview(line_edit_request request) const;
+    [[nodiscard]] transition_result clear_line_edit_preview() const;
+    [[nodiscard]] transition_result
+    save_active_line_edit(line_edit_request request) const;
 
     void undo_last_draft_point() const;
 

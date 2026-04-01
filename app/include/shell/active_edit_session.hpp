@@ -48,6 +48,22 @@ public:
     stream_cell::line_instance store_applied_template_line(
         const QString& stream_name, const template_apply_settings& settings_value
     );
+    bool set_stream_line_enabled(
+        const QString& stream_name, const QString& line_name, bool enabled
+    );
+    bool detach_stream_line(
+        const QString& stream_name, const QString& line_name
+    );
+    std::optional<stream_cell::line_instance> find_stream_line(
+        const QString& stream_name, const QString& line_name
+    ) const;
+    stream_cell::line_instance store_stream_line(
+        const QString& stream_name, stream_cell::line_instance line_value
+    );
+
+    void set_active_line_edit(line_edit_request request);
+    void clear_active_line_edit();
+    std::optional<line_edit_request> active_line_edit() const;
 
     const std::vector<stream_cell::line_instance>&
     stream_lines(const QString& stream_name) const;
@@ -59,10 +75,14 @@ private:
     static template_apply_settings normalized_template_settings(
         template_apply_settings settings_value
     );
+    static line_edit_request normalized_line_edit_request(
+        line_edit_request request
+    );
 
     bool drawing_new_mode_ { true };
     line_profile draft_line_profile_;
     template_apply_settings active_template_settings_;
+    std::optional<line_edit_request> active_line_edit_;
     QMap<QString, template_line> templates_;
     QMap<QString, std::vector<stream_cell::line_instance>> per_stream_lines_;
 };

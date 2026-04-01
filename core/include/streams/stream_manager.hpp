@@ -57,6 +57,9 @@ public:
     ) const;
     stream&
     set_line(const std::string& stream_name, const std::string& line_name);
+    void clear_stream_line(
+        const std::string& stream_name, const std::string& line_name
+    );
     std::shared_ptr<const stream> find_stream(const std::string& name) const;
 
     std::vector<std::string> stream_names() const;

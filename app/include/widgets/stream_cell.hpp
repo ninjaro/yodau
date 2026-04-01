@@ -30,6 +30,7 @@ class QKeyEvent;
 class QMouseEvent;
 class QPaintEvent;
 class QPainter;
+class QWheelEvent;
 
 struct hit_info {
     QPointF pos_pct;
@@ -44,6 +45,8 @@ public:
     struct line_instance {
         QString template_name;
         QColor color { Qt::red };
+        QString color_mode_id { default_line_color_mode_id() };
+        bool enabled { true };
         bool closed { false };
         QString width_text { default_line_width_text() };
         QString length_text { default_line_length_text() };
@@ -60,6 +63,9 @@ public:
     [[nodiscard]] bool draft_closed() const;
     [[nodiscard]] QString draft_name() const;
     [[nodiscard]] QColor draft_color() const;
+    [[nodiscard]] bool is_drawing_enabled() const;
+    [[nodiscard]] bool has_line_edit_preview() const;
+    [[nodiscard]] QString line_edit_preview_name() const;
 
     bool is_draft_preview() const;
     stream_settings current_stream_settings() const;
@@ -75,6 +81,7 @@ public:
     void
     set_draft_params(
         const QString& name, const QColor& color, bool closed,
+        const QString& color_mode_id = default_line_color_mode_id(),
         const QString& width_text = default_line_width_text(),
         const QString& length_text = default_line_length_text(),
         const QString& response_text = default_line_response_text()
@@ -87,6 +94,7 @@ public:
     void clear_persistent_lines();
 
     void set_draft_preview(bool on);
+    void set_line_edit_preview(const std::optional<line_instance>& line_value);
     void set_labels_enabled(bool on);
 
     void set_source(const QUrl& source);
@@ -112,14 +120,23 @@ signals:
     void request_close(const QString& name);
     void request_focus(const QString& name);
     void frame_ready(const QString& stream_name, const QImage& image);
+    void line_edit_point_selected(int visible_index);
+    void line_edit_shape_drag_requested(QPointF delta_pct);
+    void
+    line_edit_point_move_requested(int visible_index, QPointF point_pct);
+    void line_edit_point_split_requested(int visible_index);
+    void line_edit_shape_rotate_requested(double delta_degrees, int visible_pivot_index);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
 
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void leaveEvent(QEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
 
 private:
     void build_ui();
@@ -132,6 +149,7 @@ private:
 
     void draw_persistent(QPainter& p) const;
     void draw_draft(QPainter& p) const;
+    void draw_line_edit_preview(QPainter& p) const;
     void draw_hover_point(QPainter& p) const;
     void draw_hover_coords(QPainter& p) const;
     void draw_preview_segment(QPainter& p) const;
@@ -142,13 +160,19 @@ private:
 
     QPointF to_pct(const QPointF& pos_px) const;
     QPointF to_px(const QPointF& pos_pct) const;
+    std::optional<int> line_edit_vertex_at(const QPointF& pos_px) const;
+    bool line_edit_segment_hit(const QPointF& pos_px) const;
+    void reset_line_edit_drag_state();
+    void sync_mouse_tracking();
     void draw_events(QPainter& p);
 
     double segment_impact_k(
         const QPointF& a_pct, const QPointF& b_pct,
         const QVector<hit_info>& hit_points, double falloff_pct, double ktime
     ) const;
-    void draw_wave_overlay(QPainter& p, const line_instance& line_value) const;
+    void draw_wave_overlay(
+        QPainter& p, const line_instance& line_value, const QColor& line_color
+    ) const;
     void add_line_wave(
         const QString& line_name, const QPointF& pos_pct, double strength,
         const QString& direction, double speed
@@ -198,12 +222,14 @@ private:
 
     QString draft_line_name;
     QColor draft_line_color { Qt::red };
+    QString draft_line_color_mode_id { default_line_color_mode_id() };
     bool draft_line_closed { false };
     QString draft_line_width_text { default_line_width_text() };
     QString draft_line_length_text { default_line_length_text() };
     QString draft_line_response_text { default_line_response_text() };
     std::vector<QPointF> draft_line_points_pct;
     std::optional<QPointF> hover_point_pct;
+    std::optional<line_instance> line_edit_preview_;
 
     std::vector<line_instance> persistent_lines;
 
@@ -222,6 +248,21 @@ private:
     int repaint_interval_ms { 66 };
     QHash<QString, QDateTime> line_highlights;
     int line_highlight_ttl_ms { 2500 };
+    std::optional<int> line_edit_selected_vertex_;
+    std::optional<int> line_edit_pressed_vertex_;
+    std::vector<QPointF> line_edit_press_points_pct_;
+    QPointF line_edit_press_origin_pct_;
+    QPoint line_edit_press_origin_px_;
+    bool line_edit_press_active_ { false };
+    bool line_edit_press_moved_ { false };
+    bool line_edit_press_hit_shape_ { false };
+    bool line_edit_pressed_vertex_was_selected_ { false };
+    enum class line_edit_drag_mode {
+        none,
+        shape,
+        point,
+    };
+    line_edit_drag_mode line_edit_drag_mode_ { line_edit_drag_mode::none };
 
     QHash<QString, QVector<hit_info>> line_hits;
     QHash<QString, QVector<line_wave_pulse>> line_waves;

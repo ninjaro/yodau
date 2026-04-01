@@ -3,8 +3,18 @@
 
 #include <QColor>
 #include <QMetaType>
+#include <QPointF>
 #include <QString>
+#include <QVector>
 #include <QStringList>
+
+QString default_line_color_mode_id();
+QStringList line_color_mode_ids();
+QString line_color_mode_display_name(const QString& mode_id);
+QString normalized_line_color_mode_id(const QString& mode_id);
+QColor random_manual_line_color();
+QColor auto_palette_line_color(int line_index, int line_count);
+QColor softened_negative_line_color(const QColor& sampled_color);
 
 QString default_line_width_text();
 QString default_line_length_text();
@@ -24,6 +34,7 @@ QString line_parameter_mode_hint_text(const QString& mode_id);
 struct stream_settings {
     QString stream_name;
     bool labels_enabled { true };
+    bool standard_labels_enabled { true };
     QString algorithm_id;
     QString algorithm_preset;
     bool algorithm_overlay_enabled { false };
@@ -53,6 +64,7 @@ Q_DECLARE_METATYPE(stream_runtime_metrics)
 struct line_profile {
     QString name;
     QColor color { Qt::red };
+    QString color_mode_id { default_line_color_mode_id() };
     bool closed { false };
     QString width_text { default_line_width_text() };
     QString length_text { default_line_length_text() };
@@ -64,12 +76,22 @@ Q_DECLARE_METATYPE(line_profile)
 struct template_apply_settings {
     QString template_name;
     QColor color { Qt::red };
+    QString color_mode_id { default_line_color_mode_id() };
     QString width_text { default_line_width_text() };
     QString length_text { default_line_length_text() };
     QString response_text { default_line_response_text() };
 };
 
 Q_DECLARE_METATYPE(template_apply_settings)
+
+struct line_edit_request {
+    QString stream_name;
+    QString source_line_name;
+    line_profile profile;
+    QVector<QPointF> points_pct;
+};
+
+Q_DECLARE_METATYPE(line_edit_request)
 
 QString default_frontend_algorithm_id();
 QStringList frontend_algorithm_ids();

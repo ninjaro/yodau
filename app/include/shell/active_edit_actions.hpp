@@ -41,6 +41,42 @@ public:
         stream_cell::line_instance line;
     };
 
+    enum class line_toggle_status {
+        updated,
+        missing_line,
+        backend_error,
+    };
+
+    struct line_toggle_result {
+        line_toggle_status status { line_toggle_status::missing_line };
+        QString stream_name;
+        QString line_name;
+        bool enabled { false };
+        QString error_detail;
+        stream_cell::line_instance line;
+    };
+
+    enum class line_edit_save_status {
+        saved,
+        missing_source_line,
+        missing_name,
+        insufficient_points,
+        backend_error,
+    };
+
+    struct line_edit_save_result {
+        line_edit_save_status status {
+            line_edit_save_status::missing_source_line
+        };
+        line_edit_request request;
+        int point_count { 0 };
+        QString points_text;
+        QString final_name;
+        QString error_detail;
+        stream_cell::line_instance source_line;
+        stream_cell::line_instance line;
+    };
+
     active_edit_actions(
         yodau::backend::stream_manager* stream_mgr,
         active_edit_session& edit_session, stream_widget_bridge& widget_bridge,
@@ -55,6 +91,12 @@ public:
     [[nodiscard]] template_apply_result apply_active_template(
         const QString& active_name, template_apply_settings settings_value,
         stream_cell& cell
+    ) const;
+    [[nodiscard]] line_toggle_result set_stream_line_enabled(
+        const QString& stream_name, const QString& line_name, bool enabled
+    ) const;
+    [[nodiscard]] line_edit_save_result save_active_line_edit(
+        const QString& active_name, line_edit_request request
     ) const;
 
 private:

@@ -45,17 +45,6 @@ active_stream_state::settings_result active_stream_state::apply_stream_settings(
         std::move(settings_value)
     );
     result.previous_active_name = route_state_.active_stream_name();
-
-    if (settings_value.stream_name != result.previous_active_name) {
-        const selection_result selection = set_active_stream(
-            settings_value.stream_name
-        );
-        result.outcome_value = settings_result::outcome::switched_active_stream;
-        result.active_name = selection.active_name;
-        result.settings = selection.settings;
-        return result;
-    }
-
     result.active_name = result.previous_active_name;
 
     if (settings_value.stream_name.isEmpty()) {
@@ -69,6 +58,9 @@ active_stream_state::settings_result active_stream_state::apply_stream_settings(
     result.settings = catalog_state_.settings_for(settings_value.stream_name);
     result.labels_changed
         = result.previous_settings.labels_enabled != result.settings.labels_enabled;
+    result.standard_labels_changed
+        = result.previous_settings.standard_labels_enabled
+        != result.settings.standard_labels_enabled;
     result.algorithm_changed
         = result.previous_settings.algorithm_id != result.settings.algorithm_id;
     result.algorithm_changed = result.algorithm_changed

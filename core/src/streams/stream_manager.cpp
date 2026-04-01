@@ -239,6 +239,22 @@ yodau::backend::stream& yodau::backend::stream_manager::set_line(
     return *stream_it->second;
 }
 
+void yodau::backend::stream_manager::clear_stream_line(
+    const std::string& stream_name, const std::string& line_name
+) {
+    std::scoped_lock lock(mtx);
+    const auto stream_it = streams.find(stream_name);
+    if (stream_it == streams.end()) {
+        throw std::runtime_error("stream not found: " + stream_name);
+    }
+
+    if (!lines.contains(line_name)) {
+        throw std::runtime_error("line not found: " + line_name);
+    }
+
+    stream_it->second->disconnect_line(line_name);
+}
+
 std::shared_ptr<const yodau::backend::stream>
 yodau::backend::stream_manager::find_stream(const std::string& name) const {
     std::scoped_lock lock(mtx);

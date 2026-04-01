@@ -18,7 +18,10 @@ public:
     const template_apply_settings& apply_template_settings(
         template_apply_settings settings_value
     ) const;
+    line_edit_request apply_line_edit_preview(line_edit_request request) const;
+    void clear_line_edit_preview() const;
     void reset_after_line_saved(const QString& final_name) const;
+    void reset_after_line_edit_saved() const;
     void reset_after_template_applied() const;
     void undo_last_draft_point() const;
 

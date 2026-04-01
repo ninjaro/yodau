@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <QRandomGenerator>
 
 namespace frontend_settings_support {
 
@@ -50,6 +51,7 @@ QString default_frontend_algorithm_id() {
 QStringList frontend_algorithm_ids() {
     return {
         QStringLiteral("motion_baseline"),
+        QStringLiteral("hybrid_auto"),
         QStringLiteral("spot_grid"),
         QStringLiteral("contour_mask"),
     };
@@ -68,6 +70,9 @@ QString frontend_algorithm_display_name(const QString& algorithm_id) {
     if (normalized == QStringLiteral("contour_mask")) {
         return QStringLiteral("contour mask");
     }
+    if (normalized == QStringLiteral("hybrid_auto")) {
+        return QStringLiteral("hybrid auto");
+    }
 
     return QStringLiteral("motion baseline");
 }
@@ -82,6 +87,9 @@ QString default_algorithm_preset_id(const QString& algorithm_id) {
     if (normalized == QStringLiteral("contour_mask")) {
         return QStringLiteral("outline");
     }
+    if (normalized == QStringLiteral("hybrid_auto")) {
+        return QStringLiteral("adaptive");
+    }
 
     return QStringLiteral("balanced");
 }
@@ -95,6 +103,14 @@ QStringList algorithm_preset_ids(const QString& algorithm_id) {
             QStringLiteral("coarse"),
             QStringLiteral("balanced"),
             QStringLiteral("dense"),
+        };
+    }
+
+    if (normalized == QStringLiteral("hybrid_auto")) {
+        return {
+            QStringLiteral("load_guard"),
+            QStringLiteral("adaptive"),
+            QStringLiteral("tripwire_bias"),
         };
     }
 
@@ -129,6 +145,16 @@ QString algorithm_preset_display_name(
             return QStringLiteral("dense");
         }
         return QStringLiteral("balanced");
+    }
+
+    if (normalized_algorithm == QStringLiteral("hybrid_auto")) {
+        if (normalized_preset == QStringLiteral("load_guard")) {
+            return QStringLiteral("load guard");
+        }
+        if (normalized_preset == QStringLiteral("tripwire_bias")) {
+            return QStringLiteral("tripwire bias");
+        }
+        return QStringLiteral("adaptive");
     }
 
     if (normalized_algorithm == QStringLiteral("contour_mask")) {
@@ -173,6 +199,15 @@ QString normalized_algorithm_preset_id(
         }
     }
 
+    if (normalized_algorithm == QStringLiteral("hybrid_auto")) {
+        if (normalized_preset == QStringLiteral("simple")) {
+            return QStringLiteral("load_guard");
+        }
+        if (normalized_preset == QStringLiteral("debug")) {
+            return QStringLiteral("tripwire_bias");
+        }
+    }
+
     if (normalized_algorithm == QStringLiteral("contour_mask")) {
         if (normalized_preset == QStringLiteral("simple")) {
             return QStringLiteral("outline");
@@ -200,6 +235,17 @@ QString algorithm_summary_text(
         == QStringLiteral("spot_grid")) {
         return QStringLiteral(
             "%1 uses point-style motion regions with a %2 preset; %3."
+        )
+            .arg(algorithm_name)
+            .arg(preset_name)
+            .arg(overlay_text);
+    }
+
+    if (normalized_frontend_algorithm_id(algorithm_id)
+        == QStringLiteral("hybrid_auto")) {
+        return QStringLiteral(
+            "%1 adapts between load guard, tripwire bias, and contour-heavy "
+            "modes with a %2 preset; %3."
         )
             .arg(algorithm_name)
             .arg(preset_name)
@@ -240,9 +286,11 @@ QString algorithm_badge_text(
     const QString short_algorithm
         = normalized_algorithm == QStringLiteral("spot_grid")
         ? QStringLiteral("SG")
+        : (normalized_algorithm == QStringLiteral("hybrid_auto")
+               ? QStringLiteral("HA")
         : (normalized_algorithm == QStringLiteral("contour_mask")
                ? QStringLiteral("CM")
-               : QStringLiteral("MB"));
+               : QStringLiteral("MB")));
 
     return QStringLiteral("%1 %2")
         .arg(short_algorithm)
@@ -259,6 +307,9 @@ QColor algorithm_badge_color(const QString& algorithm_id) {
 
     if (normalized == QStringLiteral("spot_grid")) {
         return QColor(QStringLiteral("#2a9d8f"));
+    }
+    if (normalized == QStringLiteral("hybrid_auto")) {
+        return QColor(QStringLiteral("#9c6644"));
     }
     if (normalized == QStringLiteral("contour_mask")) {
         return QColor(QStringLiteral("#e76f51"));
@@ -282,6 +333,13 @@ QString normalized_frontend_algorithm_id(const QString& algorithm_id) {
         || normalized == QStringLiteral("spots")
         || normalized == QStringLiteral("spot_grid")) {
         return QStringLiteral("spot_grid");
+    }
+
+    if (normalized == QStringLiteral("hybrid")
+        || normalized == QStringLiteral("auto")
+        || normalized == QStringLiteral("adaptive")
+        || normalized == QStringLiteral("hybrid_auto")) {
+        return QStringLiteral("hybrid_auto");
     }
 
     if (normalized == QStringLiteral("contour")
@@ -442,6 +500,80 @@ QString operator_profile_summary_text(const stream_settings& settings_value) {
 }
 
 QString default_line_width_text() { return QStringLiteral("medium"); }
+
+QString default_line_color_mode_id() {
+    return QStringLiteral("auto_palette");
+}
+
+QStringList line_color_mode_ids() {
+    return {
+        QStringLiteral("auto_palette"),
+        QStringLiteral("negative_auto"),
+        QStringLiteral("manual"),
+    };
+}
+
+QString line_color_mode_display_name(const QString& mode_id) {
+    const QString normalized = normalized_line_color_mode_id(mode_id);
+    if (normalized == QStringLiteral("manual")) {
+        return QStringLiteral("manual color");
+    }
+    if (normalized == QStringLiteral("negative_auto")) {
+        return QStringLiteral("negative auto");
+    }
+    return QStringLiteral("auto palette");
+}
+
+QString normalized_line_color_mode_id(const QString& mode_id) {
+    const QString normalized
+        = frontend_settings_support::normalized_key(mode_id);
+
+    if (normalized == QStringLiteral("manual")
+        || normalized == QStringLiteral("fixed")
+        || normalized == QStringLiteral("random")) {
+        return QStringLiteral("manual");
+    }
+    if (normalized == QStringLiteral("negative_auto")
+        || normalized == QStringLiteral("negative")
+        || normalized == QStringLiteral("invert")
+        || normalized == QStringLiteral("inverse")) {
+        return QStringLiteral("negative_auto");
+    }
+
+    return QStringLiteral("auto_palette");
+}
+
+QColor random_manual_line_color() {
+    const int hue = QRandomGenerator::global()->bounded(360);
+    const int saturation = 165 + QRandomGenerator::global()->bounded(60);
+    const int value = 210 + QRandomGenerator::global()->bounded(36);
+    return QColor::fromHsv(hue, std::clamp(saturation, 0, 255), std::clamp(value, 0, 255));
+}
+
+QColor auto_palette_line_color(const int line_index, const int line_count) {
+    const int clamped_count = std::max(1, line_count);
+    const int clamped_index = std::clamp(line_index, 0, clamped_count - 1);
+    const double ratio
+        = static_cast<double>(clamped_index) / static_cast<double>(clamped_count);
+    const int hue = static_cast<int>(std::lround(std::fmod(22.0 + ratio * 330.0, 360.0)));
+    const int saturation = clamped_count <= 2 ? 150 : 178;
+    const int value = clamped_count >= 7 ? 228 : 238;
+    return QColor::fromHsv(hue, saturation, value);
+}
+
+QColor softened_negative_line_color(const QColor& sampled_color) {
+    const QColor base = sampled_color.isValid() ? sampled_color : QColor(QStringLiteral("#456b88"));
+    QColor inverted(
+        255 - base.red(), 255 - base.green(), 255 - base.blue()
+    );
+    QColor softened(
+        static_cast<int>(std::lround(inverted.red() * 0.72 + 255.0 * 0.28)),
+        static_cast<int>(std::lround(inverted.green() * 0.72 + 255.0 * 0.28)),
+        static_cast<int>(std::lround(inverted.blue() * 0.72 + 255.0 * 0.28))
+    );
+    softened.setAlpha(235);
+    return softened;
+}
 
 int default_manual_display_fps() { return 24; }
 

@@ -1,21 +1,28 @@
 #include "widgets/stream_inventory_panel.hpp"
 
 #include "shell/str_label.hpp"
-#include "widgets/log_area_view.hpp"
 
 #include <QHeaderView>
+#include <QLabel>
 #include <QSignalBlocker>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 stream_inventory_panel::stream_inventory_panel(QWidget* parent)
     : QWidget(parent)
-    , streams_list(new QTreeWidget(this))
-    , event_log_view(new log_area_view(frontend_log_area::streams, this)) {
+    , streams_list(new QTreeWidget(this)) {
     const auto layout = new QVBoxLayout(this);
     layout->setSpacing(10);
 
+    summary_label = new QLabel(this);
+    summary_label->setObjectName(QStringLiteral("settings_streams_summary_label"));
+    summary_label->setWordWrap(true);
+    layout->addWidget(summary_label);
+
+    streams_list->setObjectName(QStringLiteral("settings_streams_list"));
     streams_list->setColumnCount(3);
     streams_list->setHeaderLabels(
         { str_label("show"), str_label("name"), str_label("source") }
@@ -32,9 +39,7 @@ stream_inventory_panel::stream_inventory_panel(QWidget* parent)
         &stream_inventory_panel::on_stream_item_changed
     );
 
-    event_log_view->setObjectName(QStringLiteral("settings_streams_log_view"));
-    event_log_view->setMinimumHeight(160);
-    layout->addWidget(event_log_view);
+    refresh_summary();
 }
 
 void stream_inventory_panel::add_stream_entry(
@@ -54,6 +59,7 @@ void stream_inventory_panel::add_stream_entry(
     item->setText(1, name);
     item->setText(2, source);
     streams_list->addTopLevelItem(item);
+    refresh_summary();
 }
 
 void stream_inventory_panel::set_stream_checked(
@@ -76,22 +82,12 @@ void stream_inventory_panel::remove_stream_entry(const QString& name) const {
             break;
         }
     }
+    refresh_summary();
 }
 
 void stream_inventory_panel::clear_stream_entries() const {
     streams_list->clear();
-}
-
-void stream_inventory_panel::set_log_toolbar(log_toolbar_panel* toolbar) {
-    if (event_log_view != nullptr) {
-        event_log_view->set_log_toolbar(toolbar);
-    }
-}
-
-bool stream_inventory_panel::append_log_entry(
-    const frontend_log_entry& entry
-) const {
-    return event_log_view != nullptr && event_log_view->append_entry(entry);
+    refresh_summary();
 }
 
 void stream_inventory_panel::on_stream_item_changed(
@@ -103,5 +99,38 @@ void stream_inventory_panel::on_stream_item_changed(
 
     emit show_stream_changed(
         item->text(1), item->checkState(0) == Qt::Checked
+    );
+    refresh_summary();
+}
+
+void stream_inventory_panel::refresh_summary() const {
+    if (summary_label == nullptr || streams_list == nullptr) {
+        return;
+    }
+
+    const int total = streams_list->topLevelItemCount();
+    int shown = 0;
+    for (int i = 0; i < total; i += 1) {
+        const auto item = streams_list->topLevelItem(i);
+        if (item != nullptr && item->checkState(0) == Qt::Checked) {
+            shown += 1;
+        }
+    }
+
+    if (total == 0) {
+        summary_label->setText(
+            QStringLiteral(
+                "No configured streams yet. Add a source, then enable it in "
+                "the grid from this list."
+            )
+        );
+        return;
+    }
+
+    summary_label->setText(
+        QStringLiteral("%1 configured | %2 shown in grid | %3 hidden")
+            .arg(total)
+            .arg(shown)
+            .arg(std::max(0, total - shown))
     );
 }

@@ -1,6 +1,7 @@
 #include "widgets/settings_panel.hpp"
 #include "shell/str_label.hpp"
 #include "widgets/active_editor_panel.hpp"
+#include "widgets/active_stream_panel.hpp"
 #include "widgets/log_toolbar_panel.hpp"
 #include "widgets/stream_inventory_panel.hpp"
 #include "widgets/stream_source_panel.hpp"
@@ -8,8 +9,11 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QFileDialog>
+#include <QLabel>
 #include <QTabWidget>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace settings_panel_support {
 
@@ -35,12 +39,12 @@ frontend_log_entry make_log_entry(
 settings_panel::settings_panel(QWidget* parent)
     : QWidget(parent)
     , tabs(new QTabWidget(this))
-    , add_tab(nullptr)
     , streams_tab(nullptr) {
     qRegisterMetaType<stream_settings>("stream_settings");
     qRegisterMetaType<frontend_log_mode>("frontend_log_mode");
     qRegisterMetaType<line_profile>("line_profile");
     qRegisterMetaType<template_apply_settings>("template_apply_settings");
+    qRegisterMetaType<line_edit_request>("line_edit_request");
 
     build_ui();
     set_active_stream_settings(stream_settings {});
@@ -53,6 +57,7 @@ void settings_panel::set_existing_names(QSet<QString> names) {
     if (source_panel != nullptr) {
         source_panel->set_existing_names(existing_names);
     }
+    sync_stream_settings_candidates();
 }
 
 void settings_panel::add_existing_name(const QString& name) {
@@ -63,6 +68,7 @@ void settings_panel::add_existing_name(const QString& name) {
     if (source_panel != nullptr) {
         source_panel->add_existing_name(name);
     }
+    sync_stream_settings_candidates();
 }
 
 void settings_panel::remove_existing_name(const QString& name) {
@@ -70,6 +76,7 @@ void settings_panel::remove_existing_name(const QString& name) {
     if (source_panel != nullptr) {
         source_panel->remove_existing_name(name);
     }
+    sync_stream_settings_candidates();
 }
 
 void settings_panel::set_log_buffer(frontend_log_buffer* buffer) {
@@ -90,44 +97,52 @@ frontend_log_mode settings_panel::log_mode() const {
 }
 
 void settings_panel::append_log(frontend_log_entry entry) const {
-    if (log_toolbar_widget != nullptr && log_toolbar_widget->append_entry(entry)) {
-        return;
-    }
-
-    switch (entry.area) {
-    case frontend_log_area::add:
-        if (source_panel != nullptr) {
-            source_panel->append_log_entry(entry);
-        }
-        break;
-    case frontend_log_area::streams:
-        if (inventory_panel != nullptr) {
-            inventory_panel->append_log_entry(entry);
-        }
-        break;
-    case frontend_log_area::active:
-        if (active_editor_panel_widget != nullptr) {
-            active_editor_panel_widget->append_log_entry(entry);
-        }
-        break;
+    if (log_toolbar_widget != nullptr) {
+        log_toolbar_widget->append_entry(std::move(entry));
     }
 }
 
 QString settings_panel::compose_current_log_report() const {
     return log_toolbar_widget != nullptr
-        ? log_toolbar_widget->compose_log_report(current_log_area())
+        ? log_toolbar_widget->compose_log_report(std::nullopt)
         : QStringLiteral("yodau log report\n(no matching entries)");
 }
 
 QString settings_panel::compose_current_log_summary() const {
     return log_toolbar_widget != nullptr
-        ? log_toolbar_widget->compose_log_summary(current_log_area())
+        ? log_toolbar_widget->compose_log_summary(std::nullopt)
         : QStringLiteral("yodau log summary\nentries=0 debug=0 info=0 warn=0 error=0");
 }
 
 bool settings_panel::write_current_log_report(const QString& path) const {
     return log_toolbar_widget != nullptr
-        && log_toolbar_widget->write_log_report(current_log_area(), path);
+        && log_toolbar_widget->write_log_report(std::nullopt, path);
+}
+
+log_toolbar_panel* settings_panel::take_log_toolbar_widget() {
+    if (log_toolbar_widget == nullptr) {
+        return nullptr;
+    }
+
+    if (auto* root_layout = layout()) {
+        root_layout->removeWidget(log_toolbar_widget);
+    }
+
+    log_toolbar_widget->setParent(nullptr);
+    return log_toolbar_widget;
+}
+
+QWidget* settings_panel::take_active_editor_widget() {
+    if (active_editor_panel_widget == nullptr) {
+        return nullptr;
+    }
+
+    if (auto* root_layout = layout()) {
+        root_layout->removeWidget(active_editor_panel_widget);
+    }
+
+    active_editor_panel_widget->setParent(nullptr);
+    return active_editor_panel_widget;
 }
 
 void settings_panel::add_stream_entry(
@@ -138,6 +153,10 @@ void settings_panel::add_stream_entry(
     }
 
     inventory_panel->add_stream_entry(name, source, checked);
+    if (!name.isEmpty()) {
+        const_cast<settings_panel*>(this)->existing_names.insert(name);
+        sync_stream_settings_candidates();
+    }
 }
 
 void settings_panel::set_stream_checked(
@@ -156,6 +175,13 @@ void settings_panel::remove_stream_entry(const QString& name) const {
     }
 
     inventory_panel->remove_stream_entry(name);
+    if (!name.isEmpty()) {
+        const_cast<settings_panel*>(this)->existing_names.remove(name);
+        if (source_panel != nullptr) {
+            source_panel->remove_existing_name(name);
+        }
+        sync_stream_settings_candidates();
+    }
 }
 
 void settings_panel::clear_stream_entries() {
@@ -166,6 +192,7 @@ void settings_panel::clear_stream_entries() {
     if (source_panel != nullptr) {
         source_panel->set_existing_names(existing_names);
     }
+    sync_stream_settings_candidates();
 }
 
 void settings_panel::append_event(const QString& text) const {
@@ -217,16 +244,16 @@ void settings_panel::set_active_current(const QString& name) const {
 void settings_panel::set_active_stream_settings(
     const stream_settings& settings_value
 ) {
-    if (active_editor_panel_widget == nullptr) {
+    if (stream_settings_panel_widget == nullptr) {
         return;
     }
 
-    active_editor_panel_widget->set_stream_settings(settings_value);
+    stream_settings_panel_widget->set_stream_settings(settings_value);
 }
 
 stream_settings settings_panel::current_active_stream_settings() const {
-    return active_editor_panel_widget != nullptr
-        ? active_editor_panel_widget->current_stream_settings()
+    return stream_settings_panel_widget != nullptr
+        ? stream_settings_panel_widget->current_stream_settings()
         : stream_settings {};
 }
 
@@ -300,6 +327,51 @@ void settings_panel::set_active_line_closed(bool closed) const {
     active_editor_panel_widget->set_line_closed(closed);
 }
 
+void settings_panel::set_active_lines(
+    const std::vector<stream_cell::line_instance>& lines
+) {
+    if (active_editor_panel_widget == nullptr) {
+        return;
+    }
+
+    active_editor_panel_widget->set_active_lines(lines);
+}
+
+bool settings_panel::select_active_line_edit_point(const int visible_index) const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->select_line_edit_point(visible_index);
+}
+
+bool settings_panel::translate_active_line_edit_shape(
+    const QPointF& delta_pct
+) const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->translate_line_edit_shape(delta_pct);
+}
+
+bool settings_panel::move_active_line_edit_point(
+    const int visible_index, const QPointF& point_pct
+) const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->move_line_edit_point(
+            visible_index, point_pct
+        );
+}
+
+bool settings_panel::split_active_line_edit_point(const int visible_index) const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->split_line_edit_point(visible_index);
+}
+
+bool settings_panel::rotate_active_line_edit_shape(
+    const double delta_degrees, const int visible_pivot_index
+) const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->rotate_line_edit_shape(
+            delta_degrees, visible_pivot_index
+        );
+}
+
 QString settings_panel::active_template_current() const {
     if (active_editor_panel_widget == nullptr) {
         return {};
@@ -324,17 +396,15 @@ void settings_panel::append_active_log(const QString& msg) const {
 }
 
 void settings_panel::clear_active_log() const {
-    if (active_editor_panel_widget != nullptr) {
-        active_editor_panel_widget->clear_log();
-    }
+    Q_UNUSED(this);
 }
 
 void settings_panel::build_ui() {
     const auto root_layout = new QVBoxLayout(this);
     root_layout->setContentsMargins(8, 8, 8, 8);
+    tabs->setObjectName(QStringLiteral("settings_tabs"));
     log_toolbar_widget = new log_toolbar_panel(this);
     root_layout->addWidget(tabs, 1);
-    root_layout->addWidget(log_toolbar_widget);
     connect(
         log_toolbar_widget, &log_toolbar_panel::copy_logs_requested, this,
         &settings_panel::on_copy_logs_clicked
@@ -352,69 +422,17 @@ void settings_panel::build_ui() {
         &settings_panel::on_save_logs_clicked
     );
 
-    add_tab = build_add_tab();
     streams_tab = build_streams_tab();
-    active_tab = build_active_tab();
-
-    tabs->addTab(add_tab, str_label("add stream"));
-    tabs->addTab(streams_tab, str_label("streams"));
-    tabs->addTab(active_tab, str_label("active"));
-}
-
-QWidget* settings_panel::build_add_tab() {
-    source_panel = new stream_source_panel(this);
-    source_panel->set_existing_names(existing_names);
-    source_panel->set_log_toolbar(log_toolbar_widget);
-    connect(
-        source_panel, &stream_source_panel::add_file_stream, this,
-        &settings_panel::add_file_stream
-    );
-    connect(
-        source_panel, &stream_source_panel::add_local_stream, this,
-        &settings_panel::add_local_stream
-    );
-    connect(
-        source_panel, &stream_source_panel::add_url_stream, this,
-        &settings_panel::add_url_stream
-    );
-    connect(
-        source_panel, &stream_source_panel::detect_local_sources_requested, this,
-        &settings_panel::detect_local_sources_requested
-    );
-    connect(
-        source_panel, &stream_source_panel::log_requested, this,
-        [this](frontend_log_entry entry) { append_log(entry); }
-    );
-    return source_panel;
-}
-
-QWidget* settings_panel::build_streams_tab() {
-    inventory_panel = new stream_inventory_panel(this);
-    inventory_panel->set_log_toolbar(log_toolbar_widget);
-    connect(
-        inventory_panel, &stream_inventory_panel::show_stream_changed, this,
-        [this](const QString& name, const bool show) {
-            emit show_stream_changed(name, show);
-            append_log(
-                settings_panel_support::make_log_entry(
-                    frontend_log_area::streams, frontend_log_severity::info,
-                    QStringLiteral("settings_panel"),
-                    show ? QStringLiteral("stream shown in grid")
-                         : QStringLiteral("stream hidden from grid"),
-                    name
-                )
-            );
-        }
-    );
-    return inventory_panel;
-}
-
-QWidget* settings_panel::build_active_tab() {
+    stream_settings_tab = build_stream_settings_tab();
     active_editor_panel_widget = new active_editor_panel(this);
-    active_editor_panel_widget->set_log_toolbar(log_toolbar_widget);
+
+    tabs->addTab(streams_tab, str_label("streams"));
+    tabs->addTab(stream_settings_tab, str_label("stream settings"));
+
     connect(
-        active_editor_panel_widget, &active_editor_panel::stream_settings_changed,
-        this, &settings_panel::active_stream_settings_changed
+        active_editor_panel_widget,
+        &active_editor_panel::active_stream_selected, this,
+        &settings_panel::active_stream_selected
     );
     connect(
         active_editor_panel_widget, &active_editor_panel::edit_mode_changed, this,
@@ -436,6 +454,26 @@ QWidget* settings_panel::build_active_tab() {
         &settings_panel::active_line_undo_requested
     );
     connect(
+        active_editor_panel_widget, &active_editor_panel::line_enabled_changed,
+        this,
+        &settings_panel::active_line_enabled_changed
+    );
+    connect(
+        active_editor_panel_widget,
+        &active_editor_panel::line_edit_preview_changed, this,
+        &settings_panel::active_line_edit_preview_changed
+    );
+    connect(
+        active_editor_panel_widget,
+        &active_editor_panel::line_edit_preview_cleared, this,
+        &settings_panel::active_line_edit_preview_cleared
+    );
+    connect(
+        active_editor_panel_widget, &active_editor_panel::line_edit_save_requested,
+        this,
+        &settings_panel::active_line_edit_save_requested
+    );
+    connect(
         active_editor_panel_widget,
         &active_editor_panel::template_settings_changed, this,
         &settings_panel::active_template_settings_changed
@@ -445,22 +483,109 @@ QWidget* settings_panel::build_active_tab() {
         this,
         &settings_panel::active_template_add_requested
     );
-    return active_editor_panel_widget;
 }
 
-frontend_log_area settings_panel::current_log_area() const {
-    if (tabs == nullptr) {
-        return frontend_log_area::active;
+QWidget* settings_panel::build_streams_tab() {
+    const auto tab = new QWidget(this);
+    tab->setObjectName(QStringLiteral("settings_streams_tab"));
+
+    const auto layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(12);
+
+    const auto summary_label = new QLabel(
+        QStringLiteral(
+            "Add new sources and manage which configured streams stay visible "
+            "in the grid from one tab."
+        ),
+        tab
+    );
+    summary_label->setObjectName(QStringLiteral("settings_streams_intro_label"));
+    summary_label->setWordWrap(true);
+    layout->addWidget(summary_label);
+
+    source_panel = new stream_source_panel(tab);
+    source_panel->set_existing_names(existing_names);
+    layout->addWidget(source_panel);
+
+    inventory_panel = new stream_inventory_panel(tab);
+    layout->addWidget(inventory_panel, 1);
+
+    connect(
+        source_panel, &stream_source_panel::add_file_stream, this,
+        &settings_panel::add_file_stream
+    );
+    connect(
+        source_panel, &stream_source_panel::add_local_stream, this,
+        &settings_panel::add_local_stream
+    );
+    connect(
+        source_panel, &stream_source_panel::add_url_stream, this,
+        &settings_panel::add_url_stream
+    );
+    connect(
+        source_panel, &stream_source_panel::detect_local_sources_requested, this,
+        &settings_panel::detect_local_sources_requested
+    );
+    connect(
+        source_panel, &stream_source_panel::log_requested, this,
+        [this](frontend_log_entry entry) { append_log(entry); }
+    );
+    connect(
+        inventory_panel, &stream_inventory_panel::show_stream_changed, this,
+        [this](const QString& name, const bool show) {
+            emit show_stream_changed(name, show);
+            append_log(
+                settings_panel_support::make_log_entry(
+                    frontend_log_area::streams, frontend_log_severity::info,
+                    QStringLiteral("settings_panel"),
+                    show ? QStringLiteral("stream shown in grid")
+                         : QStringLiteral("stream hidden from grid"),
+                    name
+                )
+            );
+        }
+    );
+    return tab;
+}
+
+QWidget* settings_panel::build_stream_settings_tab() {
+    stream_settings_panel_widget = new active_stream_panel(
+        active_stream_panel::panel_mode::stream_settings,
+        QStringLiteral("settings_stream_editor"), this
+    );
+    stream_settings_panel_widget->setObjectName(
+        QStringLiteral("settings_stream_settings_tab")
+    );
+    connect(
+        stream_settings_panel_widget, &active_stream_panel::stream_selected, this,
+        &settings_panel::stream_settings_selection_changed
+    );
+    connect(
+        stream_settings_panel_widget,
+        &active_stream_panel::stream_settings_changed,
+        this, &settings_panel::active_stream_settings_changed
+    );
+    sync_stream_settings_candidates();
+    return stream_settings_panel_widget;
+}
+
+QStringList settings_panel::configured_stream_names() const {
+    QStringList names = existing_names.values();
+    std::sort(names.begin(), names.end());
+    return names;
+}
+
+void settings_panel::sync_stream_settings_candidates() const {
+    if (stream_settings_panel_widget == nullptr) {
+        return;
     }
 
-    switch (tabs->currentIndex()) {
-    case 0:
-        return frontend_log_area::add;
-    case 1:
-        return frontend_log_area::streams;
-    case 2:
-    default:
-        return frontend_log_area::active;
+    const QStringList names = configured_stream_names();
+    stream_settings_panel_widget->set_active_candidates(names);
+    if (stream_settings_panel_widget->current_stream_settings().stream_name.isEmpty()
+        && !names.isEmpty()) {
+        stream_settings_panel_widget->set_active_current(names.front());
     }
 }
 
@@ -486,7 +611,9 @@ void settings_panel::on_save_logs_clicked() {
     );
     const QString path = QFileDialog::getSaveFileName(
         this, str_label("save log report"), default_name,
-        str_label("Text files (*.txt);;All files (*)")
+        str_label(
+            "Text files (*.txt);;TSV files (*.tsv);;JSON files (*.json);;All files (*)"
+        )
     );
     if (path.isEmpty()) {
         return;

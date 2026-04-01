@@ -8,11 +8,13 @@
 #include <QPainter>
 #include <QFontMetrics>
 #include <QPen>
+#include <QBrush>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QStyle>
 #include <QStyleOption>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -26,6 +28,13 @@ constexpr int wave_animation_interval_ms = 16;
 constexpr qint64 wave_pulse_ttl_ms = 2400;
 constexpr qint64 wave_merge_window_ms = 120;
 constexpr double wave_joint_transfer = 0.72;
+constexpr qreal line_edit_vertex_hit_radius_px = 11.0;
+constexpr qreal line_edit_segment_hit_radius_px = 8.0;
+constexpr int line_edit_drag_threshold_px = 4;
+constexpr double line_edit_key_nudge_px = 1.0;
+constexpr double line_edit_key_nudge_fast_px = 5.0;
+constexpr double line_edit_wheel_degrees_per_step = 5.0;
+constexpr double line_edit_wheel_fine_degrees_per_step = 1.0;
 
 struct path_segment {
     int index { -1 };
@@ -50,6 +59,12 @@ double clamp_unit(double value) {
     return std::clamp(value, 0.0, 1.0);
 }
 
+QPointF clamped_pct(QPointF point_pct) {
+    point_pct.setX(std::clamp(point_pct.x(), 0.0, 100.0));
+    point_pct.setY(std::clamp(point_pct.y(), 0.0, 100.0));
+    return point_pct;
+}
+
 QColor color_with_alpha(QColor color, const int alpha) {
     color.setAlpha(std::clamp(alpha, 0, 255));
     return color;
@@ -59,6 +74,245 @@ QColor log_mode_badge_color(const frontend_log_mode mode) {
     return mode == frontend_log_mode::debug
         ? QColor(QStringLiteral("#bc6c25"))
         : QColor(QStringLiteral("#3a5a40"));
+}
+
+double point_segment_distance_px(
+    const QPointF& point_px, const QPointF& a_px, const QPointF& b_px
+) {
+    const QLineF segment(a_px, b_px);
+    const double segment_length_sq
+        = segment.dx() * segment.dx() + segment.dy() * segment.dy();
+    if (segment_length_sq <= std::numeric_limits<double>::epsilon()) {
+        return QLineF(point_px, a_px).length();
+    }
+
+    const QPointF ap = point_px - a_px;
+    const QPointF ab = b_px - a_px;
+    const double projection = std::clamp(
+        (ap.x() * ab.x() + ap.y() * ab.y()) / segment_length_sq, 0.0, 1.0
+    );
+    const QPointF closest = a_px + ab * projection;
+    return QLineF(point_px, closest).length();
+}
+
+QColor contrasting_text_color(const QColor& background) {
+    const double luma = 0.2126 * background.redF() + 0.7152 * background.greenF()
+        + 0.0722 * background.blueF();
+    return luma >= 0.62 ? QColor(Qt::black) : QColor(Qt::white);
+}
+
+QRect anchored_hover_label_rect(
+    const QRect& bounds, const QSize& label_size, const QPoint& anchor
+) {
+    const int horizontal_gap = 12;
+    const int vertical_gap = 12;
+    int left = anchor.x() + horizontal_gap;
+    int top = anchor.y() - label_size.height() - vertical_gap;
+
+    if (left + label_size.width() > bounds.right()) {
+        left = anchor.x() - label_size.width() - horizontal_gap;
+    }
+    if (top < bounds.top()) {
+        top = anchor.y() + vertical_gap;
+    }
+
+    left = std::clamp(
+        left, bounds.left(), std::max(bounds.left(), bounds.right() - label_size.width())
+    );
+    top = std::clamp(
+        top, bounds.top(), std::max(bounds.top(), bounds.bottom() - label_size.height())
+    );
+
+    return QRect(QPoint(left, top), label_size);
+}
+
+QPointF average_point_pct(const std::vector<QPointF>& pts_pct) {
+    if (pts_pct.empty()) {
+        return {};
+    }
+
+    double sum_x = 0.0;
+    double sum_y = 0.0;
+    for (const QPointF& pt_pct : pts_pct) {
+        sum_x += pt_pct.x();
+        sum_y += pt_pct.y();
+    }
+
+    return QPointF(
+        sum_x / static_cast<double>(pts_pct.size()),
+        sum_y / static_cast<double>(pts_pct.size())
+    );
+}
+
+QColor sampled_stream_color(
+    const QImage& frame, const std::vector<QPointF>& pts_pct
+) {
+    if (frame.isNull() || pts_pct.empty()) {
+        return {};
+    }
+
+    const QPointF anchor_pct = average_point_pct(pts_pct);
+    const int center_x = std::clamp(
+        static_cast<int>(
+            std::lround(anchor_pct.x() / 100.0 * std::max(0, frame.width() - 1))
+        ),
+        0, std::max(0, frame.width() - 1)
+    );
+    const int center_y = std::clamp(
+        static_cast<int>(
+            std::lround(anchor_pct.y() / 100.0 * std::max(0, frame.height() - 1))
+        ),
+        0, std::max(0, frame.height() - 1)
+    );
+
+    int sample_count = 0;
+    int sum_red = 0;
+    int sum_green = 0;
+    int sum_blue = 0;
+
+    for (int dy = -1; dy <= 1; dy += 1) {
+        for (int dx = -1; dx <= 1; dx += 1) {
+            const int sample_x = std::clamp(center_x + dx, 0, frame.width() - 1);
+            const int sample_y = std::clamp(center_y + dy, 0, frame.height() - 1);
+            const QColor sample = frame.pixelColor(sample_x, sample_y);
+            sum_red += sample.red();
+            sum_green += sample.green();
+            sum_blue += sample.blue();
+            sample_count += 1;
+        }
+    }
+
+    if (sample_count <= 0) {
+        return {};
+    }
+
+    return QColor(
+        sum_red / sample_count, sum_green / sample_count, sum_blue / sample_count
+    );
+}
+
+QColor effective_line_color(
+    const stream_cell::line_instance& line_value, const int line_index,
+    const int line_count, const QImage& frame
+) {
+    const QString color_mode_id = normalized_line_color_mode_id(
+        line_value.color_mode_id
+    );
+
+    if (color_mode_id == QStringLiteral("manual")) {
+        return line_value.color.isValid() ? line_value.color : QColor(Qt::red);
+    }
+
+    if (color_mode_id == QStringLiteral("negative_auto")) {
+        const QColor sampled = sampled_stream_color(frame, line_value.pts_pct);
+        if (sampled.isValid()) {
+            return softened_negative_line_color(sampled);
+        }
+    }
+
+    return auto_palette_line_color(line_index, line_count);
+}
+
+QColor effective_draft_line_color(
+    const QString& color_mode_id, const QColor& manual_color,
+    const std::vector<QPointF>& pts_pct, const QImage& frame,
+    const int line_index, const int line_count
+) {
+    stream_cell::line_instance line_value;
+    line_value.color = manual_color;
+    line_value.color_mode_id = color_mode_id;
+    line_value.pts_pct = pts_pct;
+    return effective_line_color(line_value, line_index, line_count, frame);
+}
+
+bool uses_content_inversion(const QString& color_mode_id) {
+    return normalized_line_color_mode_id(color_mode_id)
+        == QStringLiteral("negative_auto");
+}
+
+QPointF to_image_px(const QPointF& pos_pct, const QSize& size) {
+    return {
+        pos_pct.x() / 100.0 * static_cast<double>(size.width()),
+        pos_pct.y() / 100.0 * static_cast<double>(size.height())
+    };
+}
+
+QPolygonF polygon_for_target_size(
+    const std::vector<QPointF>& pts_pct, const QSize& size
+) {
+    QPolygonF poly;
+    poly.reserve(static_cast<int>(pts_pct.size()));
+    for (const QPointF& pt_pct : pts_pct) {
+        poly << to_image_px(pt_pct, size);
+    }
+    return poly;
+}
+
+qreal scaled_image_pen_width(
+    const qreal display_width, const QSize& display_size, const QSize& image_size
+) {
+    if (display_size.width() <= 0 || display_size.height() <= 0) {
+        return std::max<qreal>(1.0, display_width);
+    }
+
+    const qreal scale_x
+        = static_cast<qreal>(image_size.width())
+        / static_cast<qreal>(display_size.width());
+    const qreal scale_y
+        = static_cast<qreal>(image_size.height())
+        / static_cast<qreal>(display_size.height());
+    return std::max<qreal>(1.0, display_width * (scale_x + scale_y) * 0.5);
+}
+
+void apply_content_inversion_mask(
+    QImage& image, const QSize& display_size,
+    const std::vector<QPointF>& pts_pct, const bool closed,
+    const Qt::PenStyle style, const qreal display_width,
+    const bool fill_closed_area
+) {
+    if (image.isNull() || pts_pct.size() < 2) {
+        return;
+    }
+
+    const QPolygonF poly = polygon_for_target_size(pts_pct, image.size());
+    if (poly.size() < 2) {
+        return;
+    }
+
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setCompositionMode(QPainter::CompositionMode_Difference);
+
+    QPen invert_pen(Qt::white);
+    invert_pen.setWidthF(
+        scaled_image_pen_width(display_width, display_size, image.size())
+    );
+    invert_pen.setStyle(style);
+    invert_pen.setCapStyle(Qt::RoundCap);
+    invert_pen.setJoinStyle(Qt::RoundJoin);
+    painter.setPen(invert_pen);
+    painter.setBrush(
+        fill_closed_area && closed && style == Qt::SolidLine
+            ? QBrush(Qt::white)
+            : Qt::NoBrush
+    );
+
+    if (closed && poly.size() >= 3) {
+        painter.drawPolygon(poly);
+    } else {
+        painter.drawPolyline(poly);
+    }
+}
+
+int enabled_line_count(
+    const std::vector<stream_cell::line_instance>& lines
+) {
+    return static_cast<int>(std::count_if(
+        lines.cbegin(), lines.cend(),
+        [](const stream_cell::line_instance& line_value) {
+            return line_value.enabled;
+        }
+    ));
 }
 
 struct line_wave_style {
@@ -171,6 +425,16 @@ double event_region_scale(const stream_settings& settings_value) {
         }
         if (preset_id == QStringLiteral("dense")) {
             return 0.2;
+        }
+        return 0.16;
+    }
+
+    if (algorithm_id == QStringLiteral("hybrid_auto")) {
+        if (preset_id == QStringLiteral("load_guard")) {
+            return 0.12;
+        }
+        if (preset_id == QStringLiteral("tripwire_bias")) {
+            return 0.19;
         }
         return 0.16;
     }
@@ -360,6 +624,66 @@ void draw_contour_mask_overlay(
     );
 }
 
+void draw_hybrid_overlay(
+    QPainter& painter, const QRectF& region, const QPointF& center,
+    const double radius, const QColor& color, const stream_settings& settings_value,
+    const double life_k
+) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+    const int dimension = preset_id == QStringLiteral("load_guard")
+        ? 2
+        : (preset_id == QStringLiteral("tripwire_bias") ? 4 : 3);
+
+    QPen frame_pen(color_with_alpha(color, static_cast<int>(155.0 * life_k)));
+    frame_pen.setWidthF(preset_id == QStringLiteral("tripwire_bias") ? 2.0 : 1.4);
+    frame_pen.setStyle(
+        preset_id == QStringLiteral("load_guard") ? Qt::DotLine : Qt::DashLine
+    );
+    painter.setPen(frame_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(region, 8.0, 8.0);
+
+    const double cell_width = region.width() / dimension;
+    const double cell_height = region.height() / dimension;
+    QPen grid_pen(color_with_alpha(color, static_cast<int>(82.0 * life_k)));
+    grid_pen.setWidthF(1.0);
+    painter.setPen(grid_pen);
+    for (int row = 1; row < dimension; row += 1) {
+        painter.drawLine(
+            QPointF(region.left(), region.top() + row * cell_height),
+            QPointF(region.right(), region.top() + row * cell_height)
+        );
+    }
+    for (int col = 1; col < dimension; col += 1) {
+        painter.drawLine(
+            QPointF(region.left() + col * cell_width, region.top()),
+            QPointF(region.left() + col * cell_width, region.bottom())
+        );
+    }
+
+    QPolygonF contour;
+    contour << QPointF(center.x(), region.top())
+            << QPointF(region.right(), center.y())
+            << QPointF(center.x(), region.bottom())
+            << QPointF(region.left(), center.y());
+    QPen contour_pen(color_with_alpha(color, static_cast<int>(180.0 * life_k)));
+    contour_pen.setWidthF(preset_id == QStringLiteral("tripwire_bias") ? 1.9 : 1.4);
+    painter.setPen(contour_pen);
+    painter.drawPolygon(contour);
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color_with_alpha(color, static_cast<int>(110.0 * life_k)));
+    painter.drawEllipse(center, radius * 0.85, radius * 0.85);
+
+    if (preset_id != QStringLiteral("load_guard")) {
+        draw_baseline_overlay(
+            painter, center, radius * 0.7, color, settings_value, life_k * 0.85
+        );
+    }
+}
+
 void draw_algorithm_overlay(
     QPainter& painter, const QRect& rect_value, const QPointF& center,
     const double radius, const QColor& color, const stream_settings& settings_value,
@@ -371,6 +695,14 @@ void draw_algorithm_overlay(
 
     if (algorithm_id == QStringLiteral("spot_grid")) {
         draw_spot_grid_overlay(
+            painter, overlay_region_rect(rect_value, center, settings_value),
+            center, radius, color, settings_value, life_k
+        );
+        return;
+    }
+
+    if (algorithm_id == QStringLiteral("hybrid_auto")) {
+        draw_hybrid_overlay(
             painter, overlay_region_rect(rect_value, center, settings_value),
             center, radius, color, settings_value, life_k
         );
@@ -640,6 +972,17 @@ QString stream_cell::draft_name() const { return draft_line_name; }
 
 QColor stream_cell::draft_color() const { return draft_line_color; }
 
+bool stream_cell::is_drawing_enabled() const { return drawing_enabled; }
+
+bool stream_cell::has_line_edit_preview() const {
+    return line_edit_preview_.has_value();
+}
+
+QString stream_cell::line_edit_preview_name() const {
+    return line_edit_preview_.has_value() ? line_edit_preview_->template_name
+                                          : QString();
+}
+
 bool stream_cell::is_draft_preview() const { return draft_preview; }
 
 stream_settings stream_cell::current_stream_settings() const {
@@ -672,7 +1015,7 @@ void stream_cell::set_drawing_enabled(const bool on) {
     if (!on) {
         hover_point_pct.reset();
     }
-    setMouseTracking(drawing_enabled);
+    sync_mouse_tracking();
     update();
 }
 
@@ -707,11 +1050,12 @@ void stream_cell::set_log_mode(const frontend_log_mode mode) {
 
 void stream_cell::set_draft_params(
     const QString& n, const QColor& color, const bool closed,
-    const QString& width_text, const QString& length_text,
-    const QString& response_text
+    const QString& color_mode_id, const QString& width_text,
+    const QString& length_text, const QString& response_text
 ) {
     draft_line_name = n;
     draft_line_color = color;
+    draft_line_color_mode_id = normalized_line_color_mode_id(color_mode_id);
     draft_line_closed = closed;
     draft_line_width_text = normalized_line_width_text(width_text);
     draft_line_length_text = normalized_line_length_text(length_text);
@@ -728,9 +1072,11 @@ void stream_cell::clear_draft() {
     draft_line_points_pct.clear();
     hover_point_pct.reset();
     draft_preview = false;
+    draft_line_color_mode_id = default_line_color_mode_id();
     draft_line_width_text = default_line_width_text();
     draft_line_length_text = default_line_length_text();
     draft_line_response_text = default_line_response_text();
+    sync_mouse_tracking();
     update();
 }
 
@@ -761,6 +1107,23 @@ void stream_cell::clear_persistent_lines() {
 
 void stream_cell::set_draft_preview(const bool on) {
     draft_preview = on;
+    update();
+}
+
+void stream_cell::set_line_edit_preview(
+    const std::optional<line_instance>& line_value
+) {
+    line_edit_preview_ = line_value;
+    if (!line_edit_preview_.has_value()) {
+        line_edit_selected_vertex_.reset();
+    } else if (line_edit_selected_vertex_.has_value()
+               && (*line_edit_selected_vertex_ < 0
+                   || *line_edit_selected_vertex_
+                       >= static_cast<int>(line_edit_preview_->pts_pct.size()))) {
+        line_edit_selected_vertex_.reset();
+    }
+    reset_line_edit_drag_state();
+    sync_mouse_tracking();
     update();
 }
 
@@ -893,21 +1256,6 @@ void stream_cell::paintEvent(QPaintEvent* event) {
     QStyleOption opt;
     opt.initFrom(this);
 
-    QPainter p(this);
-    style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
-
-    if (!last_frame.isNull()) {
-        p.drawImage(rect(), last_frame);
-    } else {
-        const QString txt = last_error.isEmpty() ? "no signal" : last_error;
-        const QRect r = rect().adjusted(6, 6, -6, -6);
-        p.setPen(palette().color(QPalette::Text));
-        p.drawText(r, Qt::AlignCenter, txt);
-    }
-
-    p.drawRect(rect().adjusted(0, 0, -1, -1));
-    p.setRenderHint(QPainter::Antialiasing, true);
-
     const auto now = QDateTime::currentDateTime();
 
     for (auto it = line_highlights.begin(); it != line_highlights.end();) {
@@ -919,27 +1267,116 @@ void stream_cell::paintEvent(QPaintEvent* event) {
         }
     }
 
+    QPainter p(this);
+    style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
+
+    if (!last_frame.isNull()) {
+        const bool has_content_inversion = std::any_of(
+            persistent_lines.cbegin(), persistent_lines.cend(),
+            [](const line_instance& line_value) {
+                return line_value.enabled
+                    && !line_value.template_name.trimmed().isEmpty()
+                    && stream_cell_support::uses_content_inversion(
+                        line_value.color_mode_id
+                    );
+            }
+        ) && std::any_of(
+            persistent_lines.cbegin(), persistent_lines.cend(),
+            [this](const line_instance& line_value) {
+                const QString key = line_value.template_name.trimmed();
+                return line_value.enabled
+                    && !key.isEmpty()
+                    && line_highlights.contains(key)
+                    && stream_cell_support::uses_content_inversion(
+                        line_value.color_mode_id
+                    );
+            }
+        );
+
+        if (has_content_inversion) {
+            QImage composited_frame = last_frame;
+
+            for (const auto& line_value : persistent_lines) {
+                const QString key = line_value.template_name.trimmed();
+                if (!line_value.enabled
+                    || key.isEmpty()
+                    || !line_highlights.contains(key)
+                    || !stream_cell_support::uses_content_inversion(
+                        line_value.color_mode_id
+                    )) {
+                    continue;
+                }
+
+                stream_cell_support::apply_content_inversion_mask(
+                    composited_frame, size(), line_value.pts_pct,
+                    line_value.closed, Qt::SolidLine,
+                    line_width_visual_value(line_value.width_text), true
+                );
+            }
+
+            p.drawImage(rect(), composited_frame);
+        } else {
+            p.drawImage(rect(), last_frame);
+        }
+    } else {
+        const QString txt = last_error.isEmpty() ? "no signal" : last_error;
+        const QRect r = rect().adjusted(6, 6, -6, -6);
+        p.setPen(palette().color(QPalette::Text));
+        p.drawText(r, Qt::AlignCenter, txt);
+    }
+
+    p.drawRect(rect().adjusted(0, 0, -1, -1));
+    p.setRenderHint(QPainter::Antialiasing, true);
+
     prune_line_waves(animation_clock.elapsed());
     update_animation_timer();
 
     draw_events(p);
     draw_persistent(p);
     draw_draft(p);
-    draw_hover_point(p);
-    draw_hover_coords(p);
+    draw_line_edit_preview(p);
     draw_preview_segment(p);
     draw_stream_name(p);
     draw_runtime_metrics(p);
+    draw_hover_point(p);
+    draw_hover_coords(p);
 }
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
-    if (!drawing_enabled || !active) {
+    auto* child = childAt(event->pos());
+    if (child == close_btn || child == focus_btn) {
         QWidget::mousePressEvent(event);
         return;
     }
 
-    auto* child = childAt(event->pos());
-    if (child == close_btn || child == focus_btn) {
+    if (active && line_edit_preview_.has_value()
+        && event->button() == Qt::LeftButton) {
+        setFocus();
+        hover_point_pct = to_pct(event->pos());
+        line_edit_pressed_vertex_ = line_edit_vertex_at(event->pos());
+        line_edit_press_hit_shape_ = line_edit_pressed_vertex_.has_value()
+            || line_edit_segment_hit(event->pos());
+        line_edit_pressed_vertex_was_selected_
+            = line_edit_pressed_vertex_.has_value()
+            && line_edit_selected_vertex_.has_value()
+            && *line_edit_pressed_vertex_ == *line_edit_selected_vertex_;
+        line_edit_press_points_pct_ = line_edit_preview_->pts_pct;
+        line_edit_press_origin_pct_ = to_pct(event->pos());
+        line_edit_press_origin_px_ = event->pos();
+        line_edit_press_active_ = true;
+        line_edit_press_moved_ = false;
+        line_edit_drag_mode_ = line_edit_drag_mode::none;
+
+        if (!line_edit_press_hit_shape_) {
+            line_edit_selected_vertex_.reset();
+        }
+
+        update();
+        event->accept();
+        return;
+    }
+
+    if (!drawing_enabled || !active) {
         QWidget::mousePressEvent(event);
         return;
     }
@@ -955,7 +1392,91 @@ void stream_cell::mousePressEvent(QMouseEvent* event) {
     QWidget::mousePressEvent(event);
 }
 
+void stream_cell::mouseReleaseEvent(QMouseEvent* event) {
+    if (active && line_edit_preview_.has_value()
+        && event->button() == Qt::LeftButton) {
+        hover_point_pct = to_pct(event->pos());
+
+        if (line_edit_press_active_ && !line_edit_press_moved_) {
+            if (line_edit_pressed_vertex_.has_value()) {
+                line_edit_selected_vertex_ = line_edit_pressed_vertex_;
+                emit line_edit_point_selected(*line_edit_selected_vertex_);
+            }
+            update();
+        }
+
+        reset_line_edit_drag_state();
+        event->accept();
+        return;
+    }
+
+    QWidget::mouseReleaseEvent(event);
+}
+
+void stream_cell::mouseDoubleClickEvent(QMouseEvent* event) {
+    auto* child = childAt(event->pos());
+    if (child == close_btn || child == focus_btn) {
+        QWidget::mouseDoubleClickEvent(event);
+        return;
+    }
+
+    if (active && line_edit_preview_.has_value()
+        && event->button() == Qt::LeftButton) {
+        if (const auto vertex_index = line_edit_vertex_at(event->pos());
+            vertex_index.has_value()) {
+            line_edit_selected_vertex_ = *vertex_index;
+            emit line_edit_point_selected(*vertex_index);
+            emit line_edit_point_split_requested(*vertex_index);
+            update();
+            event->accept();
+            return;
+        }
+    }
+
+    QWidget::mouseDoubleClickEvent(event);
+}
+
 void stream_cell::mouseMoveEvent(QMouseEvent* event) {
+    if (active && line_edit_preview_.has_value()) {
+        hover_point_pct = to_pct(event->pos());
+
+        if (line_edit_press_active_ && (event->buttons() & Qt::LeftButton)
+            && line_edit_press_hit_shape_) {
+            if (!line_edit_press_moved_
+                && (event->pos() - line_edit_press_origin_px_).manhattanLength()
+                    >= stream_cell_support::line_edit_drag_threshold_px) {
+                line_edit_press_moved_ = true;
+                line_edit_drag_mode_
+                    = line_edit_pressed_vertex_was_selected_
+                        && line_edit_pressed_vertex_.has_value()
+                    ? line_edit_drag_mode::point
+                    : line_edit_drag_mode::shape;
+            }
+
+            if (line_edit_press_moved_) {
+                if (line_edit_drag_mode_ == line_edit_drag_mode::shape) {
+                    const QPointF current_pct
+                        = stream_cell_support::clamped_pct(to_pct(event->pos()));
+                    const QPointF delta_pct = current_pct - line_edit_press_origin_pct_;
+                    emit line_edit_shape_drag_requested(delta_pct);
+                    line_edit_press_origin_pct_ = current_pct;
+                    line_edit_press_origin_px_ = event->pos();
+                } else if (line_edit_drag_mode_ == line_edit_drag_mode::point
+                           && line_edit_pressed_vertex_.has_value()) {
+                    line_edit_selected_vertex_ = line_edit_pressed_vertex_;
+                    emit line_edit_point_move_requested(
+                        *line_edit_pressed_vertex_,
+                        stream_cell_support::clamped_pct(to_pct(event->pos()))
+                    );
+                }
+            }
+        }
+
+        update();
+        event->accept();
+        return;
+    }
+
     if (!drawing_enabled || !active) {
         QWidget::mouseMoveEvent(event);
         return;
@@ -973,6 +1494,62 @@ void stream_cell::leaveEvent(QEvent* event) {
 }
 
 void stream_cell::keyPressEvent(QKeyEvent* event) {
+    if (active && line_edit_preview_.has_value()) {
+        const double step_px
+            = (event->modifiers() & Qt::ShiftModifier) != 0
+            ? stream_cell_support::line_edit_key_nudge_fast_px
+            : stream_cell_support::line_edit_key_nudge_px;
+        const QPointF delta_pct(
+            width() > 0 ? step_px / static_cast<double>(width()) * 100.0 : 0.0,
+            height() > 0 ? step_px / static_cast<double>(height()) * 100.0 : 0.0
+        );
+        QPointF target_delta_pct;
+        bool handled = true;
+
+        switch (event->key()) {
+        case Qt::Key_Left:
+            target_delta_pct = QPointF(-delta_pct.x(), 0.0);
+            break;
+        case Qt::Key_Right:
+            target_delta_pct = QPointF(delta_pct.x(), 0.0);
+            break;
+        case Qt::Key_Up:
+            target_delta_pct = QPointF(0.0, -delta_pct.y());
+            break;
+        case Qt::Key_Down:
+            target_delta_pct = QPointF(0.0, delta_pct.y());
+            break;
+        default:
+            handled = false;
+            break;
+        }
+
+        if (handled) {
+            setFocus();
+            if (line_edit_selected_vertex_.has_value()
+                && *line_edit_selected_vertex_ >= 0
+                && *line_edit_selected_vertex_
+                    < static_cast<int>(line_edit_preview_->pts_pct.size())) {
+                const QPointF current_point = line_edit_preview_->pts_pct.at(
+                    static_cast<std::vector<QPointF>::size_type>(
+                        *line_edit_selected_vertex_
+                    )
+                );
+                emit line_edit_point_move_requested(
+                    *line_edit_selected_vertex_,
+                    stream_cell_support::clamped_pct(
+                        current_point + target_delta_pct
+                    )
+                );
+            } else {
+                emit line_edit_shape_drag_requested(target_delta_pct);
+            }
+            update();
+            event->accept();
+            return;
+        }
+    }
+
     if (!(drawing_enabled && active)) {
         QWidget::keyPressEvent(event);
         return;
@@ -994,6 +1571,35 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
     }
 
     event->accept();
+}
+
+void stream_cell::wheelEvent(QWheelEvent* event) {
+    if (active && line_edit_preview_.has_value()
+        && !line_edit_preview_->pts_pct.empty()) {
+        const QPoint angle_delta = event->angleDelta();
+        if (!angle_delta.isNull()) {
+            const double degrees_per_step
+                = (event->modifiers() & Qt::ShiftModifier) != 0
+                ? stream_cell_support::line_edit_wheel_fine_degrees_per_step
+                : stream_cell_support::line_edit_wheel_degrees_per_step;
+            const double delta_degrees
+                = static_cast<double>(angle_delta.y()) / 120.0
+                * degrees_per_step;
+            if (std::abs(delta_degrees)
+                > std::numeric_limits<double>::epsilon()) {
+                setFocus();
+                emit line_edit_shape_rotate_requested(
+                    delta_degrees,
+                    line_edit_selected_vertex_.value_or(-1)
+                );
+                update();
+                event->accept();
+                return;
+            }
+        }
+    }
+
+    QWidget::wheelEvent(event);
 }
 
 void stream_cell::build_ui() {
@@ -1103,9 +1709,22 @@ void stream_cell::draw_poly_with_points(
 
 void stream_cell::draw_persistent(QPainter& p) const {
     const auto now = QDateTime::currentDateTime();
+    const int line_count = std::max(
+        1, stream_cell_support::enabled_line_count(persistent_lines)
+    );
+    int enabled_line_index = 0;
 
-    for (const auto& l : persistent_lines) {
+    for (int line_index = 0; line_index < static_cast<int>(persistent_lines.size());
+         line_index += 1) {
+        const auto& l = persistent_lines[static_cast<size_t>(line_index)];
+        if (!l.enabled) {
+            continue;
+        }
         const auto key = l.template_name.trimmed();
+        const QColor effective_color = stream_cell_support::effective_line_color(
+            l, enabled_line_index, line_count, last_frame
+        );
+        enabled_line_index += 1;
 
         if (!key.isEmpty() && line_highlights.contains(key)) {
             const int age = static_cast<int>(line_highlights[key].msecsTo(now));
@@ -1137,7 +1756,7 @@ void stream_cell::draw_persistent(QPainter& p) const {
 
                 const double k_boost = 1.0;
                 if (!has_hit) {
-                    QColor hc = l.color;
+                    QColor hc = effective_color;
                     int a = static_cast<int>(255.0 * ktime);
                     if (a < 0) {
                         a = 0;
@@ -1166,7 +1785,7 @@ void stream_cell::draw_persistent(QPainter& p) const {
                             k = 1.0;
                         }
 
-                        QColor hc = l.color;
+                        QColor hc = effective_color;
                         int a = static_cast<int>(255.0 * k);
                         if (a < 0) {
                             a = 0;
@@ -1193,7 +1812,7 @@ void stream_cell::draw_persistent(QPainter& p) const {
                             if (k > 1.0) {
                                 k = 1.0;
                             }
-                            QColor hc = l.color;
+                            QColor hc = effective_color;
                             int a = static_cast<int>(255.0 * k);
                             if (a < 0) {
                                 a = 0;
@@ -1213,10 +1832,10 @@ void stream_cell::draw_persistent(QPainter& p) const {
         }
 
         draw_poly_with_points(
-            p, l.pts_pct, l.color, l.closed, Qt::SolidLine,
+            p, l.pts_pct, effective_color, l.closed, Qt::SolidLine,
             line_width_visual_value(l.width_text)
         );
-        draw_wave_overlay(p, l);
+        draw_wave_overlay(p, l, effective_color);
 
         if (!(active && labels_enabled)) {
             continue;
@@ -1227,20 +1846,63 @@ void stream_cell::draw_persistent(QPainter& p) const {
             continue;
         }
 
-        p.setPen(l.color);
+        p.setPen(effective_color);
         p.drawText(label_pos_px(l), text);
     }
 }
 
 void stream_cell::draw_draft(QPainter& p) const {
-    if (draft_line_points_pct.empty()) {
+    if (draft_line_points_pct.empty() || line_edit_preview_.has_value()) {
         return;
     }
 
+    const int enabled_line_count = stream_cell_support::enabled_line_count(
+        persistent_lines
+    );
+    const QColor effective_color = stream_cell_support::effective_draft_line_color(
+        draft_line_color_mode_id, draft_line_color, draft_line_points_pct,
+        last_frame, enabled_line_count, enabled_line_count + 1
+    );
     draw_poly_with_points(
-        p, draft_line_points_pct, draft_line_color, draft_line_closed,
+        p, draft_line_points_pct, effective_color, draft_line_closed,
         Qt::DashLine, line_width_visual_value(draft_line_width_text)
     );
+}
+
+void stream_cell::draw_line_edit_preview(QPainter& p) const {
+    if (!line_edit_preview_.has_value()
+        || line_edit_preview_->pts_pct.empty()) {
+        return;
+    }
+
+    const auto& line_value = *line_edit_preview_;
+    const int enabled_line_count = stream_cell_support::enabled_line_count(
+        persistent_lines
+    );
+    const QColor effective_color = stream_cell_support::effective_draft_line_color(
+        line_value.color_mode_id, line_value.color, line_value.pts_pct,
+        last_frame, enabled_line_count, enabled_line_count + 1
+    );
+    draw_poly_with_points(
+        p, line_value.pts_pct, effective_color, line_value.closed, Qt::DashLine,
+        line_width_visual_value(line_value.width_text)
+    );
+
+    if (!line_edit_selected_vertex_.has_value()
+        || *line_edit_selected_vertex_ < 0
+        || *line_edit_selected_vertex_
+            >= static_cast<int>(line_value.pts_pct.size())) {
+        return;
+    }
+
+    const QPointF selected_px = to_px(line_value.pts_pct.at(
+        static_cast<std::vector<QPointF>::size_type>(*line_edit_selected_vertex_)
+    ));
+    QPen outline_pen(stream_cell_support::contrasting_text_color(effective_color));
+    outline_pen.setWidthF(2.0);
+    p.setPen(outline_pen);
+    p.setBrush(stream_cell_support::color_with_alpha(effective_color, 224));
+    p.drawEllipse(selected_px, 6.0, 6.0);
 }
 
 void stream_cell::draw_hover_point(QPainter& p) const {
@@ -1248,7 +1910,26 @@ void stream_cell::draw_hover_point(QPainter& p) const {
         return;
     }
 
-    QPen hpen(draft_line_color);
+    QColor effective_color = QColor(Qt::white);
+    if (line_edit_preview_.has_value()) {
+        const int enabled_line_count = stream_cell_support::enabled_line_count(
+            persistent_lines
+        );
+        effective_color = stream_cell_support::effective_draft_line_color(
+            line_edit_preview_->color_mode_id, line_edit_preview_->color,
+            line_edit_preview_->pts_pct, last_frame, enabled_line_count,
+            enabled_line_count + 1
+        );
+    } else {
+        const int enabled_line_count = stream_cell_support::enabled_line_count(
+            persistent_lines
+        );
+        effective_color = stream_cell_support::effective_draft_line_color(
+            draft_line_color_mode_id, draft_line_color, draft_line_points_pct,
+            last_frame, enabled_line_count, enabled_line_count + 1
+        );
+    }
+    QPen hpen(effective_color);
     hpen.setWidthF(1.0);
     hpen.setStyle(Qt::DashLine);
     p.setPen(hpen);
@@ -1257,17 +1938,89 @@ void stream_cell::draw_hover_point(QPainter& p) const {
 }
 
 void stream_cell::draw_hover_coords(QPainter& p) const {
-    if (!(hover_point_pct.has_value() && drawing_enabled && active)) {
+    if (!(hover_point_pct.has_value()
+          && (drawing_enabled || line_edit_preview_.has_value()) && active
+          && stream_settings_value.standard_labels_enabled)) {
         return;
     }
 
     const auto& hp = *hover_point_pct;
-    QString txt
-        = QString("x=%1  y=%2").arg(hp.x(), 0, 'f', 1).arg(hp.y(), 0, 'f', 1);
+    const int pixel_width = !last_frame.isNull() ? last_frame.width() : width();
+    const int pixel_height = !last_frame.isNull() ? last_frame.height() : height();
+    const int x_px = std::clamp(
+        static_cast<int>(std::lround(
+            hp.x() / 100.0 * std::max(0, pixel_width - 1)
+        )),
+        0, std::max(0, pixel_width - 1)
+    );
+    const int y_px = std::clamp(
+        static_cast<int>(std::lround(
+            hp.y() / 100.0 * std::max(0, pixel_height - 1)
+        )),
+        0, std::max(0, pixel_height - 1)
+    );
 
-    QRect r = rect().adjusted(6, 6, -6, -6);
-    p.setPen(palette().color(QPalette::Text));
-    p.drawText(r, Qt::AlignLeft | Qt::AlignBottom, txt);
+    const QString txt = QStringLiteral(
+                            "x %1%% | %2 px\n"
+                            "y %3%% | %4 px"
+                        )
+                            .arg(hp.x(), 0, 'f', 1)
+                            .arg(x_px)
+                            .arg(hp.y(), 0, 'f', 1)
+                            .arg(y_px);
+
+    QColor line_color = QColor(Qt::white);
+    if (line_edit_preview_.has_value()) {
+        line_color = stream_cell_support::effective_draft_line_color(
+            line_edit_preview_->color_mode_id, line_edit_preview_->color,
+            line_edit_preview_->pts_pct, last_frame,
+            stream_cell_support::enabled_line_count(persistent_lines),
+            stream_cell_support::enabled_line_count(persistent_lines) + 1
+        );
+    } else {
+        std::vector<QPointF> preview_points = draft_line_points_pct;
+        preview_points.push_back(hp);
+        line_color = stream_cell_support::effective_draft_line_color(
+            draft_line_color_mode_id, draft_line_color, preview_points,
+            last_frame,
+            stream_cell_support::enabled_line_count(persistent_lines),
+            stream_cell_support::enabled_line_count(persistent_lines) + 1
+        );
+    }
+    QColor bubble_fill = line_color;
+    bubble_fill.setAlpha(220);
+    const QColor bubble_border = line_color.darker(145);
+    const QColor text_color = stream_cell_support::contrasting_text_color(
+        bubble_fill
+    );
+
+    QFont hover_font = p.font();
+    const double hover_point_size = hover_font.pointSizeF() > 0.0
+        ? hover_font.pointSizeF()
+        : 9.0;
+    hover_font.setPointSizeF(std::max(7.5, hover_point_size - 0.5));
+    p.setFont(hover_font);
+
+    const QRect bounds = rect().adjusted(6, 6, -6, -6);
+    const QFontMetrics metrics(hover_font);
+    QRect text_rect = metrics.boundingRect(
+        QRect(0, 0, std::max(140, bounds.width() - 24), bounds.height()),
+        Qt::TextWordWrap, txt
+    );
+    text_rect.adjust(-8, -6, 8, 6);
+    const QRect bubble_rect = stream_cell_support::anchored_hover_label_rect(
+        bounds, text_rect.size(), to_px(hp).toPoint()
+    );
+
+    p.setPen(QPen(bubble_border, 1.0));
+    p.setBrush(bubble_fill);
+    p.drawRoundedRect(bubble_rect, 8.0, 8.0);
+
+    p.setPen(text_color);
+    p.drawText(
+        bubble_rect.adjusted(8, 6, -8, -6),
+        Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, txt
+    );
 }
 
 void stream_cell::draw_preview_segment(QPainter& p) const {
@@ -1276,7 +2029,13 @@ void stream_cell::draw_preview_segment(QPainter& p) const {
         return;
     }
 
-    QPen pen(draft_line_color);
+    const QColor effective_color = stream_cell_support::effective_draft_line_color(
+        draft_line_color_mode_id, draft_line_color, draft_line_points_pct,
+        last_frame,
+        stream_cell_support::enabled_line_count(persistent_lines),
+        stream_cell_support::enabled_line_count(persistent_lines) + 1
+    );
+    QPen pen(effective_color);
     pen.setWidthF(
         std::max(1.5, line_width_visual_value(draft_line_width_text) * 0.75)
     );
@@ -1295,7 +2054,7 @@ void stream_cell::draw_preview_segment(QPainter& p) const {
 }
 
 void stream_cell::draw_stream_name(QPainter& p) const {
-    if (name.isEmpty()) {
+    if (name.isEmpty() || !stream_settings_value.standard_labels_enabled) {
         return;
     }
 
@@ -1383,6 +2142,10 @@ void stream_cell::draw_stream_name(QPainter& p) const {
 }
 
 void stream_cell::draw_runtime_metrics(QPainter& p) const {
+    if (!stream_settings_value.standard_labels_enabled) {
+        return;
+    }
+
     const QString metrics_text = stream_runtime_metrics_text(runtime_metrics_value);
     if (metrics_text.trimmed().isEmpty()) {
         return;
@@ -1458,6 +2221,71 @@ QPointF stream_cell::to_pct(const QPointF& pos_px) const {
 
 QPointF stream_cell::to_px(const QPointF& pos_pct) const {
     return { pos_pct.x() / 100.0 * width(), pos_pct.y() / 100.0 * height() };
+}
+
+std::optional<int> stream_cell::line_edit_vertex_at(const QPointF& pos_px) const {
+    if (!line_edit_preview_.has_value()) {
+        return std::nullopt;
+    }
+
+    double best_distance = stream_cell_support::line_edit_vertex_hit_radius_px;
+    std::optional<int> best_index;
+
+    for (int index = 0; index < static_cast<int>(line_edit_preview_->pts_pct.size());
+         index += 1) {
+        const QPointF point_px = to_px(line_edit_preview_->pts_pct.at(
+            static_cast<std::vector<QPointF>::size_type>(index)
+        ));
+        const double distance = QLineF(pos_px, point_px).length();
+        if (distance > best_distance) {
+            continue;
+        }
+
+        best_distance = distance;
+        best_index = index;
+    }
+
+    return best_index;
+}
+
+bool stream_cell::line_edit_segment_hit(const QPointF& pos_px) const {
+    if (!line_edit_preview_.has_value()
+        || line_edit_preview_->pts_pct.size() < 2) {
+        return false;
+    }
+
+    const auto& points = line_edit_preview_->pts_pct;
+    const auto segment_hit = [&](const QPointF& a_pct, const QPointF& b_pct) {
+        return stream_cell_support::point_segment_distance_px(
+                   pos_px, to_px(a_pct), to_px(b_pct)
+               )
+            <= stream_cell_support::line_edit_segment_hit_radius_px;
+    };
+
+    for (size_t index = 1; index < points.size(); index += 1) {
+        if (segment_hit(points[index - 1], points[index])) {
+            return true;
+        }
+    }
+
+    return line_edit_preview_->closed && points.size() >= 3
+        && segment_hit(points.back(), points.front());
+}
+
+void stream_cell::reset_line_edit_drag_state() {
+    line_edit_pressed_vertex_.reset();
+    line_edit_press_points_pct_.clear();
+    line_edit_press_origin_pct_ = {};
+    line_edit_press_origin_px_ = {};
+    line_edit_press_active_ = false;
+    line_edit_press_moved_ = false;
+    line_edit_press_hit_shape_ = false;
+    line_edit_pressed_vertex_was_selected_ = false;
+    line_edit_drag_mode_ = line_edit_drag_mode::none;
+}
+
+void stream_cell::sync_mouse_tracking() {
+    setMouseTracking(drawing_enabled || line_edit_preview_.has_value());
 }
 
 void stream_cell::draw_events(QPainter& p) {
@@ -1576,7 +2404,7 @@ double stream_cell::segment_impact_k(
 }
 
 void stream_cell::draw_wave_overlay(
-    QPainter& p, const line_instance& line_value
+    QPainter& p, const line_instance& line_value, const QColor& line_color
 ) const {
     const QString key = line_value.template_name.trimmed();
     if (key.isEmpty() || !line_waves.contains(key)) {
@@ -1644,7 +2472,7 @@ void stream_cell::draw_wave_overlay(
         return;
     }
 
-    QColor glow = line_value.color.lighter(160);
+    QColor glow = line_color.lighter(160);
     glow.setAlpha(
         std::clamp(
             static_cast<int>(110.0 * wave_style.glow_width_k), 80, 180
@@ -1658,7 +2486,7 @@ void stream_cell::draw_wave_overlay(
     p.setPen(glow_pen);
     p.drawPolyline(wave_poly);
 
-    QColor wave_color = line_value.color.lighter(125);
+    QColor wave_color = line_color.lighter(125);
     wave_color.setAlpha(
         std::clamp(
             static_cast<int>(208.0 + (wave_style.amplitude_k - 1.0) * 36.0),
@@ -1688,7 +2516,7 @@ void stream_cell::add_line_wave(
 
     const line_instance* line_value = nullptr;
     for (const auto& candidate : persistent_lines) {
-        if (candidate.template_name.trimmed() == key) {
+        if (candidate.enabled && candidate.template_name.trimmed() == key) {
             line_value = &candidate;
             break;
         }
