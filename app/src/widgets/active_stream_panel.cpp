@@ -33,6 +33,19 @@ void populate_operator_profile_combo(QComboBox* combo) {
     }
 }
 
+void set_form_row_visible(QFormLayout* form, QWidget* field, const bool visible) {
+    if (field == nullptr) {
+        return;
+    }
+
+    if (form != nullptr) {
+        if (QWidget* label = form->labelForField(field); label != nullptr) {
+            label->setVisible(visible);
+        }
+    }
+    field->setVisible(visible);
+}
+
 } // namespace active_stream_panel_support
 
 active_stream_panel::active_stream_panel(
@@ -127,6 +140,12 @@ void active_stream_panel::set_stream_settings(
 
     sync_operator_profile_from_settings(settings_value);
 
+    if (processing_advanced_checkbox != nullptr) {
+        QSignalBlocker blocker(processing_advanced_checkbox);
+        processing_advanced_checkbox->setChecked(
+            settings_value.manual_processing_policy_enabled
+        );
+    }
     if (manual_processing_checkbox != nullptr) {
         QSignalBlocker blocker(manual_processing_checkbox);
         manual_processing_checkbox->setChecked(
@@ -137,9 +156,9 @@ void active_stream_panel::set_stream_settings(
         QSignalBlocker blocker(manual_display_fps_spin);
         manual_display_fps_spin->setValue(settings_value.manual_display_fps);
     }
-    if (manual_backend_fps_spin != nullptr) {
-        QSignalBlocker blocker(manual_backend_fps_spin);
-        manual_backend_fps_spin->setValue(settings_value.manual_backend_fps);
+    if (manual_core_fps_spin != nullptr) {
+        QSignalBlocker blocker(manual_core_fps_spin);
+        manual_core_fps_spin->setValue(settings_value.manual_core_fps);
     }
     if (manual_processing_pixels_spin != nullptr) {
         QSignalBlocker blocker(manual_processing_pixels_spin);
@@ -151,7 +170,7 @@ void active_stream_panel::set_stream_settings(
     refresh_panel_state();
     refresh_operator_profile_summary();
     refresh_processing_policy_summary();
-    last_algorithm_id_ = normalized_frontend_algorithm_id(
+    last_algorithm_id_ = normalized_app_algorithm_id(
         current_stream_settings().algorithm_id
     );
 }
@@ -181,7 +200,7 @@ stream_settings active_stream_panel::current_stream_settings() const {
         settings_value.algorithm_overlay_enabled
             = algorithm_settings.algorithm_overlay_enabled;
     } else {
-        settings_value.algorithm_id = default_frontend_algorithm_id();
+        settings_value.algorithm_id = default_app_algorithm_id();
         settings_value.algorithm_preset = default_algorithm_preset_id(
             settings_value.algorithm_id
         );
@@ -194,9 +213,9 @@ stream_settings active_stream_panel::current_stream_settings() const {
     settings_value.manual_display_fps = manual_display_fps_spin != nullptr
         ? manual_display_fps_spin->value()
         : default_manual_display_fps();
-    settings_value.manual_backend_fps = manual_backend_fps_spin != nullptr
-        ? manual_backend_fps_spin->value()
-        : default_manual_backend_fps();
+    settings_value.manual_core_fps = manual_core_fps_spin != nullptr
+        ? manual_core_fps_spin->value()
+        : default_manual_core_fps();
     settings_value.manual_processing_pixels
         = manual_processing_pixels_spin != nullptr
         ? manual_processing_pixels_spin->value()
@@ -234,7 +253,7 @@ void active_stream_panel::on_active_combo_changed(const QString& text) {
     refresh_panel_state();
     refresh_operator_profile_summary();
     const stream_settings settings_value = current_stream_settings();
-    last_algorithm_id_ = normalized_frontend_algorithm_id(
+    last_algorithm_id_ = normalized_app_algorithm_id(
         settings_value.algorithm_id
     );
     emit stream_selected(settings_value.stream_name);
@@ -274,7 +293,7 @@ void active_stream_panel::on_operator_profile_changed(const int index) {
     active_algorithm_panel->set_stream_settings(updated_settings);
     sync_operator_profile_from_settings(updated_settings);
     refresh_operator_profile_summary();
-    last_algorithm_id_ = normalized_frontend_algorithm_id(
+    last_algorithm_id_ = normalized_app_algorithm_id(
         updated_settings.algorithm_id
     );
     emit stream_settings_changed(current_stream_settings());
@@ -288,7 +307,7 @@ void active_stream_panel::on_algorithm_panel_settings_changed(
                operator_profile_combo->currentData().toString()
            )
             != QStringLiteral("custom")
-        && normalized_frontend_algorithm_id(settings_value.algorithm_id)
+        && normalized_app_algorithm_id(settings_value.algorithm_id)
             != last_algorithm_id_) {
         settings_value = apply_operator_profile(
             settings_value, operator_profile_combo->currentData().toString()
@@ -298,7 +317,7 @@ void active_stream_panel::on_algorithm_panel_settings_changed(
 
     sync_operator_profile_from_settings(settings_value);
     refresh_operator_profile_summary();
-    last_algorithm_id_ = normalized_frontend_algorithm_id(
+    last_algorithm_id_ = normalized_app_algorithm_id(
         settings_value.algorithm_id
     );
     emit stream_settings_changed(current_stream_settings());
@@ -317,6 +336,12 @@ void active_stream_panel::on_manual_processing_toggled(const bool checked) {
     emit stream_settings_changed(current_stream_settings());
 }
 
+void active_stream_panel::on_processing_advanced_toggled(const bool checked) {
+    Q_UNUSED(checked);
+
+    refresh_processing_policy_state();
+}
+
 void active_stream_panel::on_manual_display_fps_changed(const int value) {
     Q_UNUSED(value);
 
@@ -324,7 +349,7 @@ void active_stream_panel::on_manual_display_fps_changed(const int value) {
     emit stream_settings_changed(current_stream_settings());
 }
 
-void active_stream_panel::on_manual_backend_fps_changed(const int value) {
+void active_stream_panel::on_manual_core_fps_changed(const int value) {
     Q_UNUSED(value);
 
     refresh_processing_policy_summary();
@@ -419,15 +444,37 @@ void active_stream_panel::build_ui() {
     processing_policy_box->setObjectName(
         object_name(QStringLiteral("processing_policy_box"))
     );
-    const auto processing_form = new QFormLayout(processing_policy_box);
+    processing_policy_form_ = new QFormLayout(processing_policy_box);
+
+    processing_summary_label = new QLabel(processing_policy_box);
+    processing_summary_label->setObjectName(
+        object_name(QStringLiteral("processing_summary_label"))
+    );
+    processing_summary_label->setWordWrap(true);
+    processing_policy_form_->addRow(QString(), processing_summary_label);
+
+    processing_advanced_checkbox = new QCheckBox(
+        str_label("advanced tuning"), processing_policy_box
+    );
+    processing_advanced_checkbox->setObjectName(
+        object_name(QStringLiteral("processing_advanced_checkbox"))
+    );
+    processing_advanced_checkbox->setToolTip(
+        QStringLiteral(
+            "Show manual FPS and processing-size overrides for this stream. "
+            "Leave this off to keep the default auto-calibrated policy "
+            "summary only."
+        )
+    );
+    processing_policy_form_->addRow(QString(), processing_advanced_checkbox);
 
     manual_processing_checkbox = new QCheckBox(
-        str_label("manual stream tuning"), processing_policy_box
+        str_label("override auto calibration"), processing_policy_box
     );
     manual_processing_checkbox->setObjectName(
         object_name(QStringLiteral("manual_processing_checkbox"))
     );
-    processing_form->addRow(QString(), manual_processing_checkbox);
+    processing_policy_form_->addRow(QString(), manual_processing_checkbox);
 
     manual_display_fps_spin = new QSpinBox(processing_policy_box);
     manual_display_fps_spin->setObjectName(
@@ -436,19 +483,19 @@ void active_stream_panel::build_ui() {
     manual_display_fps_spin->setRange(1, 120);
     manual_display_fps_spin->setValue(default_manual_display_fps());
     manual_display_fps_spin->setSuffix(QStringLiteral(" fps"));
-    processing_form->addRow(
+    processing_policy_form_->addRow(
         str_label("display fps cap"), manual_display_fps_spin
     );
 
-    manual_backend_fps_spin = new QSpinBox(processing_policy_box);
-    manual_backend_fps_spin->setObjectName(
-        object_name(QStringLiteral("backend_fps_spin"))
+    manual_core_fps_spin = new QSpinBox(processing_policy_box);
+    manual_core_fps_spin->setObjectName(
+        object_name(QStringLiteral("core_fps_spin"))
     );
-    manual_backend_fps_spin->setRange(1, 120);
-    manual_backend_fps_spin->setValue(default_manual_backend_fps());
-    manual_backend_fps_spin->setSuffix(QStringLiteral(" fps"));
-    processing_form->addRow(
-        str_label("backend fps target"), manual_backend_fps_spin
+    manual_core_fps_spin->setRange(1, 120);
+    manual_core_fps_spin->setValue(default_manual_core_fps());
+    manual_core_fps_spin->setSuffix(QStringLiteral(" fps"));
+    processing_policy_form_->addRow(
+        str_label("core fps target"), manual_core_fps_spin
     );
 
     manual_processing_pixels_spin = new QSpinBox(processing_policy_box);
@@ -459,16 +506,9 @@ void active_stream_panel::build_ui() {
     manual_processing_pixels_spin->setSingleStep(25 * 1000);
     manual_processing_pixels_spin->setValue(default_manual_processing_pixels());
     manual_processing_pixels_spin->setSuffix(QStringLiteral(" px"));
-    processing_form->addRow(
+    processing_policy_form_->addRow(
         str_label("processing pixels"), manual_processing_pixels_spin
     );
-
-    processing_summary_label = new QLabel(processing_policy_box);
-    processing_summary_label->setObjectName(
-        object_name(QStringLiteral("processing_summary_label"))
-    );
-    processing_summary_label->setWordWrap(true);
-    processing_form->addRow(QString(), processing_summary_label);
 
     layout->addWidget(processing_policy_box);
 
@@ -518,6 +558,10 @@ void active_stream_panel::build_ui() {
         &active_stream_panel::on_algorithm_panel_settings_changed
     );
     connect(
+        processing_advanced_checkbox, &QCheckBox::toggled, this,
+        &active_stream_panel::on_processing_advanced_toggled
+    );
+    connect(
         manual_processing_checkbox, &QCheckBox::toggled, this,
         &active_stream_panel::on_manual_processing_toggled
     );
@@ -526,8 +570,8 @@ void active_stream_panel::build_ui() {
         this, &active_stream_panel::on_manual_display_fps_changed
     );
     connect(
-        manual_backend_fps_spin, QOverload<int>::of(&QSpinBox::valueChanged),
-        this, &active_stream_panel::on_manual_backend_fps_changed
+        manual_core_fps_spin, QOverload<int>::of(&QSpinBox::valueChanged),
+        this, &active_stream_panel::on_manual_core_fps_changed
     );
     connect(
         manual_processing_pixels_spin,
@@ -612,13 +656,35 @@ void active_stream_panel::refresh_processing_policy_state() const {
     const bool active = has_active_stream();
     const bool manual_enabled = manual_processing_checkbox != nullptr
         && manual_processing_checkbox->isChecked();
-    const bool enable_controls = active && manual_enabled;
+    const bool advanced_enabled = processing_advanced_checkbox != nullptr
+        && processing_advanced_checkbox->isChecked();
+    const bool show_advanced_controls = active && advanced_enabled;
+    const bool enable_controls = show_advanced_controls && manual_enabled;
+
+    if (processing_advanced_checkbox != nullptr) {
+        processing_advanced_checkbox->setEnabled(active);
+    }
+    if (manual_processing_checkbox != nullptr) {
+        manual_processing_checkbox->setVisible(show_advanced_controls);
+        manual_processing_checkbox->setEnabled(show_advanced_controls);
+    }
+
+    active_stream_panel_support::set_form_row_visible(
+        processing_policy_form_, manual_display_fps_spin, show_advanced_controls
+    );
+    active_stream_panel_support::set_form_row_visible(
+        processing_policy_form_, manual_core_fps_spin, show_advanced_controls
+    );
+    active_stream_panel_support::set_form_row_visible(
+        processing_policy_form_,
+        manual_processing_pixels_spin, show_advanced_controls
+    );
 
     if (manual_display_fps_spin != nullptr) {
         manual_display_fps_spin->setEnabled(enable_controls);
     }
-    if (manual_backend_fps_spin != nullptr) {
-        manual_backend_fps_spin->setEnabled(enable_controls);
+    if (manual_core_fps_spin != nullptr) {
+        manual_core_fps_spin->setEnabled(enable_controls);
     }
     if (manual_processing_pixels_spin != nullptr) {
         manual_processing_pixels_spin->setEnabled(enable_controls);

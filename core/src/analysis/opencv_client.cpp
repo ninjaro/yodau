@@ -17,7 +17,7 @@
 #include <opencv2/imgcodecs.hpp>
 #endif
 
-namespace yodau::backend {
+namespace yodau::core {
 
 namespace opencv_client_support {
 

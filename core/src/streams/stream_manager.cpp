@@ -5,16 +5,16 @@
 #include <ranges>
 #include <thread>
 
-yodau::backend::stream_manager::stream_manager() { refresh_local_streams(); }
+yodau::core::stream_manager::stream_manager() { refresh_local_streams(); }
 
-void yodau::backend::stream_manager::dump(std::ostream& out) const {
+void yodau::core::stream_manager::dump(std::ostream& out) const {
     std::scoped_lock lock(mtx);
     dump_stream(out);
     out << "\n";
     dump_lines(out);
 }
 
-void yodau::backend::stream_manager::dump_lines(std::ostream& out) const {
+void yodau::core::stream_manager::dump_lines(std::ostream& out) const {
     std::scoped_lock lock(mtx);
     out << lines.size() << " lines:";
     for (const auto& line : lines | std::views::values) {
@@ -32,7 +32,7 @@ void yodau::backend::stream_manager::dump_lines(std::ostream& out) const {
     }
 }
 
-void yodau::backend::stream_manager::dump_stream(
+void yodau::core::stream_manager::dump_stream(
     std::ostream& out, const bool connections
 ) const {
     std::scoped_lock lock(mtx);
@@ -43,7 +43,7 @@ void yodau::backend::stream_manager::dump_stream(
     }
 }
 
-void yodau::backend::stream_manager::set_local_stream_detector(
+void yodau::core::stream_manager::set_local_stream_detector(
     local_stream_detector_fn detector
 ) {
     {
@@ -53,7 +53,7 @@ void yodau::backend::stream_manager::set_local_stream_detector(
     refresh_local_streams();
 }
 
-void yodau::backend::stream_manager::refresh_local_streams() {
+void yodau::core::stream_manager::refresh_local_streams() {
     for (const std::string& path : list_linux_capture_devices()) {
         const std::string stream_name = "video" + path.substr(10);
         {
@@ -89,7 +89,7 @@ void yodau::backend::stream_manager::refresh_local_streams() {
     }
 }
 
-yodau::backend::stream& yodau::backend::stream_manager::add_stream(
+yodau::core::stream& yodau::core::stream_manager::add_stream(
     const std::string& path, const std::string& name, const std::string& type,
     bool loop
 ) {
@@ -104,7 +104,7 @@ yodau::backend::stream& yodau::backend::stream_manager::add_stream(
     return ref;
 }
 
-yodau::backend::line_ptr yodau::backend::stream_manager::add_line(
+yodau::core::line_ptr yodau::core::stream_manager::add_line(
     const std::string& points, const bool closed, const std::string& name
 ) {
     std::scoped_lock lock(mtx);
@@ -119,7 +119,7 @@ yodau::backend::line_ptr yodau::backend::stream_manager::add_line(
     return new_line;
 }
 
-void yodau::backend::stream_manager::set_line_profile(
+void yodau::core::stream_manager::set_line_profile(
     line_profile profile_value
 ) {
     std::scoped_lock lock(mtx);
@@ -141,8 +141,8 @@ void yodau::backend::stream_manager::set_line_profile(
     }
 }
 
-std::optional<yodau::backend::line_profile>
-yodau::backend::stream_manager::find_line_profile(
+std::optional<yodau::core::line_profile>
+yodau::core::stream_manager::find_line_profile(
     const std::string& line_name
 ) const {
     std::scoped_lock lock(mtx);
@@ -159,7 +159,7 @@ yodau::backend::stream_manager::find_line_profile(
     return profile_it->second;
 }
 
-void yodau::backend::stream_manager::set_stream_line_profile(
+void yodau::core::stream_manager::set_stream_line_profile(
     const std::string& stream_name, line_profile profile_value
 ) {
     std::shared_ptr<stream> stream_ptr;
@@ -193,8 +193,8 @@ void yodau::backend::stream_manager::set_stream_line_profile(
     stream_ptr->set_line_profile(std::move(profile_value));
 }
 
-std::optional<yodau::backend::line_profile>
-yodau::backend::stream_manager::find_stream_line_profile(
+std::optional<yodau::core::line_profile>
+yodau::core::stream_manager::find_stream_line_profile(
     const std::string& stream_name, const std::string& line_name
 ) const {
     std::shared_ptr<stream> stream_ptr;
@@ -216,7 +216,7 @@ yodau::backend::stream_manager::find_stream_line_profile(
     return stream_ptr->find_line_profile(line_name);
 }
 
-yodau::backend::stream& yodau::backend::stream_manager::set_line(
+yodau::core::stream& yodau::core::stream_manager::set_line(
     const std::string& stream_name, const std::string& line_name
 ) {
     std::scoped_lock lock(mtx);
@@ -239,7 +239,7 @@ yodau::backend::stream& yodau::backend::stream_manager::set_line(
     return *stream_it->second;
 }
 
-void yodau::backend::stream_manager::clear_stream_line(
+void yodau::core::stream_manager::clear_stream_line(
     const std::string& stream_name, const std::string& line_name
 ) {
     std::scoped_lock lock(mtx);
@@ -255,8 +255,8 @@ void yodau::backend::stream_manager::clear_stream_line(
     stream_it->second->disconnect_line(line_name);
 }
 
-std::shared_ptr<const yodau::backend::stream>
-yodau::backend::stream_manager::find_stream(const std::string& name) const {
+std::shared_ptr<const yodau::core::stream>
+yodau::core::stream_manager::find_stream(const std::string& name) const {
     std::scoped_lock lock(mtx);
     const auto it = streams.find(name);
     if (it == streams.end()) {
@@ -265,19 +265,19 @@ yodau::backend::stream_manager::find_stream(const std::string& name) const {
     return it->second;
 }
 
-std::vector<std::string> yodau::backend::stream_manager::stream_names() const {
+std::vector<std::string> yodau::core::stream_manager::stream_names() const {
     std::scoped_lock lock(mtx);
     return streams | std::views::keys
         | std::ranges::to<std::vector<std::string>>();
 }
 
-std::vector<std::string> yodau::backend::stream_manager::line_names() const {
+std::vector<std::string> yodau::core::stream_manager::line_names() const {
     std::scoped_lock lock(mtx);
     return lines | std::views::keys
         | std::ranges::to<std::vector<std::string>>();
 }
 
-std::vector<std::string> yodau::backend::stream_manager::stream_lines(
+std::vector<std::string> yodau::core::stream_manager::stream_lines(
     const std::string& stream_name
 ) const {
     std::scoped_lock lock(mtx);
@@ -288,19 +288,19 @@ std::vector<std::string> yodau::backend::stream_manager::stream_lines(
     return stream_it->second->line_names();
 }
 
-void yodau::backend::stream_manager::set_manual_push_hook(manual_push_fn hook) {
+void yodau::core::stream_manager::set_manual_push_hook(manual_push_fn hook) {
     std::scoped_lock lock(mtx);
     manual_push = std::move(hook);
 }
 
-void yodau::backend::stream_manager::set_daemon_start_hook(
+void yodau::core::stream_manager::set_daemon_start_hook(
     daemon_start_fn hook
 ) {
     std::scoped_lock lock(mtx);
     daemon_start = std::move(hook);
 }
 
-void yodau::backend::stream_manager::push_frame(
+void yodau::core::stream_manager::push_frame(
     const std::string& stream_name, frame&& f
 ) {
     manual_push_fn mp;
@@ -347,21 +347,21 @@ void yodau::backend::stream_manager::push_frame(
     }
 }
 
-void yodau::backend::stream_manager::start_daemon(
+void yodau::core::stream_manager::start_daemon(
     const std::string& stream_name
 ) {
     start_stream(stream_name);
 }
 
-void yodau::backend::stream_manager::set_frame_processor(
+void yodau::core::stream_manager::set_frame_processor(
     frame_processor_fn fn
 ) {
     std::scoped_lock lock(mtx);
     frame_processor = std::move(fn);
 }
 
-std::vector<yodau::backend::event>
-yodau::backend::stream_manager::process_frame(
+std::vector<yodau::core::event>
+yodau::core::stream_manager::process_frame(
     const std::string& stream_name, frame&& f
 ) {
     std::shared_ptr<stream> sp;
@@ -385,42 +385,42 @@ yodau::backend::stream_manager::process_frame(
     return fp(*sp, f);
 }
 
-void yodau::backend::stream_manager::set_processed_frame_sink(
+void yodau::core::stream_manager::set_processed_frame_sink(
     processed_frame_sink_fn fn
 ) {
     std::scoped_lock lock(mtx);
     processed_frame_sink = std::move(fn);
 }
 
-void yodau::backend::stream_manager::set_event_sink(event_sink_fn fn) {
+void yodau::core::stream_manager::set_event_sink(event_sink_fn fn) {
     std::scoped_lock lock(mtx);
     event_sink = std::move(fn);
 }
 
-void yodau::backend::stream_manager::set_event_batch_sink(
+void yodau::core::stream_manager::set_event_batch_sink(
     event_batch_sink_fn fn
 ) {
     std::scoped_lock lock(mtx);
     event_batch_sink = std::move(fn);
 }
 
-void yodau::backend::stream_manager::set_analysis_interval_ms(int ms) {
+void yodau::core::stream_manager::set_analysis_interval_ms(int ms) {
     scheduler.set_default_interval_ms(ms);
 }
 
-void yodau::backend::stream_manager::set_stream_analysis_interval_ms(
+void yodau::core::stream_manager::set_stream_analysis_interval_ms(
     const std::string& stream_name, const int ms
 ) {
     scheduler.set_stream_interval_ms(stream_name, ms);
 }
 
-void yodau::backend::stream_manager::clear_stream_analysis_interval_ms(
+void yodau::core::stream_manager::clear_stream_analysis_interval_ms(
     const std::string& stream_name
 ) {
     scheduler.clear_stream_interval_ms(stream_name);
 }
 
-void yodau::backend::stream_manager::start_stream(const std::string& name) {
+void yodau::core::stream_manager::start_stream(const std::string& name) {
     std::shared_ptr<stream> sp;
     daemon_start_fn ds;
 
@@ -456,7 +456,7 @@ void yodau::backend::stream_manager::start_stream(const std::string& name) {
     }
 }
 
-void yodau::backend::stream_manager::stop_stream(const std::string& name) {
+void yodau::core::stream_manager::stop_stream(const std::string& name) {
     std::jthread th;
     std::shared_ptr<stream> sp;
 
@@ -484,14 +484,14 @@ void yodau::backend::stream_manager::stop_stream(const std::string& name) {
     }
 }
 
-bool yodau::backend::stream_manager::is_stream_running(
+bool yodau::core::stream_manager::is_stream_running(
     const std::string& name
 ) const {
     std::scoped_lock lock(mtx);
     return daemons.contains(name);
 }
 
-void yodau::backend::stream_manager::enable_fake_events(const int interval_ms) {
+void yodau::core::stream_manager::enable_fake_events(const int interval_ms) {
     {
         std::scoped_lock lock(mtx);
 
@@ -519,7 +519,7 @@ void yodau::backend::stream_manager::enable_fake_events(const int interval_ms) {
     }
 }
 
-void yodau::backend::stream_manager::disable_fake_events() {
+void yodau::core::stream_manager::disable_fake_events() {
     std::jthread th;
 
     {
@@ -539,7 +539,7 @@ void yodau::backend::stream_manager::disable_fake_events() {
     }
 }
 
-void yodau::backend::stream_manager::set_line_dir(
+void yodau::core::stream_manager::set_line_dir(
     const std::string& line_name, tripwire_dir dir
 ) {
     std::scoped_lock lock(mtx);
@@ -564,8 +564,8 @@ void yodau::backend::stream_manager::set_line_dir(
     }
 }
 
-std::vector<std::shared_ptr<yodau::backend::stream>>
-yodau::backend::stream_manager::snapshot_streams() const {
+std::vector<std::shared_ptr<yodau::core::stream>>
+yodau::core::stream_manager::snapshot_streams() const {
     std::vector<std::shared_ptr<stream>> snap;
 
     std::scoped_lock lock(mtx);
@@ -579,7 +579,7 @@ yodau::backend::stream_manager::snapshot_streams() const {
     return snap;
 }
 
-void yodau::backend::stream_manager::snapshot_hooks(
+void yodau::core::stream_manager::snapshot_hooks(
     frame_processor_fn& fp, processed_frame_sink_fn& pfs, event_sink_fn& es,
     event_batch_sink_fn& bes
 ) const {
@@ -590,12 +590,12 @@ void yodau::backend::stream_manager::snapshot_hooks(
     bes = event_batch_sink;
 }
 
-int yodau::backend::stream_manager::current_fake_interval_ms() const {
+int yodau::core::stream_manager::current_fake_interval_ms() const {
     std::scoped_lock lock(mtx);
     return fake_interval_ms;
 }
 
-void yodau::backend::stream_manager::run_stream_daemon(
+void yodau::core::stream_manager::run_stream_daemon(
     std::string stream_name, std::shared_ptr<stream> stream_ptr,
     daemon_start_fn daemon_fn, std::stop_token st
 ) {
@@ -605,7 +605,7 @@ void yodau::backend::stream_manager::run_stream_daemon(
     );
 }
 
-void yodau::backend::stream_manager::run_fake_events(std::stop_token st) {
+void yodau::core::stream_manager::run_fake_events(std::stop_token st) {
     frame dummy;
 
     while (!st.stop_requested()) {
@@ -642,7 +642,7 @@ void yodau::backend::stream_manager::run_fake_events(std::stop_token st) {
     }
 }
 
-bool yodau::backend::stream_manager::is_linux_capture_ok(const stream& s) {
+bool yodau::core::stream_manager::is_linux_capture_ok(const stream& s) {
     if (s.get_type() != local) {
         return true;
     }

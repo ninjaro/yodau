@@ -1,5 +1,6 @@
 #include "shell/active_edit_actions.hpp"
 
+#include "core/namespace_alias.hpp"
 #include "shell/active_edit_controller.hpp"
 #include "shell/active_edit_session.hpp"
 #include "shell/stream_widget_bridge.hpp"
@@ -11,8 +12,8 @@
 
 namespace active_edit_actions_support {
 
-QString backend_unavailable_detail() {
-    return QStringLiteral("backend stream manager unavailable");
+QString core_unavailable_detail() {
+    return QStringLiteral("core stream manager unavailable");
 }
 
 line_edit_request normalized_line_edit_request(line_edit_request request) {
@@ -83,12 +84,12 @@ float interaction_width_value(
     return visual_width;
 }
 
-yodau::backend::line_profile backend_profile_from_line_editor(
+yodau::core::line_profile core_profile_from_line_editor(
     const QString& line_name, const line_profile& profile_value
 ) {
     const float visual_width
         = static_cast<float>(line_width_visual_value(profile_value.width_text));
-    return yodau::backend::make_line_profile(
+    return yodau::core::make_line_profile(
         line_name.toStdString(), visual_width,
         interaction_width_value(profile_value.width_text, visual_width),
         effective_length_value(profile_value.length_text),
@@ -96,12 +97,12 @@ yodau::backend::line_profile backend_profile_from_line_editor(
     );
 }
 
-yodau::backend::line_profile backend_profile_from_template_settings(
+yodau::core::line_profile core_profile_from_template_settings(
     const QString& line_name, const template_apply_settings& settings_value
 ) {
     const float visual_width
         = static_cast<float>(line_width_visual_value(settings_value.width_text));
-    return yodau::backend::make_line_profile(
+    return yodau::core::make_line_profile(
         line_name.toStdString(), visual_width,
         interaction_width_value(settings_value.width_text, visual_width),
         effective_length_value(settings_value.length_text),
@@ -109,12 +110,12 @@ yodau::backend::line_profile backend_profile_from_template_settings(
     );
 }
 
-yodau::backend::line_profile backend_profile_from_line_instance(
+yodau::core::line_profile core_profile_from_line_instance(
     const stream_cell::line_instance& line_value
 ) {
     const float visual_width
         = static_cast<float>(line_width_visual_value(line_value.width_text));
-    return yodau::backend::make_line_profile(
+    return yodau::core::make_line_profile(
         line_value.template_name.toStdString(), visual_width,
         interaction_width_value(line_value.width_text, visual_width),
         effective_length_value(line_value.length_text),
@@ -125,7 +126,7 @@ yodau::backend::line_profile backend_profile_from_line_instance(
 } // namespace active_edit_actions_support
 
 active_edit_actions::active_edit_actions(
-    yodau::backend::stream_manager* stream_mgr,
+    yodau::core::stream_manager* stream_mgr,
     active_edit_session& edit_session, stream_widget_bridge& widget_bridge,
     active_edit_controller& edit_controller
 )
@@ -151,8 +152,8 @@ active_edit_actions::line_save_result active_edit_actions::save_active_line(
     result.points_text = points_str_from_pct(pts);
 
     if (stream_mgr_ == nullptr) {
-        result.status = line_save_status::backend_error;
-        result.error_detail = active_edit_actions_support::backend_unavailable_detail();
+        result.status = line_save_status::core_error;
+        result.error_detail = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -164,7 +165,7 @@ active_edit_actions::line_save_result active_edit_actions::save_active_line(
 
         result.final_name = QString::fromStdString(line_ptr->name);
         stream_mgr_->set_line_profile(
-            active_edit_actions_support::backend_profile_from_line_editor(
+            active_edit_actions_support::core_profile_from_line_editor(
                 result.final_name, result.profile
             )
         );
@@ -183,7 +184,7 @@ active_edit_actions::line_save_result active_edit_actions::save_active_line(
         result.status = line_save_status::saved;
         return result;
     } catch (const std::exception& e) {
-        result.status = line_save_status::backend_error;
+        result.status = line_save_status::core_error;
         result.error_detail = QString::fromLocal8Bit(e.what());
         return result;
     }
@@ -204,8 +205,8 @@ active_edit_actions::apply_active_template(
     }
 
     if (stream_mgr_ == nullptr) {
-        result.status = template_apply_status::backend_error;
-        result.error_detail = active_edit_actions_support::backend_unavailable_detail();
+        result.status = template_apply_status::core_error;
+        result.error_detail = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -216,12 +217,12 @@ active_edit_actions::apply_active_template(
         );
         stream_mgr_->set_stream_line_profile(
             active_name.toStdString(),
-            active_edit_actions_support::backend_profile_from_template_settings(
+            active_edit_actions_support::core_profile_from_template_settings(
                 result.settings.template_name, result.settings
             )
         );
     } catch (const std::exception& e) {
-        result.status = template_apply_status::backend_error;
+        result.status = template_apply_status::core_error;
         result.error_detail = QString::fromLocal8Bit(e.what());
         return result;
     }
@@ -257,8 +258,8 @@ active_edit_actions::set_stream_line_enabled(
     result.line = *line_value;
 
     if (stream_mgr_ == nullptr) {
-        result.status = line_toggle_status::backend_error;
-        result.error_detail = active_edit_actions_support::backend_unavailable_detail();
+        result.status = line_toggle_status::core_error;
+        result.error_detail = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -269,7 +270,7 @@ active_edit_actions::set_stream_line_enabled(
             );
             stream_mgr_->set_stream_line_profile(
                 result.stream_name.toStdString(),
-                active_edit_actions_support::backend_profile_from_line_instance(
+                active_edit_actions_support::core_profile_from_line_instance(
                     result.line
                 )
             );
@@ -279,7 +280,7 @@ active_edit_actions::set_stream_line_enabled(
             );
         }
     } catch (const std::exception& e) {
-        result.status = line_toggle_status::backend_error;
+        result.status = line_toggle_status::core_error;
         result.error_detail = QString::fromLocal8Bit(e.what());
         return result;
     }
@@ -294,6 +295,49 @@ active_edit_actions::set_stream_line_enabled(
     result.line.enabled = enabled;
     widget_bridge_.sync_active_persistent(result.stream_name, edit_session_);
     result.status = line_toggle_status::updated;
+    return result;
+}
+
+active_edit_actions::line_detach_result
+active_edit_actions::detach_stream_line(
+    const QString& stream_name, const QString& line_name
+) const {
+    line_detach_result result;
+    result.stream_name = stream_name.trimmed();
+    result.line_name = line_name.trimmed();
+
+    const auto line_value = edit_session_.find_stream_line(
+        result.stream_name, result.line_name
+    );
+    if (!line_value.has_value()) {
+        return result;
+    }
+
+    result.line = *line_value;
+
+    if (stream_mgr_ == nullptr) {
+        result.status = line_detach_status::core_error;
+        result.error_detail = active_edit_actions_support::core_unavailable_detail();
+        return result;
+    }
+
+    try {
+        stream_mgr_->clear_stream_line(
+            result.stream_name.toStdString(), result.line_name.toStdString()
+        );
+    } catch (const std::exception& e) {
+        result.status = line_detach_status::core_error;
+        result.error_detail = QString::fromLocal8Bit(e.what());
+        return result;
+    }
+
+    if (!edit_session_.detach_stream_line(result.stream_name, result.line_name)) {
+        result.status = line_detach_status::missing_line;
+        return result;
+    }
+
+    widget_bridge_.sync_active_persistent(result.stream_name, edit_session_);
+    result.status = line_detach_status::detached;
     return result;
 }
 
@@ -339,8 +383,8 @@ active_edit_actions::save_active_line_edit(
     result.source_line = *source_line;
 
     if (stream_mgr_ == nullptr) {
-        result.status = line_edit_save_status::backend_error;
-        result.error_detail = active_edit_actions_support::backend_unavailable_detail();
+        result.status = line_edit_save_status::core_error;
+        result.error_detail = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -352,7 +396,7 @@ active_edit_actions::save_active_line_edit(
 
         result.final_name = QString::fromStdString(line_ptr->name);
         stream_mgr_->set_line_profile(
-            active_edit_actions_support::backend_profile_from_line_editor(
+            active_edit_actions_support::core_profile_from_line_editor(
                 result.final_name, result.request.profile
             )
         );
@@ -391,7 +435,7 @@ active_edit_actions::save_active_line_edit(
         result.status = line_edit_save_status::saved;
         return result;
     } catch (const std::exception& e) {
-        result.status = line_edit_save_status::backend_error;
+        result.status = line_edit_save_status::core_error;
         result.error_detail = QString::fromLocal8Bit(e.what());
         return result;
     }

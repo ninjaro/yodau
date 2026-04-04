@@ -1,7 +1,7 @@
-#ifndef YODAU_FRONTEND_WIDGETS_ACTIVE_EDITOR_PANEL_HPP
-#define YODAU_FRONTEND_WIDGETS_ACTIVE_EDITOR_PANEL_HPP
+#ifndef YODAU_APP_WIDGETS_ACTIVE_EDITOR_PANEL_HPP
+#define YODAU_APP_WIDGETS_ACTIVE_EDITOR_PANEL_HPP
 
-#include "shell/frontend_settings.hpp"
+#include "shell/app_settings.hpp"
 #include "widgets/stream_cell.hpp"
 
 #include <QColor>
@@ -62,6 +62,7 @@ signals:
     void line_save_requested(line_profile profile_value);
     void line_undo_requested();
     void line_enabled_changed(const QString& line_name, bool enabled);
+    void line_detach_requested(const QString& line_name);
     void line_edit_preview_changed(line_edit_request request);
     void line_edit_preview_cleared();
     void line_edit_save_requested(line_edit_request request);
@@ -74,6 +75,7 @@ private:
     void refresh_status_summary() const;
     void refresh_line_list() const;
     void refresh_line_summary() const;
+    void refresh_line_action_state() const;
     void refresh_line_edit_candidates();
     void refresh_line_edit_table();
     void refresh_line_edit_summary() const;
@@ -82,9 +84,12 @@ private:
     void emit_line_edit_preview_if_visible();
     line_edit_request current_line_edit_request() const;
     void emit_line_enabled_changed_queued(QString line_name, bool enabled);
+    QString selected_line_name() const;
 
 private slots:
     void on_line_item_changed(QTreeWidgetItem* item, int column);
+    void on_line_selection_changed();
+    void on_detach_selected_line_clicked();
     void on_editor_tab_changed(int index);
     void on_line_edit_selection_changed(int index);
     void on_line_edit_point_item_changed(QTableWidgetItem* item);
@@ -99,6 +104,7 @@ private:
     QLabel* line_summary_label { nullptr };
     QTabWidget* editor_tabs { nullptr };
     QTreeWidget* line_list_widget { nullptr };
+    QPushButton* line_detach_button_ { nullptr };
     QWidget* edit_tab_widget_ { nullptr };
     QComboBox* line_edit_combo_ { nullptr };
     QLabel* line_edit_summary_label_ { nullptr };
@@ -115,4 +121,4 @@ private:
     bool line_toggle_flush_scheduled_ { false };
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_ACTIVE_EDITOR_PANEL_HPP
+#endif // YODAU_APP_WIDGETS_ACTIVE_EDITOR_PANEL_HPP

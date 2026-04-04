@@ -2,7 +2,7 @@
 
 #include <ranges>
 
-yodau::backend::stream::stream(
+yodau::core::stream::stream(
     std::string stream_path, std::string stream_name, const std::string& type_str,
     const bool should_loop
 )
@@ -27,7 +27,7 @@ yodau::backend::stream::stream(
     }
 }
 
-yodau::backend::stream::stream(stream&& other) noexcept
+yodau::core::stream::stream(stream&& other) noexcept
     : name(std::move(other.name))
     , path(std::move(other.path))
     , type(other.type)
@@ -39,8 +39,8 @@ yodau::backend::stream::stream(stream&& other) noexcept
     line_profiles = std::move(other.line_profiles);
 }
 
-yodau::backend::stream&
-yodau::backend::stream::operator=(stream&& other) noexcept {
+yodau::core::stream&
+yodau::core::stream::operator=(stream&& other) noexcept {
     if (this == &other) {
         return *this;
     }
@@ -58,8 +58,8 @@ yodau::backend::stream::operator=(stream&& other) noexcept {
     return *this;
 }
 
-yodau::backend::stream_type
-yodau::backend::stream::identify(const std::string& path) {
+yodau::core::stream_type
+yodau::core::stream::identify(const std::string& path) {
     if (path.rfind("/dev/video", 0) == 0) {
         return stream_type::local;
     }
@@ -72,7 +72,7 @@ yodau::backend::stream::identify(const std::string& path) {
     return stream_type::file;
 }
 
-std::string yodau::backend::stream::type_name(const stream_type type) {
+std::string yodau::core::stream::type_name(const stream_type type) {
     static constexpr std::array<std::string_view, 4> type_names {
         "local", "file", "rtsp", "http"
     };
@@ -84,7 +84,7 @@ std::string yodau::backend::stream::type_name(const stream_type type) {
 }
 
 std::string
-yodau::backend::stream::pipeline_name(const stream_pipeline pipeline) {
+yodau::core::stream::pipeline_name(const stream_pipeline pipeline) {
     static constexpr std::array<std::string_view, 3> pipeline_names {
         "manual", "automatic", "none"
     };
@@ -95,17 +95,17 @@ yodau::backend::stream::pipeline_name(const stream_pipeline pipeline) {
     return std::string(pipeline_names[idx]);
 }
 
-std::string yodau::backend::stream::get_name() const { return name; }
+std::string yodau::core::stream::get_name() const { return name; }
 
-std::string yodau::backend::stream::get_path() const { return path; }
+std::string yodau::core::stream::get_path() const { return path; }
 
-yodau::backend::stream_type yodau::backend::stream::get_type() const {
+yodau::core::stream_type yodau::core::stream::get_type() const {
     return type;
 }
 
-bool yodau::backend::stream::is_looping() const { return loop; }
+bool yodau::core::stream::is_looping() const { return loop; }
 
-void yodau::backend::stream::dump(
+void yodau::core::stream::dump(
     std::ostream& out, const bool connections
 ) const {
     out << "Stream(name=" << name << ", path=" << path
@@ -128,17 +128,17 @@ void yodau::backend::stream::dump(
     }
 }
 
-void yodau::backend::stream::activate(const stream_pipeline pipeline) {
+void yodau::core::stream::activate(const stream_pipeline pipeline) {
     active = pipeline;
 }
 
-yodau::backend::stream_pipeline yodau::backend::stream::pipeline() const {
+yodau::core::stream_pipeline yodau::core::stream::pipeline() const {
     return active;
 }
 
-void yodau::backend::stream::deactivate() { active = stream_pipeline::none; }
+void yodau::core::stream::deactivate() { active = stream_pipeline::none; }
 
-void yodau::backend::stream::connect_line(
+void yodau::core::stream::connect_line(
     line_ptr line, std::optional<line_profile> profile
 ) {
     if (!line) {
@@ -154,7 +154,7 @@ void yodau::backend::stream::connect_line(
     line_profiles.insert_or_assign(line->name, connected_profile);
 }
 
-void yodau::backend::stream::disconnect_line(const std::string& line_name) {
+void yodau::core::stream::disconnect_line(const std::string& line_name) {
     if (line_name.empty()) {
         return;
     }
@@ -164,7 +164,7 @@ void yodau::backend::stream::disconnect_line(const std::string& line_name) {
     line_profiles.erase(line_name);
 }
 
-void yodau::backend::stream::set_line_profile(line_profile profile_value) {
+void yodau::core::stream::set_line_profile(line_profile profile_value) {
     if (profile_value.line_name.empty()) {
         return;
     }
@@ -178,8 +178,8 @@ void yodau::backend::stream::set_line_profile(line_profile profile_value) {
     line_profiles.insert_or_assign(profile_value.line_name, profile_value);
 }
 
-std::optional<yodau::backend::line_profile>
-yodau::backend::stream::find_line_profile(const std::string& line_name) const {
+std::optional<yodau::core::line_profile>
+yodau::core::stream::find_line_profile(const std::string& line_name) const {
     std::scoped_lock lock(lines_mtx);
     if (!lines.contains(line_name)) {
         return std::nullopt;
@@ -193,14 +193,14 @@ yodau::backend::stream::find_line_profile(const std::string& line_name) const {
     return profile_it->second;
 }
 
-std::vector<std::string> yodau::backend::stream::line_names() const {
+std::vector<std::string> yodau::core::stream::line_names() const {
     std::scoped_lock lock(lines_mtx);
     return lines | std::views::keys
         | std::ranges::to<std::vector<std::string>>();
 }
 
-std::vector<yodau::backend::line_ptr>
-yodau::backend::stream::lines_snapshot() const {
+std::vector<yodau::core::line_ptr>
+yodau::core::stream::lines_snapshot() const {
     std::scoped_lock lock(lines_mtx);
     std::vector<line_ptr> out;
     out.reserve(lines.size());

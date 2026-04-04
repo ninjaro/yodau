@@ -1,7 +1,7 @@
-#ifndef YODAU_FRONTEND_SHELL_ACTIVE_EDIT_SESSION_HPP
-#define YODAU_FRONTEND_SHELL_ACTIVE_EDIT_SESSION_HPP
+#ifndef YODAU_APP_SHELL_ACTIVE_EDIT_SESSION_HPP
+#define YODAU_APP_SHELL_ACTIVE_EDIT_SESSION_HPP
 
-#include "shell/frontend_settings.hpp"
+#include "shell/app_settings.hpp"
 #include "widgets/stream_cell.hpp"
 
 #include <QMap>
@@ -87,4 +87,4 @@ private:
     QMap<QString, std::vector<stream_cell::line_instance>> per_stream_lines_;
 };
 
-#endif // YODAU_FRONTEND_SHELL_ACTIVE_EDIT_SESSION_HPP
+#endif // YODAU_APP_SHELL_ACTIVE_EDIT_SESSION_HPP

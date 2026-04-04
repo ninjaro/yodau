@@ -124,7 +124,7 @@ stream_cell* stream_widget_bridge::show_stream_in_grid(
     tile->set_labels_enabled(settings_value.labels_enabled);
     tile->set_log_mode(
         settings_ != nullptr ? settings_->log_mode()
-                             : frontend_log_mode::release
+                             : app_log_mode::release
     );
     stream_widget_bridge_support::apply_grid_stream_binding(tile, binding);
     editor_bridge_.sync_active_candidates();
@@ -153,7 +153,7 @@ void stream_widget_bridge::sync_active_candidates() const {
 }
 
 void stream_widget_bridge::sync_visible_log_mode(
-    const frontend_log_mode mode
+    const app_log_mode mode
 ) const {
     if (grid_ != nullptr) {
         for (const QString& name : grid_->stream_names()) {

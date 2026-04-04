@@ -1,7 +1,7 @@
 #include "analysis/tripwire_grid_index.hpp"
 
-yodau::backend::grid_line_index
-yodau::backend::build_grid_line_index(const line& l, const grid_dims& g) {
+yodau::core::grid_line_index
+yodau::core::build_grid_line_index(const line& l, const grid_dims& g) {
     grid_line_index out {};
     out.dims = g;
 

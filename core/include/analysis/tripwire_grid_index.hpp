@@ -1,12 +1,13 @@
-#ifndef YODAU_BACKEND_TRIPWIRE_GRID_INDEX_HPP
-#define YODAU_BACKEND_TRIPWIRE_GRID_INDEX_HPP
+#ifndef YODAU_CORE_TRIPWIRE_GRID_INDEX_HPP
+#define YODAU_CORE_TRIPWIRE_GRID_INDEX_HPP
 
+#include "core/namespace_alias.hpp"
 #include "analysis/tripwire_grid.hpp"
 
 #include <cstddef>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 struct grid_line_index {
     grid_dims dims;
@@ -17,4 +18,4 @@ struct grid_line_index {
 grid_line_index build_grid_line_index(const line& l, const grid_dims& g);
 }
 
-#endif // YODAU_BACKEND_TRIPWIRE_GRID_INDEX_HPP
+#endif // YODAU_CORE_TRIPWIRE_GRID_INDEX_HPP

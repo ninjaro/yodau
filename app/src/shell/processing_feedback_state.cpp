@@ -1,4 +1,5 @@
 #include "shell/processing_feedback_state.hpp"
+#include "core/namespace_alias.hpp"
 
 namespace processing_feedback_state_support {
 
@@ -55,21 +56,21 @@ void prune_expired_motion_events(
     }
 }
 
-QColor overlay_color_for_event_kind(const yodau::backend::event_kind kind) {
+QColor overlay_color_for_event_kind(const yodau::core::event_kind kind) {
     switch (kind) {
-    case yodau::backend::event_kind::motion:
+    case yodau::core::event_kind::motion:
         return QColor(QStringLiteral("#f4a261"));
-    case yodau::backend::event_kind::tripwire:
+    case yodau::core::event_kind::tripwire:
         return QColor(QStringLiteral("#e63946"));
-    case yodau::backend::event_kind::roi:
+    case yodau::core::event_kind::roi:
         return QColor(QStringLiteral("#2a9d8f"));
-    case yodau::backend::event_kind::info:
+    case yodau::core::event_kind::info:
     default:
         return QColor(QStringLiteral("#adb5bd"));
     }
 }
 
-QString event_detail_text(const yodau::backend::event& event_value) {
+QString event_detail_text(const yodau::core::event& event_value) {
     const QString line_name = QString::fromStdString(event_value.line_name);
     QString event_detail;
 
@@ -88,13 +89,13 @@ QString event_detail_text(const yodau::backend::event& event_value) {
         event_detail.append(position_text);
     }
 
-    const auto backend_message
+    const auto core_message
         = QString::fromStdString(event_value.message).trimmed();
-    if (!backend_message.isEmpty()) {
+    if (!core_message.isEmpty()) {
         if (!event_detail.isEmpty()) {
             event_detail.append(' ');
         }
-        event_detail.append(QStringLiteral("backend=%1").arg(backend_message));
+        event_detail.append(QStringLiteral("core=%1").arg(core_message));
     }
 
     return event_detail;
@@ -104,7 +105,7 @@ QString event_detail_text(const yodau::backend::event& event_value) {
 
 processing_feedback_state::processed_event
 processing_feedback_state::consume_event(
-    const yodau::backend::event& event_value, const QDateTime& current_time
+    const yodau::core::event& event_value, const QDateTime& current_time
 ) {
     processed_event result;
     result.stream_name = QString::fromStdString(event_value.stream_name);
@@ -123,23 +124,23 @@ processing_feedback_state::consume_event(
     }
 
     switch (event_value.kind) {
-    case yodau::backend::event_kind::motion:
+    case yodau::core::event_kind::motion:
         result.log_message = QStringLiteral("motion detected");
-        result.log_severity = frontend_log_severity::debug;
+        result.log_severity = app_log_severity::debug;
         break;
-    case yodau::backend::event_kind::tripwire:
+    case yodau::core::event_kind::tripwire:
         result.log_message = QStringLiteral("tripwire triggered");
         break;
-    case yodau::backend::event_kind::roi:
+    case yodau::core::event_kind::roi:
         result.log_message = QStringLiteral("roi event");
         break;
-    case yodau::backend::event_kind::info:
+    case yodau::core::event_kind::info:
     default:
-        result.log_message = QStringLiteral("backend info event");
+        result.log_message = QStringLiteral("core info event");
         break;
     }
 
-    if (event_value.kind == yodau::backend::event_kind::tripwire
+    if (event_value.kind == yodau::core::event_kind::tripwire
         && result.overlay_position_pct.has_value() && !result.line_name.isEmpty()) {
         const auto payload
             = processing_feedback_state_support::parse_tripwire_visual_payload(
@@ -152,7 +153,7 @@ processing_feedback_state::consume_event(
         };
     }
 
-    if (event_value.kind != yodau::backend::event_kind::motion) {
+    if (event_value.kind != yodau::core::event_kind::motion) {
         return result;
     }
 
@@ -190,15 +191,15 @@ int processing_feedback_state::recent_motion_count() {
 }
 
 QString
-processing_feedback_state::event_kind_text(yodau::backend::event_kind kind) {
+processing_feedback_state::event_kind_text(yodau::core::event_kind kind) {
     switch (kind) {
-    case yodau::backend::event_kind::motion:
+    case yodau::core::event_kind::motion:
         return QStringLiteral("motion");
-    case yodau::backend::event_kind::tripwire:
+    case yodau::core::event_kind::tripwire:
         return QStringLiteral("tripwire");
-    case yodau::backend::event_kind::roi:
+    case yodau::core::event_kind::roi:
         return QStringLiteral("roi");
-    case yodau::backend::event_kind::info:
+    case yodau::core::event_kind::info:
     default:
         return QStringLiteral("info");
     }

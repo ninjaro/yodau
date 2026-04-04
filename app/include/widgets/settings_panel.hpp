@@ -1,8 +1,8 @@
-#ifndef YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP
-#define YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP
+#ifndef YODAU_APP_WIDGETS_SETTINGS_PANEL_HPP
+#define YODAU_APP_WIDGETS_SETTINGS_PANEL_HPP
 
-#include "shell/frontend_log.hpp"
-#include "shell/frontend_settings.hpp"
+#include "shell/app_log.hpp"
+#include "shell/app_settings.hpp"
 #include "widgets/stream_cell.hpp"
 
 #include <QColor>
@@ -27,10 +27,10 @@ public:
     void add_existing_name(const QString& name);
     void remove_existing_name(const QString& name);
 
-    void set_log_buffer(frontend_log_buffer* buffer);
-    void set_log_mode(frontend_log_mode mode);
-    frontend_log_mode log_mode() const;
-    void append_log(frontend_log_entry entry) const;
+    void set_log_buffer(app_log_buffer* buffer);
+    void set_log_mode(app_log_mode mode);
+    app_log_mode log_mode() const;
+    void append_log(app_log_entry entry) const;
     QString compose_current_log_report() const;
     QString compose_current_log_summary() const;
     bool write_current_log_report(const QString& path) const;
@@ -102,7 +102,7 @@ signals:
     // stream settings tab
     void stream_settings_selection_changed(const QString& name);
     void active_stream_settings_changed(stream_settings settings_value);
-    void log_mode_changed(frontend_log_mode mode);
+    void log_mode_changed(app_log_mode mode);
 
     // line dock
     void active_stream_selected(const QString& name);
@@ -111,6 +111,7 @@ signals:
     void active_line_save_requested(line_profile profile_value);
     void active_line_undo_requested();
     void active_line_enabled_changed(const QString& line_name, bool enabled);
+    void active_line_detach_requested(const QString& line_name);
     void active_line_edit_preview_changed(line_edit_request request);
     void active_line_edit_preview_cleared();
     void active_line_edit_save_requested(line_edit_request request);
@@ -154,4 +155,4 @@ private:
     active_editor_panel* active_editor_panel_widget { nullptr };
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_SETTINGS_PANEL_HPP
+#endif // YODAU_APP_WIDGETS_SETTINGS_PANEL_HPP

@@ -4,17 +4,17 @@
 #include <charconv>
 #include <cmath>
 
-float yodau::backend::point::distance_to(const point& other) const {
+float yodau::core::point::distance_to(const point& other) const {
     const float dx = x - other.x;
     const float dy = y - other.y;
     return std::sqrt(dx * dx + dy * dy);
 }
 
-bool yodau::backend::point::compare(const point& other) const {
+bool yodau::core::point::compare(const point& other) const {
     return std::fabs(x - other.x) < epsilon && std::fabs(y - other.y) < epsilon;
 }
 
-void yodau::backend::line::dump(std::ostream& out) const {
+void yodau::core::line::dump(std::ostream& out) const {
     out << "Line(name=" << name << ", closed=" << (closed ? "true" : "false")
         << ", points=[";
     for (size_t i = 0; i < points.size(); i++) {
@@ -26,7 +26,7 @@ void yodau::backend::line::dump(std::ostream& out) const {
     out << "])";
 }
 
-void yodau::backend::line::normalize() {
+void yodau::core::line::normalize() {
     const size_t n = points.size();
     if (n < 2) {
         return;
@@ -67,7 +67,7 @@ void yodau::backend::line::normalize() {
     }
 }
 
-bool yodau::backend::line::operator==(const line& other) const {
+bool yodau::core::line::operator==(const line& other) const {
     if (closed != other.closed || points.size() != other.points.size()) {
         return false;
     }
@@ -79,7 +79,7 @@ bool yodau::backend::line::operator==(const line& other) const {
     return true;
 }
 
-void yodau::backend::line_profile::normalize() {
+void yodau::core::line_profile::normalize() {
     if (visual_width <= point::epsilon) {
         visual_width = 1.0f;
     }
@@ -92,7 +92,7 @@ void yodau::backend::line_profile::normalize() {
     damping = std::clamp(damping, 0.0f, 1.0f);
 }
 
-bool yodau::backend::line_profile::operator==(
+bool yodau::core::line_profile::operator==(
     const line_profile& other
 ) const {
     return line_name == other.line_name
@@ -104,7 +104,7 @@ bool yodau::backend::line_profile::operator==(
         && std::fabs(damping - other.damping) < point::epsilon;
 }
 
-yodau::backend::line_ptr yodau::backend::make_line(
+yodau::core::line_ptr yodau::core::make_line(
     std::vector<point> points, std::string name, bool closed
 ) {
     auto line_ptr = std::make_shared<line>();
@@ -115,7 +115,7 @@ yodau::backend::line_ptr yodau::backend::make_line(
     return line_ptr;
 }
 
-yodau::backend::line_profile yodau::backend::make_line_profile(
+yodau::core::line_profile yodau::core::make_line_profile(
     std::string line_name, const float visual_width,
     const float interaction_width, const float effective_length,
     const float damping
@@ -130,8 +130,8 @@ yodau::backend::line_profile yodau::backend::make_line_profile(
     return profile;
 }
 
-std::vector<yodau::backend::point>
-yodau::backend::parse_points(const std::string& points_str) {
+std::vector<yodau::core::point>
+yodau::core::parse_points(const std::string& points_str) {
     std::string normalized = normalize_str(points_str);
     std::string_view input { normalized };
     std::vector<point> points;
@@ -170,7 +170,7 @@ yodau::backend::parse_points(const std::string& points_str) {
     return points;
 }
 
-std::string yodau::backend::normalize_str(const std::string_view str) {
+std::string yodau::core::normalize_str(const std::string_view str) {
     std::string normalized;
     normalized.reserve(str.size());
     for (const char ch : str) {
@@ -182,7 +182,7 @@ std::string yodau::backend::normalize_str(const std::string_view str) {
     return normalized;
 }
 
-float yodau::backend::parse_float(const std::string_view num_str) {
+float yodau::core::parse_float(const std::string_view num_str) {
     float value {};
     const char* first = num_str.data();
     const char* last = num_str.data() + num_str.size();

@@ -1,5 +1,5 @@
-#ifndef YODAU_FRONTEND_SHELL_ICON_LOADER_HPP
-#define YODAU_FRONTEND_SHELL_ICON_LOADER_HPP
+#ifndef YODAU_APP_SHELL_ICON_LOADER_HPP
+#define YODAU_APP_SHELL_ICON_LOADER_HPP
 #include <QApplication>
 #include <QIcon>
 #include <QStyle>
@@ -15,4 +15,4 @@ public:
     static QIcon title_bar_restore_icon();
     static QIcon title_bar_maximize_icon();
 };
-#endif // YODAU_FRONTEND_SHELL_ICON_LOADER_HPP
+#endif // YODAU_APP_SHELL_ICON_LOADER_HPP

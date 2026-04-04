@@ -1,12 +1,13 @@
-#ifndef YODAU_BACKEND_EVENT_HPP
-#define YODAU_BACKEND_EVENT_HPP
+#ifndef YODAU_CORE_EVENT_HPP
+#define YODAU_CORE_EVENT_HPP
+#include "core/namespace_alias.hpp"
 #include <chrono>
 #include <optional>
 #include <string>
 
 #include "geometry/geometry.hpp"
 
-namespace yodau::backend {
+namespace yodau::core {
 enum class event_kind { motion, tripwire, roi, info };
 
 struct event {
@@ -19,4 +20,4 @@ struct event {
     std::string line_name;
 };
 }
-#endif // YODAU_BACKEND_EVENT_HPP
+#endif // YODAU_CORE_EVENT_HPP

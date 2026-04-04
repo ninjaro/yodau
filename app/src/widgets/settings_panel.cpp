@@ -17,13 +17,13 @@
 
 namespace settings_panel_support {
 
-frontend_log_entry make_log_entry(
-    const frontend_log_area area, const frontend_log_severity severity,
+app_log_entry make_log_entry(
+    const app_log_area area, const app_log_severity severity,
     const QString& subsystem, const QString& message,
     const QString& stream_name = QString(), const QString& detail = QString(),
     const QString& algorithm_id = QString()
 ) {
-    frontend_log_entry entry;
+    app_log_entry entry;
     entry.area = area;
     entry.severity = severity;
     entry.subsystem = subsystem;
@@ -41,7 +41,7 @@ settings_panel::settings_panel(QWidget* parent)
     , tabs(new QTabWidget(this))
     , streams_tab(nullptr) {
     qRegisterMetaType<stream_settings>("stream_settings");
-    qRegisterMetaType<frontend_log_mode>("frontend_log_mode");
+    qRegisterMetaType<app_log_mode>("app_log_mode");
     qRegisterMetaType<line_profile>("line_profile");
     qRegisterMetaType<template_apply_settings>("template_apply_settings");
     qRegisterMetaType<line_edit_request>("line_edit_request");
@@ -79,24 +79,24 @@ void settings_panel::remove_existing_name(const QString& name) {
     sync_stream_settings_candidates();
 }
 
-void settings_panel::set_log_buffer(frontend_log_buffer* buffer) {
+void settings_panel::set_log_buffer(app_log_buffer* buffer) {
     if (log_toolbar_widget != nullptr) {
         log_toolbar_widget->set_log_buffer(buffer);
     }
 }
 
-void settings_panel::set_log_mode(const frontend_log_mode mode) {
+void settings_panel::set_log_mode(const app_log_mode mode) {
     if (log_toolbar_widget != nullptr) {
         log_toolbar_widget->set_log_mode(mode);
     }
 }
 
-frontend_log_mode settings_panel::log_mode() const {
+app_log_mode settings_panel::log_mode() const {
     return log_toolbar_widget != nullptr ? log_toolbar_widget->log_mode()
-                                         : frontend_log_mode::release;
+                                         : app_log_mode::release;
 }
 
-void settings_panel::append_log(frontend_log_entry entry) const {
+void settings_panel::append_log(app_log_entry entry) const {
     if (log_toolbar_widget != nullptr) {
         log_toolbar_widget->append_entry(std::move(entry));
     }
@@ -198,7 +198,7 @@ void settings_panel::clear_stream_entries() {
 void settings_panel::append_event(const QString& text) const {
     append_log(
         settings_panel_support::make_log_entry(
-            frontend_log_area::streams, frontend_log_severity::info,
+            app_log_area::streams, app_log_severity::info,
             QStringLiteral("settings_panel"), text
         )
     );
@@ -219,7 +219,7 @@ void settings_panel::clear_add_inputs() const {
 void settings_panel::append_add_log(const QString& text) const {
     append_log(
         settings_panel_support::make_log_entry(
-            frontend_log_area::add, frontend_log_severity::info,
+            app_log_area::add, app_log_severity::info,
             QStringLiteral("settings_panel"), text
         )
     );
@@ -389,7 +389,7 @@ QColor settings_panel::active_template_preview_color() const {
 void settings_panel::append_active_log(const QString& msg) const {
     append_log(
         settings_panel_support::make_log_entry(
-            frontend_log_area::active, frontend_log_severity::info,
+            app_log_area::active, app_log_severity::info,
             QStringLiteral("settings_panel"), msg
         )
     );
@@ -457,6 +457,11 @@ void settings_panel::build_ui() {
         active_editor_panel_widget, &active_editor_panel::line_enabled_changed,
         this,
         &settings_panel::active_line_enabled_changed
+    );
+    connect(
+        active_editor_panel_widget, &active_editor_panel::line_detach_requested,
+        this,
+        &settings_panel::active_line_detach_requested
     );
     connect(
         active_editor_panel_widget,
@@ -529,7 +534,7 @@ QWidget* settings_panel::build_streams_tab() {
     );
     connect(
         source_panel, &stream_source_panel::log_requested, this,
-        [this](frontend_log_entry entry) { append_log(entry); }
+        [this](app_log_entry entry) { append_log(entry); }
     );
     connect(
         inventory_panel, &stream_inventory_panel::show_stream_changed, this,
@@ -537,7 +542,7 @@ QWidget* settings_panel::build_streams_tab() {
             emit show_stream_changed(name, show);
             append_log(
                 settings_panel_support::make_log_entry(
-                    frontend_log_area::streams, frontend_log_severity::info,
+                    app_log_area::streams, app_log_severity::info,
                     QStringLiteral("settings_panel"),
                     show ? QStringLiteral("stream shown in grid")
                          : QStringLiteral("stream hidden from grid"),

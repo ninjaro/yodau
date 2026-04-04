@@ -7,7 +7,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace yodau::backend::cli_client_support {
+namespace yodau::core::cli_client_support {
 
 std::string string_from_bool(const bool value) {
     return value ? "true" : "false";
@@ -30,24 +30,24 @@ std::string normalized_algorithm_command(std::string text) {
     return processing_algorithm_registry::normalized_algorithm_id(text);
 }
 
-} // namespace yodau::backend::cli_client_support
+} // namespace yodau::core::cli_client_support
 
-yodau::backend::cli_client::cli_client(backend::stream_manager& mgr)
-    : backend_runtime(
+yodau::core::cli_client::cli_client(yodau::core::stream_manager& mgr)
+    : core_runtime(
           processing_runtime_options {
-              .mode = render_mode::backend_only,
+              .mode = render_mode::core_only,
               .enable_virtual_camera = true,
               .algorithm_id = default_processing_algorithm_id(),
           }
       )
     , stream_mgr(mgr) {
-    backend_runtime.attach(stream_mgr);
+    core_runtime.attach(stream_mgr);
     stream_mgr.set_event_batch_sink(
-        std::bind_front(&cli_client::on_backend_events, this)
+        std::bind_front(&cli_client::on_core_events, this)
     );
 }
 
-int yodau::backend::cli_client::run() {
+int yodau::core::cli_client::run() {
     std::string line;
     while (true) {
         std::cout << "yodau> " << std::flush;
@@ -69,7 +69,7 @@ int yodau::backend::cli_client::run() {
 }
 
 std::vector<std::string>
-yodau::backend::cli_client::tokenize(const std::string& line) {
+yodau::core::cli_client::tokenize(const std::string& line) {
     std::vector<std::string> tokens;
     std::istringstream stream(line);
     std::string token;
@@ -79,7 +79,7 @@ yodau::backend::cli_client::tokenize(const std::string& line) {
     return tokens;
 }
 
-void yodau::backend::cli_client::dispatch_command(
+void yodau::core::cli_client::dispatch_command(
     const std::string& cmd, const std::vector<std::string>& args
 ) {
     static const std::unordered_map<
@@ -117,7 +117,7 @@ void yodau::backend::cli_client::dispatch_command(
     }
 }
 
-cxxopts::ParseResult yodau::backend::cli_client::parse_with_cxxopts(
+cxxopts::ParseResult yodau::core::cli_client::parse_with_cxxopts(
     const std::string& cmd, const std::vector<std::string>& args,
     cxxopts::Options& options
 ) {
@@ -132,7 +132,7 @@ cxxopts::ParseResult yodau::backend::cli_client::parse_with_cxxopts(
     return options.parse(argc, argv_ptr);
 }
 
-void yodau::backend::cli_client::cmd_list_streams(
+void yodau::core::cli_client::cmd_list_streams(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "list-streams";
@@ -165,11 +165,11 @@ void yodau::backend::cli_client::cmd_list_streams(
     }
 }
 
-void yodau::backend::cli_client::cmd_list_algorithms(
+void yodau::core::cli_client::cmd_list_algorithms(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "list-algorithms";
-    cxxopts::Options options(cmd, "List available backend algorithms");
+    cxxopts::Options options(cmd, "List available core algorithms");
     options.allow_unrecognised_options();
     options.add_options()("h,help", "Print help");
 
@@ -181,10 +181,10 @@ void yodau::backend::cli_client::cmd_list_algorithms(
         }
 
         const std::vector<std::string> algorithm_ids
-            = backend_runtime.available_algorithm_ids();
+            = core_runtime.available_algorithm_ids();
         const std::string default_algorithm_id
-            = backend_runtime.default_algorithm_id();
-        const auto overrides = backend_runtime.stream_algorithm_overrides();
+            = core_runtime.default_algorithm_id();
+        const auto overrides = core_runtime.stream_algorithm_overrides();
         const auto& registry = default_processing_algorithm_registry();
 
         std::cout << algorithm_ids.size()
@@ -232,7 +232,7 @@ void yodau::backend::cli_client::cmd_list_algorithms(
     }
 }
 
-void yodau::backend::cli_client::cmd_add_stream(
+void yodau::core::cli_client::cmd_add_stream(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "add-stream";
@@ -293,7 +293,7 @@ void yodau::backend::cli_client::cmd_add_stream(
     }
 }
 
-void yodau::backend::cli_client::cmd_start_stream(
+void yodau::core::cli_client::cmd_start_stream(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "start-stream";
@@ -331,7 +331,7 @@ void yodau::backend::cli_client::cmd_start_stream(
     }
 }
 
-void yodau::backend::cli_client::cmd_stop_stream(
+void yodau::core::cli_client::cmd_stop_stream(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "stop-stream";
@@ -356,7 +356,7 @@ void yodau::backend::cli_client::cmd_stop_stream(
         }
         const std::string name = result["name"].as<std::string>();
         stream_mgr.stop_stream(name);
-        if (auto* camera = backend_runtime.preview_camera()) {
+        if (auto* camera = core_runtime.preview_camera()) {
             camera->release(name);
         }
         log_command(
@@ -371,7 +371,7 @@ void yodau::backend::cli_client::cmd_stop_stream(
     }
 }
 
-void yodau::backend::cli_client::cmd_list_lines(
+void yodau::core::cli_client::cmd_list_lines(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "list-lines";
@@ -396,7 +396,7 @@ void yodau::backend::cli_client::cmd_list_lines(
     }
 }
 
-void yodau::backend::cli_client::cmd_add_line(
+void yodau::core::cli_client::cmd_add_line(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "add-line";
@@ -514,7 +514,7 @@ void yodau::backend::cli_client::cmd_add_line(
     }
 }
 
-void yodau::backend::cli_client::cmd_set_line(
+void yodau::core::cli_client::cmd_set_line(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "set-line";
@@ -556,7 +556,7 @@ void yodau::backend::cli_client::cmd_set_line(
     }
 }
 
-void yodau::backend::cli_client::cmd_set_stream_algorithm(
+void yodau::core::cli_client::cmd_set_stream_algorithm(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "set-stream-algorithm";
@@ -601,16 +601,16 @@ void yodau::backend::cli_client::cmd_set_stream_algorithm(
 
         if (normalized_algorithm == "default" || normalized_algorithm == "reset"
             || normalized_algorithm == "clear") {
-            backend_runtime.clear_stream_algorithm(stream_name);
+            core_runtime.clear_stream_algorithm(stream_name);
             log_command(
                 cli_log_severity::info, "algorithm_control",
                 "stream algorithm reset to default", stream_name,
-                "algorithm=" + backend_runtime.default_algorithm_id()
+                "algorithm=" + core_runtime.default_algorithm_id()
             );
             return;
         }
 
-        if (!backend_runtime.set_stream_algorithm(stream_name, algorithm_text)) {
+        if (!core_runtime.set_stream_algorithm(stream_name, algorithm_text)) {
             log_command(
                 cli_log_severity::error, "algorithm_control",
                 "unknown stream algorithm", stream_name, algorithm_text
@@ -621,7 +621,7 @@ void yodau::backend::cli_client::cmd_set_stream_algorithm(
         log_command(
             cli_log_severity::info, "algorithm_control",
             "stream algorithm updated", stream_name,
-            "algorithm=" + backend_runtime.algorithm_id_for_stream(stream_name)
+            "algorithm=" + core_runtime.algorithm_id_for_stream(stream_name)
         );
     } catch (const cxxopts::exceptions::exception& e) {
         log_command(
@@ -632,7 +632,7 @@ void yodau::backend::cli_client::cmd_set_stream_algorithm(
     }
 }
 
-void yodau::backend::cli_client::cmd_set_default_algorithm(
+void yodau::core::cli_client::cmd_set_default_algorithm(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "set-default-algorithm";
@@ -658,7 +658,7 @@ void yodau::backend::cli_client::cmd_set_default_algorithm(
         }
 
         const std::string algorithm_text = result["algorithm"].as<std::string>();
-        if (!backend_runtime.set_default_algorithm(algorithm_text)) {
+        if (!core_runtime.set_default_algorithm(algorithm_text)) {
             log_command(
                 cli_log_severity::error, "algorithm_control",
                 "unknown default algorithm", {}, algorithm_text
@@ -669,7 +669,7 @@ void yodau::backend::cli_client::cmd_set_default_algorithm(
         log_command(
             cli_log_severity::info, "algorithm_control",
             "default algorithm updated", {},
-            backend_runtime.default_algorithm_id()
+            core_runtime.default_algorithm_id()
         );
     } catch (const cxxopts::exceptions::exception& e) {
         log_command(
@@ -680,12 +680,12 @@ void yodau::backend::cli_client::cmd_set_default_algorithm(
     }
 }
 
-void yodau::backend::cli_client::cmd_list_virtual_cameras(
+void yodau::core::cli_client::cmd_list_virtual_cameras(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "list-virtual-cameras";
     cxxopts::Options options(
-        cmd, "List backend virtual camera device bindings"
+        cmd, "List core virtual camera device bindings"
     );
     options.allow_unrecognised_options();
     options.add_options()("h,help", "Print help");
@@ -696,7 +696,7 @@ void yodau::backend::cli_client::cmd_list_virtual_cameras(
             return;
         }
 
-        const auto* camera = backend_runtime.preview_camera();
+        const auto* camera = core_runtime.preview_camera();
         if (camera == nullptr) {
             std::cout << "0 virtual camera streams:" << std::endl;
             log_command(
@@ -721,7 +721,7 @@ void yodau::backend::cli_client::cmd_list_virtual_cameras(
     }
 }
 
-void yodau::backend::cli_client::cmd_set_log_mode(
+void yodau::core::cli_client::cmd_set_log_mode(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "set-log-mode";
@@ -773,7 +773,7 @@ void yodau::backend::cli_client::cmd_set_log_mode(
     }
 }
 
-void yodau::backend::cli_client::cmd_show_log(
+void yodau::core::cli_client::cmd_show_log(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "show-log";
@@ -791,6 +791,18 @@ void yodau::backend::cli_client::cmd_show_log(
         )
         (
             "stream", "Optional stream-name filter",
+            cxxopts::value<std::string>()->default_value("")
+        )
+        (
+            "line", "Optional line or region-name filter",
+            cxxopts::value<std::string>()->default_value("")
+        )
+        (
+            "algorithm", "Optional algorithm-id filter",
+            cxxopts::value<std::string>()->default_value("")
+        )
+        (
+            "event", "Optional event-type filter",
             cxxopts::value<std::string>()->default_value("")
         )
         (
@@ -828,6 +840,9 @@ void yodau::backend::cli_client::cmd_show_log(
             filter.severity = *severity;
         }
         filter.stream_name = result["stream"].as<std::string>();
+        filter.line_name = result["line"].as<std::string>();
+        filter.algorithm_id = result["algorithm"].as<std::string>();
+        filter.event_type = result["event"].as<std::string>();
         filter.subsystem = result["subsystem"].as<std::string>();
 
         const cli_log_mode mode = current_log_mode();
@@ -862,7 +877,7 @@ void yodau::backend::cli_client::cmd_show_log(
     }
 }
 
-void yodau::backend::cli_client::cmd_clear_log(
+void yodau::core::cli_client::cmd_clear_log(
     const std::vector<std::string>& args
 ) {
     const std::string cmd = "clear-log";
@@ -892,7 +907,7 @@ void yodau::backend::cli_client::cmd_clear_log(
     }
 }
 
-void yodau::backend::cli_client::on_backend_events(
+void yodau::core::cli_client::on_core_events(
     const std::vector<event>& events
 ) {
     for (const auto& event_value : events) {
@@ -900,7 +915,7 @@ void yodau::backend::cli_client::on_backend_events(
     }
 }
 
-void yodau::backend::cli_client::append_log(cli_log_entry entry, bool echo) {
+void yodau::core::cli_client::append_log(cli_log_entry entry, bool echo) {
     if (entry.timestamp.time_since_epoch().count() == 0) {
         entry.timestamp = std::chrono::system_clock::now();
     }
@@ -928,7 +943,7 @@ void yodau::backend::cli_client::append_log(cli_log_entry entry, bool echo) {
     }
 }
 
-void yodau::backend::cli_client::log_command(
+void yodau::core::cli_client::log_command(
     const cli_log_severity severity, const std::string& subsystem,
     const std::string& message, const std::string& stream_name,
     const std::string& detail
@@ -943,44 +958,45 @@ void yodau::backend::cli_client::log_command(
     append_log(std::move(entry));
 }
 
-yodau::backend::cli_log_entry yodau::backend::cli_client::make_event_log_entry(
+yodau::core::cli_log_entry yodau::core::cli_client::make_event_log_entry(
     const event& event_value
 ) const {
     cli_log_entry entry;
     entry.scope = cli_log_scope::event;
-    entry.subsystem = "backend_event";
+    entry.subsystem = "core_event";
     entry.stream_name = event_value.stream_name;
 
     switch (event_value.kind) {
     case event_kind::motion:
         entry.severity = cli_log_severity::debug;
+        entry.event_type = "motion";
         entry.message = "motion detected";
         break;
     case event_kind::tripwire:
         entry.severity = cli_log_severity::info;
+        entry.event_type = "tripwire";
         entry.message = "tripwire triggered";
         break;
     case event_kind::roi:
         entry.severity = cli_log_severity::info;
+        entry.event_type = "roi";
         entry.message = "roi event";
         break;
     case event_kind::info:
     default:
         entry.severity = cli_log_severity::info;
-        entry.message = "backend info event";
+        entry.event_type = "info";
+        entry.message = "core info event";
         break;
     }
 
-    std::ostringstream detail;
     const std::string algorithm_id
-        = backend_runtime.algorithm_id_for_stream(event_value.stream_name);
-    if (!algorithm_id.empty()) {
-        detail << "algorithm=" << algorithm_id;
-    }
+        = core_runtime.algorithm_id_for_stream(event_value.stream_name);
+    entry.algorithm_id = algorithm_id;
+    entry.line_name = event_value.line_name;
+
+    std::ostringstream detail;
     if (!event_value.line_name.empty()) {
-        if (!detail.str().empty()) {
-            detail << ' ';
-        }
         detail << "line=" << event_value.line_name;
     }
     if (event_value.pos_pct.has_value()) {
@@ -994,20 +1010,20 @@ yodau::backend::cli_log_entry yodau::backend::cli_client::make_event_log_entry(
         if (!detail.str().empty()) {
             detail << ' ';
         }
-        detail << "backend=" << event_value.message;
+        detail << "core=" << event_value.message;
     }
     entry.detail = detail.str();
     return entry;
 }
 
-std::vector<yodau::backend::cli_log_entry>
-yodau::backend::cli_client::snapshot_log_history() const {
+std::vector<yodau::core::cli_log_entry>
+yodau::core::cli_client::snapshot_log_history() const {
     std::scoped_lock lock(log_mutex);
     return log_history;
 }
 
-yodau::backend::cli_log_mode
-yodau::backend::cli_client::current_log_mode() const {
+yodau::core::cli_log_mode
+yodau::core::cli_client::current_log_mode() const {
     std::scoped_lock lock(log_mutex);
     return active_log_mode;
 }

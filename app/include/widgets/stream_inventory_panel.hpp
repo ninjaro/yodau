@@ -1,7 +1,7 @@
-#ifndef YODAU_FRONTEND_WIDGETS_STREAM_INVENTORY_PANEL_HPP
-#define YODAU_FRONTEND_WIDGETS_STREAM_INVENTORY_PANEL_HPP
+#ifndef YODAU_APP_WIDGETS_STREAM_INVENTORY_PANEL_HPP
+#define YODAU_APP_WIDGETS_STREAM_INVENTORY_PANEL_HPP
 
-#include "shell/frontend_log.hpp"
+#include "shell/app_log.hpp"
 
 #include <QWidget>
 
@@ -35,4 +35,4 @@ private:
     QLabel* summary_label { nullptr };
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_STREAM_INVENTORY_PANEL_HPP
+#endif // YODAU_APP_WIDGETS_STREAM_INVENTORY_PANEL_HPP

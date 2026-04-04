@@ -9,7 +9,7 @@
 #include <mutex>
 #include <utility>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 namespace default_processing_hooks_support {
 
@@ -1555,4 +1555,4 @@ make_processing_algorithm(const std::string& algorithm_id) {
     return registry.create(fallback_algorithm_id);
 }
 
-} // namespace yodau::backend
+} // namespace yodau::core

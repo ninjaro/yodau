@@ -1,6 +1,7 @@
-#ifndef YODAU_BACKEND_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP
-#define YODAU_BACKEND_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP
+#ifndef YODAU_CORE_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP
+#define YODAU_CORE_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP
 
+#include "core/namespace_alias.hpp"
 #include "analysis/processing_algorithm.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
@@ -8,7 +9,7 @@
 #include <memory>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 class virtual_camera;
 
@@ -36,6 +37,6 @@ private:
     std::unique_ptr<virtual_camera> preview_camera_value;
 };
 
-} // namespace yodau::backend
+} // namespace yodau::core
 
-#endif // YODAU_BACKEND_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP
+#endif // YODAU_CORE_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP

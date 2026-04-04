@@ -5,7 +5,7 @@
 namespace active_stream_workflow_support {
 
 QString algorithm_detail_text(const stream_settings& settings_value) {
-    return QStringLiteral("backend runtime uses %1; preset=%2 overlay=%3")
+    return QStringLiteral("core runtime uses %1; preset=%2 overlay=%3")
         .arg(settings_value.algorithm_id)
         .arg(settings_value.algorithm_preset)
         .arg(
@@ -16,7 +16,7 @@ QString algorithm_detail_text(const stream_settings& settings_value) {
 
 QString processing_policy_detail_text(const stream_settings& settings_value) {
     return QStringLiteral(
-               "manual=%1 display_fps=%2 backend_fps=%3 processing_pixels=%4"
+               "manual=%1 display_fps=%2 core_fps=%3 processing_pixels=%4"
            )
         .arg(
             settings_value.manual_processing_policy_enabled
@@ -24,7 +24,7 @@ QString processing_policy_detail_text(const stream_settings& settings_value) {
                 : QStringLiteral("false")
         )
         .arg(settings_value.manual_display_fps)
-        .arg(settings_value.manual_backend_fps)
+        .arg(settings_value.manual_core_fps)
         .arg(settings_value.manual_processing_pixels);
 }
 
@@ -64,7 +64,7 @@ active_stream_workflow::apply_stream_settings(
     if (result.labels_changed) {
         transition.entries.push_back(
             make_entry(
-                frontend_log_severity::info, QStringLiteral("stream_settings"),
+                app_log_severity::info, QStringLiteral("stream_settings"),
                 result.settings.labels_enabled
                     ? QStringLiteral("line labels enabled")
                     : QStringLiteral("line labels disabled"),
@@ -76,7 +76,7 @@ active_stream_workflow::apply_stream_settings(
     if (result.standard_labels_changed) {
         transition.entries.push_back(
             make_entry(
-                frontend_log_severity::info, QStringLiteral("stream_settings"),
+                app_log_severity::info, QStringLiteral("stream_settings"),
                 result.settings.standard_labels_enabled
                     ? QStringLiteral("standard labels enabled")
                     : QStringLiteral("standard labels disabled"),
@@ -88,7 +88,7 @@ active_stream_workflow::apply_stream_settings(
     if (result.algorithm_changed) {
         transition.entries.push_back(
             make_entry(
-                frontend_log_severity::info,
+                app_log_severity::info,
                 QStringLiteral("stream_settings"),
                 QStringLiteral("algorithm preference updated"),
                 result.settings.stream_name,
@@ -103,7 +103,7 @@ active_stream_workflow::apply_stream_settings(
     if (result.processing_policy_changed) {
         transition.entries.push_back(
             make_entry(
-                frontend_log_severity::info,
+                app_log_severity::info,
                 QStringLiteral("stream_processing"),
                 QStringLiteral("processing tuning updated"),
                 result.settings.stream_name,
@@ -119,14 +119,14 @@ active_stream_workflow::apply_stream_settings(
     return transition;
 }
 
-frontend_log_entry active_stream_workflow::make_entry(
-    const frontend_log_severity severity, const QString& subsystem,
+app_log_entry active_stream_workflow::make_entry(
+    const app_log_severity severity, const QString& subsystem,
     const QString& message, const QString& stream_name, const QString& detail,
     const QString& algorithm_id
 ) {
-    return frontend_log_entry {
+    return app_log_entry {
         .timestamp = QDateTime(),
-        .area = frontend_log_area::active,
+        .area = app_log_area::active,
         .severity = severity,
         .subsystem = subsystem,
         .stream_name = stream_name,
@@ -152,7 +152,7 @@ active_stream_workflow::selection_result_entry(
 
     transition.entries.push_back(
         make_entry(
-            frontend_log_severity::info, QStringLiteral("active_stream"),
+            app_log_severity::info, QStringLiteral("active_stream"),
             selection.active_name.isEmpty()
                 ? QStringLiteral("active stream cleared")
                 : QStringLiteral("active stream selected"),

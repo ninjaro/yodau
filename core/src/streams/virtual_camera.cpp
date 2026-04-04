@@ -18,7 +18,7 @@
 #include <unistd.h>
 #endif
 
-namespace yodau::backend {
+namespace yodau::core {
 
 namespace virtual_camera_support {
 
@@ -688,4 +688,4 @@ void virtual_camera::close_sink_locked(sink_binding& binding) {
     binding.device_ready = false;
 }
 
-} // namespace yodau::backend
+} // namespace yodau::core

@@ -1,5 +1,5 @@
-#ifndef YODAU_FRONTEND_SHELL_STR_LABEL_HPP
-#define YODAU_FRONTEND_SHELL_STR_LABEL_HPP
+#ifndef YODAU_APP_SHELL_STR_LABEL_HPP
+#define YODAU_APP_SHELL_STR_LABEL_HPP
 #include <QString>
 
 #ifdef KC_KDE
@@ -9,4 +9,4 @@
 #define str_label(text) QStringLiteral(text)
 #endif
 
-#endif // YODAU_FRONTEND_SHELL_STR_LABEL_HPP
+#endif // YODAU_APP_SHELL_STR_LABEL_HPP

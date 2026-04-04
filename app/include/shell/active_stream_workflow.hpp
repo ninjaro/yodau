@@ -1,16 +1,16 @@
-#ifndef YODAU_FRONTEND_SHELL_ACTIVE_STREAM_WORKFLOW_HPP
-#define YODAU_FRONTEND_SHELL_ACTIVE_STREAM_WORKFLOW_HPP
+#ifndef YODAU_APP_SHELL_ACTIVE_STREAM_WORKFLOW_HPP
+#define YODAU_APP_SHELL_ACTIVE_STREAM_WORKFLOW_HPP
 
 #include "shell/active_stream_state.hpp"
-#include "shell/frontend_log.hpp"
-#include "shell/frontend_settings.hpp"
+#include "shell/app_log.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QVector>
 
 class active_stream_workflow final {
 public:
     struct transition_result {
-        QVector<frontend_log_entry> entries;
+        QVector<app_log_entry> entries;
         bool refresh_fps { false };
         bool update_monitor_inventory { false };
         QString monitor_marker;
@@ -24,8 +24,8 @@ public:
     ) const;
 
 private:
-    [[nodiscard]] static frontend_log_entry make_entry(
-        frontend_log_severity severity, const QString& subsystem,
+    [[nodiscard]] static app_log_entry make_entry(
+        app_log_severity severity, const QString& subsystem,
         const QString& message, const QString& stream_name = QString(),
         const QString& detail = QString(),
         const QString& algorithm_id = QString()
@@ -40,4 +40,4 @@ private:
     active_stream_state& active_streams_;
 };
 
-#endif // YODAU_FRONTEND_SHELL_ACTIVE_STREAM_WORKFLOW_HPP
+#endif // YODAU_APP_SHELL_ACTIVE_STREAM_WORKFLOW_HPP

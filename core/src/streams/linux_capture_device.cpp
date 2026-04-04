@@ -8,7 +8,7 @@
 #include <unistd.h>
 #endif
 
-bool yodau::backend::is_linux_capture_device(const std::string& path) {
+bool yodau::core::is_linux_capture_device(const std::string& path) {
 #ifdef __linux__
     const int fd = ::open(path.c_str(), O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
@@ -38,7 +38,7 @@ bool yodau::backend::is_linux_capture_device(const std::string& path) {
 #endif
 }
 
-std::vector<std::string> yodau::backend::list_linux_capture_devices() {
+std::vector<std::string> yodau::core::list_linux_capture_devices() {
     std::vector<std::string> paths;
 
 #ifdef __linux__

@@ -1,7 +1,7 @@
-#ifndef YODAU_FRONTEND_WIDGETS_STREAM_SOURCE_PANEL_HPP
-#define YODAU_FRONTEND_WIDGETS_STREAM_SOURCE_PANEL_HPP
+#ifndef YODAU_APP_WIDGETS_STREAM_SOURCE_PANEL_HPP
+#define YODAU_APP_WIDGETS_STREAM_SOURCE_PANEL_HPP
 
-#include "shell/frontend_log.hpp"
+#include "shell/app_log.hpp"
 
 #include <QSet>
 #include <QStringList>
@@ -34,7 +34,7 @@ signals:
     void add_local_stream(const QString& source, const QString& name);
     void add_url_stream(const QString& url, const QString& name);
     void detect_local_sources_requested();
-    void log_requested(frontend_log_entry entry);
+    void log_requested(app_log_entry entry);
 
 private:
     enum class input_mode { file, local, url };
@@ -85,4 +85,4 @@ private:
     QPushButton* add_btn { nullptr };
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_STREAM_SOURCE_PANEL_HPP
+#endif // YODAU_APP_WIDGETS_STREAM_SOURCE_PANEL_HPP

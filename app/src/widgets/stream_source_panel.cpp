@@ -18,12 +18,12 @@
 
 namespace stream_source_panel_support {
 
-frontend_log_entry make_log_entry(
-    const frontend_log_severity severity, const QString& message,
+app_log_entry make_log_entry(
+    const app_log_severity severity, const QString& message,
     const QString& stream_name = QString(), const QString& detail = QString()
 ) {
-    frontend_log_entry entry;
-    entry.area = frontend_log_area::add;
+    app_log_entry entry;
+    entry.area = app_log_area::add;
     entry.severity = severity;
     entry.subsystem = QStringLiteral("stream_source_panel");
     entry.stream_name = stream_name;
@@ -278,7 +278,7 @@ void stream_source_panel::refresh_summary() const {
 
     const QString resolved_name = resolved_name_for_current_input();
     const QString target_name = resolved_name.isEmpty()
-        ? QStringLiteral("backend auto-name")
+        ? QStringLiteral("core auto-name")
         : resolved_name;
     const QString readiness = add_btn != nullptr && add_btn->isEnabled()
         ? QStringLiteral("ready")
@@ -411,7 +411,7 @@ void stream_source_panel::on_choose_file() {
     if (!path.isEmpty() && file_path_edit != nullptr) {
         file_path_edit->setText(path);
         emit log_requested(stream_source_panel_support::make_log_entry(
-            frontend_log_severity::info, QStringLiteral("file selected"),
+            app_log_severity::info, QStringLiteral("file selected"),
             QString(), path
         ));
     }
@@ -422,7 +422,7 @@ void stream_source_panel::on_add_clicked() {
     const QString name = resolved_name_for_current_input();
     if (!name_is_unique(name)) {
         emit log_requested(stream_source_panel_support::make_log_entry(
-            frontend_log_severity::warning,
+            app_log_severity::warning,
             QStringLiteral("stream name already exists"), name
         ));
         set_name_error(true);
@@ -432,7 +432,7 @@ void stream_source_panel::on_add_clicked() {
 
     if (!current_input_valid()) {
         emit log_requested(stream_source_panel_support::make_log_entry(
-            frontend_log_severity::warning,
+            app_log_severity::warning,
             QStringLiteral("stream add input is incomplete"), name
         ));
         update_add_enabled();
@@ -446,7 +446,7 @@ void stream_source_panel::on_add_clicked() {
                                         : QString();
         const bool loop = loop_checkbox != nullptr && loop_checkbox->isChecked();
         emit log_requested(stream_source_panel_support::make_log_entry(
-            frontend_log_severity::info,
+            app_log_severity::info,
             QStringLiteral("requested file stream add"), name,
             QStringLiteral("path=%1 loop=%2")
                 .arg(
@@ -462,7 +462,7 @@ void stream_source_panel::on_add_clicked() {
             ? local_sources_combo->currentText().trimmed()
             : QString();
         emit log_requested(stream_source_panel_support::make_log_entry(
-            frontend_log_severity::info,
+            app_log_severity::info,
             QStringLiteral("requested local stream add"), name, source
         ));
         emit add_local_stream(source, name);
@@ -472,7 +472,7 @@ void stream_source_panel::on_add_clicked() {
         const QString url
             = url_edit != nullptr ? url_edit->text().trimmed() : QString();
         emit log_requested(stream_source_panel_support::make_log_entry(
-            frontend_log_severity::info,
+            app_log_severity::info,
             QStringLiteral("requested url stream add"), name, url
         ));
         emit add_url_stream(url, name);
@@ -484,7 +484,7 @@ void stream_source_panel::on_add_clicked() {
 void stream_source_panel::on_refresh_local() {
     emit detect_local_sources_requested();
     emit log_requested(stream_source_panel_support::make_log_entry(
-        frontend_log_severity::info,
+        app_log_severity::info,
         QStringLiteral("local source detection requested")
     ));
 }

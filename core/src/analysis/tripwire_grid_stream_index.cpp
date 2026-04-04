@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace yodau::backend::tripwire_grid_stream_index_support {
+namespace yodau::core::tripwire_grid_stream_index_support {
 
 constexpr int default_grid_side = 8;
 constexpr int min_grid_side = 6;
@@ -36,10 +36,10 @@ int clamp_grid_side(const int side) {
     return std::clamp(side, min_grid_side, max_grid_side);
 }
 
-} // namespace yodau::backend::tripwire_grid_stream_index_support
+} // namespace yodau::core::tripwire_grid_stream_index_support
 
-yodau::backend::pct_bbox
-yodau::backend::compute_pct_bbox(const std::vector<point>& pts, bool& ok) {
+yodau::core::pct_bbox
+yodau::core::compute_pct_bbox(const std::vector<point>& pts, bool& ok) {
     pct_bbox b {};
     ok = false;
 
@@ -73,14 +73,14 @@ yodau::backend::compute_pct_bbox(const std::vector<point>& pts, bool& ok) {
     return b;
 }
 
-void yodau::backend::grid_candidate_tracker::ensure_size(const size_t n) {
+void yodau::core::grid_candidate_tracker::ensure_size(const size_t n) {
     if (seen.size() != n) {
         seen.assign(n, 0);
         stamp = 1;
     }
 }
 
-void yodau::backend::grid_candidate_tracker::next_stamp() {
+void yodau::core::grid_candidate_tracker::next_stamp() {
     stamp++;
     if (stamp == 0) {
         for (auto& v : seen) {
@@ -90,7 +90,7 @@ void yodau::backend::grid_candidate_tracker::next_stamp() {
     }
 }
 
-yodau::backend::grid_stream_index yodau::backend::build_grid_stream_index(
+yodau::core::grid_stream_index yodau::core::build_grid_stream_index(
     const std::vector<line_ptr>& input_lines, const grid_dims& g
 ) {
     grid_stream_index out {};
@@ -140,7 +140,7 @@ yodau::backend::grid_stream_index yodau::backend::build_grid_stream_index(
     return out;
 }
 
-yodau::backend::grid_dims yodau::backend::recommend_grid_dims(
+yodau::core::grid_dims yodau::core::recommend_grid_dims(
     const std::vector<line_ptr>& input_lines, const line* focus_line
 ) {
     using namespace tripwire_grid_stream_index_support;
@@ -240,7 +240,7 @@ yodau::backend::grid_dims yodau::backend::recommend_grid_dims(
     return grid_dims { side, side };
 }
 
-void yodau::backend::collect_grid_candidates(
+void yodau::core::collect_grid_candidates(
     const grid_stream_index& idx, const std::vector<int>& active_cell_indices,
     grid_candidate_tracker& tracker, std::vector<size_t>& out_segment_ids
 ) {

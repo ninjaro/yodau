@@ -1,58 +1,17 @@
-#ifndef YODAU_FRONTEND_SHELL_FRONTEND_LOG_HPP
-#define YODAU_FRONTEND_SHELL_FRONTEND_LOG_HPP
+#ifndef YODAU_APP_SHELL_FRONTEND_LOG_HPP
+#define YODAU_APP_SHELL_FRONTEND_LOG_HPP
 
-#include <QColor>
-#include <QDateTime>
-#include <QObject>
-#include <QString>
-#include <QVector>
+#include "shell/app_log.hpp"
 
-enum class frontend_log_area { add, streams, active };
-enum class frontend_log_severity { debug, info, warning, error };
-enum class frontend_log_mode { release, debug };
+using frontend_log_area = app_log_area;
+using frontend_log_severity = app_log_severity;
+using frontend_log_mode = app_log_mode;
+using frontend_log_entry = app_log_entry;
+using frontend_log_buffer = app_log_buffer;
 
-Q_DECLARE_METATYPE(frontend_log_mode)
+#define frontend_log_area_name app_log_area_name
+#define frontend_log_severity_name app_log_severity_name
+#define frontend_log_mode_name app_log_mode_name
+#define format_frontend_log_entry format_app_log_entry
 
-struct frontend_log_entry {
-    QDateTime timestamp;
-    frontend_log_area area { frontend_log_area::active };
-    frontend_log_severity severity { frontend_log_severity::info };
-    QString subsystem;
-    QString stream_name;
-    QString line_name;
-    QString algorithm_id;
-    QString event_type;
-    QString message;
-    QString detail;
-    QColor line_color;
-};
-
-Q_DECLARE_METATYPE(frontend_log_entry)
-
-QString frontend_log_area_name(frontend_log_area area);
-QString frontend_log_severity_name(frontend_log_severity severity);
-QString frontend_log_mode_name(frontend_log_mode mode);
-QString format_frontend_log_entry(
-    frontend_log_mode mode, const frontend_log_entry& entry
-);
-
-class frontend_log_buffer final : public QObject {
-    Q_OBJECT
-
-public:
-    explicit frontend_log_buffer(QObject* parent = nullptr);
-
-    const QVector<frontend_log_entry>& entries() const;
-    QVector<frontend_log_entry> entries_for_area(frontend_log_area area) const;
-    void append(frontend_log_entry entry);
-    void clear();
-
-signals:
-    void entry_appended(frontend_log_entry entry);
-    void cleared();
-
-private:
-    QVector<frontend_log_entry> entry_list;
-};
-
-#endif // YODAU_FRONTEND_SHELL_FRONTEND_LOG_HPP
+#endif // YODAU_APP_SHELL_FRONTEND_LOG_HPP

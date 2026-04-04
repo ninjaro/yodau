@@ -1,5 +1,5 @@
-#ifndef YODAU_FRONTEND_WIDGETS_GRID_VIEW_HPP
-#define YODAU_FRONTEND_WIDGETS_GRID_VIEW_HPP
+#ifndef YODAU_APP_WIDGETS_GRID_VIEW_HPP
+#define YODAU_APP_WIDGETS_GRID_VIEW_HPP
 
 #include <QMap>
 #include <QString>
@@ -49,4 +49,4 @@ private:
     int last_layout_columns { 0 };
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_GRID_VIEW_HPP
+#endif // YODAU_APP_WIDGETS_GRID_VIEW_HPP

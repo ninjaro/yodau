@@ -5,7 +5,7 @@
 #include <cmath>
 #include <thread>
 
-namespace yodau::backend::fps_policy_support {
+namespace yodau::core::fps_policy_support {
 
 constexpr std::array<int, 10> interval_steps_ms { 25, 33,  41,  50,  66,
                                                   83, 100, 125, 166, 200 };
@@ -141,9 +141,9 @@ double workload_units(const fps_runtime_factors& factors) {
     return units;
 }
 
-} // namespace yodau::backend::fps_policy_support
+} // namespace yodau::core::fps_policy_support
 
-std::string yodau::backend::fps_mode_name(const fps_mode mode) {
+std::string yodau::core::fps_mode_name(const fps_mode mode) {
     switch (mode) {
     case fps_mode::playback_only:
         return "playback_only";
@@ -154,7 +154,7 @@ std::string yodau::backend::fps_mode_name(const fps_mode mode) {
     return "playback_only";
 }
 
-std::string yodau::backend::fps_stream_role_name(const fps_stream_role role) {
+std::string yodau::core::fps_stream_role_name(const fps_stream_role role) {
     switch (role) {
     case fps_stream_role::grid:
         return "grid";
@@ -166,7 +166,7 @@ std::string yodau::backend::fps_stream_role_name(const fps_stream_role role) {
 }
 
 std::string
-yodau::backend::fps_capability_tier_name(const fps_capability_tier tier) {
+yodau::core::fps_capability_tier_name(const fps_capability_tier tier) {
     switch (tier) {
     case fps_capability_tier::low:
         return "low";
@@ -179,8 +179,8 @@ yodau::backend::fps_capability_tier_name(const fps_capability_tier tier) {
     return "balanced";
 }
 
-yodau::backend::fps_capability_profile
-yodau::backend::detect_fps_capability_profile() {
+yodau::core::fps_capability_profile
+yodau::core::detect_fps_capability_profile() {
     const unsigned hardware_threads
         = fps_policy_support::sanitized_hardware_threads(
             std::thread::hardware_concurrency()
@@ -192,7 +192,7 @@ yodau::backend::detect_fps_capability_profile() {
     };
 }
 
-yodau::backend::fps_stream_profile yodau::backend::recommend_fps_profile(
+yodau::core::fps_stream_profile yodau::core::recommend_fps_profile(
     const fps_capability_profile& capability, const fps_runtime_factors& factors
 ) {
     const double workload = fps_policy_support::workload_units(factors);

@@ -1,9 +1,10 @@
-#ifndef YODAU_BACKEND_ANALYSIS_FPS_POLICY_HPP
-#define YODAU_BACKEND_ANALYSIS_FPS_POLICY_HPP
+#ifndef YODAU_CORE_ANALYSIS_FPS_POLICY_HPP
+#define YODAU_CORE_ANALYSIS_FPS_POLICY_HPP
 
+#include "core/namespace_alias.hpp"
 #include <string>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 enum class fps_mode { playback_only, playback_and_processing };
 
@@ -45,6 +46,6 @@ fps_stream_profile recommend_fps_profile(
     const fps_capability_profile& capability, const fps_runtime_factors& factors
 );
 
-} // namespace yodau::backend
+} // namespace yodau::core
 
-#endif // YODAU_BACKEND_ANALYSIS_FPS_POLICY_HPP
+#endif // YODAU_CORE_ANALYSIS_FPS_POLICY_HPP

@@ -1,6 +1,7 @@
-#ifndef YODAU_BACKEND_STREAMS_VIRTUAL_CAMERA_HPP
-#define YODAU_BACKEND_STREAMS_VIRTUAL_CAMERA_HPP
+#ifndef YODAU_CORE_STREAMS_VIRTUAL_CAMERA_HPP
+#define YODAU_CORE_STREAMS_VIRTUAL_CAMERA_HPP
 
+#include "core/namespace_alias.hpp"
 #include "streams/frame.hpp"
 
 #include <mutex>
@@ -10,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 struct virtual_camera_frame_info {
     std::string stream_name;
@@ -65,4 +66,4 @@ private:
 
 }
 
-#endif // YODAU_BACKEND_STREAMS_VIRTUAL_CAMERA_HPP
+#endif // YODAU_CORE_STREAMS_VIRTUAL_CAMERA_HPP

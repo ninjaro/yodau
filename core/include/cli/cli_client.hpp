@@ -1,6 +1,7 @@
-#ifndef YODAU_BACKEND_CLI_CLIENT_HPP
-#define YODAU_BACKEND_CLI_CLIENT_HPP
+#ifndef YODAU_CORE_CLI_CLIENT_HPP
+#define YODAU_CORE_CLI_CLIENT_HPP
 
+#include "core/namespace_alias.hpp"
 #include "analysis/processing_runtime.hpp"
 #include "cli/cli_log.hpp"
 
@@ -9,10 +10,10 @@
 
 #include "streams/stream_manager.hpp"
 
-namespace yodau::backend {
+namespace yodau::core {
 class cli_client {
 public:
-    explicit cli_client(backend::stream_manager& mgr);
+    explicit cli_client(yodau::core::stream_manager& mgr);
     int run();
 
 private:
@@ -38,7 +39,7 @@ private:
     void cmd_set_log_mode(const std::vector<std::string>& args);
     void cmd_show_log(const std::vector<std::string>& args);
     void cmd_clear_log(const std::vector<std::string>& args);
-    void on_backend_events(const std::vector<event>& events);
+    void on_core_events(const std::vector<event>& events);
     void append_log(cli_log_entry entry, bool echo = true);
     void log_command(
         cli_log_severity severity, const std::string& subsystem,
@@ -49,13 +50,13 @@ private:
     std::vector<cli_log_entry> snapshot_log_history() const;
     cli_log_mode current_log_mode() const;
 
-    processing_runtime backend_runtime;
-    backend::stream_manager& stream_mgr;
+    processing_runtime core_runtime;
+    yodau::core::stream_manager& stream_mgr;
     mutable std::mutex log_mutex;
     std::vector<cli_log_entry> log_history;
     cli_log_mode active_log_mode { cli_log_mode::release };
     std::size_t max_log_entries { 512 };
 };
-} // namespace yodau::backend
+} // namespace yodau::core
 
-#endif // YODAU_BACKEND_CLI_CLIENT_HPP
+#endif // YODAU_CORE_CLI_CLIENT_HPP

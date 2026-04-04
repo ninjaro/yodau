@@ -1,5 +1,5 @@
-#ifndef YODAU_FRONTEND_MONITOR_DEBUG_PROBE_HPP
-#define YODAU_FRONTEND_MONITOR_DEBUG_PROBE_HPP
+#ifndef YODAU_APP_MONITOR_DEBUG_PROBE_HPP
+#define YODAU_APP_MONITOR_DEBUG_PROBE_HPP
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -50,4 +50,4 @@ private:
 
 } // namespace yodau::monitor
 
-#endif // YODAU_FRONTEND_MONITOR_DEBUG_PROBE_HPP
+#endif // YODAU_APP_MONITOR_DEBUG_PROBE_HPP

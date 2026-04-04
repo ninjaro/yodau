@@ -10,7 +10,7 @@
 #include <opencv2/imgproc.hpp>
 #endif
 
-namespace yodau::backend {
+namespace yodau::core {
 
 namespace processing_preview_router_support {
 
@@ -314,4 +314,4 @@ void processing_preview_router::publish_processed_frame(
 #endif
 }
 
-} // namespace yodau::backend
+} // namespace yodau::core

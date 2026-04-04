@@ -1,9 +1,9 @@
-#ifndef YODAU_FRONTEND_SHELL_STREAM_WIDGET_BRIDGE_HPP
-#define YODAU_FRONTEND_SHELL_STREAM_WIDGET_BRIDGE_HPP
+#ifndef YODAU_APP_SHELL_STREAM_WIDGET_BRIDGE_HPP
+#define YODAU_APP_SHELL_STREAM_WIDGET_BRIDGE_HPP
 
 #include "shell/active_editor_bridge.hpp"
-#include "shell/frontend_log.hpp"
-#include "shell/frontend_settings.hpp"
+#include "shell/app_log.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QString>
 
@@ -50,7 +50,7 @@ public:
     ) const;
     void hide_stream_from_grid(const QString& name, bool clear_active) const;
     void sync_active_candidates() const;
-    void sync_visible_log_mode(frontend_log_mode mode) const;
+    void sync_visible_log_mode(app_log_mode mode) const;
     void sync_active_selection(
         const QString& active_name, const stream_settings& settings_value
     ) const;
@@ -76,4 +76,4 @@ private:
     grid_view* grid_ { nullptr };
 };
 
-#endif // YODAU_FRONTEND_SHELL_STREAM_WIDGET_BRIDGE_HPP
+#endif // YODAU_APP_SHELL_STREAM_WIDGET_BRIDGE_HPP

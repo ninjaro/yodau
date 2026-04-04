@@ -1,6 +1,7 @@
-#ifndef YODAU_FRONTEND_SHELL_STREAM_CONTROLLER_HPP
-#define YODAU_FRONTEND_SHELL_STREAM_CONTROLLER_HPP
+#ifndef YODAU_APP_SHELL_STREAM_CONTROLLER_HPP
+#define YODAU_APP_SHELL_STREAM_CONTROLLER_HPP
 
+#include "core/namespace_alias.hpp"
 #include <QColor>
 #include <QMap>
 #include <QObject>
@@ -21,8 +22,8 @@
 #include "shell/active_edit_workflow.hpp"
 #include "shell/active_stream_state.hpp"
 #include "shell/active_stream_workflow.hpp"
-#include "shell/frontend_log.hpp"
-#include "shell/frontend_settings.hpp"
+#include "shell/app_log.hpp"
+#include "shell/app_settings.hpp"
 #include "shell/processing_feedback_state.hpp"
 #include "shell/stream_catalog_state.hpp"
 #include "shell/stream_catalog_workflow.hpp"
@@ -44,12 +45,12 @@ class stream_controller final : public QObject {
 
 public:
     explicit stream_controller(
-        yodau::backend::stream_manager* mgr, settings_panel* panel,
+        yodau::core::stream_manager* mgr, settings_panel* panel,
         stream_board* zone, yodau::monitor::runtime_bridge* monitor = nullptr,
         QObject* parent = nullptr
     );
 
-    void init_from_backend();
+    void init_from_core();
 
 public slots:
     // add tab
@@ -61,8 +62,8 @@ public slots:
     // streams tab / grid
     void handle_show_stream_changed(const QString& name, bool show);
 
-    // backend
-    void handle_backend_event(const QString& text);
+    // core
+    void handle_core_event(const QString& text);
 
     void on_gui_frame(const QString& stream_name, const QImage& image);
 
@@ -72,7 +73,7 @@ signals:
     );
     void
     monitor_stream_visibility_changed(const QString& stream_name, bool visible);
-    void monitor_backend_event_observed(const QString& kind);
+    void monitor_core_event_observed(const QString& kind);
 
 private slots:
     // stream settings tab
@@ -85,6 +86,7 @@ private slots:
     void on_active_line_profile_changed(line_profile profile_value);
     void on_active_line_save_requested(line_profile profile_value);
     void on_active_line_enabled_changed(const QString& line_name, bool enabled);
+    void on_active_line_detach_requested(const QString& line_name);
     void on_active_line_edit_preview_changed(line_edit_request request);
     void on_active_line_edit_preview_cleared();
     void on_active_line_edit_save_requested(line_edit_request request);
@@ -97,10 +99,10 @@ private slots:
     );
 
     void on_active_line_undo_requested();
-    void on_backend_frame_processed(
+    void on_core_frame_processed(
         QString stream_name, int width, int height
     );
-    void on_backend_event_queued(yodau::backend::event event_value);
+    void on_core_event_queued(yodau::core::event event_value);
 
 private:
     // setup
@@ -112,7 +114,7 @@ private:
     void handle_enlarge_requested(const QString& name);
     void handle_back_to_grid();
     void handle_thumb_activate(const QString& name);
-    void sync_backend_stream_algorithm(
+    void sync_core_stream_algorithm(
         const QString& stream_name, const QString& algorithm_id
     );
 
@@ -120,10 +122,10 @@ private:
     stream_settings settings_for_stream(const QString& name) const;
     QString algorithm_id_for_stream(const QString& name) const;
 
-    void append_log_entry(frontend_log_entry entry) const;
-    void append_log_entries(const QVector<frontend_log_entry>& entries) const;
+    void append_log_entry(app_log_entry entry) const;
+    void append_log_entries(const QVector<app_log_entry>& entries) const;
     void append_log(
-        frontend_log_area area, frontend_log_severity severity,
+        app_log_area area, app_log_severity severity,
         const QString& subsystem, const QString& message,
         const QString& stream_name = QString(),
         const QString& detail = QString(),
@@ -157,7 +159,7 @@ private:
     void note_input_frame_observed(
         const QString& stream_name, int width, int height
     );
-    void note_backend_frame_observed(
+    void note_core_frame_observed(
         const QString& stream_name, int width, int height
     );
     void sync_runtime_metrics_for_stream(const QString& stream_name);
@@ -173,21 +175,21 @@ private:
     ) const;
     void update_monitor_inventory();
 
-    void on_backend_event(const yodau::backend::event& e);
-    void on_backend_events(const std::vector<yodau::backend::event>& evs);
+    void on_core_event(const yodau::core::event& e);
+    void on_core_events(const std::vector<yodau::core::event>& evs);
 
-    yodau::backend::frame frame_from_image(const QImage& image) const;
+    yodau::core::frame frame_from_image(const QImage& image) const;
 
 private:
-    yodau::backend::processing_runtime backend_runtime;
+    yodau::core::processing_runtime core_runtime;
 
     // external
-    yodau::backend::stream_manager* stream_mgr { nullptr };
+    yodau::core::stream_manager* stream_mgr { nullptr };
     yodau::monitor::runtime_bridge* monitor_bridge { nullptr };
     settings_panel* settings { nullptr };
     stream_board* main_zone { nullptr };
     grid_view* grid { nullptr };
-    frontend_log_buffer* log_buffer { nullptr };
+    app_log_buffer* log_buffer { nullptr };
 
     // active state
     active_edit_session edit_session;
@@ -202,18 +204,18 @@ private:
     active_edit_actions edit_actions;
     active_edit_workflow edit_workflow;
 
-    yodau::backend::fps_capability_profile fps_capability;
+    yodau::core::fps_capability_profile fps_capability;
     QHash<QString, int> processing_scale_percent_by_stream;
     QHash<QString, stream_runtime_metrics> runtime_metrics_by_stream;
     struct stream_rate_tracker {
         std::chrono::steady_clock::time_point last_input_frame {};
-        std::chrono::steady_clock::time_point last_backend_frame {};
+        std::chrono::steady_clock::time_point last_core_frame {};
         double input_fps_ema { 0.0 };
-        double backend_fps_ema { 0.0 };
+        double core_fps_ema { 0.0 };
     };
     QHash<QString, stream_rate_tracker> rate_trackers_by_stream;
     double processing_cost_ema_ms { 0.0 };
     std::chrono::steady_clock::time_point last_fps_policy_refresh {};
 };
 
-#endif // YODAU_FRONTEND_SHELL_STREAM_CONTROLLER_HPP
+#endif // YODAU_APP_SHELL_STREAM_CONTROLLER_HPP

@@ -1,13 +1,14 @@
-#ifndef YODAU_BACKEND_DEFAULT_PROCESSING_HOOKS_HPP
-#define YODAU_BACKEND_DEFAULT_PROCESSING_HOOKS_HPP
+#ifndef YODAU_CORE_DEFAULT_PROCESSING_HOOKS_HPP
+#define YODAU_CORE_DEFAULT_PROCESSING_HOOKS_HPP
 
+#include "core/namespace_alias.hpp"
 #include "analysis/processing_algorithm.hpp"
 #include "streams/stream_manager.hpp"
 
 #include <memory>
 #include <string>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 stream_manager::daemon_start_fn default_daemon_start_hook();
 stream_manager::frame_processor_fn default_frame_processor();
@@ -16,6 +17,6 @@ const processing_algorithm_registry& default_processing_algorithm_registry();
 std::unique_ptr<processing_algorithm>
 make_processing_algorithm(const std::string& algorithm_id = {});
 
-} // namespace yodau::backend
+} // namespace yodau::core
 
-#endif // YODAU_BACKEND_DEFAULT_PROCESSING_HOOKS_HPP
+#endif // YODAU_CORE_DEFAULT_PROCESSING_HOOKS_HPP

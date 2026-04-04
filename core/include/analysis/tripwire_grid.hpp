@@ -1,13 +1,14 @@
-#ifndef YODAU_BACKEND_TRIPWIRE_GRID_HPP
-#define YODAU_BACKEND_TRIPWIRE_GRID_HPP
+#ifndef YODAU_CORE_TRIPWIRE_GRID_HPP
+#define YODAU_CORE_TRIPWIRE_GRID_HPP
 
+#include "core/namespace_alias.hpp"
 #include "geometry/coords.hpp"
 #include "geometry/geometry.hpp"
 
 #include <cstddef>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 struct grid_tripwire_segment {
     size_t seg_index {};
@@ -21,4 +22,4 @@ compile_line_to_grid_segments(const line& l, const grid_dims& g);
 
 }
 
-#endif // YODAU_BACKEND_TRIPWIRE_GRID_HPP
+#endif // YODAU_CORE_TRIPWIRE_GRID_HPP

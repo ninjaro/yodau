@@ -73,8 +73,8 @@ active_stream_state::settings_result active_stream_state::apply_stream_settings(
             != result.settings.manual_processing_policy_enabled
         || result.previous_settings.manual_display_fps
             != result.settings.manual_display_fps
-        || result.previous_settings.manual_backend_fps
-            != result.settings.manual_backend_fps
+        || result.previous_settings.manual_core_fps
+            != result.settings.manual_core_fps
         || result.previous_settings.manual_processing_pixels
             != result.settings.manual_processing_pixels;
 

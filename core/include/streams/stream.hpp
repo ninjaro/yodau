@@ -1,11 +1,12 @@
-#ifndef YODAU_BACKEND_STREAM_HPP
-#define YODAU_BACKEND_STREAM_HPP
+#ifndef YODAU_CORE_STREAM_HPP
+#define YODAU_CORE_STREAM_HPP
+#include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
 #include <mutex>
 #include <optional>
 #include <unordered_map>
 
-namespace yodau::backend {
+namespace yodau::core {
 enum stream_type { local, file, rtsp, http };
 
 enum class stream_pipeline { manual, automatic, none };
@@ -54,4 +55,4 @@ private:
     mutable std::mutex lines_mtx;
 };
 }
-#endif // YODAU_BACKEND_STREAM_HPP
+#endif // YODAU_CORE_STREAM_HPP

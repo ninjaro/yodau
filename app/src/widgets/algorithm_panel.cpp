@@ -18,9 +18,9 @@ void populate_algorithm_combo(QComboBox* combo) {
     }
 
     combo->clear();
-    for (const QString& algorithm_id : frontend_algorithm_ids()) {
+    for (const QString& algorithm_id : app_algorithm_ids()) {
         combo->addItem(
-            frontend_algorithm_display_name(algorithm_id), algorithm_id
+            app_algorithm_display_name(algorithm_id), algorithm_id
         );
     }
 }
@@ -36,6 +36,20 @@ void populate_preset_combo(QComboBox* combo, const QString& algorithm_id) {
             algorithm_preset_display_name(algorithm_id, preset_id), preset_id
         );
     }
+}
+
+void set_form_row_visible(QFormLayout* form, QWidget* field, const bool visible) {
+    if (field == nullptr) {
+        return;
+    }
+
+    if (form != nullptr) {
+        if (QWidget* label = form->labelForField(field); label != nullptr) {
+            label->setVisible(visible);
+        }
+    }
+
+    field->setVisible(visible);
 }
 
 } // namespace algorithm_panel_support
@@ -64,6 +78,7 @@ void algorithm_panel::set_stream_settings(const stream_settings& settings_value)
         overlay_checkbox->setChecked(current_settings.algorithm_overlay_enabled);
     }
 
+    refresh_advanced_controls();
     refresh_summary();
 }
 
@@ -80,7 +95,7 @@ void algorithm_panel::on_algorithm_changed(const int index) {
     Q_UNUSED(index);
 
     if (algorithm_combo != nullptr) {
-        current_settings.algorithm_id = normalized_frontend_algorithm_id(
+        current_settings.algorithm_id = normalized_app_algorithm_id(
             algorithm_combo->currentData().toString()
         );
     }
@@ -103,6 +118,12 @@ void algorithm_panel::on_preset_changed(const int index) {
     emit settings_changed(current_settings);
 }
 
+void algorithm_panel::on_advanced_toggled(const bool checked) {
+    Q_UNUSED(checked);
+
+    refresh_advanced_controls();
+}
+
 void algorithm_panel::on_overlay_toggled(const bool checked) {
     current_settings.algorithm_overlay_enabled = checked;
     refresh_summary();
@@ -112,24 +133,38 @@ void algorithm_panel::on_overlay_toggled(const bool checked) {
 void algorithm_panel::build_ui() {
     const auto layout = new QVBoxLayout(this);
 
-    const auto form = new QFormLayout();
+    form_ = new QFormLayout();
 
     algorithm_combo = new QComboBox(this);
     algorithm_combo->setObjectName(object_name(QStringLiteral("algorithm_combo")));
     algorithm_panel_support::populate_algorithm_combo(algorithm_combo);
-    form->addRow(str_label("algorithm"), algorithm_combo);
+    form_->addRow(str_label("algorithm"), algorithm_combo);
+
+    advanced_checkbox = new QCheckBox(
+        str_label("advanced algorithm settings"), this
+    );
+    advanced_checkbox->setObjectName(
+        object_name(QStringLiteral("algorithm_advanced_checkbox"))
+    );
+    advanced_checkbox->setToolTip(
+        QStringLiteral(
+            "Show or hide algorithm-specific preset and overlay controls. "
+            "Leave this off to keep the shared stream settings compact."
+        )
+    );
+    form_->addRow(QString(), advanced_checkbox);
 
     preset_combo = new QComboBox(this);
     preset_combo->setObjectName(object_name(QStringLiteral("algorithm_preset_combo")));
-    form->addRow(str_label("preset"), preset_combo);
+    form_->addRow(str_label("preset"), preset_combo);
 
     overlay_checkbox = new QCheckBox(str_label("diagnostic overlay"), this);
     overlay_checkbox->setObjectName(
         object_name(QStringLiteral("algorithm_overlay_checkbox"))
     );
-    form->addRow(QString(), overlay_checkbox);
+    form_->addRow(QString(), overlay_checkbox);
 
-    layout->addLayout(form);
+    layout->addLayout(form_);
 
     summary_label = new QLabel(this);
     summary_label->setObjectName(object_name(QStringLiteral("algorithm_summary_label")));
@@ -141,6 +176,10 @@ void algorithm_panel::build_ui() {
         this, &algorithm_panel::on_algorithm_changed
     );
     connect(
+        advanced_checkbox, &QCheckBox::toggled, this,
+        &algorithm_panel::on_advanced_toggled
+    );
+    connect(
         preset_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &algorithm_panel::on_preset_changed
     );
@@ -150,6 +189,20 @@ void algorithm_panel::build_ui() {
     );
 
     setLayout(layout);
+}
+
+void algorithm_panel::refresh_advanced_controls() const {
+    const bool advanced_enabled = advanced_checkbox != nullptr
+        && advanced_checkbox->isChecked();
+
+    algorithm_panel_support::set_form_row_visible(
+        form_, preset_combo, advanced_enabled
+    );
+
+    if (overlay_checkbox != nullptr) {
+        overlay_checkbox->setVisible(advanced_enabled);
+        overlay_checkbox->setEnabled(advanced_enabled);
+    }
 }
 
 void algorithm_panel::refresh_preset_options() {
@@ -183,7 +236,7 @@ void algorithm_panel::refresh_summary() {
 
 stream_settings
 algorithm_panel::normalized_settings(stream_settings settings_value) const {
-    settings_value.algorithm_id = normalized_frontend_algorithm_id(
+    settings_value.algorithm_id = normalized_app_algorithm_id(
         settings_value.algorithm_id
     );
     settings_value.algorithm_preset = normalized_algorithm_preset_id(

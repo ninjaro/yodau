@@ -1,7 +1,7 @@
-#ifndef YODAU_FRONTEND_WIDGETS_LINE_PROFILE_PANEL_HPP
-#define YODAU_FRONTEND_WIDGETS_LINE_PROFILE_PANEL_HPP
+#ifndef YODAU_APP_WIDGETS_LINE_PROFILE_PANEL_HPP
+#define YODAU_APP_WIDGETS_LINE_PROFILE_PANEL_HPP
 
-#include "shell/frontend_settings.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QColor>
 #include <QGroupBox>
@@ -73,4 +73,4 @@ private:
     QColor current_color { Qt::red };
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_LINE_PROFILE_PANEL_HPP
+#endif // YODAU_APP_WIDGETS_LINE_PROFILE_PANEL_HPP

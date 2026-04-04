@@ -1,13 +1,14 @@
-#ifndef YODAU_FRONTEND_WIDGETS_ACTIVE_STREAM_PANEL_HPP
-#define YODAU_FRONTEND_WIDGETS_ACTIVE_STREAM_PANEL_HPP
+#ifndef YODAU_APP_WIDGETS_ACTIVE_STREAM_PANEL_HPP
+#define YODAU_APP_WIDGETS_ACTIVE_STREAM_PANEL_HPP
 
-#include "shell/frontend_settings.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QWidget>
 
 class QButtonGroup;
 class QCheckBox;
 class QComboBox;
+class QFormLayout;
 class QGroupBox;
 class QLabel;
 class QRadioButton;
@@ -48,9 +49,10 @@ private slots:
     void on_operator_profile_changed(int index);
     void on_algorithm_panel_settings_changed(stream_settings settings_value);
     void on_active_mode_clicked(int id);
+    void on_processing_advanced_toggled(bool checked);
     void on_manual_processing_toggled(bool checked);
     void on_manual_display_fps_changed(int value);
-    void on_manual_backend_fps_changed(int value);
+    void on_manual_core_fps_changed(int value);
     void on_manual_processing_pixels_changed(int value);
 
 private:
@@ -71,9 +73,11 @@ private:
     QLabel* operator_profile_summary_label { nullptr };
     algorithm_panel* active_algorithm_panel { nullptr };
     QGroupBox* processing_policy_box { nullptr };
+    QFormLayout* processing_policy_form_ { nullptr };
+    QCheckBox* processing_advanced_checkbox { nullptr };
     QCheckBox* manual_processing_checkbox { nullptr };
     QSpinBox* manual_display_fps_spin { nullptr };
-    QSpinBox* manual_backend_fps_spin { nullptr };
+    QSpinBox* manual_core_fps_spin { nullptr };
     QSpinBox* manual_processing_pixels_spin { nullptr };
     QLabel* processing_summary_label { nullptr };
 
@@ -83,7 +87,7 @@ private:
     QRadioButton* active_mode_template_radio { nullptr };
     panel_mode mode_ { panel_mode::stream_settings };
     QString object_prefix_;
-    QString last_algorithm_id_ { default_frontend_algorithm_id() };
+    QString last_algorithm_id_ { default_app_algorithm_id() };
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_ACTIVE_STREAM_PANEL_HPP
+#endif // YODAU_APP_WIDGETS_ACTIVE_STREAM_PANEL_HPP

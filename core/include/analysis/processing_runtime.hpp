@@ -1,8 +1,10 @@
-#ifndef YODAU_BACKEND_ANALYSIS_PROCESSING_RUNTIME_HPP
-#define YODAU_BACKEND_ANALYSIS_PROCESSING_RUNTIME_HPP
+#ifndef YODAU_CORE_ANALYSIS_PROCESSING_RUNTIME_HPP
+#define YODAU_CORE_ANALYSIS_PROCESSING_RUNTIME_HPP
 
+#include "core/namespace_alias.hpp"
 #include "analysis/processing_algorithm.hpp"
 #include "analysis/processing_motion_region_filter.hpp"
+#include "analysis/processing_session_store.hpp"
 #include "streams/stream_manager.hpp"
 
 #include <functional>
@@ -12,15 +14,20 @@
 #include <string>
 #include <unordered_map>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 class processing_preview_router;
 class virtual_camera;
 
-enum class render_mode { backend_only, frontend_only };
+enum class render_mode {
+    core_only,
+    app_only,
+    backend_only = core_only,
+    frontend_only = app_only,
+};
 
 struct processing_runtime_options {
-    render_mode mode { render_mode::frontend_only };
+    render_mode mode { render_mode::app_only };
     bool enable_virtual_camera { false };
     // Default algorithm used for streams without an explicit override.
     std::string algorithm_id;
@@ -82,23 +89,15 @@ private:
     );
     std::shared_ptr<processing_algorithm>
     active_algorithm_for_stream(const std::string& stream_name);
-    std::string
-    resolved_algorithm_id_for_stream_locked(const std::string& stream_name) const;
-    void clear_latest_processing_result(const std::string& stream_name);
 
     processing_runtime_options runtime_options;
     processing_motion_region_filter motion_region_filter_value;
+    processing_session_store session_store_;
     std::unique_ptr<processing_preview_router> preview_router_value;
-    mutable std::mutex algorithms_mtx;
-    std::unordered_map<std::string, std::string> algorithm_overrides_by_stream;
-    std::unordered_map<std::string, std::shared_ptr<processing_algorithm>>
-        active_algorithms_by_stream;
-    mutable std::mutex latest_results_mtx;
-    std::unordered_map<std::string, processing_result> latest_results_by_stream;
     mutable std::mutex observer_mtx;
     processed_frame_observer_fn processed_frame_observer;
 };
 
 }
 
-#endif // YODAU_BACKEND_ANALYSIS_PROCESSING_RUNTIME_HPP
+#endif // YODAU_CORE_ANALYSIS_PROCESSING_RUNTIME_HPP

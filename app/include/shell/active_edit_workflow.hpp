@@ -1,8 +1,8 @@
-#ifndef YODAU_FRONTEND_SHELL_ACTIVE_EDIT_WORKFLOW_HPP
-#define YODAU_FRONTEND_SHELL_ACTIVE_EDIT_WORKFLOW_HPP
+#ifndef YODAU_APP_SHELL_ACTIVE_EDIT_WORKFLOW_HPP
+#define YODAU_APP_SHELL_ACTIVE_EDIT_WORKFLOW_HPP
 
-#include "shell/frontend_log.hpp"
-#include "shell/frontend_settings.hpp"
+#include "shell/app_log.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QString>
 #include <QVector>
@@ -17,7 +17,7 @@ class stream_cell;
 class active_edit_workflow final {
 public:
     struct transition_result {
-        QVector<frontend_log_entry> entries;
+        QVector<app_log_entry> entries;
         bool refresh_fps { false };
         bool update_monitor_inventory { false };
         QString monitor_marker;
@@ -44,6 +44,8 @@ public:
     [[nodiscard]] transition_result
     set_active_line_enabled(const QString& line_name, bool enabled) const;
     [[nodiscard]] transition_result
+    detach_active_line(const QString& line_name) const;
+    [[nodiscard]] transition_result
     apply_line_edit_preview(line_edit_request request) const;
     [[nodiscard]] transition_result clear_line_edit_preview() const;
     [[nodiscard]] transition_result
@@ -63,8 +65,8 @@ private:
     [[nodiscard]] stream_cell* checked_active_cell(
         const QString& fail_prefix, transition_result& result
     ) const;
-    [[nodiscard]] static frontend_log_entry make_active_entry(
-        const active_context& context, frontend_log_severity severity,
+    [[nodiscard]] static app_log_entry make_active_entry(
+        const active_context& context, app_log_severity severity,
         const QString& subsystem, const QString& message,
         const QString& detail = QString()
     );
@@ -76,4 +78,4 @@ private:
     active_edit_actions& edit_actions_;
 };
 
-#endif // YODAU_FRONTEND_SHELL_ACTIVE_EDIT_WORKFLOW_HPP
+#endif // YODAU_APP_SHELL_ACTIVE_EDIT_WORKFLOW_HPP

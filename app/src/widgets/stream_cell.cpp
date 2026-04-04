@@ -70,8 +70,8 @@ QColor color_with_alpha(QColor color, const int alpha) {
     return color;
 }
 
-QColor log_mode_badge_color(const frontend_log_mode mode) {
-    return mode == frontend_log_mode::debug
+QColor log_mode_badge_color(const app_log_mode mode) {
+    return mode == app_log_mode::debug
         ? QColor(QStringLiteral("#bc6c25"))
         : QColor(QStringLiteral("#3a5a40"));
 }
@@ -412,7 +412,7 @@ line_wave_style line_wave_style_for_line(
 }
 
 double event_region_scale(const stream_settings& settings_value) {
-    const QString algorithm_id = normalized_frontend_algorithm_id(
+    const QString algorithm_id = normalized_app_algorithm_id(
         settings_value.algorithm_id
     );
     const QString preset_id = normalized_algorithm_preset_id(
@@ -689,7 +689,7 @@ void draw_algorithm_overlay(
     const double radius, const QColor& color, const stream_settings& settings_value,
     const double life_k
 ) {
-    const QString algorithm_id = normalized_frontend_algorithm_id(
+    const QString algorithm_id = normalized_app_algorithm_id(
         settings_value.algorithm_id
     );
 
@@ -947,7 +947,7 @@ stream_cell::stream_cell(const QString& stream_name, QWidget* parent)
     , camera(nullptr)
     , session(nullptr) {
     stream_settings_value.stream_name = stream_name;
-    stream_settings_value.algorithm_id = default_frontend_algorithm_id();
+    stream_settings_value.algorithm_id = default_app_algorithm_id();
     stream_settings_value.algorithm_preset = default_algorithm_preset_id(
         stream_settings_value.algorithm_id
     );
@@ -993,7 +993,7 @@ stream_runtime_metrics stream_cell::current_runtime_metrics() const {
     return runtime_metrics_value;
 }
 
-frontend_log_mode stream_cell::current_log_mode() const {
+app_log_mode stream_cell::current_log_mode() const {
     return log_mode_value;
 }
 
@@ -1024,7 +1024,7 @@ void stream_cell::set_stream_settings(const stream_settings& settings_value) {
     if (stream_settings_value.stream_name.trimmed().isEmpty()) {
         stream_settings_value.stream_name = name;
     }
-    stream_settings_value.algorithm_id = normalized_frontend_algorithm_id(
+    stream_settings_value.algorithm_id = normalized_app_algorithm_id(
         stream_settings_value.algorithm_id
     );
     stream_settings_value.algorithm_preset = normalized_algorithm_preset_id(
@@ -1039,7 +1039,7 @@ void stream_cell::set_runtime_metrics(const stream_runtime_metrics& metrics) {
     update();
 }
 
-void stream_cell::set_log_mode(const frontend_log_mode mode) {
+void stream_cell::set_log_mode(const app_log_mode mode) {
     if (log_mode_value == mode) {
         return;
     }
@@ -2071,7 +2071,7 @@ void stream_cell::draw_stream_name(QPainter& p) const {
         stream_settings_value.algorithm_id
     );
     const QString log_badge_text = QStringLiteral("log %1").arg(
-        frontend_log_mode_name(log_mode_value)
+        app_log_mode_name(log_mode_value)
     );
     const QColor log_badge_fill = stream_cell_support::log_mode_badge_color(
         log_mode_value
@@ -2170,8 +2170,8 @@ void stream_cell::draw_runtime_metrics(QPainter& p) const {
                       : QStringLiteral("--")
               )
               .arg(
-                  runtime_metrics_value.backend_fps > 0.0
-                      ? QString::number(runtime_metrics_value.backend_fps, 'f', 1)
+                  runtime_metrics_value.core_fps > 0.0
+                      ? QString::number(runtime_metrics_value.core_fps, 'f', 1)
                       : QStringLiteral("--")
               )
         : metrics_text;

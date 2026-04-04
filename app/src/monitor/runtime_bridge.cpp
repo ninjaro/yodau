@@ -1,5 +1,6 @@
 #include "monitor/runtime_bridge.hpp"
 
+#include "core/namespace_alias.hpp"
 #include "monitor/debug_broadcaster.hpp"
 #include "monitor/process_memory_reader.hpp"
 #include "monitor/runtime_build_info.hpp"
@@ -126,17 +127,17 @@ void runtime_bridge::set_inventory(
 }
 
 void runtime_bridge::record_event_batch(
-    const std::vector<yodau::backend::event>& events
+    const std::vector<yodau::core::event>& events
 ) {
     if (events.empty()) {
         return;
     }
 
     QJsonArray event_array;
-    for (const yodau::backend::event& event : events) {
-        if (event.kind == yodau::backend::event_kind::tripwire) {
+    for (const yodau::core::event& event : events) {
+        if (event.kind == yodau::core::event_kind::tripwire) {
             ++state.tripwire_event_count;
-        } else if (event.kind == yodau::backend::event_kind::motion) {
+        } else if (event.kind == yodau::core::event_kind::motion) {
             ++state.motion_event_count;
         }
 
@@ -222,15 +223,15 @@ void runtime_bridge::on_broadcaster_warning(
     emit state_changed();
 }
 
-QString runtime_bridge::event_kind_to_string(yodau::backend::event_kind kind) {
+QString runtime_bridge::event_kind_to_string(yodau::core::event_kind kind) {
     switch (kind) {
-    case yodau::backend::event_kind::motion:
+    case yodau::core::event_kind::motion:
         return QStringLiteral("motion");
-    case yodau::backend::event_kind::tripwire:
+    case yodau::core::event_kind::tripwire:
         return QStringLiteral("tripwire");
-    case yodau::backend::event_kind::roi:
+    case yodau::core::event_kind::roi:
         return QStringLiteral("roi");
-    case yodau::backend::event_kind::info:
+    case yodau::core::event_kind::info:
     default:
         return QStringLiteral("info");
     }
@@ -244,7 +245,7 @@ qint64 runtime_bridge::monotonic_timestamp_ms() const {
 }
 
 qint64
-runtime_bridge::event_timestamp_ms(const yodau::backend::event& event) const {
+runtime_bridge::event_timestamp_ms(const yodau::core::event& event) const {
     const qint64 timestamp_ms
         = std::chrono::duration_cast<std::chrono::milliseconds>(
               event.ts - session_start_steady

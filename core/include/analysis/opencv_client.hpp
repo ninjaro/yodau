@@ -1,8 +1,9 @@
-#ifndef YODAU_BACKEND_OPENCV_CLIENT_HPP
-#define YODAU_BACKEND_OPENCV_CLIENT_HPP
+#ifndef YODAU_CORE_OPENCV_CLIENT_HPP
+#define YODAU_CORE_OPENCV_CLIENT_HPP
 
 #ifdef YODAU_OPENCV
 
+#include "core/namespace_alias.hpp"
 #include "analysis/tripwire_grid_stream_index.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
@@ -20,7 +21,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 class opencv_client {
 public:
@@ -123,4 +124,4 @@ std::vector<event> opencv_motion_processor(const stream& s, const frame& f);
 }
 
 #endif
-#endif // YODAU_BACKEND_OPENCV_CLIENT_HPP
+#endif // YODAU_CORE_OPENCV_CLIENT_HPP

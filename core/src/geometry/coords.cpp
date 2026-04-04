@@ -1,6 +1,6 @@
 #include "geometry/coords.hpp"
 
-int yodau::backend::clamp_int(const int v, const int lo, const int hi) {
+int yodau::core::clamp_int(const int v, const int lo, const int hi) {
     if (v < lo) {
         return lo;
     }
@@ -10,7 +10,7 @@ int yodau::backend::clamp_int(const int v, const int lo, const int hi) {
     return v;
 }
 
-float yodau::backend::clamp_float(
+float yodau::core::clamp_float(
     const float v, const float lo, const float hi
 ) {
     if (v < lo) {
@@ -22,7 +22,7 @@ float yodau::backend::clamp_float(
     return v;
 }
 
-int yodau::backend::pct_to_px(const float pct, const int size) {
+int yodau::core::pct_to_px(const float pct, const int size) {
     if (size <= 0) {
         return 0;
     }
@@ -40,7 +40,7 @@ int yodau::backend::pct_to_px(const float pct, const int size) {
     return px;
 }
 
-float yodau::backend::px_to_pct(const int px, const int size) {
+float yodau::core::px_to_pct(const int px, const int size) {
     if (size <= 0) {
         return 0.0f;
     }
@@ -49,7 +49,7 @@ float yodau::backend::px_to_pct(const int px, const int size) {
     return static_cast<float>(pxi) * 100.0f / static_cast<float>(size);
 }
 
-yodau::backend::px_point yodau::backend::pct_point_to_px(
+yodau::core::px_point yodau::core::pct_point_to_px(
     const point& p, const int width, const int height
 ) {
     px_point out {};
@@ -58,7 +58,7 @@ yodau::backend::px_point yodau::backend::pct_point_to_px(
     return out;
 }
 
-yodau::backend::point yodau::backend::px_point_to_pct(
+yodau::core::point yodau::core::px_point_to_pct(
     const px_point& p, const int width, const int height
 ) {
     point out {};
@@ -67,8 +67,8 @@ yodau::backend::point yodau::backend::px_point_to_pct(
     return out;
 }
 
-yodau::backend::grid_point
-yodau::backend::pct_point_to_grid(const point& p, const grid_dims& g) {
+yodau::core::grid_point
+yodau::core::pct_point_to_grid(const point& p, const grid_dims& g) {
     grid_point out {};
     if (g.nx <= 0 || g.ny <= 0) {
         return out;
@@ -98,15 +98,15 @@ yodau::backend::pct_point_to_grid(const point& p, const grid_dims& g) {
     return out;
 }
 
-yodau::backend::grid_point yodau::backend::px_point_to_grid(
+yodau::core::grid_point yodau::core::px_point_to_grid(
     const px_point& p, const int width, const int height, const grid_dims& g
 ) {
     const point pct = px_point_to_pct(p, width, height);
     return pct_point_to_grid(pct, g);
 }
 
-yodau::backend::cell_bounds_pct
-yodau::backend::grid_cell_bounds_pct(const grid_point& c, const grid_dims& g) {
+yodau::core::cell_bounds_pct
+yodau::core::grid_cell_bounds_pct(const grid_point& c, const grid_dims& g) {
     cell_bounds_pct b {};
     if (g.nx <= 0 || g.ny <= 0) {
         return b;
@@ -123,8 +123,8 @@ yodau::backend::grid_cell_bounds_pct(const grid_point& c, const grid_dims& g) {
     return b;
 }
 
-yodau::backend::point
-yodau::backend::grid_cell_center_pct(const grid_point& c, const grid_dims& g) {
+yodau::core::point
+yodau::core::grid_cell_center_pct(const grid_point& c, const grid_dims& g) {
     const auto b = grid_cell_bounds_pct(c, g);
 
     point out {};
@@ -133,7 +133,7 @@ yodau::backend::grid_cell_center_pct(const grid_point& c, const grid_dims& g) {
     return out;
 }
 
-int yodau::backend::grid_index(const grid_point& c, const grid_dims& g) {
+int yodau::core::grid_index(const grid_point& c, const grid_dims& g) {
     if (g.nx <= 0 || g.ny <= 0) {
         return 0;
     }
@@ -143,8 +143,8 @@ int yodau::backend::grid_index(const grid_point& c, const grid_dims& g) {
     return cy * g.nx + cx;
 }
 
-yodau::backend::grid_point
-yodau::backend::clamp_grid_point(const grid_point& c, const grid_dims& g) {
+yodau::core::grid_point
+yodau::core::clamp_grid_point(const grid_point& c, const grid_dims& g) {
     grid_point out {};
 
     if (g.nx <= 0 || g.ny <= 0) {
@@ -156,7 +156,7 @@ yodau::backend::clamp_grid_point(const grid_point& c, const grid_dims& g) {
     return out;
 }
 
-std::vector<yodau::backend::grid_point> yodau::backend::trace_grid_cells(
+std::vector<yodau::core::grid_point> yodau::core::trace_grid_cells(
     const grid_point& a, const grid_point& b, const grid_dims& g
 ) {
     std::vector<grid_point> out;
@@ -203,7 +203,7 @@ std::vector<yodau::backend::grid_point> yodau::backend::trace_grid_cells(
     return out;
 }
 
-std::vector<yodau::backend::grid_point> yodau::backend::trace_grid_cells_pct(
+std::vector<yodau::core::grid_point> yodau::core::trace_grid_cells_pct(
     const point& a_pct, const point& b_pct, const grid_dims& g
 ) {
     const grid_point a = pct_point_to_grid(a_pct, g);

@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 namespace processing_motion_region_filter_support {
 
@@ -291,4 +291,4 @@ processing_result processing_motion_region_filter::apply(
     return result;
 }
 
-} // namespace yodau::backend
+} // namespace yodau::core

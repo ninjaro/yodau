@@ -1,13 +1,14 @@
-#ifndef YODAU_BACKEND_TRIPWIRE_GRID_STREAM_INDEX_HPP
-#define YODAU_BACKEND_TRIPWIRE_GRID_STREAM_INDEX_HPP
+#ifndef YODAU_CORE_TRIPWIRE_GRID_STREAM_INDEX_HPP
+#define YODAU_CORE_TRIPWIRE_GRID_STREAM_INDEX_HPP
 
+#include "core/namespace_alias.hpp"
 #include "analysis/tripwire_grid_index.hpp"
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 struct pct_bbox {
     float min_x {};
@@ -61,4 +62,4 @@ void collect_grid_candidates(
 );
 }
 
-#endif // YODAU_BACKEND_TRIPWIRE_GRID_STREAM_INDEX_HPP
+#endif // YODAU_CORE_TRIPWIRE_GRID_STREAM_INDEX_HPP

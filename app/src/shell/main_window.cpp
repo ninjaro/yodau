@@ -1,5 +1,6 @@
 #include "shell/main_window.hpp"
 
+#include "core/namespace_alias.hpp"
 #include "shell/stream_controller.hpp"
 #include "shell/str_label.hpp"
 #include "monitor/runtime_bridge.hpp"
@@ -19,8 +20,8 @@ main_window::main_window(
     , toggle_debug_monitor_action(nullptr)
     , debug_monitor_status_label(nullptr) {
     setup_platform_layout();
-    backend_manager = std::make_unique<yodau::backend::stream_manager>();
-    auto* mgr = backend_manager.get();
+    core_manager = std::make_unique<yodau::core::stream_manager>();
+    auto* mgr = core_manager.get();
 
     debug_monitor = new yodau::monitor::runtime_bridge(
         yodau::monitor::runtime_bridge::runtime_options {

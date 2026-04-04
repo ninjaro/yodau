@@ -1,6 +1,7 @@
-#ifndef YODAU_FRONTEND_MONITOR_RUNTIME_BRIDGE_HPP
-#define YODAU_FRONTEND_MONITOR_RUNTIME_BRIDGE_HPP
+#ifndef YODAU_APP_MONITOR_RUNTIME_BRIDGE_HPP
+#define YODAU_APP_MONITOR_RUNTIME_BRIDGE_HPP
 
+#include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "monitor/debug_probe.hpp"
 
@@ -39,7 +40,7 @@ public:
         int configured_streams, int visible_streams, int active_streams,
         int configured_lines, int detected_local_sources
     );
-    void record_event_batch(const std::vector<yodau::backend::event>& events);
+    void record_event_batch(const std::vector<yodau::core::event>& events);
     void add_marker(const QString& label);
 
     bool is_enabled() const;
@@ -76,9 +77,9 @@ private:
     qint64 event_sequence;
     qint64 sample_tick_count;
 
-    static QString event_kind_to_string(yodau::backend::event_kind kind);
+    static QString event_kind_to_string(yodau::core::event_kind kind);
     qint64 monotonic_timestamp_ms() const;
-    qint64 event_timestamp_ms(const yodau::backend::event& event) const;
+    qint64 event_timestamp_ms(const yodau::core::event& event) const;
     debug_probe::protocol_identity identity() const;
     static void
     append_sample(QJsonArray& samples, const QString& metric_id, qint64 value);
@@ -96,4 +97,4 @@ private:
 
 } // namespace yodau::monitor
 
-#endif // YODAU_FRONTEND_MONITOR_RUNTIME_BRIDGE_HPP
+#endif // YODAU_APP_MONITOR_RUNTIME_BRIDGE_HPP

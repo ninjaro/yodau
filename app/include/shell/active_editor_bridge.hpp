@@ -1,7 +1,7 @@
-#ifndef YODAU_FRONTEND_SHELL_ACTIVE_EDITOR_BRIDGE_HPP
-#define YODAU_FRONTEND_SHELL_ACTIVE_EDITOR_BRIDGE_HPP
+#ifndef YODAU_APP_SHELL_ACTIVE_EDITOR_BRIDGE_HPP
+#define YODAU_APP_SHELL_ACTIVE_EDITOR_BRIDGE_HPP
 
-#include "shell/frontend_settings.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QString>
 
@@ -46,4 +46,4 @@ private:
     grid_view* grid_ { nullptr };
 };
 
-#endif // YODAU_FRONTEND_SHELL_ACTIVE_EDITOR_BRIDGE_HPP
+#endif // YODAU_APP_SHELL_ACTIVE_EDITOR_BRIDGE_HPP

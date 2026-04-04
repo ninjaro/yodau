@@ -1,6 +1,6 @@
 #include "widgets/log_area_view.hpp"
 
-#include "shell/frontend_settings.hpp"
+#include "shell/app_settings.hpp"
 #include "widgets/log_toolbar_panel.hpp"
 
 #include <QFont>
@@ -19,15 +19,15 @@ QTextCharFormat format_with_color(
     return format;
 }
 
-QColor severity_color(const frontend_log_severity severity) {
+QColor severity_color(const app_log_severity severity) {
     switch (severity) {
-    case frontend_log_severity::debug:
+    case app_log_severity::debug:
         return QColor(QStringLiteral("#9ca3af"));
-    case frontend_log_severity::warning:
+    case app_log_severity::warning:
         return QColor(QStringLiteral("#f4a261"));
-    case frontend_log_severity::error:
+    case app_log_severity::error:
         return QColor(QStringLiteral("#e63946"));
-    case frontend_log_severity::info:
+    case app_log_severity::info:
     default:
         return QColor(QStringLiteral("#dce1de"));
     }
@@ -65,8 +65,8 @@ protected:
             return;
         }
 
-        const frontend_log_entry& entry = entries.at(block_index);
-        const frontend_log_mode mode = owner_->active_mode();
+        const app_log_entry& entry = entries.at(block_index);
+        const app_log_mode mode = owner_->active_mode();
 
         const qsizetype timestamp_end = text.indexOf(']');
         if (timestamp_end >= 0) {
@@ -76,7 +76,7 @@ protected:
             );
         }
 
-        const QString severity_token = frontend_log_severity_name(entry.severity);
+        const QString severity_token = app_log_severity_name(entry.severity);
         const qsizetype severity_index = text.indexOf(severity_token);
         if (severity_index >= 0) {
             setFormat(
@@ -88,7 +88,7 @@ protected:
 
         highlight_token(
             text,
-            mode == frontend_log_mode::debug
+            mode == app_log_mode::debug
                 ? QStringLiteral("stream=%1").arg(entry.stream_name)
                 : entry.stream_name,
             format_with_color(QColor(QStringLiteral("#74c0fc")), true)
@@ -107,7 +107,7 @@ protected:
 
         highlight_token(
             text,
-            mode == frontend_log_mode::debug
+            mode == app_log_mode::debug
                 ? QStringLiteral("event=%1").arg(entry.event_type)
                 : entry.event_type,
             format_with_color(event_color(entry.event_type), true)
@@ -145,7 +145,7 @@ private:
 } // namespace
 
 log_area_view::log_area_view(
-    const std::optional<frontend_log_area> area, QWidget* parent
+    const std::optional<app_log_area> area, QWidget* parent
 )
     : QPlainTextEdit(parent)
     , log_area(area) {
@@ -175,7 +175,7 @@ void log_area_view::set_log_toolbar(log_toolbar_panel* toolbar) {
     rebuild_from_toolbar();
 }
 
-bool log_area_view::append_entry(const frontend_log_entry& entry) const {
+bool log_area_view::append_entry(const app_log_entry& entry) const {
     if (log_area.has_value() && entry.area != *log_area) {
         return false;
     }
@@ -188,9 +188,9 @@ bool log_area_view::append_entry(const frontend_log_entry& entry) const {
     const auto self = const_cast<log_area_view*>(this);
     self->visible_entries_.push_back(entry);
     self->appendPlainText(
-        format_frontend_log_entry(
+        format_app_log_entry(
             log_toolbar_widget != nullptr ? log_toolbar_widget->log_mode()
-                                          : frontend_log_mode::release,
+                                          : app_log_mode::release,
             entry
         )
     );
@@ -209,26 +209,26 @@ void log_area_view::rebuild_from_toolbar() const {
     self->set_visible_entries(log_toolbar_widget->filtered_entries(log_area));
 }
 
-const QVector<frontend_log_entry>& log_area_view::visible_entries() const {
+const QVector<app_log_entry>& log_area_view::visible_entries() const {
     return visible_entries_;
 }
 
-frontend_log_mode log_area_view::active_mode() const {
+app_log_mode log_area_view::active_mode() const {
     return log_toolbar_widget != nullptr ? log_toolbar_widget->log_mode()
-                                         : frontend_log_mode::release;
+                                         : app_log_mode::release;
 }
 
 void log_area_view::set_visible_entries(
-    const QVector<frontend_log_entry>& entries
+    const QVector<app_log_entry>& entries
 ) const {
     visible_entries_ = entries;
 
     QStringList lines;
     lines.reserve(visible_entries_.size());
-    const frontend_log_mode mode = active_mode();
+    const app_log_mode mode = active_mode();
 
-    for (const frontend_log_entry& entry : visible_entries_) {
-        lines.push_back(format_frontend_log_entry(mode, entry));
+    for (const app_log_entry& entry : visible_entries_) {
+        lines.push_back(format_app_log_entry(mode, entry));
     }
 
     const auto self = const_cast<log_area_view*>(this);

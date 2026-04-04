@@ -1,10 +1,11 @@
-#ifndef YODAU_BACKEND_GEOMETRY_HPP
-#define YODAU_BACKEND_GEOMETRY_HPP
+#ifndef YODAU_CORE_GEOMETRY_HPP
+#define YODAU_CORE_GEOMETRY_HPP
+#include "core/namespace_alias.hpp"
 #include <memory>
 #include <string>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 struct point {
     float x {}; // percentage [0.0; 100.0]
     float y {}; // percentage [0.0; 100.0]
@@ -18,8 +19,8 @@ struct point {
 
 enum class tripwire_dir { any, neg_to_pos, pos_to_neg };
 
-// Core backend line geometry stays intentionally minimal. Width, string-length,
-// damping, or other richer semantics belong in frontend-only settings today
+// Core line geometry stays intentionally minimal. Width, string-length,
+// damping, or other richer semantics belong in app-only settings today
 // and should move into a separate profile type later rather than widening this
 // geometry struct implicitly.
 struct line {
@@ -35,7 +36,7 @@ struct line {
 
 // Richer line or string semantics live beside `line` instead of widening the
 // core geometry struct. The current runtime does not consume this profile yet,
-// but it provides a backend-owned foothold for future width/response settings.
+// but it provides a core-owned foothold for future width/response settings.
 struct line_profile {
     std::string line_name;
     float visual_width { 1.0f };
@@ -64,4 +65,4 @@ float parse_float(std::string_view num_str);
 
 }
 
-#endif // YODAU_BACKEND_GEOMETRY_HPP
+#endif // YODAU_CORE_GEOMETRY_HPP

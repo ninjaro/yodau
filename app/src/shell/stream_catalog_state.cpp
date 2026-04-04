@@ -25,9 +25,9 @@ stream_settings stream_catalog_state::default_stream_settings(
     return normalized_stream_settings(stream_settings {
         .stream_name = normalized_stream_name(stream_name),
         .labels_enabled = true,
-        .algorithm_id = default_frontend_algorithm_id(),
+        .algorithm_id = default_app_algorithm_id(),
         .algorithm_preset = default_algorithm_preset_id(
-            default_frontend_algorithm_id()
+            default_app_algorithm_id()
         ),
     });
 }
@@ -37,7 +37,7 @@ stream_settings stream_catalog_state::normalized_stream_settings(
 ) {
     settings_value.stream_name = normalized_stream_name(settings_value.stream_name);
     settings_value.algorithm_id
-        = normalized_frontend_algorithm_id(settings_value.algorithm_id);
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
     settings_value.algorithm_preset = normalized_algorithm_preset_id(
         settings_value.algorithm_id, settings_value.algorithm_preset
     );
@@ -45,9 +45,9 @@ stream_settings stream_catalog_state::normalized_stream_settings(
         = stream_catalog_state_support::normalized_manual_fps(
             settings_value.manual_display_fps, default_manual_display_fps()
         );
-    settings_value.manual_backend_fps
+    settings_value.manual_core_fps
         = stream_catalog_state_support::normalized_manual_fps(
-            settings_value.manual_backend_fps, default_manual_backend_fps()
+            settings_value.manual_core_fps, default_manual_core_fps()
         );
     settings_value.manual_processing_pixels
         = stream_catalog_state_support::normalized_manual_processing_pixels(
@@ -57,11 +57,11 @@ stream_settings stream_catalog_state::normalized_stream_settings(
 }
 
 QStringList stream_catalog_state::detected_local_sources(
-    const std::vector<std::string>& backend_names
+    const std::vector<std::string>& core_names
 ) {
     QStringList locals;
 
-    for (const std::string& name : backend_names) {
+    for (const std::string& name : core_names) {
         const QString qname = normalized_stream_name(QString::fromStdString(name));
         if (!qname.isEmpty() && qname.startsWith(QStringLiteral("video"))) {
             locals.push_back(qname);

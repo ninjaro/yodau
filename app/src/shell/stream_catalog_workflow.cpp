@@ -1,5 +1,6 @@
 #include "shell/stream_catalog_workflow.hpp"
 
+#include "core/namespace_alias.hpp"
 #include "shell/stream_catalog_state.hpp"
 #include "shell/stream_route_state.hpp"
 #include "shell/stream_widget_bridge.hpp"
@@ -13,7 +14,7 @@
 #include <utility>
 
 stream_catalog_workflow::stream_catalog_workflow(
-    yodau::backend::stream_manager* stream_mgr, settings_panel* settings,
+    yodau::core::stream_manager* stream_mgr, settings_panel* settings,
     stream_catalog_state& catalog_state, stream_widget_bridge& widget_bridge
 )
     : stream_mgr_(stream_mgr)
@@ -21,7 +22,7 @@ stream_catalog_workflow::stream_catalog_workflow(
     , catalog_state_(catalog_state)
     , widget_bridge_(widget_bridge) {}
 
-void stream_catalog_workflow::seed_from_backend() const {
+void stream_catalog_workflow::seed_from_core() const {
     if (stream_mgr_ == nullptr) {
         return;
     }
@@ -52,9 +53,9 @@ stream_catalog_workflow::detect_local_sources() const {
     const auto cameras = QMediaDevices::videoInputs();
     transition.entries.push_back(
         make_add_entry(
-            frontend_log_severity::info, QStringLiteral("local_sources"),
+            app_log_severity::info, QStringLiteral("local_sources"),
             QStringLiteral("local source inventory refreshed"), QString(),
-            QStringLiteral("backend=%1 qt=%2")
+            QStringLiteral("core=%1 qt=%2")
                 .arg(locals.size())
                 .arg(cameras.size())
         )
@@ -79,7 +80,7 @@ stream_catalog_workflow::add_stream(
     if (!validation.valid) {
         transition.entries.push_back(
             make_add_entry(
-                frontend_log_severity::warning, QStringLiteral("stream_add"),
+                app_log_severity::warning, QStringLiteral("stream_add"),
                 validation.message, name, validation.detail
             )
         );
@@ -98,7 +99,7 @@ stream_catalog_workflow::add_stream(
 
         transition.entries.push_back(
             make_add_entry(
-                frontend_log_severity::info, QStringLiteral("stream_add"),
+                app_log_severity::info, QStringLiteral("stream_add"),
                 QStringLiteral("stream added"), final_name, source_desc
             )
         );
@@ -111,7 +112,7 @@ stream_catalog_workflow::add_stream(
     } catch (const std::exception& error) {
         transition.entries.push_back(
             make_add_entry(
-                frontend_log_severity::error, QStringLiteral("stream_add"),
+                app_log_severity::error, QStringLiteral("stream_add"),
                 QStringLiteral("add %1 stream failed").arg(type), name,
                 QString::fromLocal8Bit(error.what())
             )
@@ -120,13 +121,13 @@ stream_catalog_workflow::add_stream(
     }
 }
 
-frontend_log_entry stream_catalog_workflow::make_add_entry(
-    const frontend_log_severity severity, const QString& subsystem,
+app_log_entry stream_catalog_workflow::make_add_entry(
+    const app_log_severity severity, const QString& subsystem,
     const QString& message, const QString& stream_name, const QString& detail
 ) {
-    return frontend_log_entry {
+    return app_log_entry {
         .timestamp = QDateTime(),
-        .area = frontend_log_area::add,
+        .area = app_log_area::add,
         .severity = severity,
         .subsystem = subsystem,
         .stream_name = stream_name,
@@ -144,7 +145,7 @@ QString stream_catalog_workflow::unknown_source_description() {
 }
 
 QString stream_catalog_workflow::describe_stream_source(
-    const yodau::backend::stream_manager& stream_mgr, const std::string& name
+    const yodau::core::stream_manager& stream_mgr, const std::string& name
 ) {
     const auto stream_ptr = stream_mgr.find_stream(name);
     if (!stream_ptr) {
@@ -153,7 +154,7 @@ QString stream_catalog_workflow::describe_stream_source(
 
     const QString path = QString::fromStdString(stream_ptr->get_path());
     const QString type = QString::fromStdString(
-        yodau::backend::stream::type_name(stream_ptr->get_type())
+        yodau::core::stream::type_name(stream_ptr->get_type())
     );
     return QStringLiteral("%1:%2").arg(type, path);
 }

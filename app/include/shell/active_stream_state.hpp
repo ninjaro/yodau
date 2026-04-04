@@ -1,7 +1,7 @@
-#ifndef YODAU_FRONTEND_SHELL_ACTIVE_STREAM_STATE_HPP
-#define YODAU_FRONTEND_SHELL_ACTIVE_STREAM_STATE_HPP
+#ifndef YODAU_APP_SHELL_ACTIVE_STREAM_STATE_HPP
+#define YODAU_APP_SHELL_ACTIVE_STREAM_STATE_HPP
 
-#include "shell/frontend_settings.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QString>
 
@@ -53,4 +53,4 @@ private:
     active_edit_session& edit_session_;
 };
 
-#endif // YODAU_FRONTEND_SHELL_ACTIVE_STREAM_STATE_HPP
+#endif // YODAU_APP_SHELL_ACTIVE_STREAM_STATE_HPP

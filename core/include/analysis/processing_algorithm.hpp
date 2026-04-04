@@ -1,6 +1,7 @@
-#ifndef YODAU_BACKEND_ANALYSIS_PROCESSING_ALGORITHM_HPP
-#define YODAU_BACKEND_ANALYSIS_PROCESSING_ALGORITHM_HPP
+#ifndef YODAU_CORE_ANALYSIS_PROCESSING_ALGORITHM_HPP
+#define YODAU_CORE_ANALYSIS_PROCESSING_ALGORITHM_HPP
 
+#include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
@@ -17,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 struct processing_metric {
     std::string name;
@@ -161,6 +162,6 @@ private:
     std::unordered_map<std::string, entry> entries_;
 };
 
-} // namespace yodau::backend
+} // namespace yodau::core
 
-#endif // YODAU_BACKEND_ANALYSIS_PROCESSING_ALGORITHM_HPP
+#endif // YODAU_CORE_ANALYSIS_PROCESSING_ALGORITHM_HPP

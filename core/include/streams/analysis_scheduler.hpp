@@ -1,12 +1,13 @@
-#ifndef YODAU_BACKEND_ANALYSIS_SCHEDULER_HPP
-#define YODAU_BACKEND_ANALYSIS_SCHEDULER_HPP
+#ifndef YODAU_CORE_ANALYSIS_SCHEDULER_HPP
+#define YODAU_CORE_ANALYSIS_SCHEDULER_HPP
 
+#include "core/namespace_alias.hpp"
 #include <chrono>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 class analysis_scheduler {
 public:
@@ -29,6 +30,6 @@ private:
     mutable std::mutex mtx;
 };
 
-} // namespace yodau::backend
+} // namespace yodau::core
 
-#endif // YODAU_BACKEND_ANALYSIS_SCHEDULER_HPP
+#endif // YODAU_CORE_ANALYSIS_SCHEDULER_HPP

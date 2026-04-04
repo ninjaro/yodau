@@ -1,7 +1,8 @@
-#ifndef YODAU_FRONTEND_SHELL_PROCESSING_FEEDBACK_STATE_HPP
-#define YODAU_FRONTEND_SHELL_PROCESSING_FEEDBACK_STATE_HPP
+#ifndef YODAU_APP_SHELL_PROCESSING_FEEDBACK_STATE_HPP
+#define YODAU_APP_SHELL_PROCESSING_FEEDBACK_STATE_HPP
 
-#include "shell/frontend_log.hpp"
+#include "core/namespace_alias.hpp"
+#include "shell/app_log.hpp"
 #include "streams/event.hpp"
 
 #include <QColor>
@@ -28,7 +29,7 @@ public:
         QString kind_text;
         QString log_message;
         QString log_detail;
-        frontend_log_severity log_severity { frontend_log_severity::info };
+        app_log_severity log_severity { app_log_severity::info };
         std::optional<QPointF> overlay_position_pct;
         QColor overlay_color;
         std::optional<tripwire_visual_feedback> tripwire_visual;
@@ -37,13 +38,13 @@ public:
     };
 
     processed_event consume_event(
-        const yodau::backend::event& event_value,
+        const yodau::core::event& event_value,
         const QDateTime& current_time = QDateTime::currentDateTime()
     );
 
     int recent_motion_count();
 
-    static QString event_kind_text(yodau::backend::event_kind kind);
+    static QString event_kind_text(yodau::core::event_kind kind);
 
 private:
     QHash<QString, QDateTime> last_gui_motion_event_ts_;
@@ -51,4 +52,4 @@ private:
     std::deque<std::chrono::steady_clock::time_point> recent_motion_events_;
 };
 
-#endif // YODAU_FRONTEND_SHELL_PROCESSING_FEEDBACK_STATE_HPP
+#endif // YODAU_APP_SHELL_PROCESSING_FEEDBACK_STATE_HPP

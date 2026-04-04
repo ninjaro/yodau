@@ -1,6 +1,7 @@
-#ifndef YODAU_BACKEND_CLI_CLI_LOG_HPP
-#define YODAU_BACKEND_CLI_CLI_LOG_HPP
+#ifndef YODAU_CORE_CLI_CLI_LOG_HPP
+#define YODAU_CORE_CLI_CLI_LOG_HPP
 
+#include "core/namespace_alias.hpp"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -11,7 +12,7 @@
 #include <string>
 #include <string_view>
 
-namespace yodau::backend {
+namespace yodau::core {
 
 enum class cli_log_scope { command, event };
 enum class cli_log_severity { debug, info, warning, error };
@@ -23,6 +24,9 @@ struct cli_log_entry {
     cli_log_severity severity { cli_log_severity::info };
     std::string subsystem;
     std::string stream_name;
+    std::string line_name;
+    std::string algorithm_id;
+    std::string event_type;
     std::string message;
     std::string detail;
 };
@@ -30,6 +34,9 @@ struct cli_log_entry {
 struct cli_log_filter {
     std::optional<cli_log_severity> severity;
     std::string stream_name;
+    std::string line_name;
+    std::string algorithm_id;
+    std::string event_type;
     std::string subsystem;
 };
 
@@ -181,6 +188,19 @@ inline bool cli_log_entry_matches(
         return false;
     }
 
+    if (!filter.line_name.empty() && entry.line_name != filter.line_name) {
+        return false;
+    }
+
+    if (!filter.algorithm_id.empty()
+        && entry.algorithm_id != filter.algorithm_id) {
+        return false;
+    }
+
+    if (!filter.event_type.empty() && entry.event_type != filter.event_type) {
+        return false;
+    }
+
     if (!filter.subsystem.empty() && entry.subsystem != filter.subsystem) {
         return false;
     }
@@ -203,6 +223,15 @@ format_cli_log_entry(const cli_log_mode mode, const cli_log_entry& entry) {
         if (!entry.stream_name.empty()) {
             out << " stream=" << entry.stream_name;
         }
+        if (!entry.line_name.empty()) {
+            out << " line=" << entry.line_name;
+        }
+        if (!entry.algorithm_id.empty()) {
+            out << " alg=" << entry.algorithm_id;
+        }
+        if (!entry.event_type.empty()) {
+            out << " event=" << entry.event_type;
+        }
         if (!entry.message.empty()) {
             out << ' ' << entry.message;
         }
@@ -219,6 +248,12 @@ format_cli_log_entry(const cli_log_mode mode, const cli_log_entry& entry) {
     if (!entry.stream_name.empty()) {
         out << ' ' << entry.stream_name;
     }
+    if (!entry.event_type.empty()) {
+        out << ' ' << entry.event_type;
+    }
+    if (!entry.line_name.empty()) {
+        out << " line=" << entry.line_name;
+    }
     if (!entry.message.empty()) {
         out << ' ' << entry.message;
     }
@@ -226,6 +261,6 @@ format_cli_log_entry(const cli_log_mode mode, const cli_log_entry& entry) {
     return out.str();
 }
 
-} // namespace yodau::backend
+} // namespace yodau::core
 
-#endif // YODAU_BACKEND_CLI_CLI_LOG_HPP
+#endif // YODAU_CORE_CLI_CLI_LOG_HPP

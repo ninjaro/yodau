@@ -1,7 +1,7 @@
-#ifndef YODAU_FRONTEND_SHELL_STREAM_CATALOG_STATE_HPP
-#define YODAU_FRONTEND_SHELL_STREAM_CATALOG_STATE_HPP
+#ifndef YODAU_APP_SHELL_STREAM_CATALOG_STATE_HPP
+#define YODAU_APP_SHELL_STREAM_CATALOG_STATE_HPP
 
-#include "shell/frontend_settings.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QMap>
 #include <QStringList>
@@ -17,7 +17,7 @@ public:
         stream_settings settings_value
     );
     static QStringList detected_local_sources(
-        const std::vector<std::string>& backend_names
+        const std::vector<std::string>& core_names
     );
 
     void ensure_stream(const QString& stream_name);
@@ -32,4 +32,4 @@ private:
     QMap<QString, stream_settings> settings_by_stream_;
 };
 
-#endif // YODAU_FRONTEND_SHELL_STREAM_CATALOG_STATE_HPP
+#endif // YODAU_APP_SHELL_STREAM_CATALOG_STATE_HPP

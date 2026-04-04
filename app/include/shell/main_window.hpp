@@ -1,5 +1,7 @@
-#ifndef YODAU_FRONTEND_SHELL_MAIN_WINDOW_HPP
-#define YODAU_FRONTEND_SHELL_MAIN_WINDOW_HPP
+#ifndef YODAU_APP_SHELL_MAIN_WINDOW_HPP
+#define YODAU_APP_SHELL_MAIN_WINDOW_HPP
+
+#include "core/namespace_alias.hpp"
 
 #ifdef KC_KDE
 #include <KXmlGuiWindow>
@@ -12,7 +14,7 @@ using base_main_window = QMainWindow;
 #include <QString>
 #include <memory>
 
-namespace yodau::backend {
+namespace yodau::core {
 class stream_manager;
 }
 
@@ -48,7 +50,7 @@ private:
 
     stream_board* main_zone;
     settings_panel* settings;
-    std::unique_ptr<yodau::backend::stream_manager> backend_manager;
+    std::unique_ptr<yodau::core::stream_manager> core_manager;
     stream_controller* app_stream_controller;
     yodau::monitor::runtime_bridge* debug_monitor;
     QAction* toggle_debug_monitor_action;
@@ -60,4 +62,4 @@ private:
     QDockWidget* log_dock { nullptr };
 };
 
-#endif // YODAU_FRONTEND_SHELL_MAIN_WINDOW_HPP
+#endif // YODAU_APP_SHELL_MAIN_WINDOW_HPP

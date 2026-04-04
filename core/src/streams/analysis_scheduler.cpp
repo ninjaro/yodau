@@ -1,6 +1,6 @@
 #include "streams/analysis_scheduler.hpp"
 
-namespace yodau::backend {
+namespace yodau::core {
 
 void analysis_scheduler::set_default_interval_ms(const int ms) {
     if (ms <= 0) {
@@ -76,4 +76,4 @@ bool analysis_scheduler::should_process(
     return true;
 }
 
-} // namespace yodau::backend
+} // namespace yodau::core

@@ -1,5 +1,6 @@
-#ifndef YODAU_BACKEND_STREAM_MANAGER_HPP
-#define YODAU_BACKEND_STREAM_MANAGER_HPP
+#ifndef YODAU_CORE_STREAM_MANAGER_HPP
+#define YODAU_CORE_STREAM_MANAGER_HPP
+#include "core/namespace_alias.hpp"
 #include "streams/analysis_scheduler.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
@@ -11,7 +12,7 @@
 #include <thread>
 #include <unordered_map>
 
-namespace yodau::backend {
+namespace yodau::core {
 class stream_manager {
 public:
     using local_stream_detector_fn = std::function<std::vector<stream>()>;
@@ -129,4 +130,4 @@ private:
 };
 }
 
-#endif // YODAU_BACKEND_STREAM_MANAGER_HPP
+#endif // YODAU_CORE_STREAM_MANAGER_HPP

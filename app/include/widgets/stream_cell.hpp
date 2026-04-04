@@ -1,8 +1,8 @@
-#ifndef YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP
-#define YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP
+#ifndef YODAU_APP_WIDGETS_STREAM_CELL_HPP
+#define YODAU_APP_WIDGETS_STREAM_CELL_HPP
 
-#include "shell/frontend_settings.hpp"
-#include "shell/frontend_log.hpp"
+#include "shell/app_settings.hpp"
+#include "shell/app_log.hpp"
 
 #include <QCamera>
 #include <QCameraDevice>
@@ -70,13 +70,13 @@ public:
     bool is_draft_preview() const;
     stream_settings current_stream_settings() const;
     stream_runtime_metrics current_runtime_metrics() const;
-    frontend_log_mode current_log_mode() const;
+    app_log_mode current_log_mode() const;
 
     void set_active(bool val);
     void set_drawing_enabled(bool on);
     void set_stream_settings(const stream_settings& settings_value);
     void set_runtime_metrics(const stream_runtime_metrics& metrics);
-    void set_log_mode(frontend_log_mode mode);
+    void set_log_mode(app_log_mode mode);
 
     void
     set_draft_params(
@@ -218,7 +218,7 @@ private:
     bool labels_enabled { true };
     stream_settings stream_settings_value;
     stream_runtime_metrics runtime_metrics_value;
-    frontend_log_mode log_mode_value { frontend_log_mode::release };
+    app_log_mode log_mode_value { app_log_mode::release };
 
     QString draft_line_name;
     QColor draft_line_color { Qt::red };
@@ -268,4 +268,4 @@ private:
     QHash<QString, QVector<line_wave_pulse>> line_waves;
 };
 
-#endif // YODAU_FRONTEND_WIDGETS_STREAM_CELL_HPP
+#endif // YODAU_APP_WIDGETS_STREAM_CELL_HPP

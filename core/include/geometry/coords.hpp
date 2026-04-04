@@ -1,9 +1,10 @@
-#ifndef YODAU_BACKEND_COORDS_HPP
-#define YODAU_BACKEND_COORDS_HPP
+#ifndef YODAU_CORE_COORDS_HPP
+#define YODAU_CORE_COORDS_HPP
 
+#include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
 
-namespace yodau::backend {
+namespace yodau::core {
 
 struct px_point {
     int x {};
@@ -62,4 +63,4 @@ std::vector<grid_point> trace_grid_cells_pct(
 
 }
 
-#endif // YODAU_BACKEND_COORDS_HPP
+#endif // YODAU_CORE_COORDS_HPP

@@ -89,6 +89,10 @@ QString line_toggle_detail(const QString& line_name, const bool enabled) {
         .arg(enabled ? QStringLiteral("true") : QStringLiteral("false"));
 }
 
+QString line_detach_detail(const QString& line_name) {
+    return QStringLiteral("line=%1 detached=true").arg(line_name);
+}
+
 QString line_edit_preview_detail(const line_edit_request& request) {
     return QStringLiteral("source=%1 new=%2 points=%3")
         .arg(request.source_line_name)
@@ -128,7 +132,7 @@ active_edit_workflow::set_drawing_new_mode(const bool drawing_new) const {
     edit_controller_.set_drawing_new_mode(drawing_new);
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::info, QStringLiteral("editing"),
+            context, app_log_severity::info, QStringLiteral("editing"),
             drawing_new ? QStringLiteral("edit mode set to draw new")
                         : QStringLiteral("edit mode set to use template")
         )
@@ -146,7 +150,7 @@ active_edit_workflow::apply_line_profile(line_profile profile_value) const {
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::debug,
+            context, app_log_severity::debug,
             QStringLiteral("line_editor"),
             QStringLiteral("active line draft updated"),
             active_edit_workflow_support::line_profile_detail(draft_line_profile)
@@ -171,7 +175,7 @@ active_edit_workflow::save_active_line(line_profile profile_value) const {
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::debug,
+            context, app_log_severity::debug,
             QStringLiteral("line_editor"), QStringLiteral("line save requested"),
             active_edit_workflow_support::line_save_request_detail(
                 action_result.profile
@@ -183,7 +187,7 @@ active_edit_workflow::save_active_line(line_profile profile_value) const {
         == active_edit_actions::line_save_status::insufficient_points) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::warning,
+                context, app_log_severity::warning,
                 QStringLiteral("line_editor"),
                 QStringLiteral("line add requires at least 2 points")
             )
@@ -194,7 +198,7 @@ active_edit_workflow::save_active_line(line_profile profile_value) const {
     if (!action_result.points_text.isEmpty()) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::debug,
+                context, app_log_severity::debug,
                 QStringLiteral("line_editor"),
                 QStringLiteral("line draft points prepared"),
                 action_result.points_text
@@ -202,10 +206,10 @@ active_edit_workflow::save_active_line(line_profile profile_value) const {
         );
     }
 
-    if (action_result.status == active_edit_actions::line_save_status::backend_error) {
+    if (action_result.status == active_edit_actions::line_save_status::core_error) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::error,
+                context, app_log_severity::error,
                 QStringLiteral("line_editor"), QStringLiteral("line add failed"),
                 action_result.error_detail
             )
@@ -215,7 +219,7 @@ active_edit_workflow::save_active_line(line_profile profile_value) const {
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::info, QStringLiteral("line_editor"),
+            context, app_log_severity::info, QStringLiteral("line_editor"),
             QStringLiteral("line added"),
             active_edit_workflow_support::line_added_detail(action_result)
         )
@@ -238,7 +242,7 @@ active_edit_workflow::apply_template_settings(
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::debug,
+            context, app_log_severity::debug,
             QStringLiteral("template_editor"),
             QStringLiteral("template preview updated"),
             active_edit_workflow_support::template_settings_detail(
@@ -271,7 +275,7 @@ active_edit_workflow::apply_active_template(
         == active_edit_actions::template_apply_status::unknown_template) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::warning,
+                context, app_log_severity::warning,
                 QStringLiteral("template_editor"),
                 QStringLiteral("template add failed: unknown template"),
                 action_result.settings.template_name
@@ -281,10 +285,10 @@ active_edit_workflow::apply_active_template(
     }
 
     if (action_result.status
-        == active_edit_actions::template_apply_status::backend_error) {
+        == active_edit_actions::template_apply_status::core_error) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::error,
+                context, app_log_severity::error,
                 QStringLiteral("template_editor"),
                 QStringLiteral("template add failed"),
                 action_result.error_detail
@@ -295,7 +299,7 @@ active_edit_workflow::apply_active_template(
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::info,
+            context, app_log_severity::info,
             QStringLiteral("template_editor"),
             QStringLiteral("template added to active stream"),
             active_edit_workflow_support::template_applied_detail(action_result)
@@ -326,7 +330,7 @@ active_edit_workflow::set_active_line_enabled(
     if (action_result.status == active_edit_actions::line_toggle_status::missing_line) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::warning,
+                context, app_log_severity::warning,
                 QStringLiteral("line_editor"),
                 enabled ? QStringLiteral("line enable failed")
                         : QStringLiteral("line disable failed"),
@@ -336,10 +340,10 @@ active_edit_workflow::set_active_line_enabled(
         return result;
     }
 
-    if (action_result.status == active_edit_actions::line_toggle_status::backend_error) {
+    if (action_result.status == active_edit_actions::line_toggle_status::core_error) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::error,
+                context, app_log_severity::error,
                 QStringLiteral("line_editor"),
                 enabled ? QStringLiteral("line enable failed")
                         : QStringLiteral("line disable failed"),
@@ -351,7 +355,7 @@ active_edit_workflow::set_active_line_enabled(
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::info, QStringLiteral("line_editor"),
+            context, app_log_severity::info, QStringLiteral("line_editor"),
             enabled ? QStringLiteral("line enabled")
                     : QStringLiteral("line disabled"),
             active_edit_workflow_support::line_toggle_detail(line_name, enabled)
@@ -360,6 +364,55 @@ active_edit_workflow::set_active_line_enabled(
     result.refresh_fps = true;
     result.monitor_marker = enabled ? QStringLiteral("line_enabled")
                                     : QStringLiteral("line_disabled");
+    return result;
+}
+
+active_edit_workflow::transition_result
+active_edit_workflow::detach_active_line(const QString& line_name) const {
+    transition_result result;
+    const active_context context = current_context();
+    if (!route_state_.has_active_stream()) {
+        return active_cell_failure(QStringLiteral("detach line"));
+    }
+
+    const auto action_result = edit_actions_.detach_stream_line(
+        context.active_name, line_name
+    );
+
+    if (action_result.status
+        == active_edit_actions::line_detach_status::missing_line) {
+        result.entries.push_back(
+            make_active_entry(
+                context, app_log_severity::warning,
+                QStringLiteral("line_editor"),
+                QStringLiteral("line detach failed"), line_name
+            )
+        );
+        return result;
+    }
+
+    if (action_result.status
+        == active_edit_actions::line_detach_status::core_error) {
+        result.entries.push_back(
+            make_active_entry(
+                context, app_log_severity::error,
+                QStringLiteral("line_editor"),
+                QStringLiteral("line detach failed"),
+                action_result.error_detail
+            )
+        );
+        return result;
+    }
+
+    result.entries.push_back(
+        make_active_entry(
+            context, app_log_severity::info, QStringLiteral("line_editor"),
+            QStringLiteral("line detached from stream"),
+            active_edit_workflow_support::line_detach_detail(line_name)
+        )
+    );
+    result.refresh_fps = true;
+    result.monitor_marker = QStringLiteral("line_detached");
     return result;
 }
 
@@ -376,7 +429,7 @@ active_edit_workflow::apply_line_edit_preview(line_edit_request request) const {
         = edit_controller_.apply_line_edit_preview(std::move(request));
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::debug,
+            context, app_log_severity::debug,
             QStringLiteral("line_editor"),
             QStringLiteral("line edit preview updated"),
             active_edit_workflow_support::line_edit_preview_detail(applied_request)
@@ -392,7 +445,7 @@ active_edit_workflow::clear_line_edit_preview() const {
     edit_controller_.clear_line_edit_preview();
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::debug,
+            context, app_log_severity::debug,
             QStringLiteral("line_editor"),
             QStringLiteral("line edit preview cleared")
         )
@@ -415,7 +468,7 @@ active_edit_workflow::save_active_line_edit(line_edit_request request) const {
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::debug,
+            context, app_log_severity::debug,
             QStringLiteral("line_editor"),
             QStringLiteral("line edit save requested"),
             active_edit_workflow_support::line_edit_preview_detail(
@@ -428,7 +481,7 @@ active_edit_workflow::save_active_line_edit(line_edit_request request) const {
         == active_edit_actions::line_edit_save_status::missing_name) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::warning,
+                context, app_log_severity::warning,
                 QStringLiteral("line_editor"),
                 QStringLiteral("edited line save failed: name required")
             )
@@ -440,7 +493,7 @@ active_edit_workflow::save_active_line_edit(line_edit_request request) const {
         == active_edit_actions::line_edit_save_status::insufficient_points) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::warning,
+                context, app_log_severity::warning,
                 QStringLiteral("line_editor"),
                 QStringLiteral("edited line save requires at least 2 points")
             )
@@ -452,7 +505,7 @@ active_edit_workflow::save_active_line_edit(line_edit_request request) const {
         == active_edit_actions::line_edit_save_status::missing_source_line) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::warning,
+                context, app_log_severity::warning,
                 QStringLiteral("line_editor"),
                 QStringLiteral("edited line source not available"),
                 action_result.request.source_line_name
@@ -462,10 +515,10 @@ active_edit_workflow::save_active_line_edit(line_edit_request request) const {
     }
 
     if (action_result.status
-        == active_edit_actions::line_edit_save_status::backend_error) {
+        == active_edit_actions::line_edit_save_status::core_error) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::error,
+                context, app_log_severity::error,
                 QStringLiteral("line_editor"),
                 QStringLiteral("edited line save failed"),
                 action_result.error_detail
@@ -476,7 +529,7 @@ active_edit_workflow::save_active_line_edit(line_edit_request request) const {
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::info, QStringLiteral("line_editor"),
+            context, app_log_severity::info, QStringLiteral("line_editor"),
             QStringLiteral("edited line saved"),
             active_edit_workflow_support::line_edit_saved_detail(action_result)
         )
@@ -510,7 +563,7 @@ active_edit_workflow::active_cell_failure(const QString& fail_prefix) const {
     if (!route_state_.has_active_stream()) {
         result.entries.push_back(
             make_active_entry(
-                context, frontend_log_severity::warning,
+                context, app_log_severity::warning,
                 QStringLiteral("active_stream"),
                 QStringLiteral("%1 failed: no active stream").arg(fail_prefix)
             )
@@ -520,7 +573,7 @@ active_edit_workflow::active_cell_failure(const QString& fail_prefix) const {
 
     result.entries.push_back(
         make_active_entry(
-            context, frontend_log_severity::warning,
+            context, app_log_severity::warning,
             QStringLiteral("active_stream"),
             QStringLiteral("%1 failed: active cell not found").arg(fail_prefix)
         )
@@ -545,13 +598,13 @@ stream_cell* active_edit_workflow::checked_active_cell(
     return cell;
 }
 
-frontend_log_entry active_edit_workflow::make_active_entry(
-    const active_context& context, const frontend_log_severity severity,
+app_log_entry active_edit_workflow::make_active_entry(
+    const active_context& context, const app_log_severity severity,
     const QString& subsystem, const QString& message, const QString& detail
 ) {
-    return frontend_log_entry {
+    return app_log_entry {
         .timestamp = QDateTime(),
-        .area = frontend_log_area::active,
+        .area = app_log_area::active,
         .severity = severity,
         .subsystem = subsystem,
         .stream_name = context.active_name,

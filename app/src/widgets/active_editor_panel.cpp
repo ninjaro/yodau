@@ -600,6 +600,27 @@ void active_editor_panel::build_ui() {
         line_list_widget, &QTreeWidget::itemChanged, this,
         &active_editor_panel::on_line_item_changed
     );
+    connect(
+        line_list_widget, &QTreeWidget::itemSelectionChanged, this,
+        &active_editor_panel::on_line_selection_changed
+    );
+
+    line_detach_button_ = new QPushButton(str_label("detach from stream"), lines_tab);
+    line_detach_button_->setObjectName(
+        QStringLiteral("settings_active_detach_line_button")
+    );
+    line_detach_button_->setToolTip(
+        QStringLiteral(
+            "Detach the selected saved line from this stream without removing "
+            "the underlying template definition."
+        )
+    );
+    line_detach_button_->setEnabled(false);
+    lines_layout->addWidget(line_detach_button_);
+    connect(
+        line_detach_button_, &QPushButton::clicked, this,
+        &active_editor_panel::on_detach_selected_line_clicked
+    );
 
     editor_tabs->addTab(lines_tab, str_label("lines"));
     edit_tab_widget_ = new QWidget(editor_tabs);
@@ -713,6 +734,7 @@ void active_editor_panel::update_tools() const {
 
     refresh_status_summary();
     refresh_line_summary();
+    refresh_line_action_state();
     refresh_line_edit_state();
 }
 
@@ -725,7 +747,7 @@ void active_editor_panel::refresh_status_summary() const {
         status_summary_label->setText(
             QStringLiteral(
                 "Activate a visible stream to draw lines, apply templates, "
-                "enable and disable saved lines, or save edited variants."
+                "enable, detach, and edit saved lines, or save edited variants."
             )
         );
         return;
@@ -762,6 +784,7 @@ void active_editor_panel::refresh_line_list() const {
         return;
     }
 
+    const QString selected_name = selected_line_name();
     line_list_widget->blockSignals(true);
     line_list_widget->clear();
 
@@ -782,6 +805,10 @@ void active_editor_panel::refresh_line_list() const {
                 )
                 .arg(normalized_line_color_mode_id(line_value.color_mode_id))
         );
+
+        if (!selected_name.isEmpty() && line_value.template_name == selected_name) {
+            line_list_widget->setCurrentItem(item);
+        }
     }
 
     line_list_widget->blockSignals(false);
@@ -815,14 +842,27 @@ void active_editor_panel::refresh_line_summary() const {
                 "a template from the draw tab."
             )
         );
+        refresh_line_action_state();
         return;
     }
 
     line_summary_label->setText(
-        QStringLiteral("%1 saved lines | %2 enabled | %3 disabled")
+        QStringLiteral("%1 saved lines | %2 enabled | %3 disabled | select one to detach")
             .arg(total_lines)
             .arg(enabled_lines)
             .arg(std::max(0, total_lines - enabled_lines))
+    );
+    refresh_line_action_state();
+}
+
+void active_editor_panel::refresh_line_action_state() const {
+    if (line_detach_button_ == nullptr || active_stream_panel_widget == nullptr) {
+        return;
+    }
+
+    line_detach_button_->setEnabled(
+        active_stream_panel_widget->has_active_stream()
+        && !selected_line_name().trimmed().isEmpty()
     );
 }
 
@@ -1091,6 +1131,19 @@ void active_editor_panel::on_line_item_changed(
     );
 }
 
+void active_editor_panel::on_line_selection_changed() {
+    refresh_line_action_state();
+}
+
+void active_editor_panel::on_detach_selected_line_clicked() {
+    const QString line_name = selected_line_name().trimmed();
+    if (line_name.isEmpty()) {
+        return;
+    }
+
+    emit line_detach_requested(line_name);
+}
+
 void active_editor_panel::on_editor_tab_changed(const int index) {
     Q_UNUSED(index);
 
@@ -1225,4 +1278,12 @@ void active_editor_panel::emit_line_enabled_changed_queued(
         },
         Qt::QueuedConnection
     );
+}
+
+QString active_editor_panel::selected_line_name() const {
+    if (line_list_widget == nullptr || line_list_widget->currentItem() == nullptr) {
+        return {};
+    }
+
+    return line_list_widget->currentItem()->data(1, Qt::UserRole).toString();
 }
