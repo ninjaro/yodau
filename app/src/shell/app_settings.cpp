@@ -54,6 +54,7 @@ QStringList app_algorithm_ids() {
         QStringLiteral("hybrid_auto"),
         QStringLiteral("spot_grid"),
         QStringLiteral("contour_mask"),
+        QStringLiteral("centroid_track"),
     };
 }
 
@@ -69,6 +70,9 @@ QString app_algorithm_display_name(const QString& algorithm_id) {
     }
     if (normalized == QStringLiteral("contour_mask")) {
         return QStringLiteral("contour mask");
+    }
+    if (normalized == QStringLiteral("centroid_track")) {
+        return QStringLiteral("centroid track");
     }
     if (normalized == QStringLiteral("hybrid_auto")) {
         return QStringLiteral("hybrid auto");
@@ -86,6 +90,9 @@ QString default_algorithm_preset_id(const QString& algorithm_id) {
     }
     if (normalized == QStringLiteral("contour_mask")) {
         return QStringLiteral("outline");
+    }
+    if (normalized == QStringLiteral("centroid_track")) {
+        return QStringLiteral("balanced");
     }
     if (normalized == QStringLiteral("hybrid_auto")) {
         return QStringLiteral("adaptive");
@@ -119,6 +126,14 @@ QStringList algorithm_preset_ids(const QString& algorithm_id) {
             QStringLiteral("outline"),
             QStringLiteral("balanced"),
             QStringLiteral("mask_heavy"),
+        };
+    }
+
+    if (normalized == QStringLiteral("centroid_track")) {
+        return {
+            QStringLiteral("fast_match"),
+            QStringLiteral("balanced"),
+            QStringLiteral("persistent"),
         };
     }
 
@@ -163,6 +178,16 @@ QString algorithm_preset_display_name(
         }
         if (normalized_preset == QStringLiteral("mask_heavy")) {
             return QStringLiteral("mask heavy");
+        }
+        return QStringLiteral("balanced");
+    }
+
+    if (normalized_algorithm == QStringLiteral("centroid_track")) {
+        if (normalized_preset == QStringLiteral("fast_match")) {
+            return QStringLiteral("fast match");
+        }
+        if (normalized_preset == QStringLiteral("persistent")) {
+            return QStringLiteral("persistent");
         }
         return QStringLiteral("balanced");
     }
@@ -217,6 +242,15 @@ QString normalized_algorithm_preset_id(
         }
     }
 
+    if (normalized_algorithm == QStringLiteral("centroid_track")) {
+        if (normalized_preset == QStringLiteral("simple")) {
+            return QStringLiteral("fast_match");
+        }
+        if (normalized_preset == QStringLiteral("debug")) {
+            return QStringLiteral("persistent");
+        }
+    }
+
     return default_algorithm_preset_id(normalized_algorithm);
 }
 
@@ -262,6 +296,16 @@ QString algorithm_summary_text(
             .arg(overlay_text);
     }
 
+    if (normalized_app_algorithm_id(algorithm_id)
+        == QStringLiteral("centroid_track")) {
+        return QStringLiteral(
+            "%1 follows motion centers into short tracks with a %2 preset; %3."
+        )
+            .arg(algorithm_name)
+            .arg(preset_name)
+            .arg(overlay_text);
+    }
+
     return QStringLiteral(
         "%1 keeps the baseline motion path with a %2 preset; %3."
     )
@@ -288,9 +332,11 @@ QString algorithm_badge_text(
         ? QStringLiteral("SG")
         : (normalized_algorithm == QStringLiteral("hybrid_auto")
                ? QStringLiteral("HA")
+        : (normalized_algorithm == QStringLiteral("centroid_track")
+               ? QStringLiteral("CT")
         : (normalized_algorithm == QStringLiteral("contour_mask")
                ? QStringLiteral("CM")
-               : QStringLiteral("MB")));
+               : QStringLiteral("MB"))));
 
     return QStringLiteral("%1 %2")
         .arg(short_algorithm)
@@ -313,6 +359,9 @@ QColor algorithm_badge_color(const QString& algorithm_id) {
     }
     if (normalized == QStringLiteral("contour_mask")) {
         return QColor(QStringLiteral("#e76f51"));
+    }
+    if (normalized == QStringLiteral("centroid_track")) {
+        return QColor(QStringLiteral("#7f5539"));
     }
 
     return QColor(QStringLiteral("#577590"));
@@ -347,6 +396,15 @@ QString normalized_app_algorithm_id(const QString& algorithm_id) {
         || normalized == QStringLiteral("mask")
         || normalized == QStringLiteral("contour_mask")) {
         return QStringLiteral("contour_mask");
+    }
+
+    if (normalized == QStringLiteral("track")
+        || normalized == QStringLiteral("tracks")
+        || normalized == QStringLiteral("tracker")
+        || normalized == QStringLiteral("tracking")
+        || normalized == QStringLiteral("centroid")
+        || normalized == QStringLiteral("centroid_track")) {
+        return QStringLiteral("centroid_track");
     }
 
     return QStringLiteral("motion_baseline");

@@ -449,6 +449,16 @@ double event_region_scale(const stream_settings& settings_value) {
         return 0.18;
     }
 
+    if (algorithm_id == QStringLiteral("centroid_track")) {
+        if (preset_id == QStringLiteral("fast_match")) {
+            return 0.13;
+        }
+        if (preset_id == QStringLiteral("persistent")) {
+            return 0.21;
+        }
+        return 0.17;
+    }
+
     if (preset_id == QStringLiteral("simple")) {
         return 0.11;
     }
@@ -684,6 +694,66 @@ void draw_hybrid_overlay(
     }
 }
 
+void draw_centroid_track_overlay(
+    QPainter& painter, const QRectF& region, const QPointF& center,
+    const double radius, const QColor& color, const stream_settings& settings_value,
+    const double life_k
+) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+    const int segment_count = preset_id == QStringLiteral("fast_match")
+        ? 3
+        : (preset_id == QStringLiteral("persistent") ? 6 : 4);
+    const double span_x = region.width()
+        * (preset_id == QStringLiteral("persistent") ? 0.52 : 0.38);
+    const double wave_y = region.height()
+        * (preset_id == QStringLiteral("fast_match") ? 0.08 : 0.14);
+
+    QPolygonF track_path;
+    track_path.reserve(segment_count + 1);
+    for (int index = 0; index <= segment_count; index += 1) {
+        const double k
+            = static_cast<double>(index) / static_cast<double>(segment_count);
+        const double x = center.x() - span_x * (1.0 - k);
+        const double y = center.y()
+            + ((index % 2 == 0) ? -wave_y : wave_y) * (1.0 - k * 0.55);
+        track_path << QPointF(x, y);
+    }
+
+    QPen tail_pen(color_with_alpha(color, static_cast<int>(165.0 * life_k)));
+    tail_pen.setWidthF(preset_id == QStringLiteral("persistent") ? 2.4 : 1.8);
+    tail_pen.setStyle(
+        preset_id == QStringLiteral("fast_match") ? Qt::DashLine : Qt::SolidLine
+    );
+    painter.setPen(tail_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPolyline(track_path);
+
+    if (preset_id != QStringLiteral("fast_match")) {
+        painter.setPen(Qt::NoPen);
+        for (int index = 0; index < track_path.size() - 1; index += 1) {
+            const double k = 1.0
+                - static_cast<double>(index + 1)
+                    / static_cast<double>(track_path.size());
+            painter.setBrush(
+                color_with_alpha(color, static_cast<int>((60.0 + k * 70.0) * life_k))
+            );
+            painter.drawEllipse(track_path.at(index), radius * 0.42, radius * 0.42);
+        }
+    }
+
+    QPen head_pen(color_with_alpha(color, static_cast<int>(185.0 * life_k)));
+    head_pen.setWidthF(1.3);
+    painter.setPen(head_pen);
+    painter.setBrush(color_with_alpha(color, static_cast<int>(145.0 * life_k)));
+    painter.drawEllipse(center, radius * 1.1, radius * 1.1);
+    painter.drawLine(
+        QPointF(center.x() - radius * 1.6, center.y()),
+        QPointF(center.x() + radius * 1.6, center.y())
+    );
+}
+
 void draw_algorithm_overlay(
     QPainter& painter, const QRect& rect_value, const QPointF& center,
     const double radius, const QColor& color, const stream_settings& settings_value,
@@ -711,6 +781,14 @@ void draw_algorithm_overlay(
 
     if (algorithm_id == QStringLiteral("contour_mask")) {
         draw_contour_mask_overlay(
+            painter, overlay_region_rect(rect_value, center, settings_value),
+            center, radius, color, settings_value, life_k
+        );
+        return;
+    }
+
+    if (algorithm_id == QStringLiteral("centroid_track")) {
+        draw_centroid_track_overlay(
             painter, overlay_region_rect(rect_value, center, settings_value),
             center, radius, color, settings_value, life_k
         );
