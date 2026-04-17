@@ -33,6 +33,50 @@ using steady_clock = std::chrono::steady_clock;
 
 constexpr auto fps_policy_refresh_interval = std::chrono::milliseconds(250);
 
+QPointF app_point_from_core(const yodau::core::point& point_value) {
+    return QPointF(point_value.x, point_value.y);
+}
+
+stream_cell::processing_overlay_kind app_overlay_kind(
+    const yodau::core::processing_overlay_kind kind
+) {
+    switch (kind) {
+    case yodau::core::processing_overlay_kind::point:
+        return stream_cell::processing_overlay_kind::point;
+    case yodau::core::processing_overlay_kind::polyline:
+        return stream_cell::processing_overlay_kind::polyline;
+    case yodau::core::processing_overlay_kind::polygon:
+        return stream_cell::processing_overlay_kind::polygon;
+    case yodau::core::processing_overlay_kind::label:
+        return stream_cell::processing_overlay_kind::label;
+    }
+
+    return stream_cell::processing_overlay_kind::point;
+}
+
+std::vector<stream_cell::processing_overlay_instance> app_overlays_from_result(
+    const yodau::core::processing_result& result
+) {
+    std::vector<stream_cell::processing_overlay_instance> overlays;
+    overlays.reserve(result.overlays.size());
+
+    for (const auto& overlay_value : result.overlays) {
+        stream_cell::processing_overlay_instance overlay;
+        overlay.kind = app_overlay_kind(overlay_value.kind);
+        overlay.label = QString::fromStdString(overlay_value.label);
+        overlay.points_pct.reserve(overlay_value.points_pct.size());
+        for (const auto& point_value : overlay_value.points_pct) {
+            overlay.points_pct.push_back(app_point_from_core(point_value));
+        }
+        if (overlay_value.anchor_pct.has_value()) {
+            overlay.anchor_pct = app_point_from_core(*overlay_value.anchor_pct);
+        }
+        overlays.push_back(std::move(overlay));
+    }
+
+    return overlays;
+}
+
 } // namespace stream_controller_support
 
 stream_controller::stream_controller(
@@ -85,17 +129,28 @@ stream_controller::stream_controller(
                 const yodau::core::frame& frame_value,
                 const yodau::core::processing_result& result
             ) {
-                Q_UNUSED(result);
+                auto overlays = stream_controller_support::app_overlays_from_result(
+                    result
+                );
+                const QString stream_name = QString::fromStdString(
+                    stream_value.get_name()
+                );
+                const int width = frame_value.width;
+                const int height = frame_value.height;
 
                 QMetaObject::invokeMethod(
-                    this, "on_core_frame_processed",
-                    Qt::QueuedConnection,
-                    Q_ARG(
-                        QString,
-                        QString::fromStdString(stream_value.get_name())
-                    ),
-                    Q_ARG(int, frame_value.width),
-                    Q_ARG(int, frame_value.height)
+                    this,
+                    [this, stream_name, width, height,
+                     overlays = std::move(overlays)]() mutable {
+                        note_core_frame_observed(stream_name, width, height);
+                        auto* tile = widget_bridge.tile_for_stream_name(
+                            stream_name, route_state
+                        );
+                        if (tile != nullptr) {
+                            tile->set_processing_overlays(std::move(overlays));
+                        }
+                    },
+                    Qt::QueuedConnection
                 );
             }
         );

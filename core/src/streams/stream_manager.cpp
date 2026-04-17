@@ -327,7 +327,7 @@ void yodau::core::stream_manager::push_frame(
         return;
     }
 
-    auto events = process_frame(stream_name, std::move(f));
+    auto events = process_frame(stream_name, f);
 
     if (pfs && sp) {
         pfs(*sp, f, events);
@@ -362,7 +362,7 @@ void yodau::core::stream_manager::set_frame_processor(
 
 std::vector<yodau::core::event>
 yodau::core::stream_manager::process_frame(
-    const std::string& stream_name, frame&& f
+    const std::string& stream_name, const frame& f
 ) {
     std::shared_ptr<stream> sp;
     frame_processor_fn fp;

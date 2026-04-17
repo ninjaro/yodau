@@ -38,6 +38,17 @@ void populate_preset_combo(QComboBox* combo, const QString& algorithm_id) {
     }
 }
 
+void populate_display_mode_combo(QComboBox* combo) {
+    if (combo == nullptr) {
+        return;
+    }
+
+    combo->clear();
+    for (const QString& mode_id : movement_display_mode_ids()) {
+        combo->addItem(movement_display_mode_display_name(mode_id), mode_id);
+    }
+}
+
 void set_form_row_visible(QFormLayout* form, QWidget* field, const bool visible) {
     if (field == nullptr) {
         return;
@@ -73,9 +84,12 @@ void algorithm_panel::set_stream_settings(const stream_settings& settings_value)
 
     refresh_preset_options();
 
-    if (overlay_checkbox != nullptr) {
-        QSignalBlocker blocker(overlay_checkbox);
-        overlay_checkbox->setChecked(current_settings.algorithm_overlay_enabled);
+    if (display_mode_combo != nullptr) {
+        QSignalBlocker blocker(display_mode_combo);
+        const int mode_index = display_mode_combo->findData(
+            current_settings.movement_display_mode
+        );
+        display_mode_combo->setCurrentIndex(mode_index >= 0 ? mode_index : 0);
     }
 
     refresh_advanced_controls();
@@ -124,8 +138,17 @@ void algorithm_panel::on_advanced_toggled(const bool checked) {
     refresh_advanced_controls();
 }
 
-void algorithm_panel::on_overlay_toggled(const bool checked) {
-    current_settings.algorithm_overlay_enabled = checked;
+void algorithm_panel::on_display_mode_changed(const int index) {
+    Q_UNUSED(index);
+
+    if (display_mode_combo != nullptr) {
+        current_settings.movement_display_mode = normalized_movement_display_mode_id(
+            display_mode_combo->currentData().toString()
+        );
+        current_settings.algorithm_overlay_enabled = movement_display_enabled(
+            current_settings.movement_display_mode
+        );
+    }
     refresh_summary();
     emit settings_changed(current_settings);
 }
@@ -158,11 +181,12 @@ void algorithm_panel::build_ui() {
     preset_combo->setObjectName(object_name(QStringLiteral("algorithm_preset_combo")));
     form_->addRow(str_label("preset"), preset_combo);
 
-    overlay_checkbox = new QCheckBox(str_label("diagnostic overlay"), this);
-    overlay_checkbox->setObjectName(
-        object_name(QStringLiteral("algorithm_overlay_checkbox"))
+    display_mode_combo = new QComboBox(this);
+    display_mode_combo->setObjectName(
+        object_name(QStringLiteral("movement_display_combo"))
     );
-    form_->addRow(QString(), overlay_checkbox);
+    algorithm_panel_support::populate_display_mode_combo(display_mode_combo);
+    form_->addRow(str_label("movement display"), display_mode_combo);
 
     layout->addLayout(form_);
 
@@ -184,8 +208,8 @@ void algorithm_panel::build_ui() {
         &algorithm_panel::on_preset_changed
     );
     connect(
-        overlay_checkbox, &QCheckBox::toggled, this,
-        &algorithm_panel::on_overlay_toggled
+        display_mode_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &algorithm_panel::on_display_mode_changed
     );
 
     setLayout(layout);
@@ -199,9 +223,11 @@ void algorithm_panel::refresh_advanced_controls() const {
         form_, preset_combo, advanced_enabled
     );
 
-    if (overlay_checkbox != nullptr) {
-        overlay_checkbox->setVisible(advanced_enabled);
-        overlay_checkbox->setEnabled(advanced_enabled);
+    algorithm_panel_support::set_form_row_visible(
+        form_, display_mode_combo, advanced_enabled
+    );
+    if (display_mode_combo != nullptr) {
+        display_mode_combo->setEnabled(advanced_enabled);
     }
 }
 
@@ -229,7 +255,7 @@ void algorithm_panel::refresh_summary() {
     summary_label->setText(
         algorithm_summary_text(
             current_settings.algorithm_id, current_settings.algorithm_preset,
-            current_settings.algorithm_overlay_enabled
+            current_settings.movement_display_mode
         )
     );
 }
@@ -241,6 +267,12 @@ algorithm_panel::normalized_settings(stream_settings settings_value) const {
     );
     settings_value.algorithm_preset = normalized_algorithm_preset_id(
         settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+    settings_value.movement_display_mode = normalized_movement_display_mode_id(
+        settings_value.movement_display_mode
+    );
+    settings_value.algorithm_overlay_enabled = movement_display_enabled(
+        settings_value.movement_display_mode
     );
     return settings_value;
 }

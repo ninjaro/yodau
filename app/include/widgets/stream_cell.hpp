@@ -107,7 +107,17 @@ public:
         QDateTime ts;
     };
 
+    enum class processing_overlay_kind { point, polyline, polygon, label };
+
+    struct processing_overlay_instance {
+        processing_overlay_kind kind { processing_overlay_kind::point };
+        QString label;
+        std::vector<QPointF> points_pct;
+        std::optional<QPointF> anchor_pct;
+    };
+
     void add_event(const QPointF& pos_pct, const QColor& color);
+    void set_processing_overlays(std::vector<processing_overlay_instance> overlays);
     void set_repaint_interval_ms(int ms);
     void highlight_line(const QString& line_name);
 
@@ -164,6 +174,7 @@ private:
     bool line_edit_segment_hit(const QPointF& pos_px) const;
     void reset_line_edit_drag_state();
     void sync_mouse_tracking();
+    void draw_processing_overlays(QPainter& p) const;
     void draw_events(QPainter& p);
 
     double segment_impact_k(
@@ -242,6 +253,7 @@ private:
     QMediaCaptureSession* session { nullptr };
     QByteArray camera_id;
     QVector<event_instance> events;
+    std::vector<processing_overlay_instance> processing_overlays;
     QElapsedTimer repaint_timer;
     QElapsedTimer animation_clock;
     QTimer* animation_timer { nullptr };

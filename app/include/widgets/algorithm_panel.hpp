@@ -30,7 +30,7 @@ private slots:
     void on_algorithm_changed(int index);
     void on_preset_changed(int index);
     void on_advanced_toggled(bool checked);
-    void on_overlay_toggled(bool checked);
+    void on_display_mode_changed(int index);
 
 private:
     void build_ui();
@@ -44,7 +44,7 @@ private:
     QFormLayout* form_ { nullptr };
     QCheckBox* advanced_checkbox { nullptr };
     QComboBox* preset_combo { nullptr };
-    QCheckBox* overlay_checkbox { nullptr };
+    QComboBox* display_mode_combo { nullptr };
     QLabel* summary_label { nullptr };
     QString object_prefix_;
     stream_settings current_settings;

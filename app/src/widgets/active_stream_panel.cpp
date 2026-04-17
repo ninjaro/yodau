@@ -197,8 +197,11 @@ stream_settings active_stream_panel::current_stream_settings() const {
             = active_algorithm_panel->current_stream_settings();
         settings_value.algorithm_id = algorithm_settings.algorithm_id;
         settings_value.algorithm_preset = algorithm_settings.algorithm_preset;
-        settings_value.algorithm_overlay_enabled
-            = algorithm_settings.algorithm_overlay_enabled;
+        settings_value.movement_display_mode
+            = algorithm_settings.movement_display_mode;
+        settings_value.algorithm_overlay_enabled = movement_display_enabled(
+            settings_value.movement_display_mode
+        );
     } else {
         settings_value.algorithm_id = default_app_algorithm_id();
         settings_value.algorithm_preset = default_algorithm_preset_id(

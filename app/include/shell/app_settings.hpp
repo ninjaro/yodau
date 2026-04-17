@@ -30,6 +30,11 @@ QString line_width_label_text(const QString& mode_id);
 QString line_length_label_text(const QString& mode_id);
 QString line_response_label_text(const QString& mode_id);
 QString line_parameter_mode_hint_text(const QString& mode_id);
+QString default_movement_display_mode_id();
+QStringList movement_display_mode_ids();
+QString movement_display_mode_display_name(const QString& mode_id);
+QString normalized_movement_display_mode_id(const QString& mode_id);
+bool movement_display_enabled(const QString& mode_id);
 
 struct stream_settings {
     QString stream_name;
@@ -37,7 +42,8 @@ struct stream_settings {
     bool standard_labels_enabled { true };
     QString algorithm_id;
     QString algorithm_preset;
-    bool algorithm_overlay_enabled { false };
+    QString movement_display_mode { default_movement_display_mode_id() };
+    bool algorithm_overlay_enabled { true };
     bool manual_processing_policy_enabled { false };
     int manual_display_fps { default_manual_display_fps() };
     int manual_core_fps { default_manual_core_fps() };
@@ -116,7 +122,7 @@ QString normalized_algorithm_preset_id(
 );
 QString algorithm_summary_text(
     const QString& algorithm_id, const QString& preset_id,
-    bool overlay_enabled
+    const QString& movement_display_mode
 );
 QString algorithm_badge_text(
     const QString& algorithm_id, const QString& preset_id,

@@ -66,8 +66,8 @@ active_stream_state::settings_result active_stream_state::apply_stream_settings(
     result.algorithm_changed = result.algorithm_changed
         || result.previous_settings.algorithm_preset
             != result.settings.algorithm_preset
-        || result.previous_settings.algorithm_overlay_enabled
-            != result.settings.algorithm_overlay_enabled;
+        || result.previous_settings.movement_display_mode
+            != result.settings.movement_display_mode;
     result.processing_policy_changed
         = result.previous_settings.manual_processing_policy_enabled
             != result.settings.manual_processing_policy_enabled

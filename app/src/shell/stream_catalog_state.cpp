@@ -41,6 +41,12 @@ stream_settings stream_catalog_state::normalized_stream_settings(
     settings_value.algorithm_preset = normalized_algorithm_preset_id(
         settings_value.algorithm_id, settings_value.algorithm_preset
     );
+    settings_value.movement_display_mode = normalized_movement_display_mode_id(
+        settings_value.movement_display_mode
+    );
+    settings_value.algorithm_overlay_enabled = movement_display_enabled(
+        settings_value.movement_display_mode
+    );
     settings_value.manual_display_fps
         = stream_catalog_state_support::normalized_manual_fps(
             settings_value.manual_display_fps, default_manual_display_fps()

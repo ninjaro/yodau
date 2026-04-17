@@ -74,7 +74,8 @@ public:
     void start_daemon(const std::string& stream_name);
 
     void set_frame_processor(frame_processor_fn fn);
-    std::vector<event> process_frame(const std::string& stream_name, frame&& f);
+    std::vector<event>
+    process_frame(const std::string& stream_name, const frame& f);
 
     void set_processed_frame_sink(processed_frame_sink_fn fn);
     void set_event_sink(event_sink_fn fn);

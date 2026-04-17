@@ -48,6 +48,89 @@ QString default_app_algorithm_id() {
     return QStringLiteral("motion_baseline");
 }
 
+QString default_movement_display_mode_id() {
+    return QStringLiteral("auto");
+}
+
+QStringList movement_display_mode_ids() {
+    return {
+        QStringLiteral("auto"),
+        QStringLiteral("bubbles"),
+        QStringLiteral("contours"),
+        QStringLiteral("vectors"),
+        QStringLiteral("tracks"),
+        QStringLiteral("tripwire_waves"),
+        QStringLiteral("off"),
+    };
+}
+
+QString movement_display_mode_display_name(const QString& mode_id) {
+    const QString normalized = normalized_movement_display_mode_id(mode_id);
+    if (normalized == QStringLiteral("bubbles")) {
+        return QStringLiteral("bubbles");
+    }
+    if (normalized == QStringLiteral("contours")) {
+        return QStringLiteral("contours");
+    }
+    if (normalized == QStringLiteral("vectors")) {
+        return QStringLiteral("vectors");
+    }
+    if (normalized == QStringLiteral("tracks")) {
+        return QStringLiteral("tracks");
+    }
+    if (normalized == QStringLiteral("tripwire_waves")) {
+        return QStringLiteral("tripwire waves");
+    }
+    if (normalized == QStringLiteral("off")) {
+        return QStringLiteral("off");
+    }
+    return QStringLiteral("auto");
+}
+
+QString normalized_movement_display_mode_id(const QString& mode_id) {
+    const QString normalized = app_settings_support::normalized_key(mode_id);
+    if (normalized.isEmpty() || normalized == QStringLiteral("auto")) {
+        return QStringLiteral("auto");
+    }
+    if (normalized == QStringLiteral("bubble")
+        || normalized == QStringLiteral("bubbles")
+        || normalized == QStringLiteral("points")) {
+        return QStringLiteral("bubbles");
+    }
+    if (normalized == QStringLiteral("contour")
+        || normalized == QStringLiteral("contours")
+        || normalized == QStringLiteral("mask")
+        || normalized == QStringLiteral("masks")) {
+        return QStringLiteral("contours");
+    }
+    if (normalized == QStringLiteral("vector")
+        || normalized == QStringLiteral("vectors")
+        || normalized == QStringLiteral("arrows")
+        || normalized == QStringLiteral("arrow_vectors")) {
+        return QStringLiteral("vectors");
+    }
+    if (normalized == QStringLiteral("track")
+        || normalized == QStringLiteral("tracks")
+        || normalized == QStringLiteral("trails")) {
+        return QStringLiteral("tracks");
+    }
+    if (normalized == QStringLiteral("waves")
+        || normalized == QStringLiteral("tripwire_wave")
+        || normalized == QStringLiteral("tripwire_waves")) {
+        return QStringLiteral("tripwire_waves");
+    }
+    if (normalized == QStringLiteral("none")
+        || normalized == QStringLiteral("hidden")
+        || normalized == QStringLiteral("off")) {
+        return QStringLiteral("off");
+    }
+    return default_movement_display_mode_id();
+}
+
+bool movement_display_enabled(const QString& mode_id) {
+    return normalized_movement_display_mode_id(mode_id) != QStringLiteral("off");
+}
+
 QStringList app_algorithm_ids() {
     return {
         QStringLiteral("motion_baseline"),
@@ -256,14 +339,14 @@ QString normalized_algorithm_preset_id(
 
 QString algorithm_summary_text(
     const QString& algorithm_id, const QString& preset_id,
-    const bool overlay_enabled
+    const QString& movement_display_mode
 ) {
     const QString algorithm_name = app_algorithm_display_name(algorithm_id);
     const QString preset_name
         = algorithm_preset_display_name(algorithm_id, preset_id);
-    const QString overlay_text = overlay_enabled
-        ? QStringLiteral("diagnostic overlay enabled")
-        : QStringLiteral("diagnostic overlay hidden");
+    const QString display_name
+        = movement_display_mode_display_name(movement_display_mode);
+    const QString overlay_text = QStringLiteral("movement display=%1").arg(display_name);
 
     if (normalized_app_algorithm_id(algorithm_id)
         == QStringLiteral("spot_grid")) {
@@ -485,6 +568,12 @@ stream_settings apply_operator_profile(
         settings_value.algorithm_preset = normalized_algorithm_preset_id(
             settings_value.algorithm_id, settings_value.algorithm_preset
         );
+        settings_value.movement_display_mode = normalized_movement_display_mode_id(
+            settings_value.movement_display_mode
+        );
+        settings_value.algorithm_overlay_enabled = movement_display_enabled(
+            settings_value.movement_display_mode
+        );
         return settings_value;
     }
 
@@ -497,8 +586,13 @@ stream_settings apply_operator_profile(
     settings_value.algorithm_preset = normalized_algorithm_preset_id(
         settings_value.algorithm_id, preset_alias
     );
-    settings_value.algorithm_overlay_enabled
-        = normalized_profile == QStringLiteral("debug_heavy");
+    settings_value.movement_display_mode
+        = normalized_profile == QStringLiteral("simple")
+        ? QStringLiteral("off")
+        : default_movement_display_mode_id();
+    settings_value.algorithm_overlay_enabled = movement_display_enabled(
+        settings_value.movement_display_mode
+    );
     return settings_value;
 }
 
@@ -510,14 +604,20 @@ QString inferred_operator_profile_id(const stream_settings& settings_value) {
     normalized_settings.algorithm_preset = normalized_algorithm_preset_id(
         normalized_settings.algorithm_id, normalized_settings.algorithm_preset
     );
+    normalized_settings.movement_display_mode = normalized_movement_display_mode_id(
+        normalized_settings.movement_display_mode
+    );
+    normalized_settings.algorithm_overlay_enabled = movement_display_enabled(
+        normalized_settings.movement_display_mode
+    );
 
     for (const QString& candidate : operator_profile_ids()) {
         const stream_settings candidate_settings
             = apply_operator_profile(normalized_settings, candidate);
         if (candidate_settings.algorithm_preset
                 == normalized_settings.algorithm_preset
-            && candidate_settings.algorithm_overlay_enabled
-                == normalized_settings.algorithm_overlay_enabled) {
+            && candidate_settings.movement_display_mode
+                == normalized_settings.movement_display_mode) {
             return candidate;
         }
     }
@@ -534,7 +634,7 @@ QString operator_profile_summary_text(const stream_settings& settings_value) {
 
     if (profile_id == QStringLiteral("custom")) {
         return QStringLiteral(
-            "custom keeps a manual preset and overlay mix for %1."
+            "custom keeps a manual preset and movement display for %1."
         )
             .arg(app_algorithm_display_name(normalized_algorithm));
     }
@@ -546,9 +646,9 @@ QString operator_profile_summary_text(const stream_settings& settings_value) {
     const QString preset_name = algorithm_preset_display_name(
         normalized_algorithm, applied_settings.algorithm_preset
     );
-    const QString overlay_text = applied_settings.algorithm_overlay_enabled
-        ? QStringLiteral("diagnostic overlay on")
-        : QStringLiteral("diagnostic overlay off");
+    const QString overlay_text = QStringLiteral("movement display %1").arg(
+        movement_display_mode_display_name(applied_settings.movement_display_mode)
+    );
 
     return QStringLiteral("%1 maps %2 to %3 with %4.")
         .arg(operator_profile_display_name(profile_id))

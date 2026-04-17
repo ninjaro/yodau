@@ -5,13 +5,10 @@
 namespace active_stream_workflow_support {
 
 QString algorithm_detail_text(const stream_settings& settings_value) {
-    return QStringLiteral("core runtime uses %1; preset=%2 overlay=%3")
+    return QStringLiteral("core runtime uses %1; preset=%2 movement_display=%3")
         .arg(settings_value.algorithm_id)
         .arg(settings_value.algorithm_preset)
-        .arg(
-            settings_value.algorithm_overlay_enabled ? QStringLiteral("true")
-                                                     : QStringLiteral("false")
-        );
+        .arg(settings_value.movement_display_mode);
 }
 
 QString processing_policy_detail_text(const stream_settings& settings_value) {
