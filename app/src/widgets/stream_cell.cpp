@@ -9,7 +9,6 @@
 #include <QFontMetrics>
 #include <QPen>
 #include <QBrush>
-#include <QHash>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QStyle>
@@ -23,6 +22,7 @@
 #include <utility>
 
 #include "shell/icon_loader.hpp"
+#include "widgets/processing_overlay_renderer.hpp"
 
 namespace stream_cell_support {
 
@@ -37,114 +37,6 @@ constexpr double line_edit_key_nudge_px = 1.0;
 constexpr double line_edit_key_nudge_fast_px = 5.0;
 constexpr double line_edit_wheel_degrees_per_step = 5.0;
 constexpr double line_edit_wheel_fine_degrees_per_step = 1.0;
-
-QString movement_mode(const stream_settings& settings_value) {
-    return normalized_movement_display_mode_id(settings_value.movement_display_mode);
-}
-
-QString automatic_movement_mode(const stream_settings& settings_value) {
-    const QString algorithm_id = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
-    const QString preset_id = normalized_algorithm_preset_id(
-        algorithm_id, settings_value.algorithm_preset
-    );
-
-    if (algorithm_id == QStringLiteral("spot_grid")) {
-        return QStringLiteral("bubbles");
-    }
-    if (algorithm_id == QStringLiteral("contour_mask")) {
-        return QStringLiteral("contours");
-    }
-    if (algorithm_id == QStringLiteral("centroid_track")) {
-        return preset_id == QStringLiteral("fast_match")
-            ? QStringLiteral("vectors")
-            : QStringLiteral("tracks");
-    }
-    if (algorithm_id == QStringLiteral("hybrid_auto")) {
-        return QStringLiteral("auto");
-    }
-    return QStringLiteral("bubbles");
-}
-
-QString backend_overlay_mode(const stream_settings& settings_value) {
-    const QString mode = movement_mode(settings_value);
-    if (mode == QStringLiteral("auto")) {
-        return automatic_movement_mode(settings_value);
-    }
-    return mode;
-}
-
-bool event_bubbles_visible(const QString& mode_id) {
-    const QString mode = normalized_movement_display_mode_id(mode_id);
-    return mode != QStringLiteral("off")
-        && mode != QStringLiteral("tripwire_waves");
-}
-
-bool backend_overlays_visible(const QString& mode_id) {
-    const QString mode = normalized_movement_display_mode_id(mode_id);
-    return mode != QStringLiteral("off")
-        && mode != QStringLiteral("tripwire_waves");
-}
-
-bool tripwire_waves_visible(const QString& mode_id) {
-    const QString mode = normalized_movement_display_mode_id(mode_id);
-    return mode == QStringLiteral("auto")
-        || mode == QStringLiteral("tripwire_waves");
-}
-
-bool should_draw_overlay(
-    const stream_cell::processing_overlay_kind kind, const QString& mode_id
-) {
-    const QString mode = normalized_movement_display_mode_id(mode_id);
-    if (mode == QStringLiteral("auto")) {
-        return true;
-    }
-    if (mode == QStringLiteral("bubbles")) {
-        return kind == stream_cell::processing_overlay_kind::point;
-    }
-    if (mode == QStringLiteral("contours")) {
-        return kind == stream_cell::processing_overlay_kind::polygon;
-    }
-    if (mode == QStringLiteral("vectors")
-        || mode == QStringLiteral("tracks")) {
-        return kind == stream_cell::processing_overlay_kind::polyline
-            || kind == stream_cell::processing_overlay_kind::point;
-    }
-    return false;
-}
-
-QColor overlay_color_for_label(const QString& label) {
-    const auto seed = qHash(label.isEmpty() ? QStringLiteral("overlay") : label);
-    return QColor::fromHsv(static_cast<int>(seed % 360U), 165, 235);
-}
-
-void draw_arrow_head(
-    QPainter& painter, const QPointF& from, const QPointF& to,
-    const QColor& color
-) {
-    const QLineF line(from, to);
-    if (line.length() < 2.0) {
-        return;
-    }
-
-    const double angle = std::atan2(to.y() - from.y(), to.x() - from.x());
-    const double size = 9.0;
-    const QPointF left(
-        to.x() - std::cos(angle - std::numbers::pi / 6.0) * size,
-        to.y() - std::sin(angle - std::numbers::pi / 6.0) * size
-    );
-    const QPointF right(
-        to.x() - std::cos(angle + std::numbers::pi / 6.0) * size,
-        to.y() - std::sin(angle + std::numbers::pi / 6.0) * size
-    );
-
-    QPolygonF arrow;
-    arrow << to << left << right;
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(color);
-    painter.drawPolygon(arrow);
-}
 
 struct path_segment {
     int index { -1 };
@@ -1532,9 +1424,9 @@ void stream_cell::paintEvent(QPaintEvent* event) {
     prune_line_waves(animation_clock.elapsed());
     update_animation_timer();
 
+    draw_persistent(p);
     draw_processing_overlays(p);
     draw_events(p);
-    draw_persistent(p);
     draw_draft(p);
     draw_line_edit_preview(p);
     draw_preview_segment(p);
@@ -2037,8 +1929,8 @@ void stream_cell::draw_persistent(QPainter& p) const {
             p, l.pts_pct, effective_color, l.closed, Qt::SolidLine,
             line_width_visual_value(l.width_text)
         );
-        if (stream_cell_support::tripwire_waves_visible(
-                stream_settings_value.movement_display_mode
+        if (processing_overlay_renderer::tripwire_waves_visible(
+                stream_settings_value
             )) {
             draw_wave_overlay(p, l, effective_color);
         }
@@ -2495,96 +2387,16 @@ void stream_cell::sync_mouse_tracking() {
 }
 
 void stream_cell::draw_processing_overlays(QPainter& p) const {
-    const QString mode = stream_cell_support::backend_overlay_mode(
-        stream_settings_value
+    processing_overlay_renderer::draw(
+        p, QRectF(rect()), stream_settings_value, processing_overlays
     );
-    if (!stream_cell_support::backend_overlays_visible(mode)
-        || processing_overlays.empty()) {
-        return;
-    }
-
-    p.save();
-    p.setRenderHint(QPainter::Antialiasing, true);
-
-    for (const auto& overlay : processing_overlays) {
-        if (!stream_cell_support::should_draw_overlay(overlay.kind, mode)) {
-            continue;
-        }
-
-        QColor color = stream_cell_support::overlay_color_for_label(overlay.label);
-        color.setAlpha(185);
-
-        if (overlay.kind == processing_overlay_kind::point) {
-            if (!overlay.anchor_pct.has_value()) {
-                continue;
-            }
-            const QPointF center = to_px(*overlay.anchor_pct);
-            p.setPen(QPen(color.lighter(130), 1.6));
-            p.setBrush(stream_cell_support::color_with_alpha(color, 82));
-            p.drawEllipse(center, 9.0, 9.0);
-            continue;
-        }
-
-        if (overlay.kind == processing_overlay_kind::label) {
-            if (!overlay.anchor_pct.has_value()) {
-                continue;
-            }
-            const QPointF anchor = to_px(*overlay.anchor_pct);
-            p.setPen(color.lighter(145));
-            p.drawText(anchor + QPointF(8.0, -8.0), overlay.label);
-            continue;
-        }
-
-        if (overlay.points_pct.size() < 2) {
-            continue;
-        }
-
-        QPolygonF path;
-        path.reserve(static_cast<int>(overlay.points_pct.size()));
-        for (const auto& point_pct : overlay.points_pct) {
-            path << to_px(point_pct);
-        }
-
-        QPen pen(color);
-        pen.setWidthF(mode == QStringLiteral("vectors") ? 2.1 : 1.8);
-        pen.setStyle(
-            mode == QStringLiteral("tracks") ? Qt::SolidLine : Qt::DashLine
-        );
-        p.setPen(pen);
-
-        if (overlay.kind == processing_overlay_kind::polygon) {
-            p.setBrush(stream_cell_support::color_with_alpha(color, 34));
-            p.drawPolygon(path);
-            continue;
-        }
-
-        p.setBrush(Qt::NoBrush);
-        p.drawPolyline(path);
-
-        if (mode == QStringLiteral("vectors") && path.size() >= 2) {
-            stream_cell_support::draw_arrow_head(
-                p, path.at(path.size() - 2), path.at(path.size() - 1), color
-            );
-        } else if (mode == QStringLiteral("tracks")) {
-            p.setPen(Qt::NoPen);
-            p.setBrush(stream_cell_support::color_with_alpha(color, 135));
-            for (const QPointF& point_value : path) {
-                p.drawEllipse(point_value, 3.5, 3.5);
-            }
-        }
-    }
-
-    p.restore();
 }
 
 void stream_cell::draw_events(QPainter& p) {
-    const QString selected_mode = stream_cell_support::movement_mode(
+    const QString selected_mode = processing_overlay_renderer::selected_movement_mode(
         stream_settings_value
     );
-    const QString overlay_mode = stream_cell_support::backend_overlay_mode(
-        stream_settings_value
-    );
-    if (!stream_cell_support::event_bubbles_visible(overlay_mode)) {
+    if (!processing_overlay_renderer::event_bubbles_visible(stream_settings_value)) {
         events.clear();
         return;
     }

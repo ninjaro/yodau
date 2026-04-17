@@ -3,6 +3,7 @@
 
 #include "shell/app_settings.hpp"
 #include "shell/app_log.hpp"
+#include "widgets/processing_overlay.hpp"
 
 #include <QCamera>
 #include <QCameraDevice>
@@ -107,14 +108,8 @@ public:
         QDateTime ts;
     };
 
-    enum class processing_overlay_kind { point, polyline, polygon, label };
-
-    struct processing_overlay_instance {
-        processing_overlay_kind kind { processing_overlay_kind::point };
-        QString label;
-        std::vector<QPointF> points_pct;
-        std::optional<QPointF> anchor_pct;
-    };
+    using processing_overlay_kind = ::processing_overlay_kind;
+    using processing_overlay_instance = ::processing_overlay_instance;
 
     void add_event(const QPointF& pos_pct, const QColor& color);
     void set_processing_overlays(std::vector<processing_overlay_instance> overlays);
