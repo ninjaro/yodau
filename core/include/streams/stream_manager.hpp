@@ -5,12 +5,16 @@
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
+#include "streams/stream_daemon_runner.hpp"
+#include "streams/stream_event_dispatcher.hpp"
+#include "streams/stream_line_store.hpp"
+#include "streams/stream_processed_frame_router.hpp"
+#include "streams/stream_registry.hpp"
 #include <functional>
 #include <mutex>
 #include <optional>
 #include <stop_token>
 #include <thread>
-#include <unordered_map>
 
 namespace yodau::core {
 class stream_manager {
@@ -18,18 +22,12 @@ public:
     using local_stream_detector_fn = std::function<std::vector<stream>()>;
     using manual_push_fn
         = std::function<void(const std::string& stream_name, frame&& f)>;
-    using daemon_start_fn = std::function<void(
-        const stream& s, std::function<void(frame&&)> on_frame,
-        std::stop_token st
-    )>;
+    using daemon_start_fn = stream_daemon_start_fn;
     using frame_processor_fn
         = std::function<std::vector<event>(const stream& s, const frame& f)>;
-    using processed_frame_sink_fn = std::function<void(
-        const stream& s, const frame& f, const std::vector<event>& events
-    )>;
-    using event_sink_fn = std::function<void(const event& e)>;
-    using event_batch_sink_fn
-        = std::function<void(const std::vector<event>& events)>;
+    using processed_frame_sink_fn = stream_processed_frame_sink_fn;
+    using event_sink_fn = stream_event_sink_fn;
+    using event_batch_sink_fn = stream_event_batch_sink_fn;
 
     stream_manager();
 
@@ -97,33 +95,24 @@ public:
 private:
     std::vector<std::shared_ptr<stream>> snapshot_streams() const;
     void snapshot_hooks(
-        frame_processor_fn& fp, processed_frame_sink_fn& pfs, event_sink_fn& es,
-        event_batch_sink_fn& bes
+        frame_processor_fn& fp, processed_frame_sink_fn& pfs,
+        stream_event_sinks& event_sinks
     ) const;
     int current_fake_interval_ms() const;
-    void run_stream_daemon(
-        std::string stream_name, std::shared_ptr<stream> stream_ptr,
-        daemon_start_fn daemon_fn, std::stop_token st
-    );
     void run_fake_events(std::stop_token st);
     static bool is_linux_capture_ok(const stream& s);
-    std::unordered_map<std::string, std::shared_ptr<stream>> streams;
-    std::unordered_map<std::string, line_ptr> lines;
-    std::unordered_map<std::string, line_profile> line_profiles;
-
-    size_t stream_idx { 0 };
-    size_t line_idx { 0 };
+    stream_registry streams;
+    stream_line_store lines;
 
     local_stream_detector_fn stream_detector {};
     manual_push_fn manual_push;
     daemon_start_fn daemon_start;
     frame_processor_fn frame_processor;
-    processed_frame_sink_fn processed_frame_sink;
-    event_sink_fn event_sink;
-    event_batch_sink_fn event_batch_sink;
+    stream_processed_frame_router processed_frame_router;
+    stream_event_dispatcher event_dispatcher;
 
     analysis_scheduler scheduler;
-    std::unordered_map<std::string, std::jthread> daemons;
+    stream_daemon_runner daemon_runner;
     std::jthread fake_thread;
     int fake_interval_ms { 700 };
     bool fake_enabled { false };

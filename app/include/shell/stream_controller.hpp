@@ -160,7 +160,8 @@ private:
         const QString& stream_name, int width, int height
     );
     void note_core_frame_observed(
-        const QString& stream_name, int width, int height
+        const QString& stream_name, int width, int height,
+        const QString& processing_summary = QString()
     );
     void sync_runtime_metrics_for_stream(const QString& stream_name);
     void sync_visible_runtime_metrics();

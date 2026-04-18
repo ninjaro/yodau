@@ -63,6 +63,7 @@ struct stream_runtime_metrics {
     int effective_core_fps { 0 };
     int effective_processing_pixels { 0 };
     bool manual_policy_active { false };
+    QString processing_summary;
 };
 
 Q_DECLARE_METATYPE(stream_runtime_metrics)

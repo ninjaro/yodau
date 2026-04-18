@@ -2,45 +2,29 @@
 #include "streams/linux_capture_device.hpp"
 
 #include <chrono>
-#include <ranges>
+#include <stdexcept>
 #include <thread>
+#include <utility>
 
 yodau::core::stream_manager::stream_manager() { refresh_local_streams(); }
 
 void yodau::core::stream_manager::dump(std::ostream& out) const {
     std::scoped_lock lock(mtx);
-    dump_stream(out);
+    streams.dump(out);
     out << "\n";
-    dump_lines(out);
+    lines.dump(out);
 }
 
 void yodau::core::stream_manager::dump_lines(std::ostream& out) const {
     std::scoped_lock lock(mtx);
-    out << lines.size() << " lines:";
-    for (const auto& line : lines | std::views::values) {
-        out << "\n\t";
-        line->dump(out);
-
-        const auto profile_it = line_profiles.find(line->name);
-        const line_profile profile = profile_it != line_profiles.end()
-            ? profile_it->second
-            : make_line_profile(line->name);
-        out << " profile(width=" << profile.visual_width
-            << ", interaction=" << profile.interaction_width
-            << ", length=" << profile.effective_length
-            << ", damping=" << profile.damping << ")";
-    }
+    lines.dump(out);
 }
 
 void yodau::core::stream_manager::dump_stream(
     std::ostream& out, const bool connections
 ) const {
     std::scoped_lock lock(mtx);
-    out << streams.size() << " streams:";
-    for (const auto& stream : streams | std::views::values) {
-        out << "\n\t";
-        stream->dump(out, connections);
-    }
+    streams.dump(out, connections);
 }
 
 void yodau::core::stream_manager::set_local_stream_detector(
@@ -78,14 +62,8 @@ void yodau::core::stream_manager::refresh_local_streams() {
 
     auto detected_streams = det();
     for (auto& detected_stream : detected_streams) {
-        const auto name = detected_stream.get_name();
-
         std::scoped_lock lock(mtx);
-        if (!streams.contains(name)) { // todo: update existing streams?
-            streams.emplace(
-                name, std::make_shared<stream>(std::move(detected_stream))
-            );
-        }
+        streams.add_detected(std::move(detected_stream));
     }
 }
 
@@ -94,29 +72,14 @@ yodau::core::stream& yodau::core::stream_manager::add_stream(
     bool loop
 ) {
     std::scoped_lock lock(mtx);
-    std::string stream_name = name;
-    while (stream_name.empty() || streams.contains(stream_name)) {
-        stream_name = "stream_" + std::to_string(stream_idx++);
-    }
-    auto new_stream = std::make_shared<stream>(path, stream_name, type, loop);
-    auto& ref = *new_stream;
-    streams.emplace(stream_name, std::move(new_stream));
-    return ref;
+    return streams.add(path, name, type, loop);
 }
 
 yodau::core::line_ptr yodau::core::stream_manager::add_line(
     const std::string& points, const bool closed, const std::string& name
 ) {
     std::scoped_lock lock(mtx);
-    std::vector<point> parsed_points = parse_points(points);
-    std::string line_name = name;
-    while (line_name.empty() || lines.contains(line_name)) {
-        line_name = "line_" + std::to_string(line_idx++);
-    }
-    auto new_line = make_line(std::move(parsed_points), line_name, closed);
-    lines.emplace(line_name, new_line);
-    line_profiles.emplace(line_name, make_line_profile(line_name));
-    return new_line;
+    return lines.add(points, closed, name);
 }
 
 void yodau::core::stream_manager::set_line_profile(
@@ -124,19 +87,12 @@ void yodau::core::stream_manager::set_line_profile(
 ) {
     std::scoped_lock lock(mtx);
 
-    profile_value.normalize();
-    if (profile_value.line_name.empty()) {
-        throw std::runtime_error("line name is required for line profile");
-    }
-
-    if (!lines.contains(profile_value.line_name)) {
-        throw std::runtime_error("line not found: " + profile_value.line_name);
-    }
-
-    line_profiles[profile_value.line_name] = profile_value;
-    for (const auto& stream_ptr : streams | std::views::values) {
+    const line_profile stored_profile = lines.set_profile(
+        std::move(profile_value)
+    );
+    for (const auto& stream_ptr : streams.snapshot()) {
         if (stream_ptr) {
-            stream_ptr->set_line_profile(profile_value);
+            stream_ptr->set_line_profile(stored_profile);
         }
     }
 }
@@ -146,17 +102,7 @@ yodau::core::stream_manager::find_line_profile(
     const std::string& line_name
 ) const {
     std::scoped_lock lock(mtx);
-
-    if (!lines.contains(line_name)) {
-        return std::nullopt;
-    }
-
-    const auto profile_it = line_profiles.find(line_name);
-    if (profile_it == line_profiles.end()) {
-        return make_line_profile(line_name);
-    }
-
-    return profile_it->second;
+    return lines.find_profile(line_name);
 }
 
 void yodau::core::stream_manager::set_stream_line_profile(
@@ -176,12 +122,10 @@ void yodau::core::stream_manager::set_stream_line_profile(
             throw std::runtime_error("line not found: " + profile_value.line_name);
         }
 
-        const auto stream_it = streams.find(stream_name);
-        if (stream_it == streams.end() || !stream_it->second) {
+        stream_ptr = streams.find(stream_name);
+        if (!stream_ptr) {
             throw std::runtime_error("stream not found: " + stream_name);
         }
-
-        stream_ptr = stream_it->second;
     }
 
     if (!stream_ptr->find_line_profile(profile_value.line_name).has_value()) {
@@ -201,12 +145,7 @@ yodau::core::stream_manager::find_stream_line_profile(
 
     {
         std::scoped_lock lock(mtx);
-        const auto stream_it = streams.find(stream_name);
-        if (stream_it == streams.end()) {
-            return std::nullopt;
-        }
-
-        stream_ptr = stream_it->second;
+        stream_ptr = streams.find(stream_name);
     }
 
     if (!stream_ptr) {
@@ -220,31 +159,22 @@ yodau::core::stream& yodau::core::stream_manager::set_line(
     const std::string& stream_name, const std::string& line_name
 ) {
     std::scoped_lock lock(mtx);
-    const auto stream_it = streams.find(stream_name);
-    if (stream_it == streams.end()) {
+    const auto stream_ptr = streams.find(stream_name);
+    if (!stream_ptr) {
         throw std::runtime_error("stream not found: " + stream_name);
     }
-    const auto line_it = lines.find(line_name);
-    if (line_it == lines.end()) {
-        throw std::runtime_error("line not found: " + line_name);
-    }
-    const auto profile_it = line_profiles.find(line_name);
-    stream_it->second->connect_line(
-        line_it->second,
-        profile_it != line_profiles.end() ? std::optional<line_profile>(profile_it->second)
-                                          : std::optional<line_profile>(
-                                                make_line_profile(line_name)
-                                            )
-    );
-    return *stream_it->second;
+
+    const auto connection = lines.connection(line_name);
+    stream_ptr->connect_line(connection.line, connection.profile);
+    return *stream_ptr;
 }
 
 void yodau::core::stream_manager::clear_stream_line(
     const std::string& stream_name, const std::string& line_name
 ) {
     std::scoped_lock lock(mtx);
-    const auto stream_it = streams.find(stream_name);
-    if (stream_it == streams.end()) {
+    const auto stream_ptr = streams.find(stream_name);
+    if (!stream_ptr) {
         throw std::runtime_error("stream not found: " + stream_name);
     }
 
@@ -252,40 +182,34 @@ void yodau::core::stream_manager::clear_stream_line(
         throw std::runtime_error("line not found: " + line_name);
     }
 
-    stream_it->second->disconnect_line(line_name);
+    stream_ptr->disconnect_line(line_name);
 }
 
 std::shared_ptr<const yodau::core::stream>
 yodau::core::stream_manager::find_stream(const std::string& name) const {
     std::scoped_lock lock(mtx);
-    const auto it = streams.find(name);
-    if (it == streams.end()) {
-        return {};
-    }
-    return it->second;
+    return streams.find_const(name);
 }
 
 std::vector<std::string> yodau::core::stream_manager::stream_names() const {
     std::scoped_lock lock(mtx);
-    return streams | std::views::keys
-        | std::ranges::to<std::vector<std::string>>();
+    return streams.names();
 }
 
 std::vector<std::string> yodau::core::stream_manager::line_names() const {
     std::scoped_lock lock(mtx);
-    return lines | std::views::keys
-        | std::ranges::to<std::vector<std::string>>();
+    return lines.names();
 }
 
 std::vector<std::string> yodau::core::stream_manager::stream_lines(
     const std::string& stream_name
 ) const {
     std::scoped_lock lock(mtx);
-    const auto stream_it = streams.find(stream_name);
-    if (stream_it == streams.end()) {
+    const auto stream_ptr = streams.find(stream_name);
+    if (!stream_ptr) {
         return {};
     }
-    return stream_it->second->line_names();
+    return stream_ptr->line_names();
 }
 
 void yodau::core::stream_manager::set_manual_push_hook(manual_push_fn hook) {
@@ -305,21 +229,16 @@ void yodau::core::stream_manager::push_frame(
 ) {
     manual_push_fn mp;
     processed_frame_sink_fn pfs;
-    event_sink_fn es;
-    event_batch_sink_fn bes;
+    stream_event_sinks event_sinks;
     std::shared_ptr<stream> sp;
 
     {
         std::scoped_lock lock(mtx);
         mp = manual_push;
-        pfs = processed_frame_sink;
-        es = event_sink;
-        bes = event_batch_sink;
+        pfs = processed_frame_router.snapshot();
+        event_sinks = event_dispatcher.snapshot();
 
-        const auto stream_it = streams.find(stream_name);
-        if (stream_it != streams.end()) {
-            sp = stream_it->second;
-        }
+        sp = streams.find(stream_name);
     }
 
     if (mp) {
@@ -333,18 +252,7 @@ void yodau::core::stream_manager::push_frame(
         pfs(*sp, f, events);
     }
 
-    if (bes) {
-        bes(events);
-        return;
-    }
-
-    if (!es) {
-        return;
-    }
-
-    for (const auto& e : events) {
-        es(e);
-    }
+    event_sinks.dispatch(events);
 }
 
 void yodau::core::stream_manager::start_daemon(
@@ -369,13 +277,12 @@ yodau::core::stream_manager::process_frame(
 
     {
         std::scoped_lock lock(mtx);
-        auto it = streams.find(stream_name);
-        if (it == streams.end() || !frame_processor) {
+        if (!frame_processor) {
             return {};
         }
 
         fp = frame_processor;
-        sp = it->second;
+        sp = streams.find(stream_name);
     }
 
     if (!sp || !fp || !scheduler.should_process(stream_name)) {
@@ -389,19 +296,19 @@ void yodau::core::stream_manager::set_processed_frame_sink(
     processed_frame_sink_fn fn
 ) {
     std::scoped_lock lock(mtx);
-    processed_frame_sink = std::move(fn);
+    processed_frame_router.set_sink(std::move(fn));
 }
 
 void yodau::core::stream_manager::set_event_sink(event_sink_fn fn) {
     std::scoped_lock lock(mtx);
-    event_sink = std::move(fn);
+    event_dispatcher.set_event_sink(std::move(fn));
 }
 
 void yodau::core::stream_manager::set_event_batch_sink(
     event_batch_sink_fn fn
 ) {
     std::scoped_lock lock(mtx);
-    event_batch_sink = std::move(fn);
+    event_dispatcher.set_event_batch_sink(std::move(fn));
 }
 
 void yodau::core::stream_manager::set_analysis_interval_ms(int ms) {
@@ -426,16 +333,15 @@ void yodau::core::stream_manager::start_stream(const std::string& name) {
 
     {
         std::scoped_lock lock(mtx);
-        if (!daemon_start || daemons.contains(name)) {
+        if (!daemon_start || daemon_runner.is_running(name)) {
             return;
         }
 
-        const auto it = streams.find(name);
-        if (it == streams.end() || !it->second) {
+        sp = streams.find(name);
+        if (!sp) {
             return;
         }
 
-        sp = it->second;
         ds = daemon_start;
 
         if (!is_linux_capture_ok(*sp)) {
@@ -443,52 +349,47 @@ void yodau::core::stream_manager::start_stream(const std::string& name) {
         }
 
         sp->activate(stream_pipeline::automatic);
-    }
 
-    auto daemon_runner = std::bind_front(
-        &stream_manager::run_stream_daemon, this, name, sp, ds
-    );
-    std::jthread th(std::move(daemon_runner));
-
-    {
-        std::scoped_lock lock(mtx);
-        daemons.emplace(name, std::move(th));
+        const bool started = daemon_runner.start(
+            name, sp, ds,
+            [this](const std::string& stream_name, frame&& f) {
+                push_frame(stream_name, std::move(f));
+            }
+        );
+        if (!started) {
+            sp->deactivate();
+        }
     }
 }
 
 void yodau::core::stream_manager::stop_stream(const std::string& name) {
-    std::jthread th;
     std::shared_ptr<stream> sp;
 
     {
         std::scoped_lock lock(mtx);
-        const auto it = daemons.find(name);
-        if (it == daemons.end()) {
+        if (!daemon_runner.is_running(name)) {
             return;
         }
 
-        th = std::move(it->second);
-        daemons.erase(it);
-
-        const auto sit = streams.find(name);
-        if (sit != streams.end()) {
-            sp = sit->second;
-        }
+        sp = streams.find(name);
     }
 
-    th.request_stop();
+    if (!daemon_runner.stop(name)) {
+        return;
+    }
 
     if (sp) {
         std::scoped_lock lock(mtx);
-        sp->deactivate();
+        if (!daemon_runner.is_running(name)) {
+            sp->deactivate();
+        }
     }
 }
 
 bool yodau::core::stream_manager::is_stream_running(
     const std::string& name
 ) const {
-    std::scoped_lock lock(mtx);
-    return daemons.contains(name);
+    return daemon_runner.is_running(name);
 }
 
 void yodau::core::stream_manager::enable_fake_events(const int interval_ms) {
@@ -544,65 +445,33 @@ void yodau::core::stream_manager::set_line_dir(
 ) {
     std::scoped_lock lock(mtx);
 
-    const auto it = lines.find(line_name);
-    if (it == lines.end() || !it->second) {
-        throw std::runtime_error("line not found: " + line_name);
-    }
-
-    const auto old_ptr = it->second;
-    auto new_ptr = std::make_shared<line>(*old_ptr);
-    new_ptr->dir = dir;
-
-    it->second = new_ptr;
-    const line_profile profile_value = line_profiles.contains(line_name)
-        ? line_profiles.at(line_name)
-        : make_line_profile(line_name);
-    for (const auto& stream_ptr : streams | std::views::values) {
+    const auto connection = lines.set_direction(line_name, dir);
+    for (const auto& stream_ptr : streams.snapshot()) {
         if (stream_ptr && stream_ptr->find_line_profile(line_name).has_value()) {
-            stream_ptr->connect_line(new_ptr, profile_value);
+            stream_ptr->connect_line(connection.line, connection.profile);
         }
     }
 }
 
 std::vector<std::shared_ptr<yodau::core::stream>>
 yodau::core::stream_manager::snapshot_streams() const {
-    std::vector<std::shared_ptr<stream>> snap;
-
     std::scoped_lock lock(mtx);
-    snap.reserve(streams.size());
-    for (auto& sp : streams | std::views::values) {
-        if (sp) {
-            snap.push_back(sp);
-        }
-    }
-
-    return snap;
+    return streams.snapshot();
 }
 
 void yodau::core::stream_manager::snapshot_hooks(
-    frame_processor_fn& fp, processed_frame_sink_fn& pfs, event_sink_fn& es,
-    event_batch_sink_fn& bes
+    frame_processor_fn& fp, processed_frame_sink_fn& pfs,
+    stream_event_sinks& event_sinks
 ) const {
     std::scoped_lock lock(mtx);
     fp = frame_processor;
-    pfs = processed_frame_sink;
-    es = event_sink;
-    bes = event_batch_sink;
+    pfs = processed_frame_router.snapshot();
+    event_sinks = event_dispatcher.snapshot();
 }
 
 int yodau::core::stream_manager::current_fake_interval_ms() const {
     std::scoped_lock lock(mtx);
     return fake_interval_ms;
-}
-
-void yodau::core::stream_manager::run_stream_daemon(
-    std::string stream_name, std::shared_ptr<stream> stream_ptr,
-    daemon_start_fn daemon_fn, std::stop_token st
-) {
-    daemon_fn(
-        *stream_ptr,
-        std::bind_front(&stream_manager::push_frame, this, stream_name), st
-    );
 }
 
 void yodau::core::stream_manager::run_fake_events(std::stop_token st) {
@@ -613,9 +482,8 @@ void yodau::core::stream_manager::run_fake_events(std::stop_token st) {
 
         frame_processor_fn fp;
         processed_frame_sink_fn pfs;
-        event_sink_fn es;
-        event_batch_sink_fn bes;
-        snapshot_hooks(fp, pfs, es, bes);
+        stream_event_sinks event_sinks;
+        snapshot_hooks(fp, pfs, event_sinks);
 
         if (fp) {
             for (const auto& sp : snap) {
@@ -625,15 +493,7 @@ void yodau::core::stream_manager::run_fake_events(std::stop_token st) {
                     pfs(*sp, dummy, evs);
                 }
 
-                if (bes) {
-                    if (!evs.empty()) {
-                        bes(evs);
-                    }
-                } else if (es) {
-                    for (const auto& e : evs) {
-                        es(e);
-                    }
-                }
+                event_sinks.dispatch(evs, true);
             }
         }
 

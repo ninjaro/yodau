@@ -8,6 +8,7 @@
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 namespace yodau::core {
 
@@ -30,6 +31,14 @@ int config_int(
     }
 
     return std::clamp(value, min_value, max_value);
+}
+
+std::string config_string(
+    const processing_algorithm_configuration& configuration,
+    const std::string& key, std::string fallback
+) {
+    const auto it = configuration.values.find(key);
+    return it == configuration.values.end() ? std::move(fallback) : it->second;
 }
 
 cv::Mat frame_to_gray_mat(const frame& frame_value) {

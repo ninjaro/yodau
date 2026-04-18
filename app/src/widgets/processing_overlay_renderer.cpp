@@ -45,22 +45,22 @@ bool backend_overlays_visible(const QString& mode_id) {
 }
 
 bool should_draw_overlay(
-    const processing_overlay_kind kind, const QString& mode_id
+    const processing_overlay_instance& overlay, const QString& mode_id
 ) {
     const QString mode = normalized_movement_display_mode_id(mode_id);
     if (mode == QStringLiteral("auto")) {
         return true;
     }
     if (mode == QStringLiteral("bubbles")) {
-        return kind == processing_overlay_kind::point;
+        return overlay.kind == processing_overlay_kind::point;
     }
     if (mode == QStringLiteral("contours")) {
-        return kind == processing_overlay_kind::polygon;
+        return overlay.kind == processing_overlay_kind::polygon;
     }
     if (mode == QStringLiteral("vectors")
         || mode == QStringLiteral("tracks")) {
-        return kind == processing_overlay_kind::polyline
-            || kind == processing_overlay_kind::point;
+        return overlay.kind == processing_overlay_kind::polyline
+            || overlay.kind == processing_overlay_kind::point;
     }
     return false;
 }
@@ -73,6 +73,18 @@ QColor color_with_alpha(QColor color, const int alpha) {
 QColor overlay_color_for_label(const QString& label) {
     const auto seed = qHash(label.isEmpty() ? QStringLiteral("overlay") : label);
     return QColor::fromHsv(static_cast<int>(seed % 360U), 165, 235);
+}
+
+bool is_flow_overlay(const QString& label) {
+    return label.startsWith(QStringLiteral("flow_"));
+}
+
+bool is_average_flow_overlay(const QString& label) {
+    return label == QStringLiteral("flow_average");
+}
+
+bool is_track_overlay(const QString& label) {
+    return label.startsWith(QStringLiteral("track"));
 }
 
 QPointF to_px(const QRectF& bounds, const QPointF& point_pct) {
@@ -151,7 +163,7 @@ void draw(
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     for (const auto& overlay : overlays) {
-        if (!should_draw_overlay(overlay.kind, mode)) {
+        if (!should_draw_overlay(overlay, mode)) {
             continue;
         }
 
@@ -163,9 +175,21 @@ void draw(
                 continue;
             }
             const QPointF center = to_px(bounds, *overlay.anchor_pct);
-            painter.setPen(QPen(color.lighter(130), 1.6));
-            painter.setBrush(color_with_alpha(color, 82));
-            painter.drawEllipse(center, 9.0, 9.0);
+            const bool track_point = is_track_overlay(overlay.label);
+            painter.setPen(
+                QPen(color.lighter(135), track_point ? 1.9 : 1.6)
+            );
+            painter.setBrush(
+                color_with_alpha(color, track_point ? 112 : 82)
+            );
+            painter.drawEllipse(
+                center, track_point ? 7.0 : 9.0, track_point ? 7.0 : 9.0
+            );
+            if (track_point) {
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(color_with_alpha(color.lighter(130), 180));
+                painter.drawEllipse(center, 2.5, 2.5);
+            }
             continue;
         }
 
@@ -189,11 +213,24 @@ void draw(
             path << to_px(bounds, point_pct);
         }
 
+        const bool flow_overlay = is_flow_overlay(overlay.label);
+        const bool average_flow = is_average_flow_overlay(overlay.label);
+        const bool track_overlay = is_track_overlay(overlay.label);
         QPen pen(color);
-        pen.setWidthF(mode == QStringLiteral("vectors") ? 2.1 : 1.8);
-        pen.setStyle(
-            mode == QStringLiteral("tracks") ? Qt::SolidLine : Qt::DashLine
+        pen.setWidthF(
+            average_flow ? 2.8
+            : (flow_overlay ? 1.7
+                            : (mode == QStringLiteral("vectors") ? 2.1 : 1.8))
         );
+        pen.setStyle(
+            flow_overlay
+                ? Qt::DashLine
+                : (mode == QStringLiteral("tracks") || track_overlay
+                       ? Qt::SolidLine
+                       : Qt::DashLine)
+        );
+        pen.setCapStyle(Qt::RoundCap);
+        pen.setJoinStyle(Qt::RoundJoin);
         painter.setPen(pen);
 
         if (overlay.kind == processing_overlay_kind::polygon) {
@@ -205,12 +242,13 @@ void draw(
         painter.setBrush(Qt::NoBrush);
         painter.drawPolyline(path);
 
-        if (mode == QStringLiteral("vectors") && path.size() >= 2) {
+        if ((flow_overlay || mode == QStringLiteral("vectors"))
+            && path.size() >= 2) {
             draw_arrow_head(
                 painter, path.at(path.size() - 2), path.at(path.size() - 1),
                 color
             );
-        } else if (mode == QStringLiteral("tracks")) {
+        } else if (mode == QStringLiteral("tracks") || track_overlay) {
             painter.setPen(Qt::NoPen);
             painter.setBrush(color_with_alpha(color, 135));
             for (const QPointF& point_value : path) {

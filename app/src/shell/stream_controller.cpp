@@ -11,12 +11,14 @@
 #include <QImage>
 #include <QMetaObject>
 #include <QMetaType>
+#include <QStringList>
 #include <QThread>
 #include <QtGlobal>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <functional>
+#include <optional>
 #include <utility>
 
 #include "streams/event.hpp"
@@ -77,6 +79,151 @@ std::vector<stream_cell::processing_overlay_instance> app_overlays_from_result(
     return overlays;
 }
 
+QString diagnostic_value(
+    const yodau::core::processing_result& result,
+    const std::vector<std::string>& keys
+) {
+    for (const std::string& key : keys) {
+        const auto it = std::ranges::find_if(
+            result.diagnostics,
+            [&key](const yodau::core::processing_diagnostic& diagnostic) {
+                return diagnostic.key == key;
+            }
+        );
+        if (it != result.diagnostics.end()) {
+            return QString::fromStdString(it->value);
+        }
+    }
+
+    return {};
+}
+
+std::optional<double> metric_value(
+    const yodau::core::processing_result& result,
+    const std::vector<std::string>& names
+) {
+    for (const std::string& name : names) {
+        const auto it = std::ranges::find_if(
+            result.metrics,
+            [&name](const yodau::core::processing_metric& metric) {
+                return metric.name == name;
+            }
+        );
+        if (it != result.metrics.end()) {
+            return it->value;
+        }
+    }
+
+    return std::nullopt;
+}
+
+QString compact_metric_number(const double value, const int precision = 0) {
+    if (std::abs(value - std::round(value)) < 0.05) {
+        return QString::number(static_cast<int>(std::lround(value)));
+    }
+
+    return QString::number(value, 'f', precision);
+}
+
+QString processing_summary_from_result(
+    const yodau::core::processing_result& result
+) {
+    QStringList parts;
+
+    const QString selected_algorithm = diagnostic_value(
+        result, { "selected_algorithm", "algorithm" }
+    );
+    if (!selected_algorithm.isEmpty()) {
+        parts.push_back(selected_algorithm);
+    }
+
+    const QString background_model = diagnostic_value(
+        result, { "selected_background_model", "background_model" }
+    );
+    const QString motion_focus = diagnostic_value(
+        result, { "selected_motion_focus", "motion_focus" }
+    );
+    if (!background_model.isEmpty() || !motion_focus.isEmpty()) {
+        parts.push_back(
+            QStringLiteral("bg %1 focus %2")
+                .arg(background_model.isEmpty() ? QStringLiteral("--")
+                                                : background_model)
+                .arg(motion_focus.isEmpty() ? QStringLiteral("--")
+                                            : motion_focus)
+        );
+    }
+
+    if (const auto flow_count = metric_value(
+            result,
+            {
+                "selected_sparse_flow_vector_count",
+                "sparse_flow_vector_count",
+            }
+        )) {
+        const auto flow_distance = metric_value(
+            result,
+            {
+                "selected_sparse_flow_average_distance_pct",
+                "sparse_flow_average_distance_pct",
+            }
+        );
+        parts.push_back(
+            QStringLiteral("flow %1 vec %2%")
+                .arg(compact_metric_number(*flow_count))
+                .arg(
+                    flow_distance.has_value()
+                        ? compact_metric_number(*flow_distance, 1)
+                        : QStringLiteral("--")
+                )
+        );
+    }
+
+    const auto track_count = metric_value(
+        result, { "selected_track_count", "track_count" }
+    );
+    const auto stable_track_count = metric_value(
+        result, { "selected_stable_track_count", "stable_track_count" }
+    );
+    if (track_count.has_value() || stable_track_count.has_value()) {
+        parts.push_back(
+            QStringLiteral("tracks %1/%2")
+                .arg(track_count.has_value()
+                         ? compact_metric_number(*track_count)
+                         : QStringLiteral("--"))
+                .arg(stable_track_count.has_value()
+                         ? compact_metric_number(*stable_track_count)
+                         : QStringLiteral("--"))
+        );
+    }
+
+    if (const auto contour_count = metric_value(
+            result, { "selected_contour_count", "contour_count" }
+        )) {
+        parts.push_back(
+            QStringLiteral("contours %1").arg(
+                compact_metric_number(*contour_count)
+            )
+        );
+    }
+
+    const QString state = diagnostic_value(
+        result,
+        {
+            "selected_tracking_state",
+            "tracking_state",
+            "selected_mask_state",
+            "mask_state",
+            "selected_frame_state",
+            "frame_state",
+        }
+    );
+    if (!state.isEmpty()) {
+        parts.push_back(state);
+    }
+
+    return parts.join(QStringLiteral(" | "));
+}
+
 } // namespace stream_controller_support
 
 stream_controller::stream_controller(
@@ -135,14 +282,20 @@ stream_controller::stream_controller(
                 const QString stream_name = QString::fromStdString(
                     stream_value.get_name()
                 );
+                const QString processing_summary
+                    = stream_controller_support::processing_summary_from_result(
+                        result
+                    );
                 const int width = frame_value.width;
                 const int height = frame_value.height;
 
                 QMetaObject::invokeMethod(
                     this,
-                    [this, stream_name, width, height,
+                    [this, stream_name, width, height, processing_summary,
                      overlays = std::move(overlays)]() mutable {
-                        note_core_frame_observed(stream_name, width, height);
+                        note_core_frame_observed(
+                            stream_name, width, height, processing_summary
+                        );
                         auto* tile = widget_bridge.tile_for_stream_name(
                             stream_name, route_state
                         );
@@ -1000,7 +1153,8 @@ void stream_controller::note_input_frame_observed(
 }
 
 void stream_controller::note_core_frame_observed(
-    const QString& stream_name, const int width, const int height
+    const QString& stream_name, const int width, const int height,
+    const QString& processing_summary
 ) {
     if (stream_name.isEmpty()) {
         return;
@@ -1017,6 +1171,9 @@ void stream_controller::note_core_frame_observed(
     metrics.effective_processing_pixels = width > 0 && height > 0
         ? width * height
         : metrics.effective_processing_pixels;
+    if (!processing_summary.isNull()) {
+        metrics.processing_summary = processing_summary;
+    }
     runtime_metrics_by_stream.insert(stream_name, metrics);
     sync_runtime_metrics_for_stream(stream_name);
 }
