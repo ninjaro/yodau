@@ -97,6 +97,22 @@ double point_segment_distance_px(
     return QLineF(point_px, closest).length();
 }
 
+QPointF closest_point_on_segment_px(
+    const QPointF& point_px, const QPointF& a_px, const QPointF& b_px
+) {
+    const QPointF ab = b_px - a_px;
+    const double segment_length_sq = ab.x() * ab.x() + ab.y() * ab.y();
+    if (segment_length_sq <= std::numeric_limits<double>::epsilon()) {
+        return a_px;
+    }
+
+    const QPointF ap = point_px - a_px;
+    const double projection = std::clamp(
+        (ap.x() * ab.x() + ap.y() * ab.y()) / segment_length_sq, 0.0, 1.0
+    );
+    return a_px + ab * projection;
+}
+
 QColor contrasting_text_color(const QColor& background) {
     const double luma = 0.2126 * background.redF() + 0.7152 * background.greenF()
         + 0.0722 * background.blueF();
@@ -1199,17 +1215,29 @@ void stream_cell::set_draft_preview(const bool on) {
 void stream_cell::set_line_edit_preview(
     const std::optional<line_instance>& line_value
 ) {
+    const bool had_preview = line_edit_preview_.has_value();
     line_edit_preview_ = line_value;
     if (!line_edit_preview_.has_value()) {
-        line_edit_selected_vertex_.reset();
-    } else if (line_edit_selected_vertex_.has_value()
-               && (*line_edit_selected_vertex_ < 0
-                   || *line_edit_selected_vertex_
-                       >= static_cast<int>(line_edit_preview_->pts_pct.size()))) {
-        line_edit_selected_vertex_.reset();
+        line_edit_interaction_.clear_preview();
+    } else {
+        line_edit_interaction_.sync_preview_selection(
+            line_edit_preview_->selected_visible_index,
+            static_cast<int>(line_edit_preview_->pts_pct.size())
+        );
+        if (!had_preview) {
+            reset_line_edit_drag_state();
+        }
     }
-    reset_line_edit_drag_state();
     sync_mouse_tracking();
+    update_animation_timer();
+    update();
+}
+
+void stream_cell::set_line_edit_source_line(
+    const std::optional<line_instance>& line_value
+) {
+    line_edit_source_line_ = line_value;
+    update_animation_timer();
     update();
 }
 
@@ -1447,24 +1475,18 @@ void stream_cell::mousePressEvent(QMouseEvent* event) {
         && event->button() == Qt::LeftButton) {
         setFocus();
         hover_point_pct = to_pct(event->pos());
-        line_edit_pressed_vertex_ = line_edit_vertex_at(event->pos());
-        line_edit_press_hit_shape_ = line_edit_pressed_vertex_.has_value()
-            || line_edit_segment_hit(event->pos());
-        line_edit_pressed_vertex_was_selected_
-            = line_edit_pressed_vertex_.has_value()
-            && line_edit_selected_vertex_.has_value()
-            && *line_edit_pressed_vertex_ == *line_edit_selected_vertex_;
-        line_edit_press_points_pct_ = line_edit_preview_->pts_pct;
-        line_edit_press_origin_pct_ = to_pct(event->pos());
-        line_edit_press_origin_px_ = event->pos();
-        line_edit_press_active_ = true;
-        line_edit_press_moved_ = false;
-        line_edit_drag_mode_ = line_edit_drag_mode::none;
+        const auto pressed_vertex = line_edit_vertex_at(event->pos());
+        const auto segment_hit = line_edit_segment_hit(event->pos());
+        const auto press_result = line_edit_interaction_.begin_press(
+            pressed_vertex, segment_hit.has_value(), to_pct(event->pos()),
+            event->pos()
+        );
 
-        if (!line_edit_press_hit_shape_) {
-            line_edit_selected_vertex_.reset();
+        if (press_result.selected_vertex.has_value()) {
+            emit line_edit_point_selected(*press_result.selected_vertex);
         }
 
+        update_line_edit_cursor(event->pos());
         update();
         event->accept();
         return;
@@ -1491,15 +1513,17 @@ void stream_cell::mouseReleaseEvent(QMouseEvent* event) {
         && event->button() == Qt::LeftButton) {
         hover_point_pct = to_pct(event->pos());
 
-        if (line_edit_press_active_ && !line_edit_press_moved_) {
-            if (line_edit_pressed_vertex_.has_value()) {
-                line_edit_selected_vertex_ = line_edit_pressed_vertex_;
-                emit line_edit_point_selected(*line_edit_selected_vertex_);
-            }
+        const bool was_dragging = line_edit_interaction_.release_was_dragging();
+        if (line_edit_interaction_.press_active()
+            && !line_edit_interaction_.press_moved()) {
             update();
         }
 
+        if (was_dragging) {
+            emit line_edit_change_finished();
+        }
         reset_line_edit_drag_state();
+        update_line_edit_cursor(event->pos());
         event->accept();
         return;
     }
@@ -1518,9 +1542,22 @@ void stream_cell::mouseDoubleClickEvent(QMouseEvent* event) {
         && event->button() == Qt::LeftButton) {
         if (const auto vertex_index = line_edit_vertex_at(event->pos());
             vertex_index.has_value()) {
-            line_edit_selected_vertex_ = *vertex_index;
+            line_edit_interaction_.set_selected_vertex(vertex_index);
             emit line_edit_point_selected(*vertex_index);
             emit line_edit_point_split_requested(*vertex_index);
+            update();
+            event->accept();
+            return;
+        }
+        if (const auto segment_hit = line_edit_segment_hit(event->pos());
+            segment_hit.has_value()) {
+            line_edit_interaction_.set_selected_vertex(
+                segment_hit->visible_segment_index + 1
+            );
+            emit line_edit_segment_insert_requested(
+                segment_hit->visible_segment_index,
+                segment_hit->point_pct
+            );
             update();
             event->accept();
             return;
@@ -1533,33 +1570,38 @@ void stream_cell::mouseDoubleClickEvent(QMouseEvent* event) {
 void stream_cell::mouseMoveEvent(QMouseEvent* event) {
     if (active && line_edit_preview_.has_value()) {
         hover_point_pct = to_pct(event->pos());
+        update_line_edit_cursor(event->pos());
 
-        if (line_edit_press_active_ && (event->buttons() & Qt::LeftButton)
-            && line_edit_press_hit_shape_) {
-            if (!line_edit_press_moved_
-                && (event->pos() - line_edit_press_origin_px_).manhattanLength()
-                    >= stream_cell_support::line_edit_drag_threshold_px) {
-                line_edit_press_moved_ = true;
-                line_edit_drag_mode_
-                    = line_edit_pressed_vertex_was_selected_
-                        && line_edit_pressed_vertex_.has_value()
-                    ? line_edit_drag_mode::point
-                    : line_edit_drag_mode::shape;
+        if (line_edit_interaction_.press_active()
+            && (event->buttons() & Qt::LeftButton)
+            && line_edit_interaction_.press_hit_shape()) {
+            if (line_edit_interaction_.start_drag_if_threshold(
+                    event->pos(),
+                    stream_cell_support::line_edit_drag_threshold_px
+                )) {
+                emit line_edit_change_started();
             }
 
-            if (line_edit_press_moved_) {
-                if (line_edit_drag_mode_ == line_edit_drag_mode::shape) {
+            if (line_edit_interaction_.press_moved()) {
+                setCursor(Qt::ClosedHandCursor);
+                if (line_edit_interaction_.current_drag_mode()
+                    == line_edit_interaction::drag_mode::shape) {
                     const QPointF current_pct
                         = stream_cell_support::clamped_pct(to_pct(event->pos()));
-                    const QPointF delta_pct = current_pct - line_edit_press_origin_pct_;
+                    const QPointF delta_pct
+                        = current_pct - line_edit_interaction_.press_origin_pct();
                     emit line_edit_shape_drag_requested(delta_pct);
-                    line_edit_press_origin_pct_ = current_pct;
-                    line_edit_press_origin_px_ = event->pos();
-                } else if (line_edit_drag_mode_ == line_edit_drag_mode::point
-                           && line_edit_pressed_vertex_.has_value()) {
-                    line_edit_selected_vertex_ = line_edit_pressed_vertex_;
+                    line_edit_interaction_.update_press_origin(
+                        current_pct, event->pos()
+                    );
+                } else if (line_edit_interaction_.current_drag_mode()
+                               == line_edit_interaction::drag_mode::point
+                           && line_edit_interaction_.pressed_vertex().has_value()) {
+                    line_edit_interaction_.set_selected_vertex(
+                        line_edit_interaction_.pressed_vertex()
+                    );
                     emit line_edit_point_move_requested(
-                        *line_edit_pressed_vertex_,
+                        *line_edit_interaction_.pressed_vertex(),
                         stream_cell_support::clamped_pct(to_pct(event->pos()))
                     );
                 }
@@ -1583,12 +1625,60 @@ void stream_cell::mouseMoveEvent(QMouseEvent* event) {
 
 void stream_cell::leaveEvent(QEvent* event) {
     hover_point_pct.reset();
+    if (line_edit_preview_.has_value()) {
+        setCursor(Qt::CrossCursor);
+    }
     update();
     QWidget::leaveEvent(event);
 }
 
 void stream_cell::keyPressEvent(QKeyEvent* event) {
     if (active && line_edit_preview_.has_value()) {
+        const bool control_pressed
+            = (event->modifiers() & Qt::ControlModifier) != 0;
+        if (control_pressed && event->key() == Qt::Key_Z) {
+            setFocus();
+            if ((event->modifiers() & Qt::ShiftModifier) != 0) {
+                emit line_edit_redo_requested();
+            } else {
+                emit line_edit_undo_requested();
+            }
+            line_edit_interaction_.set_selected_vertex(std::nullopt);
+            update();
+            event->accept();
+            return;
+        }
+
+        if (control_pressed && event->key() == Qt::Key_Y) {
+            setFocus();
+            emit line_edit_redo_requested();
+            line_edit_interaction_.set_selected_vertex(std::nullopt);
+            update();
+            event->accept();
+            return;
+        }
+
+        if (event->key() == Qt::Key_Escape) {
+            setFocus();
+            line_edit_interaction_.set_selected_vertex(std::nullopt);
+            emit line_edit_revert_requested();
+            update();
+            event->accept();
+            return;
+        }
+
+        if ((event->key() == Qt::Key_Delete
+             || event->key() == Qt::Key_Backspace)
+            && line_edit_interaction_.selected_vertex().has_value()) {
+            setFocus();
+            emit line_edit_point_delete_requested(
+                *line_edit_interaction_.selected_vertex()
+            );
+            update();
+            event->accept();
+            return;
+        }
+
         const double step_px
             = (event->modifiers() & Qt::ShiftModifier) != 0
             ? stream_cell_support::line_edit_key_nudge_fast_px
@@ -1620,17 +1710,18 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
 
         if (handled) {
             setFocus();
-            if (line_edit_selected_vertex_.has_value()
-                && *line_edit_selected_vertex_ >= 0
-                && *line_edit_selected_vertex_
+            const auto selected_vertex = line_edit_interaction_.selected_vertex();
+            if (selected_vertex.has_value()
+                && *selected_vertex >= 0
+                && *selected_vertex
                     < static_cast<int>(line_edit_preview_->pts_pct.size())) {
                 const QPointF current_point = line_edit_preview_->pts_pct.at(
                     static_cast<std::vector<QPointF>::size_type>(
-                        *line_edit_selected_vertex_
+                        *selected_vertex
                     )
                 );
                 emit line_edit_point_move_requested(
-                    *line_edit_selected_vertex_,
+                    *selected_vertex,
                     stream_cell_support::clamped_pct(
                         current_point + target_delta_pct
                     )
@@ -1684,7 +1775,7 @@ void stream_cell::wheelEvent(QWheelEvent* event) {
                 setFocus();
                 emit line_edit_shape_rotate_requested(
                     delta_degrees,
-                    line_edit_selected_vertex_.value_or(-1)
+                    line_edit_interaction_.selected_vertex().value_or(-1)
                 );
                 update();
                 event->accept();
@@ -1773,7 +1864,7 @@ void stream_cell::update_icon() {
 
 void stream_cell::draw_poly_with_points(
     QPainter& p, const std::vector<QPointF>& pts_pct, const QColor& color,
-    bool closed, Qt::PenStyle style, qreal width
+    bool closed, Qt::PenStyle style, qreal width, const bool draw_points
 ) const {
     if (pts_pct.size() < 2) {
         return;
@@ -1796,8 +1887,10 @@ void stream_cell::draw_poly_with_points(
         p.drawPolyline(poly);
     }
 
-    for (const auto& pt_px : poly) {
-        p.drawEllipse(pt_px, 3.0, 3.0);
+    if (draw_points) {
+        for (const auto& pt_px : poly) {
+            p.drawEllipse(pt_px, 3.0, 3.0);
+        }
     }
 }
 
@@ -1981,20 +2074,55 @@ void stream_cell::draw_line_edit_preview(QPainter& p) const {
         line_value.color_mode_id, line_value.color, line_value.pts_pct,
         last_frame, enabled_line_count, enabled_line_count + 1
     );
+    if (line_edit_source_line_.has_value()
+        && line_edit_source_line_->pts_pct.size() >= 2) {
+        const auto& source_line = *line_edit_source_line_;
+        QColor source_color = stream_cell_support::effective_draft_line_color(
+            source_line.color_mode_id, source_line.color, source_line.pts_pct,
+            last_frame, enabled_line_count, enabled_line_count + 1
+        );
+        const double pulse = (std::sin(
+                                  static_cast<double>(animation_clock.elapsed())
+                                  / 260.0
+                              )
+                              + 1.0)
+            / 2.0;
+        source_color.setAlpha(static_cast<int>(70.0 + 60.0 * pulse));
+        draw_poly_with_points(
+            p, source_line.pts_pct, source_color, source_line.closed,
+            Qt::DotLine,
+            std::max<qreal>(
+                1.0,
+                line_width_visual_value(source_line.width_text) * 0.8
+                    + static_cast<qreal>(pulse)
+            ),
+            false
+        );
+    }
+
+    QColor outline_color = stream_cell_support::contrasting_text_color(
+        effective_color
+    );
+    outline_color.setAlpha(150);
     draw_poly_with_points(
-        p, line_value.pts_pct, effective_color, line_value.closed, Qt::DashLine,
-        line_width_visual_value(line_value.width_text)
+        p, line_value.pts_pct, outline_color, line_value.closed, Qt::SolidLine,
+        line_width_visual_value(line_value.width_text) + 2.0, false
+    );
+    draw_poly_with_points(
+        p, line_value.pts_pct, effective_color, line_value.closed, Qt::SolidLine,
+        line_width_visual_value(line_value.width_text) + 0.5
     );
 
-    if (!line_edit_selected_vertex_.has_value()
-        || *line_edit_selected_vertex_ < 0
-        || *line_edit_selected_vertex_
+    const auto selected_vertex = line_edit_interaction_.selected_vertex();
+    if (!selected_vertex.has_value()
+        || *selected_vertex < 0
+        || *selected_vertex
             >= static_cast<int>(line_value.pts_pct.size())) {
         return;
     }
 
     const QPointF selected_px = to_px(line_value.pts_pct.at(
-        static_cast<std::vector<QPointF>::size_type>(*line_edit_selected_vertex_)
+        static_cast<std::vector<QPointF>::size_type>(*selected_vertex)
     ));
     QPen outline_pen(stream_cell_support::contrasting_text_color(effective_color));
     outline_pen.setWidthF(2.0);
@@ -2326,7 +2454,10 @@ std::optional<int> stream_cell::line_edit_vertex_at(const QPointF& pos_px) const
         return std::nullopt;
     }
 
-    double best_distance = stream_cell_support::line_edit_vertex_hit_radius_px;
+    double best_distance = std::max<double>(
+        stream_cell_support::line_edit_vertex_hit_radius_px,
+        line_width_visual_value(line_edit_preview_->width_text) + 7.0
+    );
     std::optional<int> best_index;
 
     for (int index = 0; index < static_cast<int>(line_edit_preview_->pts_pct.size());
@@ -2346,44 +2477,91 @@ std::optional<int> stream_cell::line_edit_vertex_at(const QPointF& pos_px) const
     return best_index;
 }
 
-bool stream_cell::line_edit_segment_hit(const QPointF& pos_px) const {
+std::optional<stream_cell::line_edit_segment_hit_info>
+stream_cell::line_edit_segment_hit(const QPointF& pos_px) const {
     if (!line_edit_preview_.has_value()
         || line_edit_preview_->pts_pct.size() < 2) {
-        return false;
+        return std::nullopt;
     }
 
     const auto& points = line_edit_preview_->pts_pct;
-    const auto segment_hit = [&](const QPointF& a_pct, const QPointF& b_pct) {
-        return stream_cell_support::point_segment_distance_px(
-                   pos_px, to_px(a_pct), to_px(b_pct)
-               )
-            <= stream_cell_support::line_edit_segment_hit_radius_px;
+    double best_distance = std::max<double>(
+        stream_cell_support::line_edit_segment_hit_radius_px,
+        line_width_visual_value(line_edit_preview_->width_text) + 7.0
+    );
+    std::optional<line_edit_segment_hit_info> best_hit;
+
+    const auto consider_segment = [&](
+                                      const int visible_segment_index,
+                                      const QPointF& a_pct,
+                                      const QPointF& b_pct
+                                  ) {
+        const QPointF a_px = to_px(a_pct);
+        const QPointF b_px = to_px(b_pct);
+        const double distance = stream_cell_support::point_segment_distance_px(
+            pos_px, a_px, b_px
+        );
+        if (distance > best_distance) {
+            return;
+        }
+
+        best_distance = distance;
+        best_hit = line_edit_segment_hit_info {
+            .visible_segment_index = visible_segment_index,
+            .point_pct = stream_cell_support::clamped_pct(
+                to_pct(stream_cell_support::closest_point_on_segment_px(
+                    pos_px, a_px, b_px
+                ))
+            ),
+        };
     };
 
-    for (size_t index = 1; index < points.size(); index += 1) {
-        if (segment_hit(points[index - 1], points[index])) {
-            return true;
-        }
+    for (int index = 1; index < static_cast<int>(points.size()); index += 1) {
+        consider_segment(
+            index - 1,
+            points.at(static_cast<std::vector<QPointF>::size_type>(index - 1)),
+            points.at(static_cast<std::vector<QPointF>::size_type>(index))
+        );
     }
 
-    return line_edit_preview_->closed && points.size() >= 3
-        && segment_hit(points.back(), points.front());
+    if (line_edit_preview_->closed && points.size() >= 3) {
+        consider_segment(
+            static_cast<int>(points.size()) - 1,
+            points.back(),
+            points.front()
+        );
+    }
+
+    return best_hit;
 }
 
 void stream_cell::reset_line_edit_drag_state() {
-    line_edit_pressed_vertex_.reset();
-    line_edit_press_points_pct_.clear();
-    line_edit_press_origin_pct_ = {};
-    line_edit_press_origin_px_ = {};
-    line_edit_press_active_ = false;
-    line_edit_press_moved_ = false;
-    line_edit_press_hit_shape_ = false;
-    line_edit_pressed_vertex_was_selected_ = false;
-    line_edit_drag_mode_ = line_edit_drag_mode::none;
+    line_edit_interaction_.reset_press();
+}
+
+void stream_cell::update_line_edit_cursor(const QPointF& pos_px) {
+    if (!line_edit_preview_.has_value()) {
+        return;
+    }
+
+    setCursor(line_edit_interaction_.cursor_shape(
+        line_edit_vertex_at(pos_px).has_value(),
+        line_edit_segment_hit(pos_px).has_value()
+    ));
 }
 
 void stream_cell::sync_mouse_tracking() {
     setMouseTracking(drawing_enabled || line_edit_preview_.has_value());
+    if (line_edit_interaction_.press_active()) {
+        return;
+    }
+    if (line_edit_preview_.has_value()) {
+        setCursor(Qt::CrossCursor);
+    } else if (drawing_enabled) {
+        setCursor(Qt::CrossCursor);
+    } else {
+        unsetCursor();
+    }
 }
 
 void stream_cell::draw_processing_overlays(QPainter& p) const {
@@ -2396,7 +2574,9 @@ void stream_cell::draw_events(QPainter& p) {
     const QString selected_mode = processing_overlay_renderer::selected_movement_mode(
         stream_settings_value
     );
-    if (!processing_overlay_renderer::event_bubbles_visible(stream_settings_value)) {
+    if (!processing_overlay_renderer::event_bubbles_visible(
+            stream_settings_value, processing_overlays
+        )) {
         events.clear();
         return;
     }
@@ -2756,7 +2936,9 @@ void stream_cell::update_animation_timer() {
         return;
     }
 
-    if (line_waves.isEmpty()) {
+    const bool edit_pulse_active = line_edit_preview_.has_value()
+        && line_edit_source_line_.has_value();
+    if (line_waves.isEmpty() && !edit_pulse_active) {
         if (animation_timer->isActive()) {
             animation_timer->stop();
         }
@@ -2842,7 +3024,8 @@ void stream_cell::on_animation_tick() {
     prune_line_waves(now_ms);
     update_animation_timer();
 
-    if (!line_waves.isEmpty()) {
+    if (!line_waves.isEmpty()
+        || (line_edit_preview_.has_value() && line_edit_source_line_.has_value())) {
         update();
     }
 }

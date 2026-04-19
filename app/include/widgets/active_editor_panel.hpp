@@ -53,7 +53,14 @@ public:
     bool translate_line_edit_shape(const QPointF& delta_pct);
     bool move_line_edit_point(int visible_index, const QPointF& point_pct);
     bool split_line_edit_point(int visible_index);
+    bool insert_line_edit_point_after(int visible_segment_index, const QPointF& point_pct);
+    bool delete_line_edit_point(int visible_index);
     bool rotate_line_edit_shape(double delta_degrees, int visible_pivot_index = -1);
+    void begin_line_edit_change();
+    void finish_line_edit_change();
+    bool undo_line_edit_change();
+    bool redo_line_edit_change();
+    bool revert_line_edit_changes();
 
 signals:
     void active_stream_selected(const QString& name);
@@ -70,6 +77,8 @@ signals:
     void template_settings_changed(template_apply_settings settings_value);
 
 private:
+    struct line_edit_snapshot;
+
     void build_ui();
     void update_tools() const;
     void refresh_status_summary() const;
@@ -83,6 +92,13 @@ private:
     void initialize_line_edit_points_from_source();
     void emit_line_edit_preview_if_visible();
     line_edit_request current_line_edit_request() const;
+    void clear_line_edit_history();
+    void record_line_edit_mutation();
+    void push_line_edit_undo_snapshot();
+    void restore_line_edit_snapshot(const line_edit_snapshot& snapshot);
+    void refresh_line_edit_after_mutation();
+    bool line_edit_has_unsaved_changes() const;
+    bool delete_line_edit_row(int row);
     void emit_line_enabled_changed_queued(QString line_name, bool enabled);
     QString selected_line_name() const;
 
@@ -92,11 +108,25 @@ private slots:
     void on_detach_selected_line_clicked();
     void on_editor_tab_changed(int index);
     void on_line_edit_selection_changed(int index);
+    void on_line_edit_table_selection_changed();
     void on_line_edit_point_item_changed(QTableWidgetItem* item);
     void on_line_edit_name_text_changed(const QString& text);
+    void on_line_edit_undo_clicked();
+    void on_line_edit_redo_clicked();
+    void on_line_edit_revert_clicked();
+    void on_line_edit_delete_clicked();
     void on_line_edit_save_clicked();
 
 private:
+    struct line_edit_snapshot {
+        std::vector<QPointF> points_pct;
+        std::vector<bool> point_enabled;
+        int selected_row { -1 };
+    };
+
+    line_edit_snapshot current_line_edit_snapshot() const;
+    bool snapshot_matches_current(const line_edit_snapshot& snapshot) const;
+
     active_stream_panel* active_stream_panel_widget { nullptr };
     line_profile_panel* active_line_panel { nullptr };
     template_apply_panel* active_template_panel { nullptr };
@@ -110,6 +140,10 @@ private:
     QLabel* line_edit_summary_label_ { nullptr };
     QTableWidget* line_edit_points_table_ { nullptr };
     QLineEdit* line_edit_name_edit_ { nullptr };
+    QPushButton* line_edit_undo_button_ { nullptr };
+    QPushButton* line_edit_redo_button_ { nullptr };
+    QPushButton* line_edit_revert_button_ { nullptr };
+    QPushButton* line_edit_delete_button_ { nullptr };
     QPushButton* line_edit_save_button_ { nullptr };
     std::vector<stream_cell::line_instance> active_lines_;
     std::vector<std::pair<QString, bool>> pending_line_toggles_;
@@ -117,6 +151,9 @@ private:
     std::vector<bool> line_edit_point_enabled_;
     QString current_line_edit_source_name_;
     int line_edit_selected_row_ { -1 };
+    std::vector<line_edit_snapshot> line_edit_undo_stack_;
+    std::vector<line_edit_snapshot> line_edit_redo_stack_;
+    bool line_edit_transaction_active_ { false };
     bool syncing_line_edit_ui_ { false };
     bool line_toggle_flush_scheduled_ { false };
 };

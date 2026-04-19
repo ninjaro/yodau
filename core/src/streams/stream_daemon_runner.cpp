@@ -4,6 +4,8 @@
 
 namespace yodau::core {
 
+stream_daemon_runner::~stream_daemon_runner() { stop_all(); }
+
 bool stream_daemon_runner::start(
     const std::string& name, std::shared_ptr<stream> stream_ptr,
     stream_daemon_start_fn daemon_fn, stream_daemon_push_fn push_fn
@@ -47,6 +49,21 @@ bool stream_daemon_runner::stop(const std::string& name) {
 
     thread.request_stop();
     return true;
+}
+
+void stream_daemon_runner::stop_all() {
+    std::unordered_map<std::string, std::jthread> daemons;
+
+    {
+        std::scoped_lock lock(mtx_);
+        daemons.swap(daemons_);
+    }
+
+    for (auto& entry : daemons) {
+        if (entry.second.joinable()) {
+            entry.second.request_stop();
+        }
+    }
 }
 
 bool stream_daemon_runner::is_running(const std::string& name) const {

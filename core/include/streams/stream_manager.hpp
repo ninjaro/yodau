@@ -30,6 +30,9 @@ public:
     using event_batch_sink_fn = stream_event_batch_sink_fn;
 
     stream_manager();
+    ~stream_manager();
+
+    void shutdown();
 
     void dump(std::ostream& out) const;
     void dump_lines(std::ostream& out) const;

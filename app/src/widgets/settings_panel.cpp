@@ -363,6 +363,20 @@ bool settings_panel::split_active_line_edit_point(const int visible_index) const
         && active_editor_panel_widget->split_line_edit_point(visible_index);
 }
 
+bool settings_panel::insert_active_line_edit_point_after(
+    const int visible_segment_index, const QPointF& point_pct
+) const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->insert_line_edit_point_after(
+            visible_segment_index, point_pct
+        );
+}
+
+bool settings_panel::delete_active_line_edit_point(const int visible_index) const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->delete_line_edit_point(visible_index);
+}
+
 bool settings_panel::rotate_active_line_edit_shape(
     const double delta_degrees, const int visible_pivot_index
 ) const {
@@ -370,6 +384,33 @@ bool settings_panel::rotate_active_line_edit_shape(
         && active_editor_panel_widget->rotate_line_edit_shape(
             delta_degrees, visible_pivot_index
         );
+}
+
+void settings_panel::begin_active_line_edit_change() const {
+    if (active_editor_panel_widget != nullptr) {
+        active_editor_panel_widget->begin_line_edit_change();
+    }
+}
+
+void settings_panel::finish_active_line_edit_change() const {
+    if (active_editor_panel_widget != nullptr) {
+        active_editor_panel_widget->finish_line_edit_change();
+    }
+}
+
+bool settings_panel::undo_active_line_edit_change() const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->undo_line_edit_change();
+}
+
+bool settings_panel::redo_active_line_edit_change() const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->redo_line_edit_change();
+}
+
+bool settings_panel::revert_active_line_edit_changes() const {
+    return active_editor_panel_widget != nullptr
+        && active_editor_panel_widget->revert_line_edit_changes();
 }
 
 QString settings_panel::active_template_current() const {

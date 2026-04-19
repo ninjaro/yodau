@@ -10,8 +10,11 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <optional>
 
 namespace {
+
+enum class overlay_layer { bubbles, contours, vectors, tracks, labels, unknown };
 
 QString automatic_movement_mode(const stream_settings& settings_value) {
     const QString algorithm_id = normalized_app_algorithm_id(
@@ -44,27 +47,6 @@ bool backend_overlays_visible(const QString& mode_id) {
         && mode != QStringLiteral("tripwire_waves");
 }
 
-bool should_draw_overlay(
-    const processing_overlay_instance& overlay, const QString& mode_id
-) {
-    const QString mode = normalized_movement_display_mode_id(mode_id);
-    if (mode == QStringLiteral("auto")) {
-        return true;
-    }
-    if (mode == QStringLiteral("bubbles")) {
-        return overlay.kind == processing_overlay_kind::point;
-    }
-    if (mode == QStringLiteral("contours")) {
-        return overlay.kind == processing_overlay_kind::polygon;
-    }
-    if (mode == QStringLiteral("vectors")
-        || mode == QStringLiteral("tracks")) {
-        return overlay.kind == processing_overlay_kind::polyline
-            || overlay.kind == processing_overlay_kind::point;
-    }
-    return false;
-}
-
 QColor color_with_alpha(QColor color, const int alpha) {
     color.setAlpha(std::clamp(alpha, 0, 255));
     return color;
@@ -75,16 +57,119 @@ QColor overlay_color_for_label(const QString& label) {
     return QColor::fromHsv(static_cast<int>(seed % 360U), 165, 235);
 }
 
+QString normalized_overlay_label(const QString& label) {
+    return label.trimmed().toLower();
+}
+
 bool is_flow_overlay(const QString& label) {
-    return label.startsWith(QStringLiteral("flow_"));
+    return normalized_overlay_label(label).startsWith(QStringLiteral("flow_"));
 }
 
 bool is_average_flow_overlay(const QString& label) {
-    return label == QStringLiteral("flow_average");
+    return normalized_overlay_label(label) == QStringLiteral("flow_average");
 }
 
 bool is_track_overlay(const QString& label) {
-    return label.startsWith(QStringLiteral("track"));
+    return normalized_overlay_label(label).startsWith(QStringLiteral("track"));
+}
+
+bool is_contour_overlay(const QString& label) {
+    const QString normalized = normalized_overlay_label(label);
+    return normalized.startsWith(QStringLiteral("contour"))
+        || normalized == QStringLiteral("mask")
+        || normalized.endsWith(QStringLiteral("_mask"));
+}
+
+overlay_layer layer_for_overlay(const processing_overlay_instance& overlay) {
+    if (is_track_overlay(overlay.label)) {
+        return overlay_layer::tracks;
+    }
+    if (is_flow_overlay(overlay.label)) {
+        return overlay_layer::vectors;
+    }
+    if (is_contour_overlay(overlay.label)) {
+        return overlay_layer::contours;
+    }
+
+    switch (overlay.kind) {
+    case processing_overlay_kind::point:
+        return overlay_layer::bubbles;
+    case processing_overlay_kind::polyline:
+        return overlay_layer::vectors;
+    case processing_overlay_kind::polygon:
+        return overlay_layer::contours;
+    case processing_overlay_kind::label:
+        return overlay_layer::labels;
+    }
+
+    return overlay_layer::unknown;
+}
+
+std::optional<QString> movement_mode_from_overlays(
+    const std::vector<processing_overlay_instance>& overlays
+) {
+    bool has_bubbles = false;
+    bool has_contours = false;
+    bool has_vectors = false;
+    bool has_tracks = false;
+
+    for (const auto& overlay : overlays) {
+        switch (layer_for_overlay(overlay)) {
+        case overlay_layer::bubbles:
+            has_bubbles = true;
+            break;
+        case overlay_layer::contours:
+            has_contours = true;
+            break;
+        case overlay_layer::vectors:
+            has_vectors = true;
+            break;
+        case overlay_layer::tracks:
+            has_tracks = true;
+            break;
+        case overlay_layer::labels:
+        case overlay_layer::unknown:
+            break;
+        }
+    }
+
+    if (has_tracks) {
+        return QStringLiteral("tracks");
+    }
+    if (has_vectors) {
+        return QStringLiteral("vectors");
+    }
+    if (has_contours) {
+        return QStringLiteral("contours");
+    }
+    if (has_bubbles) {
+        return QStringLiteral("bubbles");
+    }
+    return std::nullopt;
+}
+
+bool should_draw_overlay(
+    const processing_overlay_instance& overlay, const QString& mode_id
+) {
+    const QString mode = normalized_movement_display_mode_id(mode_id);
+    if (mode == QStringLiteral("auto")) {
+        return true;
+    }
+
+    const overlay_layer layer = layer_for_overlay(overlay);
+    if (mode == QStringLiteral("bubbles")) {
+        return layer == overlay_layer::bubbles;
+    }
+    if (mode == QStringLiteral("contours")) {
+        return layer == overlay_layer::contours;
+    }
+    if (mode == QStringLiteral("vectors")) {
+        return layer == overlay_layer::vectors;
+    }
+    if (mode == QStringLiteral("tracks")) {
+        return layer == overlay_layer::tracks;
+    }
+    return false;
 }
 
 QPointF to_px(const QRectF& bounds, const QPointF& point_pct) {
@@ -137,16 +222,34 @@ QString resolved_backend_overlay_mode(const stream_settings& settings_value) {
     return mode;
 }
 
-bool event_bubbles_visible(const stream_settings& settings_value) {
-    const QString mode = resolved_backend_overlay_mode(settings_value);
-    return mode != QStringLiteral("off")
-        && mode != QStringLiteral("tripwire_waves");
+QString resolved_draw_overlay_mode(
+    const stream_settings& settings_value,
+    const std::vector<processing_overlay_instance>& overlays
+) {
+    const QString mode = selected_movement_mode(settings_value);
+    if (mode != QStringLiteral("auto")) {
+        return mode;
+    }
+
+    if (const auto overlay_mode = movement_mode_from_overlays(overlays);
+        overlay_mode.has_value()) {
+        return *overlay_mode;
+    }
+
+    return automatic_movement_mode(settings_value);
+}
+
+bool event_bubbles_visible(
+    const stream_settings& settings_value,
+    const std::vector<processing_overlay_instance>& overlays
+) {
+    return resolved_draw_overlay_mode(settings_value, overlays)
+        == QStringLiteral("bubbles");
 }
 
 bool tripwire_waves_visible(const stream_settings& settings_value) {
     const QString mode = selected_movement_mode(settings_value);
-    return mode == QStringLiteral("auto")
-        || mode == QStringLiteral("tripwire_waves");
+    return mode == QStringLiteral("tripwire_waves");
 }
 
 void draw(
@@ -154,7 +257,7 @@ void draw(
     const stream_settings& settings_value,
     const std::vector<processing_overlay_instance>& overlays
 ) {
-    const QString mode = resolved_backend_overlay_mode(settings_value);
+    const QString mode = resolved_draw_overlay_mode(settings_value, overlays);
     if (!backend_overlays_visible(mode) || overlays.empty()) {
         return;
     }

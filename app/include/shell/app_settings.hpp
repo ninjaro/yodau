@@ -96,6 +96,7 @@ struct line_edit_request {
     QString source_line_name;
     line_profile profile;
     QVector<QPointF> points_pct;
+    int selected_visible_index { -1 };
 };
 
 Q_DECLARE_METATYPE(line_edit_request)

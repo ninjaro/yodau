@@ -3,6 +3,7 @@
 
 #include "shell/app_settings.hpp"
 #include "shell/app_log.hpp"
+#include "widgets/line_edit_interaction.hpp"
 #include "widgets/processing_overlay.hpp"
 
 #include <QCamera>
@@ -52,6 +53,7 @@ public:
         QString width_text { default_line_width_text() };
         QString length_text { default_line_length_text() };
         QString response_text { default_line_response_text() };
+        int selected_visible_index { -1 };
         std::vector<QPointF> pts_pct;
     };
 
@@ -96,6 +98,9 @@ public:
 
     void set_draft_preview(bool on);
     void set_line_edit_preview(const std::optional<line_instance>& line_value);
+    void set_line_edit_source_line(
+        const std::optional<line_instance>& line_value
+    );
     void set_labels_enabled(bool on);
 
     void set_source(const QUrl& source);
@@ -130,7 +135,15 @@ signals:
     void
     line_edit_point_move_requested(int visible_index, QPointF point_pct);
     void line_edit_point_split_requested(int visible_index);
+    void
+    line_edit_segment_insert_requested(int visible_segment_index, QPointF point_pct);
+    void line_edit_point_delete_requested(int visible_index);
     void line_edit_shape_rotate_requested(double delta_degrees, int visible_pivot_index);
+    void line_edit_change_started();
+    void line_edit_change_finished();
+    void line_edit_undo_requested();
+    void line_edit_redo_requested();
+    void line_edit_revert_requested();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -149,7 +162,7 @@ private:
 
     void draw_poly_with_points(
         QPainter& p, const std::vector<QPointF>& pts_pct, const QColor& color,
-        bool closed, Qt::PenStyle style, qreal width
+        bool closed, Qt::PenStyle style, qreal width, bool draw_points = true
     ) const;
 
     void draw_persistent(QPainter& p) const;
@@ -160,13 +173,21 @@ private:
     void draw_preview_segment(QPainter& p) const;
     void draw_stream_name(QPainter& p) const;
     void draw_runtime_metrics(QPainter& p) const;
+    void update_line_edit_cursor(const QPointF& pos_px);
 
     QPointF label_pos_px(const line_instance& l) const;
+
+    struct line_edit_segment_hit_info {
+        int visible_segment_index { -1 };
+        QPointF point_pct;
+    };
 
     QPointF to_pct(const QPointF& pos_px) const;
     QPointF to_px(const QPointF& pos_pct) const;
     std::optional<int> line_edit_vertex_at(const QPointF& pos_px) const;
-    bool line_edit_segment_hit(const QPointF& pos_px) const;
+    std::optional<line_edit_segment_hit_info> line_edit_segment_hit(
+        const QPointF& pos_px
+    ) const;
     void reset_line_edit_drag_state();
     void sync_mouse_tracking();
     void draw_processing_overlays(QPainter& p) const;
@@ -235,7 +256,9 @@ private:
     QString draft_line_response_text { default_line_response_text() };
     std::vector<QPointF> draft_line_points_pct;
     std::optional<QPointF> hover_point_pct;
+    std::optional<line_instance> line_edit_source_line_;
     std::optional<line_instance> line_edit_preview_;
+    line_edit_interaction line_edit_interaction_;
 
     std::vector<line_instance> persistent_lines;
 
@@ -255,22 +278,6 @@ private:
     int repaint_interval_ms { 66 };
     QHash<QString, QDateTime> line_highlights;
     int line_highlight_ttl_ms { 2500 };
-    std::optional<int> line_edit_selected_vertex_;
-    std::optional<int> line_edit_pressed_vertex_;
-    std::vector<QPointF> line_edit_press_points_pct_;
-    QPointF line_edit_press_origin_pct_;
-    QPoint line_edit_press_origin_px_;
-    bool line_edit_press_active_ { false };
-    bool line_edit_press_moved_ { false };
-    bool line_edit_press_hit_shape_ { false };
-    bool line_edit_pressed_vertex_was_selected_ { false };
-    enum class line_edit_drag_mode {
-        none,
-        shape,
-        point,
-    };
-    line_edit_drag_mode line_edit_drag_mode_ { line_edit_drag_mode::none };
-
     QHash<QString, QVector<hit_info>> line_hits;
     QHash<QString, QVector<line_wave_pulse>> line_waves;
 };

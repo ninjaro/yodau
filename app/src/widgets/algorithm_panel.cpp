@@ -163,6 +163,19 @@ void algorithm_panel::build_ui() {
     algorithm_panel_support::populate_algorithm_combo(algorithm_combo);
     form_->addRow(str_label("algorithm"), algorithm_combo);
 
+    display_mode_combo = new QComboBox(this);
+    display_mode_combo->setObjectName(
+        object_name(QStringLiteral("movement_display_combo"))
+    );
+    display_mode_combo->setToolTip(
+        QStringLiteral(
+            "Choose how motion is drawn for this stream, or use auto to follow "
+            "the algorithm output."
+        )
+    );
+    algorithm_panel_support::populate_display_mode_combo(display_mode_combo);
+    form_->addRow(str_label("movement display"), display_mode_combo);
+
     advanced_checkbox = new QCheckBox(
         str_label("advanced algorithm settings"), this
     );
@@ -171,8 +184,8 @@ void algorithm_panel::build_ui() {
     );
     advanced_checkbox->setToolTip(
         QStringLiteral(
-            "Show or hide algorithm-specific preset and overlay controls. "
-            "Leave this off to keep the shared stream settings compact."
+            "Show or hide algorithm-specific preset controls. Leave this off "
+            "to keep the shared stream settings compact."
         )
     );
     form_->addRow(QString(), advanced_checkbox);
@@ -180,13 +193,6 @@ void algorithm_panel::build_ui() {
     preset_combo = new QComboBox(this);
     preset_combo->setObjectName(object_name(QStringLiteral("algorithm_preset_combo")));
     form_->addRow(str_label("preset"), preset_combo);
-
-    display_mode_combo = new QComboBox(this);
-    display_mode_combo->setObjectName(
-        object_name(QStringLiteral("movement_display_combo"))
-    );
-    algorithm_panel_support::populate_display_mode_combo(display_mode_combo);
-    form_->addRow(str_label("movement display"), display_mode_combo);
 
     layout->addLayout(form_);
 
@@ -222,13 +228,6 @@ void algorithm_panel::refresh_advanced_controls() const {
     algorithm_panel_support::set_form_row_visible(
         form_, preset_combo, advanced_enabled
     );
-
-    algorithm_panel_support::set_form_row_visible(
-        form_, display_mode_combo, advanced_enabled
-    );
-    if (display_mode_combo != nullptr) {
-        display_mode_combo->setEnabled(advanced_enabled);
-    }
 }
 
 void algorithm_panel::refresh_preset_options() {

@@ -5,8 +5,10 @@
 #include "widgets/line_profile_panel.hpp"
 #include "widgets/template_apply_panel.hpp"
 
+#include <QAbstractItemView>
 #include <QComboBox>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineF>
@@ -80,6 +82,54 @@ std::optional<int> row_for_visible_index(
     }
 
     return visible_rows.at(static_cast<std::vector<int>::size_type>(visible_index));
+}
+
+std::optional<int> visible_index_for_row(
+    const std::vector<bool>& enabled_rows, const int row
+) {
+    int visible_index = 0;
+    for (int current_row = 0;
+         current_row < static_cast<int>(enabled_rows.size());
+         current_row += 1) {
+        if (!enabled_rows.at(static_cast<std::vector<bool>::size_type>(current_row))) {
+            continue;
+        }
+        if (current_row == row) {
+            return visible_index;
+        }
+        visible_index += 1;
+    }
+
+    return std::nullopt;
+}
+
+QPointF clamped_shape_delta_pct(
+    const std::vector<QPointF>& points_pct, const std::vector<int>& rows,
+    const QPointF& requested_delta_pct
+) {
+    if (rows.empty()) {
+        return {};
+    }
+
+    double min_x = std::numeric_limits<double>::max();
+    double max_x = std::numeric_limits<double>::lowest();
+    double min_y = std::numeric_limits<double>::max();
+    double max_y = std::numeric_limits<double>::lowest();
+
+    for (const int row : rows) {
+        const QPointF point = points_pct.at(
+            static_cast<std::vector<QPointF>::size_type>(row)
+        );
+        min_x = std::min(min_x, point.x());
+        max_x = std::max(max_x, point.x());
+        min_y = std::min(min_y, point.y());
+        max_y = std::max(max_y, point.y());
+    }
+
+    return {
+        std::clamp(requested_delta_pct.x(), -min_x, 100.0 - max_x),
+        std::clamp(requested_delta_pct.y(), -min_y, 100.0 - max_y),
+    };
 }
 
 QPointF average_point_pct(
@@ -172,6 +222,108 @@ active_editor_panel::active_editor_panel(QWidget* parent)
     set_line_profile(line_profile {});
     set_template_settings(template_apply_settings {});
     refresh_line_list();
+}
+
+active_editor_panel::line_edit_snapshot
+active_editor_panel::current_line_edit_snapshot() const {
+    return line_edit_snapshot {
+        .points_pct = line_edit_points_pct_,
+        .point_enabled = line_edit_point_enabled_,
+        .selected_row = line_edit_selected_row_,
+    };
+}
+
+bool active_editor_panel::snapshot_matches_current(
+    const line_edit_snapshot& snapshot
+) const {
+    return snapshot.points_pct == line_edit_points_pct_
+        && snapshot.point_enabled == line_edit_point_enabled_
+        && snapshot.selected_row == line_edit_selected_row_;
+}
+
+void active_editor_panel::clear_line_edit_history() {
+    line_edit_undo_stack_.clear();
+    line_edit_redo_stack_.clear();
+    line_edit_transaction_active_ = false;
+    refresh_line_edit_state();
+}
+
+void active_editor_panel::push_line_edit_undo_snapshot() {
+    if (current_line_edit_source_name_.isEmpty() || line_edit_points_pct_.empty()) {
+        return;
+    }
+
+    const line_edit_snapshot snapshot = current_line_edit_snapshot();
+    if (!line_edit_undo_stack_.empty()
+        && line_edit_undo_stack_.back().points_pct == snapshot.points_pct
+        && line_edit_undo_stack_.back().point_enabled == snapshot.point_enabled
+        && line_edit_undo_stack_.back().selected_row == snapshot.selected_row) {
+        return;
+    }
+
+    constexpr size_t max_history_entries = 64;
+    line_edit_undo_stack_.push_back(snapshot);
+    if (line_edit_undo_stack_.size() > max_history_entries) {
+        line_edit_undo_stack_.erase(line_edit_undo_stack_.begin());
+    }
+    line_edit_redo_stack_.clear();
+    refresh_line_edit_state();
+}
+
+void active_editor_panel::record_line_edit_mutation() {
+    if (line_edit_transaction_active_) {
+        return;
+    }
+
+    push_line_edit_undo_snapshot();
+}
+
+void active_editor_panel::restore_line_edit_snapshot(
+    const line_edit_snapshot& snapshot
+) {
+    line_edit_points_pct_ = snapshot.points_pct;
+    line_edit_point_enabled_ = snapshot.point_enabled;
+    if (line_edit_point_enabled_.size() != line_edit_points_pct_.size()) {
+        line_edit_point_enabled_.assign(line_edit_points_pct_.size(), true);
+    }
+
+    line_edit_selected_row_
+        = snapshot.selected_row >= 0
+              && snapshot.selected_row
+                  < static_cast<int>(line_edit_points_pct_.size())
+        ? snapshot.selected_row
+        : -1;
+
+    refresh_line_edit_after_mutation();
+}
+
+void active_editor_panel::refresh_line_edit_after_mutation() {
+    refresh_line_edit_table();
+    emit_line_edit_preview_if_visible();
+}
+
+bool active_editor_panel::line_edit_has_unsaved_changes() const {
+    const auto source_line = active_editor_panel_support::find_line_by_name(
+        active_lines_, current_line_edit_source_name_
+    );
+    if (!source_line.has_value()) {
+        return false;
+    }
+
+    if (line_edit_points_pct_ != source_line->pts_pct) {
+        return true;
+    }
+
+    const std::vector<bool> all_points_enabled(line_edit_points_pct_.size(), true);
+    if (line_edit_point_enabled_ != all_points_enabled) {
+        return true;
+    }
+
+    return line_edit_name_edit_ != nullptr
+        && line_edit_name_edit_->text().trimmed()
+            != active_editor_panel_support::suggested_variant_name(
+                source_line->template_name
+            );
 }
 
 void active_editor_panel::set_active_candidates(const QStringList& names) const {
@@ -319,18 +471,22 @@ bool active_editor_panel::translate_line_edit_shape(const QPointF& delta_pct) {
         return false;
     }
 
-    for (const int row : visible_rows) {
-        line_edit_points_pct_.at(static_cast<std::vector<QPointF>::size_type>(row))
-            = active_editor_panel_support::clamped_pct(
-                line_edit_points_pct_.at(
-                    static_cast<std::vector<QPointF>::size_type>(row)
-                )
-                + delta_pct
-            );
+    const QPointF adjusted_delta
+        = active_editor_panel_support::clamped_shape_delta_pct(
+            line_edit_points_pct_, visible_rows, delta_pct
+        );
+    if (std::abs(adjusted_delta.x()) <= std::numeric_limits<double>::epsilon()
+        && std::abs(adjusted_delta.y()) <= std::numeric_limits<double>::epsilon()) {
+        return false;
     }
 
-    refresh_line_edit_table();
-    emit_line_edit_preview_if_visible();
+    record_line_edit_mutation();
+    for (const int row : visible_rows) {
+        line_edit_points_pct_.at(static_cast<std::vector<QPointF>::size_type>(row))
+            += adjusted_delta;
+    }
+
+    refresh_line_edit_after_mutation();
     return true;
 }
 
@@ -345,13 +501,24 @@ bool active_editor_panel::move_line_edit_point(
         return false;
     }
 
+    const QPointF clamped_point = active_editor_panel_support::clamped_pct(point_pct);
+    const QPointF current_point = line_edit_points_pct_.at(
+        static_cast<std::vector<QPointF>::size_type>(*selected_row)
+    );
+    if (std::abs(current_point.x() - clamped_point.x())
+            <= std::numeric_limits<double>::epsilon()
+        && std::abs(current_point.y() - clamped_point.y())
+            <= std::numeric_limits<double>::epsilon()) {
+        return false;
+    }
+
+    record_line_edit_mutation();
     line_edit_selected_row_ = *selected_row;
     line_edit_points_pct_.at(
         static_cast<std::vector<QPointF>::size_type>(*selected_row)
-    ) = active_editor_panel_support::clamped_pct(point_pct);
+    ) = clamped_point;
 
-    refresh_line_edit_table();
-    emit_line_edit_preview_if_visible();
+    refresh_line_edit_after_mutation();
     return true;
 }
 
@@ -414,6 +581,7 @@ bool active_editor_panel::split_line_edit_point(const int visible_index) {
         second_split = current + (next - current) / 2.0;
     }
 
+    record_line_edit_mutation();
     line_edit_selected_row_ = row;
     line_edit_points_pct_.at(
         static_cast<std::vector<QPointF>::size_type>(row)
@@ -426,9 +594,87 @@ bool active_editor_panel::split_line_edit_point(const int visible_index) {
         line_edit_point_enabled_.begin() + row + 1, true
     );
 
-    refresh_line_edit_table();
-    emit_line_edit_preview_if_visible();
+    refresh_line_edit_after_mutation();
     return true;
+}
+
+bool active_editor_panel::insert_line_edit_point_after(
+    const int visible_segment_index, const QPointF& point_pct
+) {
+    const auto visible_rows = active_editor_panel_support::enabled_row_indices(
+        line_edit_point_enabled_
+    );
+    const auto source_line = active_editor_panel_support::find_line_by_name(
+        active_lines_, current_line_edit_source_name_
+    );
+    if (!source_line.has_value() || visible_rows.size() < 2
+        || line_edit_points_pct_.size() != line_edit_point_enabled_.size()) {
+        return false;
+    }
+
+    const int segment_count = source_line->closed && visible_rows.size() >= 3
+        ? static_cast<int>(visible_rows.size())
+        : static_cast<int>(visible_rows.size()) - 1;
+    if (visible_segment_index < 0 || visible_segment_index >= segment_count) {
+        return false;
+    }
+
+    const int segment_start_row = visible_rows.at(
+        static_cast<std::vector<int>::size_type>(visible_segment_index)
+    );
+    const int insert_row = segment_start_row + 1;
+    if (insert_row < 0 || insert_row > static_cast<int>(line_edit_points_pct_.size())) {
+        return false;
+    }
+
+    record_line_edit_mutation();
+    line_edit_points_pct_.insert(
+        line_edit_points_pct_.begin() + insert_row,
+        active_editor_panel_support::clamped_pct(point_pct)
+    );
+    line_edit_point_enabled_.insert(
+        line_edit_point_enabled_.begin() + insert_row, true
+    );
+    line_edit_selected_row_ = insert_row;
+    refresh_line_edit_after_mutation();
+    return true;
+}
+
+bool active_editor_panel::delete_line_edit_row(const int row) {
+    if (current_line_edit_source_name_.isEmpty() || row < 0
+        || row >= static_cast<int>(line_edit_points_pct_.size())
+        || line_edit_points_pct_.size() != line_edit_point_enabled_.size()) {
+        return false;
+    }
+
+    const bool row_is_enabled = line_edit_point_enabled_.at(
+        static_cast<std::vector<bool>::size_type>(row)
+    );
+    const int kept_points = static_cast<int>(std::count(
+        line_edit_point_enabled_.cbegin(), line_edit_point_enabled_.cend(), true
+    ));
+    if (row_is_enabled && kept_points <= 2) {
+        return false;
+    }
+
+    record_line_edit_mutation();
+    line_edit_points_pct_.erase(line_edit_points_pct_.begin() + row);
+    line_edit_point_enabled_.erase(line_edit_point_enabled_.begin() + row);
+    if (line_edit_points_pct_.empty()) {
+        line_edit_selected_row_ = -1;
+    } else {
+        line_edit_selected_row_
+            = std::min(row, static_cast<int>(line_edit_points_pct_.size()) - 1);
+    }
+    refresh_line_edit_after_mutation();
+    return true;
+}
+
+bool active_editor_panel::delete_line_edit_point(const int visible_index) {
+    const auto selected_row = active_editor_panel_support::row_for_visible_index(
+        line_edit_point_enabled_, visible_index
+    );
+    return selected_row.has_value() && delete_line_edit_row(*selected_row);
 }
 
 bool active_editor_panel::rotate_line_edit_shape(
@@ -469,6 +715,7 @@ bool active_editor_panel::rotate_line_edit_shape(
     }
 
     const double radians = delta_degrees * std::numbers::pi / 180.0;
+    record_line_edit_mutation();
     for (const int row : visible_rows) {
         const auto row_index = static_cast<std::vector<QPointF>::size_type>(row);
         line_edit_points_pct_.at(row_index)
@@ -479,8 +726,78 @@ bool active_editor_panel::rotate_line_edit_shape(
             );
     }
 
-    refresh_line_edit_table();
-    emit_line_edit_preview_if_visible();
+    refresh_line_edit_after_mutation();
+    return true;
+}
+
+void active_editor_panel::begin_line_edit_change() {
+    if (line_edit_transaction_active_) {
+        return;
+    }
+
+    push_line_edit_undo_snapshot();
+    line_edit_transaction_active_ = true;
+}
+
+void active_editor_panel::finish_line_edit_change() {
+    line_edit_transaction_active_ = false;
+    if (!line_edit_undo_stack_.empty()
+        && snapshot_matches_current(line_edit_undo_stack_.back())) {
+        line_edit_undo_stack_.pop_back();
+    }
+    refresh_line_edit_state();
+}
+
+bool active_editor_panel::undo_line_edit_change() {
+    if (line_edit_undo_stack_.empty()) {
+        return false;
+    }
+
+    line_edit_redo_stack_.push_back(current_line_edit_snapshot());
+    const line_edit_snapshot snapshot = line_edit_undo_stack_.back();
+    line_edit_undo_stack_.pop_back();
+    line_edit_transaction_active_ = false;
+    restore_line_edit_snapshot(snapshot);
+    refresh_line_edit_state();
+    return true;
+}
+
+bool active_editor_panel::redo_line_edit_change() {
+    if (line_edit_redo_stack_.empty()) {
+        return false;
+    }
+
+    line_edit_undo_stack_.push_back(current_line_edit_snapshot());
+    const line_edit_snapshot snapshot = line_edit_redo_stack_.back();
+    line_edit_redo_stack_.pop_back();
+    line_edit_transaction_active_ = false;
+    restore_line_edit_snapshot(snapshot);
+    refresh_line_edit_state();
+    return true;
+}
+
+bool active_editor_panel::revert_line_edit_changes() {
+    const auto source_line = active_editor_panel_support::find_line_by_name(
+        active_lines_, current_line_edit_source_name_
+    );
+    if (!source_line.has_value()) {
+        return false;
+    }
+
+    line_edit_points_pct_ = source_line->pts_pct;
+    line_edit_point_enabled_.assign(line_edit_points_pct_.size(), true);
+    line_edit_selected_row_ = -1;
+    if (line_edit_name_edit_ != nullptr) {
+        QSignalBlocker blocker(line_edit_name_edit_);
+        line_edit_name_edit_->setText(
+            active_editor_panel_support::suggested_variant_name(
+                source_line->template_name
+            )
+        );
+    }
+
+    clear_line_edit_history();
+    refresh_line_edit_after_mutation();
     return true;
 }
 
@@ -647,6 +964,8 @@ void active_editor_panel::build_ui() {
         QStringLiteral("settings_active_edit_points_table")
     );
     line_edit_points_table_->setColumnCount(4);
+    line_edit_points_table_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    line_edit_points_table_->setSelectionMode(QAbstractItemView::SingleSelection);
     line_edit_points_table_->setHorizontalHeaderLabels(
         {
             str_label("use"),
@@ -668,6 +987,37 @@ void active_editor_panel::build_ui() {
         3, QHeaderView::Stretch
     );
     edit_layout->addWidget(line_edit_points_table_, 1);
+
+    const auto line_edit_button_row = new QHBoxLayout();
+    line_edit_button_row->setContentsMargins(0, 0, 0, 0);
+    line_edit_button_row->setSpacing(6);
+
+    line_edit_undo_button_ = new QPushButton(str_label("undo"), edit_tab_widget_);
+    line_edit_undo_button_->setObjectName(
+        QStringLiteral("settings_active_edit_undo_button")
+    );
+    line_edit_button_row->addWidget(line_edit_undo_button_);
+
+    line_edit_redo_button_ = new QPushButton(str_label("redo"), edit_tab_widget_);
+    line_edit_redo_button_->setObjectName(
+        QStringLiteral("settings_active_edit_redo_button")
+    );
+    line_edit_button_row->addWidget(line_edit_redo_button_);
+
+    line_edit_revert_button_ = new QPushButton(str_label("revert"), edit_tab_widget_);
+    line_edit_revert_button_->setObjectName(
+        QStringLiteral("settings_active_edit_revert_button")
+    );
+    line_edit_button_row->addWidget(line_edit_revert_button_);
+
+    line_edit_delete_button_ = new QPushButton(
+        str_label("delete point"), edit_tab_widget_
+    );
+    line_edit_delete_button_->setObjectName(
+        QStringLiteral("settings_active_edit_delete_button")
+    );
+    line_edit_button_row->addWidget(line_edit_delete_button_);
+    edit_layout->addLayout(line_edit_button_row);
 
     line_edit_name_edit_ = new QLineEdit(edit_tab_widget_);
     line_edit_name_edit_->setObjectName(
@@ -695,8 +1045,28 @@ void active_editor_panel::build_ui() {
         &active_editor_panel::on_line_edit_point_item_changed
     );
     connect(
+        line_edit_points_table_, &QTableWidget::itemSelectionChanged, this,
+        &active_editor_panel::on_line_edit_table_selection_changed
+    );
+    connect(
         line_edit_name_edit_, &QLineEdit::textChanged, this,
         &active_editor_panel::on_line_edit_name_text_changed
+    );
+    connect(
+        line_edit_undo_button_, &QPushButton::clicked, this,
+        &active_editor_panel::on_line_edit_undo_clicked
+    );
+    connect(
+        line_edit_redo_button_, &QPushButton::clicked, this,
+        &active_editor_panel::on_line_edit_redo_clicked
+    );
+    connect(
+        line_edit_revert_button_, &QPushButton::clicked, this,
+        &active_editor_panel::on_line_edit_revert_clicked
+    );
+    connect(
+        line_edit_delete_button_, &QPushButton::clicked, this,
+        &active_editor_panel::on_line_edit_delete_clicked
     );
     connect(
         line_edit_save_button_, &QPushButton::clicked, this,
@@ -898,6 +1268,7 @@ void active_editor_panel::initialize_line_edit_points_from_source() {
     line_edit_points_pct_.clear();
     line_edit_point_enabled_.clear();
     line_edit_selected_row_ = -1;
+    clear_line_edit_history();
 
     const auto line_value = active_editor_panel_support::find_line_by_name(
         active_lines_, current_line_edit_source_name_
@@ -927,6 +1298,7 @@ void active_editor_panel::refresh_line_edit_table() {
         line_edit_points_pct_.clear();
         line_edit_point_enabled_.clear();
         line_edit_selected_row_ = -1;
+        clear_line_edit_history();
         line_edit_points_table_->blockSignals(false);
         syncing_line_edit_ui_ = false;
         refresh_line_edit_summary();
@@ -948,7 +1320,10 @@ void active_editor_panel::refresh_line_edit_table() {
             = static_cast<std::vector<QPointF>::size_type>(row);
         const QPointF& point_value = line_edit_points_pct_.at(point_index);
         const auto enabled_item = new QTableWidgetItem;
-        enabled_item->setFlags(enabled_item->flags() | Qt::ItemIsUserCheckable);
+        enabled_item->setFlags(
+            (enabled_item->flags() | Qt::ItemIsUserCheckable)
+            & ~Qt::ItemIsEditable
+        );
         enabled_item->setCheckState(
             line_edit_point_enabled_.at(
                 static_cast<std::vector<bool>::size_type>(row)
@@ -965,13 +1340,11 @@ void active_editor_panel::refresh_line_edit_table() {
         const auto x_item = new QTableWidgetItem(
             QString::number(point_value.x(), 'f', 2)
         );
-        x_item->setFlags(x_item->flags() & ~Qt::ItemIsEditable);
         line_edit_points_table_->setItem(row, 2, x_item);
 
         const auto y_item = new QTableWidgetItem(
             QString::number(point_value.y(), 'f', 2)
         );
-        y_item->setFlags(y_item->flags() & ~Qt::ItemIsEditable);
         line_edit_points_table_->setItem(row, 3, y_item);
     }
 
@@ -1011,8 +1384,9 @@ void active_editor_panel::refresh_line_edit_summary() const {
                 "Select an enabled line, exclude points you do not want, then "
                 "save the edited variant under a new name. "
                 "Current source: %1 | keeping %2 of %3 points.%4 "
-                "Drag the shape, click a point to move just that point, use "
-                "arrow keys to nudge, and use the mouse wheel to rotate."
+                "Drag points or the whole line, double-click a segment to "
+                "insert a point, use Delete to remove one, and use arrows or "
+                "the mouse wheel for small adjustments."
             )
                 .arg(line_value->template_name)
                 .arg(kept_points)
@@ -1025,8 +1399,7 @@ void active_editor_panel::refresh_line_edit_summary() const {
     line_edit_summary_label_->setText(
         QStringLiteral(
             "Select an enabled line for this stream to preview it as a dashed "
-            "editable variant, exclude points, nudge it with the arrow keys, "
-            "rotate it with the mouse wheel, and save it under a new name."
+            "editable variant, then adjust points and save it under a new name."
         )
     );
 }
@@ -1034,6 +1407,9 @@ void active_editor_panel::refresh_line_edit_summary() const {
 void active_editor_panel::refresh_line_edit_state() const {
     if (line_edit_combo_ == nullptr || line_edit_points_table_ == nullptr
         || line_edit_name_edit_ == nullptr || line_edit_save_button_ == nullptr
+        || line_edit_undo_button_ == nullptr || line_edit_redo_button_ == nullptr
+        || line_edit_revert_button_ == nullptr
+        || line_edit_delete_button_ == nullptr
         || editor_tabs == nullptr) {
         return;
     }
@@ -1054,10 +1430,29 @@ void active_editor_panel::refresh_line_edit_state() const {
     const bool can_save = has_active && has_selected_line
         && !line_edit_name_edit_->text().trimmed().isEmpty()
         && kept_points >= 2;
+    const bool has_selected_row = line_edit_selected_row_ >= 0
+        && line_edit_selected_row_ < static_cast<int>(line_edit_points_pct_.size());
+    const bool selected_row_enabled = has_selected_row
+        && line_edit_selected_row_ < static_cast<int>(line_edit_point_enabled_.size())
+        && line_edit_point_enabled_.at(
+            static_cast<std::vector<bool>::size_type>(line_edit_selected_row_)
+        );
+    const bool can_delete_selected = has_active && has_selected_line && has_selected_row
+        && (!selected_row_enabled || kept_points > 2);
 
     line_edit_combo_->setEnabled(has_active && enabled_line_count > 0);
     line_edit_points_table_->setEnabled(has_active && has_selected_line);
     line_edit_name_edit_->setEnabled(has_active && has_selected_line);
+    line_edit_undo_button_->setEnabled(
+        has_active && has_selected_line && !line_edit_undo_stack_.empty()
+    );
+    line_edit_redo_button_->setEnabled(
+        has_active && has_selected_line && !line_edit_redo_stack_.empty()
+    );
+    line_edit_revert_button_->setEnabled(
+        has_active && has_selected_line && line_edit_has_unsaved_changes()
+    );
+    line_edit_delete_button_->setEnabled(can_delete_selected);
     line_edit_save_button_->setEnabled(can_save);
 
     const int edit_tab_index = editor_tabs->indexOf(edit_tab_widget_);
@@ -1113,6 +1508,13 @@ line_edit_request active_editor_panel::current_line_edit_request() const {
                 static_cast<std::vector<QPointF>::size_type>(index)
             )
         );
+    }
+    if (line_edit_selected_row_ >= 0) {
+        request.selected_visible_index
+            = active_editor_panel_support::visible_index_for_row(
+                  line_edit_point_enabled_, line_edit_selected_row_
+              )
+                  .value_or(-1);
     }
 
     return request;
@@ -1201,26 +1603,97 @@ void active_editor_panel::on_line_edit_selection_changed(const int index) {
     emit line_edit_preview_cleared();
 }
 
+void active_editor_panel::on_line_edit_table_selection_changed() {
+    if (line_edit_points_table_ == nullptr || syncing_line_edit_ui_) {
+        return;
+    }
+
+    const int row = line_edit_points_table_->currentRow();
+    line_edit_selected_row_
+        = row >= 0 && row < static_cast<int>(line_edit_points_pct_.size())
+        ? row
+        : -1;
+    refresh_line_edit_summary();
+    refresh_line_edit_state();
+    emit_line_edit_preview_if_visible();
+}
+
 void active_editor_panel::on_line_edit_point_item_changed(QTableWidgetItem* item) {
-    if (item == nullptr || syncing_line_edit_ui_
-        || item->column() != 0) {
+    if (item == nullptr || syncing_line_edit_ui_) {
         return;
     }
 
     const int row = item->row();
-    if (row < 0 || row >= static_cast<int>(line_edit_point_enabled_.size())) {
+    if (row < 0 || row >= static_cast<int>(line_edit_points_pct_.size())
+        || line_edit_points_pct_.size() != line_edit_point_enabled_.size()) {
         return;
     }
 
-    line_edit_point_enabled_.at(static_cast<std::vector<bool>::size_type>(row))
-        = item->checkState() == Qt::Checked;
-    if (!line_edit_point_enabled_.at(static_cast<std::vector<bool>::size_type>(row))
-        && line_edit_selected_row_ == row) {
-        line_edit_selected_row_ = -1;
+    if (item->column() == 0) {
+        const bool enabled = item->checkState() == Qt::Checked;
+        const bool previous_enabled = line_edit_point_enabled_.at(
+            static_cast<std::vector<bool>::size_type>(row)
+        );
+        if (enabled == previous_enabled) {
+            return;
+        }
+
+        const int kept_points = static_cast<int>(std::count(
+            line_edit_point_enabled_.cbegin(), line_edit_point_enabled_.cend(), true
+        ));
+        if (!enabled && kept_points <= 2) {
+            refresh_line_edit_table();
+            return;
+        }
+
+        record_line_edit_mutation();
+        line_edit_point_enabled_.at(static_cast<std::vector<bool>::size_type>(row))
+            = enabled;
+        if (!enabled && line_edit_selected_row_ == row) {
+            line_edit_selected_row_ = -1;
+        }
+        refresh_line_edit_after_mutation();
+        return;
     }
-    refresh_line_edit_summary();
-    refresh_line_edit_state();
-    emit_line_edit_preview_if_visible();
+
+    if (item->column() != 2 && item->column() != 3) {
+        return;
+    }
+
+    bool ok = false;
+    const double value = item->text().trimmed().toDouble(&ok);
+    if (!ok) {
+        refresh_line_edit_table();
+        return;
+    }
+
+    QPointF updated_point = line_edit_points_pct_.at(
+        static_cast<std::vector<QPointF>::size_type>(row)
+    );
+    if (item->column() == 2) {
+        updated_point.setX(value);
+    } else {
+        updated_point.setY(value);
+    }
+    updated_point = active_editor_panel_support::clamped_pct(updated_point);
+
+    const QPointF previous_point = line_edit_points_pct_.at(
+        static_cast<std::vector<QPointF>::size_type>(row)
+    );
+    if (std::abs(previous_point.x() - updated_point.x())
+            <= std::numeric_limits<double>::epsilon()
+        && std::abs(previous_point.y() - updated_point.y())
+            <= std::numeric_limits<double>::epsilon()) {
+        refresh_line_edit_table();
+        return;
+    }
+
+    record_line_edit_mutation();
+    line_edit_selected_row_ = row;
+    line_edit_points_pct_.at(
+        static_cast<std::vector<QPointF>::size_type>(row)
+    ) = updated_point;
+    refresh_line_edit_after_mutation();
 }
 
 void active_editor_panel::on_line_edit_name_text_changed(const QString& text) {
@@ -1228,6 +1701,26 @@ void active_editor_panel::on_line_edit_name_text_changed(const QString& text) {
 
     refresh_line_edit_state();
     emit_line_edit_preview_if_visible();
+}
+
+void active_editor_panel::on_line_edit_undo_clicked() {
+    undo_line_edit_change();
+}
+
+void active_editor_panel::on_line_edit_redo_clicked() {
+    redo_line_edit_change();
+}
+
+void active_editor_panel::on_line_edit_revert_clicked() {
+    revert_line_edit_changes();
+}
+
+void active_editor_panel::on_line_edit_delete_clicked() {
+    if (line_edit_selected_row_ < 0) {
+        return;
+    }
+
+    delete_line_edit_row(line_edit_selected_row_);
 }
 
 void active_editor_panel::on_line_edit_save_clicked() {
@@ -1243,6 +1736,7 @@ void active_editor_panel::on_line_edit_save_clicked() {
     line_edit_points_pct_.clear();
     line_edit_point_enabled_.clear();
     line_edit_selected_row_ = -1;
+    clear_line_edit_history();
     if (line_edit_combo_ != nullptr) {
         QSignalBlocker blocker(line_edit_combo_);
         line_edit_combo_->setCurrentIndex(0);

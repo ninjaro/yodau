@@ -79,9 +79,18 @@ public:
         int visible_index, const QPointF& point_pct
     ) const;
     bool split_active_line_edit_point(int visible_index) const;
+    bool insert_active_line_edit_point_after(
+        int visible_segment_index, const QPointF& point_pct
+    ) const;
+    bool delete_active_line_edit_point(int visible_index) const;
     bool rotate_active_line_edit_shape(
         double delta_degrees, int visible_pivot_index = -1
     ) const;
+    void begin_active_line_edit_change() const;
+    void finish_active_line_edit_change() const;
+    bool undo_active_line_edit_change() const;
+    bool redo_active_line_edit_change() const;
+    bool revert_active_line_edit_changes() const;
 
     QString active_template_current() const;
     QColor active_template_preview_color() const;

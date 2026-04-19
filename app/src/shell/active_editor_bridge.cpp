@@ -57,6 +57,7 @@ std::optional<stream_cell::line_instance> active_line_edit_preview(
     preview_line.width_text = edit_request->profile.width_text;
     preview_line.length_text = edit_request->profile.length_text;
     preview_line.response_text = edit_request->profile.response_text;
+    preview_line.selected_visible_index = edit_request->selected_visible_index;
     preview_line.pts_pct.reserve(
         static_cast<std::vector<QPointF>::size_type>(
             edit_request->points_pct.size()
@@ -66,6 +67,20 @@ std::optional<stream_cell::line_instance> active_line_edit_preview(
         preview_line.pts_pct.push_back(point_value);
     }
     return preview_line;
+}
+
+std::optional<stream_cell::line_instance> active_line_edit_source(
+    const QString& active_name, const active_edit_session& edit_session
+) {
+    const auto edit_request = edit_session.active_line_edit();
+    if (!edit_request.has_value() || edit_request->stream_name != active_name
+        || edit_request->source_line_name.isEmpty()) {
+        return std::nullopt;
+    }
+
+    return edit_session.find_stream_line(
+        active_name, edit_request->source_line_name
+    );
 }
 
 } // namespace active_editor_bridge_support
@@ -184,8 +199,43 @@ void active_editor_bridge::apply_active_stream(
             Qt::UniqueConnection
         );
         QObject::connect(
+            cell, &stream_cell::line_edit_segment_insert_requested, settings_,
+            &settings_panel::insert_active_line_edit_point_after,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_point_delete_requested, settings_,
+            &settings_panel::delete_active_line_edit_point,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
             cell, &stream_cell::line_edit_shape_rotate_requested, settings_,
             &settings_panel::rotate_active_line_edit_shape,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_change_started, settings_,
+            &settings_panel::begin_active_line_edit_change,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_change_finished, settings_,
+            &settings_panel::finish_active_line_edit_change,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_undo_requested, settings_,
+            &settings_panel::undo_active_line_edit_change,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_redo_requested, settings_,
+            &settings_panel::redo_active_line_edit_change,
+            Qt::UniqueConnection
+        );
+        QObject::connect(
+            cell, &stream_cell::line_edit_revert_requested, settings_,
+            &settings_panel::revert_active_line_edit_changes,
             Qt::UniqueConnection
         );
     }
@@ -193,6 +243,11 @@ void active_editor_bridge::apply_active_stream(
         = active_editor_bridge_support::active_line_edit_preview(
             active_name, edit_session
         );
+    cell->set_line_edit_source_line(
+        active_editor_bridge_support::active_line_edit_source(
+            active_name, edit_session
+        )
+    );
     cell->set_line_edit_preview(line_edit_preview);
 
     if (line_edit_preview.has_value()) {
@@ -237,6 +292,11 @@ void active_editor_bridge::sync_active_persistent(
                 = active_editor_bridge_support::active_line_edit_preview(
                     active_name, edit_session
                 );
+            cell->set_line_edit_source_line(
+                active_editor_bridge_support::active_line_edit_source(
+                    active_name, edit_session
+                )
+            );
             cell->set_persistent_lines(
                 active_editor_bridge_support::filtered_active_lines(
                     active_name, edit_session

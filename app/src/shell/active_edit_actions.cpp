@@ -32,6 +32,10 @@ line_edit_request normalized_line_edit_request(line_edit_request request) {
     request.profile.response_text = normalized_line_response_text(
         request.profile.response_text
     );
+    if (request.selected_visible_index
+        >= static_cast<int>(request.points_pct.size())) {
+        request.selected_visible_index = -1;
+    }
     return request;
 }
 

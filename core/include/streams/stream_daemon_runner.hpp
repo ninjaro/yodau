@@ -24,12 +24,15 @@ using stream_daemon_push_fn
 
 class stream_daemon_runner {
 public:
+    ~stream_daemon_runner();
+
     bool start(
         const std::string& name, std::shared_ptr<stream> stream_ptr,
         stream_daemon_start_fn daemon_fn, stream_daemon_push_fn push_fn
     );
 
     bool stop(const std::string& name);
+    void stop_all();
     [[nodiscard]] bool is_running(const std::string& name) const;
 
 private:

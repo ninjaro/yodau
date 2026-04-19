@@ -8,6 +8,27 @@
 
 yodau::core::stream_manager::stream_manager() { refresh_local_streams(); }
 
+yodau::core::stream_manager::~stream_manager() { shutdown(); }
+
+void yodau::core::stream_manager::shutdown() {
+    disable_fake_events();
+    daemon_runner.stop_all();
+
+    std::scoped_lock lock(mtx);
+    for (const auto& stream_ptr : streams.snapshot()) {
+        if (stream_ptr) {
+            stream_ptr->deactivate();
+        }
+    }
+
+    manual_push = {};
+    daemon_start = {};
+    frame_processor = {};
+    processed_frame_router.set_sink({});
+    event_dispatcher.set_event_sink({});
+    event_dispatcher.set_event_batch_sink({});
+}
+
 void yodau::core::stream_manager::dump(std::ostream& out) const {
     std::scoped_lock lock(mtx);
     streams.dump(out);

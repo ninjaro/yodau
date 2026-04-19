@@ -323,5 +323,9 @@ line_edit_request active_edit_session::normalized_line_edit_request(
         request.source_line_name
     );
     request.profile = normalized_line_profile(std::move(request.profile));
+    if (request.selected_visible_index
+        >= static_cast<int>(request.points_pct.size())) {
+        request.selected_visible_index = -1;
+    }
     return request;
 }
