@@ -1,9 +1,7 @@
 #include "streams/stream_manager.hpp"
 #include "streams/linux_capture_device.hpp"
 
-#include <chrono>
 #include <stdexcept>
-#include <thread>
 #include <utility>
 
 yodau::core::stream_manager::stream_manager() { refresh_local_streams(); }
@@ -414,51 +412,25 @@ bool yodau::core::stream_manager::is_stream_running(
 }
 
 void yodau::core::stream_manager::enable_fake_events(const int interval_ms) {
-    {
-        std::scoped_lock lock(mtx);
-
-        if (interval_ms > 0) {
-            fake_interval_ms = interval_ms;
+    demo_event_runner.start(
+        interval_ms,
+        [this]() {
+            std::scoped_lock lock(mtx);
+            return streams.snapshot();
+        },
+        [this]() {
+            std::scoped_lock lock(mtx);
+            return stream_demo_hooks {
+                .frame_processor = frame_processor,
+                .processed_frame_sink = processed_frame_router.snapshot(),
+                .event_sinks = event_dispatcher.snapshot(),
+            };
         }
-
-        if (fake_enabled) {
-            return;
-        }
-
-        fake_enabled = true;
-    }
-
-    auto fake_runner = std::bind_front(&stream_manager::run_fake_events, this);
-    std::jthread th(std::move(fake_runner));
-
-    {
-        std::scoped_lock lock(mtx);
-        if (!fake_enabled) {
-            th.request_stop();
-            return;
-        }
-        fake_thread = std::move(th);
-    }
+    );
 }
 
 void yodau::core::stream_manager::disable_fake_events() {
-    std::jthread th;
-
-    {
-        std::scoped_lock lock(mtx);
-
-        if (!fake_enabled) {
-            return;
-        }
-
-        fake_enabled = false;
-        th = std::move(fake_thread);
-        fake_thread = std::jthread();
-    }
-
-    if (th.joinable()) {
-        th.request_stop();
-    }
+    demo_event_runner.stop();
 }
 
 void yodau::core::stream_manager::set_line_dir(
@@ -471,55 +443,6 @@ void yodau::core::stream_manager::set_line_dir(
         if (stream_ptr && stream_ptr->find_line_profile(line_name).has_value()) {
             stream_ptr->connect_line(connection.line, connection.profile);
         }
-    }
-}
-
-std::vector<std::shared_ptr<yodau::core::stream>>
-yodau::core::stream_manager::snapshot_streams() const {
-    std::scoped_lock lock(mtx);
-    return streams.snapshot();
-}
-
-void yodau::core::stream_manager::snapshot_hooks(
-    frame_processor_fn& fp, processed_frame_sink_fn& pfs,
-    stream_event_sinks& event_sinks
-) const {
-    std::scoped_lock lock(mtx);
-    fp = frame_processor;
-    pfs = processed_frame_router.snapshot();
-    event_sinks = event_dispatcher.snapshot();
-}
-
-int yodau::core::stream_manager::current_fake_interval_ms() const {
-    std::scoped_lock lock(mtx);
-    return fake_interval_ms;
-}
-
-void yodau::core::stream_manager::run_fake_events(std::stop_token st) {
-    frame dummy;
-
-    while (!st.stop_requested()) {
-        auto snap = snapshot_streams();
-
-        frame_processor_fn fp;
-        processed_frame_sink_fn pfs;
-        stream_event_sinks event_sinks;
-        snapshot_hooks(fp, pfs, event_sinks);
-
-        if (fp) {
-            for (const auto& sp : snap) {
-                auto evs = fp(*sp, dummy);
-
-                if (pfs) {
-                    pfs(*sp, dummy, evs);
-                }
-
-                event_sinks.dispatch(evs, true);
-            }
-        }
-
-        const int interval = current_fake_interval_ms();
-        std::this_thread::sleep_for(std::chrono::milliseconds(interval));
     }
 }
 

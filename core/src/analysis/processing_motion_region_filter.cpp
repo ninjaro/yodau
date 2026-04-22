@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -15,24 +14,6 @@ struct motion_region {
     std::string line_name;
     std::vector<point> polygon_pct;
 };
-
-float cross_z(const point& a, const point& b, const point& c) {
-    const float abx = b.x - a.x;
-    const float aby = b.y - a.y;
-    const float acx = c.x - a.x;
-    const float acy = c.y - a.y;
-    return abx * acy - aby * acx;
-}
-
-bool between(const float a, const float b, const float c) {
-    const auto [lo, hi] = std::minmax(a, b);
-    return lo <= c + point::epsilon && c <= hi + point::epsilon;
-}
-
-bool point_on_segment(const point& a, const point& b, const point& value) {
-    return std::abs(cross_z(a, b, value)) <= point::epsilon
-        && between(a.x, b.x, value.x) && between(a.y, b.y, value.y);
-}
 
 bool polygon_contains_point(
     const std::vector<point>& polygon_pct, const point& value
@@ -48,7 +29,7 @@ bool polygon_contains_point(
         const point& a = polygon_pct[previous];
         const point& b = polygon_pct[index];
 
-        if (point_on_segment(a, b, value)) {
+        if (yodau::core::point_on_segment(a, b, value)) {
             return true;
         }
 

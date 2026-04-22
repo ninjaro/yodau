@@ -84,6 +84,27 @@ double distance_pct(const point& lhs, const point& rhs) {
     );
 }
 
+std::optional<size_t> largest_contour_index(
+    const std::vector<std::vector<cv::Point>>& contours
+) {
+    if (contours.empty()) {
+        return std::nullopt;
+    }
+
+    double max_area = 0.0;
+    size_t max_index = 0;
+
+    for (size_t index = 0; index < contours.size(); ++index) {
+        const double area = cv::contourArea(contours[index]);
+        if (area > max_area) {
+            max_area = area;
+            max_index = index;
+        }
+    }
+
+    return max_index;
+}
+
 std::vector<std::vector<cv::Point>> accepted_contours_by_area(
     const cv::Mat& binary_mask, const double min_area_px2
 ) {
@@ -134,6 +155,29 @@ std::vector<processing_contour_candidate> contour_candidates_by_area(
                 .center_pct = *center_pct,
                 .area_px2 = cv::contourArea(contour),
             }
+        );
+    }
+
+    return candidates;
+}
+
+std::vector<processing_candidate> processing_candidates_from_contours(
+    const std::vector<processing_contour_candidate>& contour_candidates,
+    const cv::Size& frame_size, const size_t mask_point_limit,
+    std::optional<std::string> class_id
+) {
+    std::vector<processing_candidate> candidates;
+    candidates.reserve(contour_candidates.size());
+
+    for (const auto& contour_candidate : contour_candidates) {
+        candidates.push_back(
+            make_processing_candidate(
+                contour_candidate.center_pct, contour_candidate.area_px2,
+                contour_to_pct(
+                    contour_candidate.contour, frame_size, mask_point_limit
+                ),
+                1.0, class_id
+            )
         );
     }
 

@@ -206,6 +206,351 @@ void draw_arrow_head(
     painter.drawPolygon(arrow);
 }
 
+double event_region_scale(const stream_settings& settings_value) {
+    const QString algorithm_id = normalized_app_algorithm_id(
+        settings_value.algorithm_id
+    );
+    const QString preset_id = normalized_algorithm_preset_id(
+        algorithm_id, settings_value.algorithm_preset
+    );
+
+    if (algorithm_id == QStringLiteral("spot_grid")) {
+        if (preset_id == QStringLiteral("coarse")) {
+            return 0.12;
+        }
+        if (preset_id == QStringLiteral("dense")) {
+            return 0.2;
+        }
+        return 0.16;
+    }
+
+    if (algorithm_id == QStringLiteral("hybrid_auto")) {
+        if (preset_id == QStringLiteral("load_guard")) {
+            return 0.12;
+        }
+        if (preset_id == QStringLiteral("tripwire_bias")) {
+            return 0.19;
+        }
+        return 0.16;
+    }
+
+    if (algorithm_id == QStringLiteral("contour_mask")) {
+        if (preset_id == QStringLiteral("outline")) {
+            return 0.14;
+        }
+        if (preset_id == QStringLiteral("mask_heavy")) {
+            return 0.22;
+        }
+        return 0.18;
+    }
+
+    if (algorithm_id == QStringLiteral("centroid_track")) {
+        if (preset_id == QStringLiteral("fast_match")) {
+            return 0.13;
+        }
+        if (preset_id == QStringLiteral("persistent")) {
+            return 0.21;
+        }
+        return 0.17;
+    }
+
+    if (preset_id == QStringLiteral("simple")) {
+        return 0.11;
+    }
+    if (preset_id == QStringLiteral("debug")) {
+        return 0.2;
+    }
+    return 0.15;
+}
+
+int spot_grid_dimension(const stream_settings& settings_value) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+
+    if (preset_id == QStringLiteral("coarse")) {
+        return 2;
+    }
+    if (preset_id == QStringLiteral("dense")) {
+        return 4;
+    }
+    return 3;
+}
+
+QRectF event_region_rect(
+    const QRect& rect_value, const QPointF& center,
+    const stream_settings& settings_value
+) {
+    const double scale = event_region_scale(settings_value);
+    const double region_width = rect_value.width() * scale;
+    const double region_height = rect_value.height() * scale;
+
+    QRectF region(
+        center.x() - region_width * 0.5, center.y() - region_height * 0.5,
+        region_width, region_height
+    );
+
+    const QRectF bounds = rect_value.adjusted(8, 8, -8, -8);
+    if (region.left() < bounds.left()) {
+        region.moveLeft(bounds.left());
+    }
+    if (region.top() < bounds.top()) {
+        region.moveTop(bounds.top());
+    }
+    if (region.right() > bounds.right()) {
+        region.moveRight(bounds.right());
+    }
+    if (region.bottom() > bounds.bottom()) {
+        region.moveBottom(bounds.bottom());
+    }
+
+    return region;
+}
+
+void draw_baseline_event_bubble(
+    QPainter& painter, const QPointF& center, const double radius,
+    const QColor& color, const stream_settings& settings_value,
+    const double life_k
+) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+    const int ring_count = preset_id == QStringLiteral("debug") ? 3 : 2;
+    const double spread = preset_id == QStringLiteral("simple") ? 2.2 : 3.0;
+
+    for (int i = 0; i < ring_count; i += 1) {
+        const double factor
+            = 1.0 + spread * (static_cast<double>(i) / ring_count);
+        QPen pen(color_with_alpha(color, static_cast<int>(180.0 * life_k)));
+        pen.setWidthF(1.5 + i * 0.7);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(center, radius * factor, radius * factor);
+    }
+
+    if (preset_id == QStringLiteral("debug")) {
+        QPen cross_pen(color_with_alpha(color, static_cast<int>(160.0 * life_k)));
+        cross_pen.setWidthF(1.0);
+        cross_pen.setStyle(Qt::DashLine);
+        painter.setPen(cross_pen);
+        painter.drawLine(
+            QPointF(center.x() - radius * 4.0, center.y()),
+            QPointF(center.x() + radius * 4.0, center.y())
+        );
+        painter.drawLine(
+            QPointF(center.x(), center.y() - radius * 4.0),
+            QPointF(center.x(), center.y() + radius * 4.0)
+        );
+    }
+}
+
+void draw_spot_grid_event_bubble(
+    QPainter& painter, const QRectF& region, const QPointF& center,
+    const double radius, const QColor& color,
+    const stream_settings& settings_value, const double life_k
+) {
+    const int dimension = spot_grid_dimension(settings_value);
+    const double cell_width = region.width() / dimension;
+    const double cell_height = region.height() / dimension;
+
+    QPen border_pen(color_with_alpha(color, static_cast<int>(150.0 * life_k)));
+    border_pen.setWidthF(1.2);
+    painter.setPen(border_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(region, 6.0, 6.0);
+
+    for (int row = 1; row < dimension; row += 1) {
+        painter.drawLine(
+            QPointF(region.left(), region.top() + row * cell_height),
+            QPointF(region.right(), region.top() + row * cell_height)
+        );
+    }
+    for (int col = 1; col < dimension; col += 1) {
+        painter.drawLine(
+            QPointF(region.left() + col * cell_width, region.top()),
+            QPointF(region.left() + col * cell_width, region.bottom())
+        );
+    }
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color_with_alpha(color, static_cast<int>(96.0 * life_k)));
+
+    for (int row = 0; row < dimension; row += 1) {
+        for (int col = 0; col < dimension; col += 1) {
+            const QPointF spot_center(
+                region.left() + (col + 0.5) * cell_width,
+                region.top() + (row + 0.5) * cell_height
+            );
+            painter.drawEllipse(spot_center, radius * 0.45, radius * 0.45);
+        }
+    }
+
+    painter.setBrush(color_with_alpha(color, static_cast<int>(180.0 * life_k)));
+    painter.drawEllipse(center, radius * 0.9, radius * 0.9);
+}
+
+void draw_contour_event_bubble(
+    QPainter& painter, const QRectF& region, const QPointF& center,
+    const double radius, const QColor& color,
+    const stream_settings& settings_value, const double life_k
+) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+
+    if (preset_id == QStringLiteral("mask_heavy")) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color_with_alpha(color, static_cast<int>(42.0 * life_k)));
+        painter.drawRoundedRect(region, 10.0, 10.0);
+    }
+
+    QPen mask_pen(color_with_alpha(color, static_cast<int>(170.0 * life_k)));
+    mask_pen.setWidthF(preset_id == QStringLiteral("outline") ? 1.6 : 2.2);
+    mask_pen.setStyle(
+        preset_id == QStringLiteral("outline") ? Qt::DashLine : Qt::SolidLine
+    );
+    painter.setPen(mask_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(region, 10.0, 10.0);
+
+    QPolygonF contour;
+    contour << QPointF(center.x(), region.top())
+            << QPointF(region.right(), center.y())
+            << QPointF(center.x(), region.bottom())
+            << QPointF(region.left(), center.y());
+    painter.drawPolygon(contour);
+
+    if (preset_id != QStringLiteral("outline")) {
+        painter.drawEllipse(center, region.width() * 0.28, region.height() * 0.28);
+    }
+
+    painter.setPen(QPen(color_with_alpha(color, static_cast<int>(190.0 * life_k)), 1.2));
+    painter.drawLine(
+        QPointF(center.x() - radius * 1.8, center.y()),
+        QPointF(center.x() + radius * 1.8, center.y())
+    );
+}
+
+void draw_hybrid_event_bubble(
+    QPainter& painter, const QRectF& region, const QPointF& center,
+    const double radius, const QColor& color,
+    const stream_settings& settings_value, const double life_k
+) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+    const int dimension = preset_id == QStringLiteral("load_guard")
+        ? 2
+        : (preset_id == QStringLiteral("tripwire_bias") ? 4 : 3);
+
+    QPen frame_pen(color_with_alpha(color, static_cast<int>(155.0 * life_k)));
+    frame_pen.setWidthF(preset_id == QStringLiteral("tripwire_bias") ? 2.0 : 1.4);
+    frame_pen.setStyle(
+        preset_id == QStringLiteral("load_guard") ? Qt::DotLine : Qt::DashLine
+    );
+    painter.setPen(frame_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(region, 8.0, 8.0);
+
+    const double cell_width = region.width() / dimension;
+    const double cell_height = region.height() / dimension;
+    QPen grid_pen(color_with_alpha(color, static_cast<int>(82.0 * life_k)));
+    grid_pen.setWidthF(1.0);
+    painter.setPen(grid_pen);
+    for (int row = 1; row < dimension; row += 1) {
+        painter.drawLine(
+            QPointF(region.left(), region.top() + row * cell_height),
+            QPointF(region.right(), region.top() + row * cell_height)
+        );
+    }
+    for (int col = 1; col < dimension; col += 1) {
+        painter.drawLine(
+            QPointF(region.left() + col * cell_width, region.top()),
+            QPointF(region.left() + col * cell_width, region.bottom())
+        );
+    }
+
+    QPolygonF contour;
+    contour << QPointF(center.x(), region.top())
+            << QPointF(region.right(), center.y())
+            << QPointF(center.x(), region.bottom())
+            << QPointF(region.left(), center.y());
+    QPen contour_pen(color_with_alpha(color, static_cast<int>(180.0 * life_k)));
+    contour_pen.setWidthF(preset_id == QStringLiteral("tripwire_bias") ? 1.9 : 1.4);
+    painter.setPen(contour_pen);
+    painter.drawPolygon(contour);
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color_with_alpha(color, static_cast<int>(110.0 * life_k)));
+    painter.drawEllipse(center, radius * 0.85, radius * 0.85);
+
+    if (preset_id != QStringLiteral("load_guard")) {
+        draw_baseline_event_bubble(
+            painter, center, radius * 0.7, color, settings_value, life_k * 0.85
+        );
+    }
+}
+
+void draw_centroid_event_bubble(
+    QPainter& painter, const QRectF& region, const QPointF& center,
+    const double radius, const QColor& color,
+    const stream_settings& settings_value, const double life_k
+) {
+    const QString preset_id = normalized_algorithm_preset_id(
+        settings_value.algorithm_id, settings_value.algorithm_preset
+    );
+    const int segment_count = preset_id == QStringLiteral("fast_match")
+        ? 3
+        : (preset_id == QStringLiteral("persistent") ? 6 : 4);
+    const double span_x = region.width()
+        * (preset_id == QStringLiteral("persistent") ? 0.52 : 0.38);
+    const double wave_y = region.height()
+        * (preset_id == QStringLiteral("fast_match") ? 0.08 : 0.14);
+
+    QPolygonF track_path;
+    track_path.reserve(segment_count + 1);
+    for (int index = 0; index <= segment_count; index += 1) {
+        const double k
+            = static_cast<double>(index) / static_cast<double>(segment_count);
+        const double x = center.x() - span_x * (1.0 - k);
+        const double y = center.y()
+            + ((index % 2 == 0) ? -wave_y : wave_y) * (1.0 - k * 0.55);
+        track_path << QPointF(x, y);
+    }
+
+    QPen tail_pen(color_with_alpha(color, static_cast<int>(165.0 * life_k)));
+    tail_pen.setWidthF(preset_id == QStringLiteral("persistent") ? 2.4 : 1.8);
+    tail_pen.setStyle(
+        preset_id == QStringLiteral("fast_match") ? Qt::DashLine : Qt::SolidLine
+    );
+    painter.setPen(tail_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPolyline(track_path);
+
+    if (preset_id != QStringLiteral("fast_match")) {
+        painter.setPen(Qt::NoPen);
+        for (int index = 0; index < track_path.size() - 1; index += 1) {
+            const double k = 1.0
+                - static_cast<double>(index + 1)
+                    / static_cast<double>(track_path.size());
+            painter.setBrush(
+                color_with_alpha(color, static_cast<int>((60.0 + k * 70.0) * life_k))
+            );
+            painter.drawEllipse(track_path.at(index), radius * 0.42, radius * 0.42);
+        }
+    }
+
+    QPen head_pen(color_with_alpha(color, static_cast<int>(185.0 * life_k)));
+    head_pen.setWidthF(1.3);
+    painter.setPen(head_pen);
+    painter.setBrush(color_with_alpha(color, static_cast<int>(145.0 * life_k)));
+    painter.drawEllipse(center, radius * 1.1, radius * 1.1);
+    painter.drawLine(
+        QPointF(center.x() - radius * 1.6, center.y()),
+        QPointF(center.x() + radius * 1.6, center.y())
+    );
+}
+
 } // namespace
 
 namespace processing_overlay_renderer {
@@ -361,6 +706,49 @@ void draw(
     }
 
     painter.restore();
+}
+
+void draw_event_bubble(
+    QPainter& painter, const QRect& bounds, const QPointF& center,
+    const double radius, const QColor& color,
+    const stream_settings& settings_value, const double life_k
+) {
+    const QString algorithm_id = normalized_app_algorithm_id(
+        settings_value.algorithm_id
+    );
+    const QRectF region = event_region_rect(bounds, center, settings_value);
+
+    if (algorithm_id == QStringLiteral("spot_grid")) {
+        draw_spot_grid_event_bubble(
+            painter, region, center, radius, color, settings_value, life_k
+        );
+        return;
+    }
+
+    if (algorithm_id == QStringLiteral("hybrid_auto")) {
+        draw_hybrid_event_bubble(
+            painter, region, center, radius, color, settings_value, life_k
+        );
+        return;
+    }
+
+    if (algorithm_id == QStringLiteral("contour_mask")) {
+        draw_contour_event_bubble(
+            painter, region, center, radius, color, settings_value, life_k
+        );
+        return;
+    }
+
+    if (algorithm_id == QStringLiteral("centroid_track")) {
+        draw_centroid_event_bubble(
+            painter, region, center, radius, color, settings_value, life_k
+        );
+        return;
+    }
+
+    draw_baseline_event_bubble(
+        painter, center, radius, color, settings_value, life_k
+    );
 }
 
 } // namespace processing_overlay_renderer

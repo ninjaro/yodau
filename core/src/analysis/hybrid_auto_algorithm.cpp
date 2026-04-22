@@ -48,13 +48,9 @@ public:
     }
 
     void configure(processing_algorithm_configuration configuration) override {
-        const auto defaults = default_configuration();
-        for (const auto& [key, value] : defaults.values) {
-            if (!configuration.values.contains(key)) {
-                configuration.values.emplace(key, value);
-            }
-        }
-        configuration_ = std::move(configuration);
+        configuration_ = completed_processing_configuration(
+            algorithm_id(), std::move(configuration)
+        );
     }
 
     void daemon_start(
@@ -68,21 +64,11 @@ public:
         const stream& stream_value, const frame& frame_value
     ) override {
         processing_result result;
-        result.diagnostics.push_back(
-            processing_diagnostic { .key = "algorithm", .value = algorithm_id() }
-        );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "display_name",
-                .value = display_name(),
-            }
-        );
+        add_algorithm_diagnostics(result, *this);
 
         const cv::Mat gray = frame_to_gray_mat(frame_value);
         if (gray.empty()) {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "frame_state", .value = "invalid" }
-            );
+            add_processing_diagnostic(result, "frame_state", "invalid");
             return result;
         }
 
@@ -165,11 +151,8 @@ public:
 
         auto* delegate = delegate_for_algorithm(selection.algorithm_id);
         if (delegate == nullptr) {
-            result.diagnostics.push_back(
-                processing_diagnostic {
-                    .key = "selection_state",
-                    .value = "missing_delegate",
-                }
+            add_processing_diagnostic(
+                result, "selection_state", "missing_delegate"
             );
             return result;
         }
@@ -200,75 +183,45 @@ public:
         result.events = std::move(delegate_result.events);
         result.overlays = std::move(delegate_result.overlays);
 
-        result.metrics.push_back(
-            processing_metric {
-                .name = "line_count",
-                .value = static_cast<double>(line_count),
-                .unit = "lines",
-            }
+        add_processing_metric(
+            result, "line_count", static_cast<double>(line_count), "lines"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "scene_motion_permille",
-                .value = static_cast<double>(motion_permille),
-                .unit = "permille",
-            }
+        add_processing_metric(
+            result, "scene_motion_permille",
+            static_cast<double>(motion_permille), "permille"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "adaptive_processing_ms",
-                .value = elapsed_ms,
-                .unit = "ms",
-            }
+        add_processing_metric(
+            result, "adaptive_processing_ms", elapsed_ms, "ms"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "adaptive_average_processing_ms",
-                .value = updated_average_processing_ms,
-                .unit = "ms",
-            }
+        add_processing_metric(
+            result, "adaptive_average_processing_ms",
+            updated_average_processing_ms, "ms"
         );
 
-        for (auto& metric : delegate_result.metrics) {
-            metric.name = "selected_" + metric.name;
-            result.metrics.push_back(std::move(metric));
-        }
+        add_prefixed_processing_metrics(
+            result, std::move(delegate_result.metrics), "selected_"
+        );
 
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "selected_algorithm",
-                .value = selection.algorithm_id,
-            }
+        add_processing_diagnostic(
+            result, "selected_algorithm", selection.algorithm_id
         );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "selection_reason",
-                .value = selection.reason,
-            }
+        add_processing_diagnostic(
+            result, "selection_reason", selection.reason
         );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "scene_state",
-                .value = selection.scene_state,
-            }
+        add_processing_diagnostic(
+            result, "scene_state", selection.scene_state
         );
 
         for (auto& diagnostic : delegate_result.diagnostics) {
             if (diagnostic.key == "algorithm") {
-                result.diagnostics.push_back(
-                    processing_diagnostic {
-                        .key = "selected_algorithm_reported",
-                        .value = diagnostic.value,
-                    }
+                add_processing_diagnostic(
+                    result, "selected_algorithm_reported", diagnostic.value
                 );
                 continue;
             }
             if (diagnostic.key == "display_name") {
-                result.diagnostics.push_back(
-                    processing_diagnostic {
-                        .key = "selected_display_name",
-                        .value = diagnostic.value,
-                    }
+                add_processing_diagnostic(
+                    result, "selected_display_name", diagnostic.value
                 );
                 continue;
             }

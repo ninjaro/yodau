@@ -4,6 +4,30 @@
 #include <charconv>
 #include <cmath>
 
+namespace {
+
+int orient(
+    const yodau::core::point& a, const yodau::core::point& b,
+    const yodau::core::point& c
+) {
+    const float value = yodau::core::cross_z(a, b, c);
+    if (value > yodau::core::point::epsilon) {
+        return 1;
+    }
+    if (value < -yodau::core::point::epsilon) {
+        return -1;
+    }
+    return 0;
+}
+
+bool between(const float a, const float b, const float c) {
+    const auto [lo, hi] = std::minmax(a, b);
+    return lo <= c + yodau::core::point::epsilon
+        && c <= hi + yodau::core::point::epsilon;
+}
+
+} // namespace
+
 float yodau::core::point::distance_to(const point& other) const {
     const float dx = x - other.x;
     const float dy = y - other.y;
@@ -128,6 +152,75 @@ yodau::core::line_profile yodau::core::make_line_profile(
     profile.damping = damping;
     profile.normalize();
     return profile;
+}
+
+float yodau::core::cross_z(
+    const point& a, const point& b, const point& c
+) {
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+bool yodau::core::point_on_segment(
+    const point& a, const point& b, const point& value
+) {
+    return orient(a, b, value) == 0 && between(a.x, b.x, value.x)
+        && between(a.y, b.y, value.y);
+}
+
+bool yodau::core::segments_intersect(
+    const point& p1, const point& p2, const point& q1, const point& q2
+) {
+    const int o1 = orient(p1, p2, q1);
+    const int o2 = orient(p1, p2, q2);
+    const int o3 = orient(q1, q2, p1);
+    const int o4 = orient(q1, q2, p2);
+
+    if (o1 != o2 && o3 != o4) {
+        return true;
+    }
+    if (o1 == 0 && point_on_segment(p1, p2, q1)) {
+        return true;
+    }
+    if (o2 == 0 && point_on_segment(p1, p2, q2)) {
+        return true;
+    }
+    if (o3 == 0 && point_on_segment(q1, q2, p1)) {
+        return true;
+    }
+    if (o4 == 0 && point_on_segment(q1, q2, p2)) {
+        return true;
+    }
+
+    return false;
+}
+
+std::optional<yodau::core::point> yodau::core::segment_intersection(
+    const point& p1, const point& p2, const point& q1, const point& q2
+) {
+    const float rpx = p2.x - p1.x;
+    const float rpy = p2.y - p1.y;
+    const float spx = q2.x - q1.x;
+    const float spy = q2.y - q1.y;
+
+    const float denominator = rpx * spy - rpy * spx;
+    if (std::abs(denominator) <= point::epsilon) {
+        return std::nullopt;
+    }
+
+    const float qpx = q1.x - p1.x;
+    const float qpy = q1.y - p1.y;
+    const float t = (qpx * spy - qpy * spx) / denominator;
+    const float u = (qpx * rpy - qpy * rpx) / denominator;
+
+    if (t < -point::epsilon || t > 1.0f + point::epsilon
+        || u < -point::epsilon || u > 1.0f + point::epsilon) {
+        return std::nullopt;
+    }
+
+    point value;
+    value.x = p1.x + t * rpx;
+    value.y = p1.y + t * rpy;
+    return value;
 }
 
 std::vector<yodau::core::point>

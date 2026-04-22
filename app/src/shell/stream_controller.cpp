@@ -466,12 +466,13 @@ void stream_controller::on_active_stream_settings_changed(
     );
     const QString stream_name = settings_value.stream_name;
     const QString algorithm_id = settings_value.algorithm_id;
+    const QString preset_id = settings_value.algorithm_preset;
 
     apply_active_stream_result(
         stream_workflow.apply_stream_settings(std::move(settings_value))
     );
 
-    sync_core_stream_algorithm(stream_name, algorithm_id);
+    sync_core_stream_algorithm(stream_name, algorithm_id, preset_id);
 }
 
 void stream_controller::on_stream_settings_selection_changed(const QString& name) {
@@ -672,7 +673,8 @@ void stream_controller::handle_thumb_activate(const QString& name) {
 }
 
 void stream_controller::sync_core_stream_algorithm(
-    const QString& stream_name, const QString& algorithm_id
+    const QString& stream_name, const QString& algorithm_id,
+    const QString& preset_id
 ) {
     if (stream_name.isEmpty()) {
         return;
@@ -680,8 +682,12 @@ void stream_controller::sync_core_stream_algorithm(
 
     const QString normalized_algorithm_id
         = normalized_app_algorithm_id(algorithm_id);
+    const QString normalized_preset_id = normalized_algorithm_preset_id(
+        normalized_algorithm_id, preset_id
+    );
     if (core_runtime.set_stream_algorithm(
-            stream_name.toStdString(), normalized_algorithm_id.toStdString()
+            stream_name.toStdString(), normalized_algorithm_id.toStdString(),
+            normalized_preset_id.toStdString()
         )) {
         return;
     }
@@ -690,7 +696,8 @@ void stream_controller::sync_core_stream_algorithm(
         app_log_area::active, app_log_severity::error,
         QStringLiteral("stream_settings"),
         QStringLiteral("core algorithm update failed"), stream_name,
-        normalized_algorithm_id, normalized_algorithm_id
+        QStringLiteral("%1/%2").arg(normalized_algorithm_id, normalized_preset_id),
+        normalized_algorithm_id
     );
 }
 

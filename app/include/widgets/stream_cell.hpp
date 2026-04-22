@@ -4,6 +4,7 @@
 #include "shell/app_settings.hpp"
 #include "shell/app_log.hpp"
 #include "widgets/line_edit_interaction.hpp"
+#include "widgets/line_wave_renderer.hpp"
 #include "widgets/processing_overlay.hpp"
 
 #include <QCamera>
@@ -11,6 +12,7 @@
 #include <QColor>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QHash>
 #include <QImage>
 #include <QMediaCaptureSession>
 #include <QMediaDevices>
@@ -18,6 +20,7 @@
 #include <QPointF>
 #include <QString>
 #include <QTimer>
+#include <QVector>
 #include <QVideoFrame>
 #include <QVideoSink>
 #include <QWidget>
@@ -217,20 +220,6 @@ private slots:
     void on_camera_error(QCamera::Error error);
     void on_animation_tick();
 
-public:
-    struct line_wave_pulse {
-        int source_segment_index { -1 };
-        qint64 start_ms { 0 };
-        double origin_path_pos { 0.0 };
-        double amplitude { 0.0 };
-        double speed { 0.0 };
-        double spread { 0.0 };
-        double frequency_hz { 0.0 };
-        double damping_per_s { 0.0 };
-        int travel_sign { 1 };
-        int displacement_sign { 1 };
-    };
-
 private:
     QString name;
 
@@ -279,7 +268,7 @@ private:
     QHash<QString, QDateTime> line_highlights;
     int line_highlight_ttl_ms { 2500 };
     QHash<QString, QVector<hit_info>> line_hits;
-    QHash<QString, QVector<line_wave_pulse>> line_waves;
+    QHash<QString, QVector<line_wave_renderer::pulse>> line_waves;
 };
 
 #endif // YODAU_APP_WIDGETS_STREAM_CELL_HPP

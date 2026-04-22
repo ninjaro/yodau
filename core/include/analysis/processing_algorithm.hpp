@@ -80,6 +80,59 @@ public:
     ) = 0;
 };
 
+inline processing_metric make_processing_metric(
+    std::string name, const double value, std::string unit = {}
+) {
+    return processing_metric {
+        .name = std::move(name),
+        .value = value,
+        .unit = std::move(unit),
+    };
+}
+
+inline void add_processing_metric(
+    processing_result& result, std::string name, const double value,
+    std::string unit = {}
+) {
+    result.metrics.push_back(
+        make_processing_metric(std::move(name), value, std::move(unit))
+    );
+}
+
+inline processing_diagnostic make_processing_diagnostic(
+    std::string key, std::string value
+) {
+    return processing_diagnostic {
+        .key = std::move(key),
+        .value = std::move(value),
+    };
+}
+
+inline void add_processing_diagnostic(
+    processing_result& result, std::string key, std::string value
+) {
+    result.diagnostics.push_back(
+        make_processing_diagnostic(std::move(key), std::move(value))
+    );
+}
+
+inline void add_algorithm_diagnostics(
+    processing_result& result, const processing_algorithm& algorithm
+) {
+    add_processing_diagnostic(result, "algorithm", algorithm.algorithm_id());
+    add_processing_diagnostic(result, "display_name", algorithm.display_name());
+}
+
+inline void add_prefixed_processing_metrics(
+    processing_result& result, std::vector<processing_metric> metrics,
+    const std::string_view prefix
+) {
+    for (auto& metric : metrics) {
+        metric.name = std::string(prefix) + metric.name;
+        result.metrics.push_back(std::move(metric));
+    }
+}
+
 class processing_algorithm_registry {
 public:
     struct entry {

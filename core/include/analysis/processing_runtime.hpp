@@ -60,13 +60,24 @@ public:
     render_mode mode() const;
     std::string algorithm_id() const;
     std::string default_algorithm_id() const;
+    processing_algorithm_settings default_algorithm_settings() const;
     std::string algorithm_id_for_stream(const std::string& stream_name) const;
+    processing_algorithm_settings algorithm_settings_for_stream(
+        const std::string& stream_name
+    ) const;
     std::vector<std::string> available_algorithm_ids() const;
     std::unordered_map<std::string, std::string> stream_algorithm_overrides()
         const;
+    std::unordered_map<std::string, processing_algorithm_settings>
+    stream_algorithm_setting_overrides() const;
     bool set_default_algorithm(const std::string& algorithm_id);
+    bool set_default_algorithm_settings(processing_algorithm_settings settings);
     bool set_stream_algorithm(
-        const std::string& stream_name, const std::string& algorithm_id
+        const std::string& stream_name, const std::string& algorithm_id,
+        const std::string& preset_id = {}
+    );
+    bool set_stream_algorithm_settings(
+        const std::string& stream_name, processing_algorithm_settings settings
     );
     bool clear_stream_algorithm(const std::string& stream_name);
     bool processing_enabled() const;

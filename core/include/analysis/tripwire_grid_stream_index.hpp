@@ -60,6 +60,12 @@ void collect_grid_candidates(
     const grid_stream_index& idx, const std::vector<int>& active_cell_indices,
     grid_candidate_tracker& tracker, std::vector<size_t>& out_segment_ids
 );
+
+std::vector<int> tripwire_candidate_grid_cells(
+    const std::vector<int>& active_cell_indices,
+    const std::vector<point>& contour_pct, const point& previous_center,
+    const point& current_center, const grid_dims& dims
+);
 }
 
 #endif // YODAU_CORE_TRIPWIRE_GRID_STREAM_INDEX_HPP

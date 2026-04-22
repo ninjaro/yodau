@@ -33,13 +33,9 @@ public:
     }
 
     void configure(processing_algorithm_configuration configuration) override {
-        const auto defaults = default_configuration();
-        for (const auto& [key, value] : defaults.values) {
-            if (!configuration.values.contains(key)) {
-                configuration.values.emplace(key, value);
-            }
-        }
-        configuration_ = std::move(configuration);
+        configuration_ = completed_processing_configuration(
+            algorithm_id(), std::move(configuration)
+        );
     }
 
     void daemon_start(
@@ -54,31 +50,15 @@ public:
     ) override {
         processing_result result;
         result.events = client_.motion_processor(stream_value, frame_value);
-        result.metrics.push_back(
-            processing_metric {
-                .name = "event_count",
-                .value = static_cast<double>(result.events.size()),
-                .unit = "events",
-            }
+        add_processing_metric(
+            result, "event_count", static_cast<double>(result.events.size()),
+            "events"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "line_count",
-                .value = static_cast<double>(
-                    stream_value.lines_snapshot().size()
-                ),
-                .unit = "lines",
-            }
+        add_processing_metric(
+            result, "line_count",
+            static_cast<double>(stream_value.lines_snapshot().size()), "lines"
         );
-        result.diagnostics.push_back(
-            processing_diagnostic { .key = "algorithm", .value = algorithm_id() }
-        );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "display_name",
-                .value = display_name(),
-            }
-        );
+        add_algorithm_diagnostics(result, *this);
         return result;
     }
 

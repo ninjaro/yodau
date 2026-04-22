@@ -115,7 +115,8 @@ private:
     void handle_back_to_grid();
     void handle_thumb_activate(const QString& name);
     void sync_core_stream_algorithm(
-        const QString& stream_name, const QString& algorithm_id
+        const QString& stream_name, const QString& algorithm_id,
+        const QString& preset_id
     );
 
     void set_active_stream(const QString& name);

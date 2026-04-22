@@ -41,13 +41,9 @@ public:
     }
 
     void configure(processing_algorithm_configuration configuration) override {
-        const auto defaults = default_configuration();
-        for (const auto& [key, value] : defaults.values) {
-            if (!configuration.values.contains(key)) {
-                configuration.values.emplace(key, value);
-            }
-        }
-        configuration_ = std::move(configuration);
+        configuration_ = completed_processing_configuration(
+            algorithm_id(), std::move(configuration)
+        );
     }
 
     void daemon_start(
@@ -61,21 +57,11 @@ public:
         const stream& stream_value, const frame& frame_value
     ) override {
         processing_result result;
-        result.diagnostics.push_back(
-            processing_diagnostic { .key = "algorithm", .value = algorithm_id() }
-        );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "display_name",
-                .value = display_name(),
-            }
-        );
+        add_algorithm_diagnostics(result, *this);
 
         const cv::Mat gray = frame_to_gray_mat(frame_value);
         if (gray.empty()) {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "frame_state", .value = "invalid" }
-            );
+            add_processing_diagnostic(result, "frame_state", "invalid");
             return result;
         }
 
@@ -115,18 +101,13 @@ public:
             }
         }
 
-        result.metrics.push_back(
-            processing_metric {
-                .name = "grid_cell_count",
-                .value = static_cast<double>(grid_cols * grid_rows),
-                .unit = "cells",
-            }
+        add_processing_metric(
+            result, "grid_cell_count",
+            static_cast<double>(grid_cols * grid_rows), "cells"
         );
 
         if (!has_previous) {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "frame_state", .value = "warmup" }
-            );
+            add_processing_diagnostic(result, "frame_state", "warmup");
             return result;
         }
 
@@ -159,24 +140,18 @@ public:
             }
         }
 
-        result.metrics.push_back(
-            processing_metric {
-                .name = "hot_cell_count",
-                .value = static_cast<double>(hot_cell_count),
-                .unit = "cells",
-            }
+        add_processing_metric(
+            result, "hot_cell_count", static_cast<double>(hot_cell_count),
+            "cells"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "max_cell_energy",
-                .value = static_cast<double>(max_energy),
-                .unit = "intensity",
-            }
+        add_processing_metric(
+            result, "max_cell_energy", static_cast<double>(max_energy),
+            "intensity"
         );
 
         if (best_col < 0 || best_row < 0 || max_energy < min_cell_energy) {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "emit_state", .value = "below_threshold" }
+            add_processing_diagnostic(
+                result, "emit_state", "below_threshold"
             );
             return result;
         }
@@ -193,9 +168,7 @@ public:
         }
 
         if (!allow_emit) {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "emit_state", .value = "cooldown" }
-            );
+            add_processing_diagnostic(result, "emit_state", "cooldown");
             return result;
         }
 

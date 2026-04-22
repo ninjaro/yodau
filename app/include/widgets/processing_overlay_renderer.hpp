@@ -4,6 +4,9 @@
 #include "shell/app_settings.hpp"
 #include "widgets/processing_overlay.hpp"
 
+#include <QColor>
+#include <QPointF>
+#include <QRect>
 #include <QRectF>
 #include <QString>
 
@@ -29,6 +32,11 @@ void draw(
     QPainter& painter, const QRectF& bounds,
     const stream_settings& settings_value,
     const std::vector<processing_overlay_instance>& overlays
+);
+void draw_event_bubble(
+    QPainter& painter, const QRect& bounds, const QPointF& center,
+    double radius, const QColor& color,
+    const stream_settings& settings_value, double life_k
 );
 
 } // namespace processing_overlay_renderer

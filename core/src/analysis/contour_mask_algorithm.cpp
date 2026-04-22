@@ -48,13 +48,9 @@ public:
     }
 
     void configure(processing_algorithm_configuration configuration) override {
-        const auto defaults = default_configuration();
-        for (const auto& [key, value] : defaults.values) {
-            if (!configuration.values.contains(key)) {
-                configuration.values.emplace(key, value);
-            }
-        }
-        configuration_ = std::move(configuration);
+        configuration_ = completed_processing_configuration(
+            algorithm_id(), std::move(configuration)
+        );
     }
 
     void daemon_start(
@@ -68,21 +64,11 @@ public:
         const stream& stream_value, const frame& frame_value
     ) override {
         processing_result result;
-        result.diagnostics.push_back(
-            processing_diagnostic { .key = "algorithm", .value = algorithm_id() }
-        );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "display_name",
-                .value = display_name(),
-            }
-        );
+        add_algorithm_diagnostics(result, *this);
 
         const cv::Mat gray = frame_to_gray_mat(frame_value);
         if (gray.empty()) {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "frame_state", .value = "invalid" }
-            );
+            add_processing_diagnostic(result, "frame_state", "invalid");
             return result;
         }
 
@@ -156,20 +142,13 @@ public:
             }
         }
 
-        result.metrics.push_back(
-            processing_metric {
-                .name = "line_count",
-                .value = static_cast<double>(
-                    stream_value.lines_snapshot().size()
-                ),
-                .unit = "lines",
-            }
+        add_processing_metric(
+            result, "line_count",
+            static_cast<double>(stream_value.lines_snapshot().size()), "lines"
         );
 
         if (!has_previous) {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "frame_state", .value = "warmup" }
-            );
+            add_processing_diagnostic(result, "frame_state", "warmup");
             return result;
         }
 
@@ -199,91 +178,71 @@ public:
         if (!focus.mask.empty()) {
             cv::bitwise_and(binary_mask, focus.mask, binary_mask);
         }
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "background_model",
-                .value = processing_background_model_kind_id(background_model),
-            }
+        add_processing_diagnostic(
+            result, "background_model",
+            processing_background_model_kind_id(background_model)
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "motion_focus_shape_count",
-                .value = static_cast<double>(focus.shape_count),
-                .unit = "shapes",
-            }
+        add_processing_metric(
+            result, "motion_focus_shape_count",
+            static_cast<double>(focus.shape_count), "shapes"
         );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "motion_focus",
-                .value = processing_motion_focus_mode_id(motion_focus_mode),
-            }
+        add_processing_diagnostic(
+            result, "motion_focus",
+            processing_motion_focus_mode_id(motion_focus_mode)
         );
         const auto contour_candidates = contour_candidates_by_area(
             binary_mask, gray.size(), static_cast<double>(min_contour_area)
         );
+        const auto motion_candidates = processing_candidates_from_contours(
+            contour_candidates, gray.size(),
+            static_cast<size_t>(contour_points_limit), "motion"
+        );
         double total_contour_area = 0.0;
-        for (const auto& candidate : contour_candidates) {
+        for (const auto& candidate : motion_candidates) {
             total_contour_area += candidate.area_px2;
         }
 
         const double frame_area = static_cast<double>(gray.cols * gray.rows);
-        const double largest_contour_area = contour_candidates.empty()
+        const double largest_contour_area = motion_candidates.empty()
             ? 0.0
-            : contour_candidates.front().area_px2;
+            : motion_candidates.front().area_px2;
 
-        result.metrics.push_back(
-            processing_metric {
-                .name = "contour_count",
-                .value = static_cast<double>(contour_candidates.size()),
-                .unit = "contours",
-            }
+        add_processing_metric(
+            result, "contour_count",
+            static_cast<double>(motion_candidates.size()), "contours"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "largest_contour_area",
-                .value = largest_contour_area,
-                .unit = "px2",
-            }
+        add_processing_metric(
+            result, "largest_contour_area", largest_contour_area, "px2"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "mask_fill_ratio",
-                .value = frame_area > 0.0 ? total_contour_area / frame_area : 0.0,
-                .unit = "ratio",
-            }
+        add_processing_metric(
+            result, "mask_fill_ratio",
+            frame_area > 0.0 ? total_contour_area / frame_area : 0.0,
+            "ratio"
         );
 
-        if (contour_candidates.empty()) {
+        if (motion_candidates.empty()) {
             {
                 std::scoped_lock lock(mtx_);
                 prev_center_by_stream_.erase(stream_value.get_name());
             }
 
-            result.diagnostics.push_back(
-                processing_diagnostic {
-                    .key = "mask_state",
-                    .value = "no_contours",
-                }
-            );
+            add_processing_diagnostic(result, "mask_state", "no_contours");
             return result;
         }
 
-        const point current_center = contour_candidates.front().center_pct;
+        const point current_center = motion_candidates.front().center_pct;
 
         const size_t overlay_count = std::min(
-            contour_candidates.size(), static_cast<size_t>(max_overlays)
+            motion_candidates.size(), static_cast<size_t>(max_overlays)
         );
         for (size_t index = 0; index < overlay_count; ++index) {
-            auto points_pct = contour_to_pct(
-                contour_candidates[index].contour, gray.size(),
-                static_cast<size_t>(contour_points_limit)
-            );
-            if (points_pct.size() >= 3) {
+            const auto& candidate = motion_candidates[index];
+            if (candidate.mask_pct.size() >= 3) {
                 result.overlays.push_back(
                     make_polygon_overlay(
                         index == 0 ? "contour_mask" : "contour",
-                        std::move(points_pct),
-                        contour_candidates[index].center_pct
+                        candidate.mask_pct,
+                        candidate.center_pct
                     )
                 );
             }
@@ -338,9 +297,7 @@ public:
                 last_emit_by_stream_[stream_value.get_name()] = frame_value.ts;
             }
         } else {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "emit_state", .value = "cooldown" }
-            );
+            add_processing_diagnostic(result, "emit_state", "cooldown");
         }
 
         {

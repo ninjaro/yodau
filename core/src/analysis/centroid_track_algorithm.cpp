@@ -16,7 +16,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -47,13 +49,9 @@ public:
     }
 
     void configure(processing_algorithm_configuration configuration) override {
-        const auto defaults = default_configuration();
-        for (const auto& [key, value] : defaults.values) {
-            if (!configuration.values.contains(key)) {
-                configuration.values.emplace(key, value);
-            }
-        }
-        configuration_ = std::move(configuration);
+        configuration_ = completed_processing_configuration(
+            algorithm_id(), std::move(configuration)
+        );
     }
 
     void daemon_start(
@@ -67,21 +65,11 @@ public:
         const stream& stream_value, const frame& frame_value
     ) override {
         processing_result result;
-        result.diagnostics.push_back(
-            processing_diagnostic { .key = "algorithm", .value = algorithm_id() }
-        );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "display_name",
-                .value = display_name(),
-            }
-        );
+        add_algorithm_diagnostics(result, *this);
 
         const cv::Mat gray = frame_to_gray_mat(frame_value);
         if (gray.empty()) {
-            result.diagnostics.push_back(
-                processing_diagnostic { .key = "frame_state", .value = "invalid" }
-            );
+            add_processing_diagnostic(result, "frame_state", "invalid");
             return result;
         }
 
@@ -156,6 +144,15 @@ public:
             configuration_, "sparse_flow_prediction_radius_pct",
             match_radius_pct, 1, 100
         );
+        const int track_velocity_prediction_pct = config_int(
+            configuration_, "track_velocity_prediction_pct", 55, 0, 100
+        );
+        const int track_gap_radius_growth_pct = config_int(
+            configuration_, "track_gap_radius_growth_pct", 40, 0, 200
+        );
+        const int area_match_weight_pct = config_int(
+            configuration_, "area_match_weight_pct", 18, 0, 100
+        );
         const int max_sparse_flow_overlays = config_int(
             configuration_, "max_sparse_flow_overlays", 8, 0, 64
         );
@@ -180,26 +177,11 @@ public:
                 state_by_stream_[stream_value.get_name()] = state;
             }
 
-            result.metrics.push_back(
-                processing_metric {
-                    .name = "track_count",
-                    .value = 0.0,
-                    .unit = "tracks",
-                }
+            add_processing_metric(result, "track_count", 0.0, "tracks");
+            add_processing_metric(
+                result, "stable_track_count", 0.0, "tracks"
             );
-            result.metrics.push_back(
-                processing_metric {
-                    .name = "stable_track_count",
-                    .value = 0.0,
-                    .unit = "tracks",
-                }
-            );
-            result.diagnostics.push_back(
-                processing_diagnostic {
-                    .key = "frame_state",
-                    .value = "warmup",
-                }
-            );
+            add_processing_diagnostic(result, "frame_state", "warmup");
             return result;
         }
 
@@ -245,21 +227,29 @@ public:
                 }
             );
         }
-        const auto track_predictions = predict_tracks_with_sparse_flow(
+        const auto track_predictions = predict_tracks(
             state.tracks, sparse_flow,
-            static_cast<double>(sparse_flow_prediction_radius_pct)
+            static_cast<double>(sparse_flow_prediction_radius_pct),
+            static_cast<double>(track_velocity_prediction_pct),
+            static_cast<double>(match_radius_pct),
+            static_cast<double>(track_gap_radius_growth_pct)
         );
 
         const auto contour_candidates = contour_candidates_by_area(
             binary_mask, gray.size(), static_cast<double>(min_contour_area)
         );
+        const auto motion_candidates = processing_candidates_from_contours(
+            contour_candidates, gray.size(), 0, "motion"
+        );
         std::vector<detection> detections;
-        detections.reserve(contour_candidates.size());
-        for (const auto& candidate : contour_candidates) {
+        detections.reserve(motion_candidates.size());
+        for (const auto& candidate : motion_candidates) {
             detections.push_back(
                 detection {
                     .center_pct = candidate.center_pct,
                     .area_px2 = candidate.area_px2,
+                    .confidence = candidate.confidence,
+                    .class_id = candidate.class_id,
                 }
             );
         }
@@ -284,19 +274,37 @@ public:
             for (size_t detection_index = 0; detection_index < detections.size();
                  ++detection_index) {
                 const auto& detected = detections[detection_index];
+                const auto& prediction = track_predictions[track_index];
                 const double distance = distance_pct(
-                    track_predictions[track_index].center_pct,
-                    detected.center_pct
+                    prediction.center_pct, detected.center_pct
                 );
-                if (distance > static_cast<double>(match_radius_pct)) {
+                if (distance > prediction.gate_radius_pct) {
                     continue;
                 }
 
+                const auto& track = state.tracks[track_index];
+                const double normalized_distance
+                    = prediction.gate_radius_pct > 0.0
+                    ? distance / prediction.gate_radius_pct
+                    : distance;
+                const double area_cost
+                    = normalized_area_delta(track.area_px2, detected.area_px2)
+                    * static_cast<double>(area_match_weight_pct) / 100.0;
+                const double stale_cost
+                    = static_cast<double>(track.missed_frames) * 0.05;
+                const double age_bonus
+                    = std::min(static_cast<double>(track.age_frames), 10.0)
+                    * 0.003;
+                const double confidence_bonus
+                    = std::clamp(detected.confidence, 0.0, 1.0) * 0.02;
                 match_candidates.push_back(
                     track_match_candidate {
                         .track_index = track_index,
                         .detection_index = detection_index,
                         .distance_pct = distance,
+                        .gate_radius_pct = prediction.gate_radius_pct,
+                        .assignment_cost = normalized_distance + area_cost
+                            + stale_cost - age_bonus - confidence_bonus,
                     }
                 );
             }
@@ -306,6 +314,9 @@ public:
             match_candidates.begin(), match_candidates.end(),
             [&state, &detections](const track_match_candidate& lhs,
                                   const track_match_candidate& rhs) {
+                if (lhs.assignment_cost != rhs.assignment_cost) {
+                    return lhs.assignment_cost < rhs.assignment_cost;
+                }
                 if (lhs.distance_pct != rhs.distance_pct) {
                     return lhs.distance_pct < rhs.distance_pct;
                 }
@@ -332,10 +343,11 @@ public:
 
             const auto& detected = detections[candidate.detection_index];
             auto& track = state.tracks[candidate.track_index];
+            const point previous_center = track.center_pct;
             matched_updates.push_back(
                 matched_track_update {
                     .track_index = candidate.track_index,
-                    .previous_center = track.center_pct,
+                    .previous_center = previous_center,
                     .current_center = detected.center_pct,
                     .age_frames = track.age_frames + 1,
                     .area_px2 = detected.area_px2,
@@ -343,6 +355,12 @@ public:
             );
 
             track.center_pct = detected.center_pct;
+            track.velocity_pct = smoothed_velocity(
+                track.velocity_pct, point {
+                    .x = detected.center_pct.x - previous_center.x,
+                    .y = detected.center_pct.y - previous_center.y,
+                }
+            );
             track.area_px2 = detected.area_px2;
             track.age_frames += 1;
             track.missed_frames = 0;
@@ -377,6 +395,9 @@ public:
                 continue;
             }
             state.tracks[index].missed_frames += 1;
+            state.tracks[index].velocity_pct = scaled_velocity(
+                state.tracks[index].velocity_pct, 0.85
+            );
         }
 
         for (const auto& update : matched_updates) {
@@ -477,77 +498,57 @@ public:
               )
                   ->age_frames;
 
-        result.metrics.push_back(
-            processing_metric {
-                .name = "track_count",
-                .value = static_cast<double>(state.tracks.size()),
-                .unit = "tracks",
-            }
+        add_processing_metric(
+            result, "track_count", static_cast<double>(state.tracks.size()),
+            "tracks"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "stable_track_count",
-                .value = static_cast<double>(stable_track_count),
-                .unit = "tracks",
-            }
+        add_processing_metric(
+            result, "stable_track_count",
+            static_cast<double>(stable_track_count), "tracks"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "matched_track_count",
-                .value = static_cast<double>(matched_updates.size()),
-                .unit = "tracks",
-            }
+        add_processing_metric(
+            result, "matched_track_count",
+            static_cast<double>(matched_updates.size()), "tracks"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "new_track_count",
-                .value = static_cast<double>(new_track_count),
-                .unit = "tracks",
-            }
+        add_processing_metric(
+            result, "new_track_count", static_cast<double>(new_track_count),
+            "tracks"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "track_association_candidate_count",
-                .value = static_cast<double>(match_candidates.size()),
-                .unit = "matches",
-            }
+        add_processing_metric(
+            result, "track_association_candidate_count",
+            static_cast<double>(match_candidates.size()), "matches"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "largest_track_age_frames",
-                .value = static_cast<double>(largest_track_age_frames),
-                .unit = "frames",
-            }
+        add_processing_metric(
+            result, "track_average_match_gate_pct",
+            average_gate_radius(track_predictions), "pct"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "motion_focus_shape_count",
-                .value = static_cast<double>(focus.shape_count),
-                .unit = "shapes",
-            }
+        add_processing_metric(
+            result, "largest_track_age_frames",
+            static_cast<double>(largest_track_age_frames), "frames"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "sparse_flow_vector_count",
-                .value = static_cast<double>(sparse_flow.vectors.size()),
-                .unit = "vectors",
-            }
+        add_processing_metric(
+            result, "motion_focus_shape_count",
+            static_cast<double>(focus.shape_count), "shapes"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "sparse_flow_average_distance_pct",
-                .value = sparse_flow.average_distance_pct,
-                .unit = "pct",
-            }
+        add_processing_metric(
+            result, "sparse_flow_vector_count",
+            static_cast<double>(sparse_flow.vectors.size()), "vectors"
         );
-        result.metrics.push_back(
-            processing_metric {
-                .name = "sparse_flow_predicted_track_count",
-                .value = static_cast<double>(
-                    predicted_track_count(track_predictions)
-                ),
-                .unit = "tracks",
-            }
+        add_processing_metric(
+            result, "sparse_flow_average_distance_pct",
+            sparse_flow.average_distance_pct, "pct"
+        );
+        add_processing_metric(
+            result, "sparse_flow_predicted_track_count",
+            static_cast<double>(predicted_track_count(track_predictions)),
+            "tracks"
+        );
+        add_processing_metric(
+            result, "velocity_predicted_track_count",
+            static_cast<double>(
+                velocity_predicted_track_count(track_predictions)
+            ),
+            "tracks"
         );
 
         const size_t flow_overlay_count = std::min(
@@ -604,38 +605,23 @@ public:
             );
         }
 
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "tracking_state",
-                .value = detections.empty()
-                    ? "no_detections"
-                    : (matched_updates.empty() ? "new_tracks_only"
-                                               : "tracking"),
-            }
+        add_processing_diagnostic(
+            result, "tracking_state",
+            detections.empty()
+                ? "no_detections"
+                : (matched_updates.empty() ? "new_tracks_only" : "tracking")
         );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "frame_state",
-                .value = "tracked",
-            }
+        add_processing_diagnostic(result, "frame_state", "tracked");
+        add_processing_diagnostic(
+            result, "background_model",
+            processing_background_model_kind_id(background_model)
         );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "background_model",
-                .value = processing_background_model_kind_id(background_model),
-            }
+        add_processing_diagnostic(
+            result, "motion_focus",
+            processing_motion_focus_mode_id(motion_focus_mode)
         );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "motion_focus",
-                .value = processing_motion_focus_mode_id(motion_focus_mode),
-            }
-        );
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "sparse_flow",
-                .value = sparse_flow_enabled ? "enabled" : "disabled",
-            }
+        add_processing_diagnostic(
+            result, "sparse_flow", sparse_flow_enabled ? "enabled" : "disabled"
         );
 
         state.previous_gray = gray.clone();
@@ -655,6 +641,7 @@ private:
         int age_frames { 1 };
         int missed_frames { 0 };
         double area_px2 { 0.0 };
+        point velocity_pct;
         std::vector<std::string> crossed_tripwire_keys;
     };
 
@@ -668,6 +655,8 @@ private:
     struct detection {
         point center_pct;
         double area_px2 { 0.0 };
+        double confidence { 1.0 };
+        std::optional<std::string> class_id;
     };
 
     struct matched_track_update {
@@ -682,17 +671,102 @@ private:
         size_t track_index { 0 };
         size_t detection_index { 0 };
         double distance_pct { 0.0 };
+        double gate_radius_pct { 0.0 };
+        double assignment_cost { 0.0 };
     };
 
     struct track_prediction {
         point center_pct;
         size_t flow_count { 0 };
+        bool velocity_projected { false };
+        double gate_radius_pct { 0.0 };
     };
 
-    static std::vector<track_prediction> predict_tracks_with_sparse_flow(
+    static double normalized_area_delta(
+        const double lhs_area_px2, const double rhs_area_px2
+    ) {
+        const double scale = std::max({ lhs_area_px2, rhs_area_px2, 1.0 });
+        return std::abs(lhs_area_px2 - rhs_area_px2) / scale;
+    }
+
+    static bool meaningful_velocity(const point& velocity_pct) {
+        return std::abs(velocity_pct.x) > point::epsilon
+            || std::abs(velocity_pct.y) > point::epsilon;
+    }
+
+    static point scaled_velocity(const point& velocity_pct, const double scale) {
+        return point {
+            .x = static_cast<float>(
+                static_cast<double>(velocity_pct.x) * scale
+            ),
+            .y = static_cast<float>(
+                static_cast<double>(velocity_pct.y) * scale
+            ),
+        };
+    }
+
+    static point clamped_prediction(
+        const point& center_pct, const point& velocity_pct,
+        const double horizon
+    ) {
+        return point {
+            .x = static_cast<float>(std::clamp(
+                static_cast<double>(center_pct.x)
+                    + static_cast<double>(velocity_pct.x) * horizon,
+                0.0, 100.0
+            )),
+            .y = static_cast<float>(std::clamp(
+                static_cast<double>(center_pct.y)
+                    + static_cast<double>(velocity_pct.y) * horizon,
+                0.0, 100.0
+            )),
+        };
+    }
+
+    static point inferred_track_velocity(const tracked_object& track) {
+        if (meaningful_velocity(track.velocity_pct)) {
+            return track.velocity_pct;
+        }
+        if (track.history_pct.size() < 2) {
+            return {};
+        }
+
+        const point& previous = track.history_pct[track.history_pct.size() - 2];
+        const point& current = track.history_pct.back();
+        return point {
+            .x = current.x - previous.x,
+            .y = current.y - previous.y,
+        };
+    }
+
+    static point smoothed_velocity(
+        const point& previous_velocity_pct, const point& observed_velocity_pct
+    ) {
+        if (!meaningful_velocity(previous_velocity_pct)) {
+            return observed_velocity_pct;
+        }
+
+        constexpr double previous_weight = 0.55;
+        constexpr double observed_weight = 1.0 - previous_weight;
+        return point {
+            .x = static_cast<float>(
+                static_cast<double>(previous_velocity_pct.x) * previous_weight
+                + static_cast<double>(observed_velocity_pct.x) * observed_weight
+            ),
+            .y = static_cast<float>(
+                static_cast<double>(previous_velocity_pct.y) * previous_weight
+                + static_cast<double>(observed_velocity_pct.y) * observed_weight
+            ),
+        };
+    }
+
+    static std::vector<track_prediction> predict_tracks(
         const std::vector<tracked_object>& tracks,
         const processing_sparse_flow_result& sparse_flow,
-        const double prediction_radius_pct
+        const double sparse_flow_radius_pct,
+        const double velocity_weight_pct,
+        const double base_match_radius_pct,
+        const double gap_radius_growth_pct
     ) {
         std::vector<track_prediction> predictions;
         predictions.reserve(tracks.size());
@@ -704,7 +778,7 @@ private:
 
             for (const auto& vector : sparse_flow.vectors) {
                 if (distance_pct(track.center_pct, vector.from_pct)
-                    > prediction_radius_pct) {
+                    > sparse_flow_radius_pct) {
                     continue;
                 }
 
@@ -713,24 +787,58 @@ private:
                 flow_count += 1;
             }
 
-            point predicted = track.center_pct;
+            const point velocity_pct = inferred_track_velocity(track);
+            const bool velocity_projected = meaningful_velocity(velocity_pct);
+            const double horizon
+                = static_cast<double>(std::min(track.missed_frames + 1, 4));
+            point predicted = velocity_projected
+                ? clamped_prediction(track.center_pct, velocity_pct, horizon)
+                : track.center_pct;
+
             if (flow_count > 0) {
-                predicted.x = static_cast<float>(std::clamp(
-                    static_cast<double>(track.center_pct.x)
-                        + dx / static_cast<double>(flow_count),
-                    0.0, 100.0
-                ));
-                predicted.y = static_cast<float>(std::clamp(
-                    static_cast<double>(track.center_pct.y)
-                        + dy / static_cast<double>(flow_count),
-                    0.0, 100.0
-                ));
+                const point flow_predicted = clamped_prediction(
+                    track.center_pct,
+                    point {
+                        .x = static_cast<float>(
+                            dx / static_cast<double>(flow_count)
+                        ),
+                        .y = static_cast<float>(
+                            dy / static_cast<double>(flow_count)
+                        ),
+                    },
+                    1.0
+                );
+                if (velocity_projected) {
+                    const double velocity_weight
+                        = std::clamp(velocity_weight_pct, 0.0, 100.0) / 100.0;
+                    const double flow_weight = 1.0 - velocity_weight;
+                    predicted = point {
+                        .x = static_cast<float>(
+                            static_cast<double>(predicted.x) * velocity_weight
+                            + static_cast<double>(flow_predicted.x) * flow_weight
+                        ),
+                        .y = static_cast<float>(
+                            static_cast<double>(predicted.y) * velocity_weight
+                            + static_cast<double>(flow_predicted.y) * flow_weight
+                        ),
+                    };
+                } else {
+                    predicted = flow_predicted;
+                }
             }
 
+            const double gap_multiplier = 1.0
+                + static_cast<double>(std::max(track.missed_frames, 0))
+                    * std::clamp(gap_radius_growth_pct, 0.0, 200.0) / 100.0;
+            const double gate_radius_pct = std::clamp(
+                base_match_radius_pct * gap_multiplier, 1.0, 100.0
+            );
             predictions.push_back(
                 track_prediction {
                     .center_pct = predicted,
                     .flow_count = flow_count,
+                    .velocity_projected = velocity_projected,
+                    .gate_radius_pct = gate_radius_pct,
                 }
             );
         }
@@ -747,6 +855,31 @@ private:
                 return prediction.flow_count > 0;
             }
         ));
+    }
+
+    static size_t velocity_predicted_track_count(
+        const std::vector<track_prediction>& predictions
+    ) {
+        return static_cast<size_t>(std::count_if(
+            predictions.begin(), predictions.end(),
+            [](const track_prediction& prediction) {
+                return prediction.velocity_projected;
+            }
+        ));
+    }
+
+    static double average_gate_radius(
+        const std::vector<track_prediction>& predictions
+    ) {
+        if (predictions.empty()) {
+            return 0.0;
+        }
+
+        double total = 0.0;
+        for (const auto& prediction : predictions) {
+            total += prediction.gate_radius_pct;
+        }
+        return total / static_cast<double>(predictions.size());
     }
 
     static bool has_tripwire_key(

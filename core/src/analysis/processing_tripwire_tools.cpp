@@ -3,91 +3,84 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <optional>
+#include <utility>
 
 namespace yodau::core {
 
 namespace {
 
-float cross_z(const point& a, const point& b, const point& c) {
-    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-}
-
-int orient(const point& a, const point& b, const point& c) {
-    const float value = cross_z(a, b, c);
-    if (value > point::epsilon) {
-        return 1;
-    }
-    if (value < -point::epsilon) {
-        return -1;
-    }
-    return 0;
-}
-
-bool between(const float a, const float b, const float c) {
-    const auto [lo, hi] = std::minmax(a, b);
-    return lo <= c + point::epsilon && c <= hi + point::epsilon;
-}
-
-bool on_segment(const point& a, const point& b, const point& c) {
-    return orient(a, b, c) == 0 && between(a.x, b.x, c.x)
-        && between(a.y, b.y, c.y);
-}
-
-bool segments_intersect(
-    const point& p1, const point& p2, const point& q1, const point& q2
+void consider_contour_hit(
+    bool& hit, float& best_dist2, point& best_a, point& best_b,
+    point& best_pos, const point& current_center, const point& a,
+    const point& b, const point& position
 ) {
-    const int o1 = orient(p1, p2, q1);
-    const int o2 = orient(p1, p2, q2);
-    const int o3 = orient(q1, q2, p1);
-    const int o4 = orient(q1, q2, p2);
+    const float dx = position.x - current_center.x;
+    const float dy = position.y - current_center.y;
+    const float d2 = dx * dx + dy * dy;
 
-    if (o1 != o2 && o3 != o4) {
-        return true;
+    if (d2 < best_dist2) {
+        best_dist2 = d2;
+        best_a = a;
+        best_b = b;
+        best_pos = position;
+        hit = true;
     }
-    if (o1 == 0 && on_segment(p1, p2, q1)) {
-        return true;
-    }
-    if (o2 == 0 && on_segment(p1, p2, q2)) {
-        return true;
-    }
-    if (o3 == 0 && on_segment(q1, q2, p1)) {
-        return true;
-    }
-    if (o4 == 0 && on_segment(q1, q2, p2)) {
-        return true;
-    }
-
-    return false;
 }
 
-std::optional<point> segment_intersection(
-    const point& p1, const point& p2, const point& q1, const point& q2
+void test_line_segment_against_contour(
+    bool& hit, float& best_dist2, point& best_a, point& best_b,
+    point& best_pos, const point& current_center,
+    const std::vector<point>& contour_pct, const point& a, const point& b,
+    std::vector<point>& hit_positions_pct
 ) {
-    const float rpx = p2.x - p1.x;
-    const float rpy = p2.y - p1.y;
-    const float spx = q2.x - q1.x;
-    const float spy = q2.y - q1.y;
-
-    const float denominator = rpx * spy - rpy * spx;
-    if (std::abs(denominator) <= point::epsilon) {
-        return std::nullopt;
+    if (contour_pct.size() < 2) {
+        return;
     }
 
-    const float qpx = q1.x - p1.x;
-    const float qpy = q1.y - p1.y;
-    const float t = (qpx * spy - qpy * spx) / denominator;
-    const float u = (qpx * rpy - qpy * rpx) / denominator;
+    const auto test_contour_segment = [&](const point& c1, const point& c2) {
+        if (!segments_intersect(a, b, c1, c2)) {
+            return;
+        }
 
-    if (t < -point::epsilon || t > 1.0f + point::epsilon
-        || u < -point::epsilon || u > 1.0f + point::epsilon) {
-        return std::nullopt;
+        const point position
+            = segment_intersection(a, b, c1, c2).value_or(current_center);
+        hit_positions_pct.push_back(position);
+        consider_contour_hit(
+            hit, best_dist2, best_a, best_b, best_pos, current_center, a, b,
+            position
+        );
+    };
+
+    for (size_t index = 1; index < contour_pct.size(); ++index) {
+        test_contour_segment(contour_pct[index - 1], contour_pct[index]);
     }
 
-    point value;
-    value.x = p1.x + t * rpx;
-    value.y = p1.y + t * rpy;
-    return value;
+    test_contour_segment(contour_pct.back(), contour_pct.front());
+}
+
+double contour_hit_strength(const std::vector<point>& hit_positions_pct) {
+    if (hit_positions_pct.empty()) {
+        return 1.0;
+    }
+
+    float min_x = hit_positions_pct[0].x;
+    float max_x = hit_positions_pct[0].x;
+    float min_y = hit_positions_pct[0].y;
+    float max_y = hit_positions_pct[0].y;
+
+    for (size_t index = 1; index < hit_positions_pct.size(); ++index) {
+        const auto& point_value = hit_positions_pct[index];
+        min_x = std::min(min_x, point_value.x);
+        max_x = std::max(max_x, point_value.x);
+        min_y = std::min(min_y, point_value.y);
+        max_y = std::max(max_y, point_value.y);
+    }
+
+    const double dx = static_cast<double>(max_x - min_x);
+    const double dy = static_cast<double>(max_y - min_y);
+    const double span = std::max(1.0, std::sqrt(dx * dx + dy * dy));
+    const double norm = std::clamp(span / 20.0, 0.0, 1.0);
+    return std::clamp(0.5 + norm * 0.5, 0.5, 1.0);
 }
 
 std::string crossing_direction(
@@ -202,10 +195,107 @@ std::vector<processing_tripwire_crossing> tripwire_crossings_for_motion(
     return crossings;
 }
 
+std::vector<processing_tripwire_crossing> tripwire_crossings_for_contour_line(
+    const line& line_value, const point& previous_center,
+    const point& current_center, const std::vector<point>& contour_pct,
+    const grid_line_index* line_index,
+    const std::vector<size_t>* candidate_segment_indices
+) {
+    const auto& pts = line_value.points;
+    if (pts.size() < 2) {
+        return {};
+    }
+
+    bool hit = false;
+    point best_a {};
+    point best_b {};
+    point best_position = current_center;
+    float best_dist2 = std::numeric_limits<float>::max();
+    std::vector<point> hit_positions_pct;
+
+    if (line_index != nullptr && candidate_segment_indices != nullptr
+        && !candidate_segment_indices->empty()) {
+        for (const size_t segment_index : *candidate_segment_indices) {
+            if (segment_index >= line_index->segments.size()) {
+                continue;
+            }
+
+            const auto& segment = line_index->segments[segment_index];
+            test_line_segment_against_contour(
+                hit, best_dist2, best_a, best_b, best_position,
+                current_center, contour_pct, segment.a_pct, segment.b_pct,
+                hit_positions_pct
+            );
+        }
+    } else {
+        for (size_t index = 1; index < pts.size(); ++index) {
+            test_line_segment_against_contour(
+                hit, best_dist2, best_a, best_b, best_position,
+                current_center, contour_pct, pts[index - 1], pts[index],
+                hit_positions_pct
+            );
+        }
+
+        if (line_value.closed && pts.size() > 2) {
+            test_line_segment_against_contour(
+                hit, best_dist2, best_a, best_b, best_position,
+                current_center, contour_pct, pts.back(), pts.front(),
+                hit_positions_pct
+            );
+        }
+    }
+
+    if (!hit) {
+        return {};
+    }
+
+    if (hit_positions_pct.empty()) {
+        hit_positions_pct.push_back(best_position);
+    }
+
+    const std::string direction = crossing_direction(
+        best_a, best_b, previous_center, current_center
+    );
+    if (!direction_allowed(line_value.dir, direction)) {
+        return {};
+    }
+
+    const double strength = contour_hit_strength(hit_positions_pct);
+    std::vector<processing_tripwire_crossing> crossings;
+    crossings.reserve(hit_positions_pct.size());
+    for (const point& position : hit_positions_pct) {
+        crossings.push_back(
+            processing_tripwire_crossing {
+                .line_name = line_value.name,
+                .position_pct = position,
+                .direction = direction,
+                .strength = strength,
+            }
+        );
+    }
+
+    return crossings;
+}
+
 std::string tripwire_crossing_key(
     const processing_tripwire_crossing& crossing
 ) {
     return crossing.line_name + "|" + crossing.direction;
+}
+
+event make_tripwire_event(
+    std::string stream_name, const processing_tripwire_crossing& crossing,
+    const std::chrono::steady_clock::time_point timestamp, const double speed
+) {
+    event event_value;
+    event_value.kind = event_kind::tripwire;
+    event_value.stream_name = std::move(stream_name);
+    event_value.line_name = crossing.line_name;
+    event_value.ts = timestamp;
+    event_value.pos_pct = crossing.position_pct;
+    event_value.message = crossing.direction + "|"
+        + std::to_string(crossing.strength) + "|" + std::to_string(speed);
+    return event_value;
 }
 
 } // namespace yodau::core

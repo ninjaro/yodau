@@ -6,6 +6,7 @@
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
 #include "streams/stream_daemon_runner.hpp"
+#include "streams/stream_demo_event_runner.hpp"
 #include "streams/stream_event_dispatcher.hpp"
 #include "streams/stream_line_store.hpp"
 #include "streams/stream_processed_frame_router.hpp"
@@ -13,8 +14,6 @@
 #include <functional>
 #include <mutex>
 #include <optional>
-#include <stop_token>
-#include <thread>
 
 namespace yodau::core {
 class stream_manager {
@@ -96,13 +95,6 @@ public:
     void set_line_dir(const std::string& line_name, tripwire_dir dir);
 
 private:
-    std::vector<std::shared_ptr<stream>> snapshot_streams() const;
-    void snapshot_hooks(
-        frame_processor_fn& fp, processed_frame_sink_fn& pfs,
-        stream_event_sinks& event_sinks
-    ) const;
-    int current_fake_interval_ms() const;
-    void run_fake_events(std::stop_token st);
     static bool is_linux_capture_ok(const stream& s);
     stream_registry streams;
     stream_line_store lines;
@@ -116,9 +108,7 @@ private:
 
     analysis_scheduler scheduler;
     stream_daemon_runner daemon_runner;
-    std::jthread fake_thread;
-    int fake_interval_ms { 700 };
-    bool fake_enabled { false };
+    stream_demo_event_runner demo_event_runner;
     mutable std::mutex mtx;
 };
 }

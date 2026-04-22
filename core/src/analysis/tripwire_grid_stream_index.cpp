@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace yodau::core::tripwire_grid_stream_index_support {
 
@@ -34,6 +35,69 @@ float bbox_span_pct(const pct_bbox& bbox) {
 
 int clamp_grid_side(const int side) {
     return std::clamp(side, min_grid_side, max_grid_side);
+}
+
+void add_grid_cell_index(
+    std::vector<std::uint8_t>& seen_cells, std::vector<int>& out_cell_indices,
+    const grid_dims& dims, const grid_point& cell
+) {
+    if (dims.nx <= 0 || dims.ny <= 0) {
+        return;
+    }
+
+    const int clamped_x = clamp_int(cell.x, 0, dims.nx - 1);
+    const int clamped_y = clamp_int(cell.y, 0, dims.ny - 1);
+    const int cell_idx = clamped_y * dims.nx + clamped_x;
+    if (cell_idx < 0) {
+        return;
+    }
+
+    const size_t index = static_cast<size_t>(cell_idx);
+    if (index >= seen_cells.size() || seen_cells[index] != 0) {
+        return;
+    }
+
+    seen_cells[index] = 1;
+    out_cell_indices.push_back(cell_idx);
+}
+
+void add_grid_trace_cells(
+    std::vector<std::uint8_t>& seen_cells, std::vector<int>& out_cell_indices,
+    const grid_dims& dims, const point& a_pct, const point& b_pct
+) {
+    const auto cells = trace_grid_cells_pct(a_pct, b_pct, dims);
+    for (const auto& cell : cells) {
+        add_grid_cell_index(seen_cells, out_cell_indices, dims, cell);
+    }
+}
+
+void add_polyline_cells(
+    std::vector<std::uint8_t>& seen_cells, std::vector<int>& out_cell_indices,
+    const grid_dims& dims, const std::vector<point>& pts, const bool closed
+) {
+    if (pts.empty()) {
+        return;
+    }
+
+    if (pts.size() == 1) {
+        add_grid_cell_index(
+            seen_cells, out_cell_indices, dims,
+            pct_point_to_grid(pts.front(), dims)
+        );
+        return;
+    }
+
+    for (size_t index = 1; index < pts.size(); ++index) {
+        add_grid_trace_cells(
+            seen_cells, out_cell_indices, dims, pts[index - 1], pts[index]
+        );
+    }
+
+    if (closed && pts.size() > 2) {
+        add_grid_trace_cells(
+            seen_cells, out_cell_indices, dims, pts.back(), pts.front()
+        );
+    }
 }
 
 } // namespace yodau::core::tripwire_grid_stream_index_support
@@ -271,4 +335,44 @@ void yodau::core::collect_grid_candidates(
             out_segment_ids.push_back(id);
         }
     }
+}
+
+std::vector<int> yodau::core::tripwire_candidate_grid_cells(
+    const std::vector<int>& active_cell_indices,
+    const std::vector<point>& contour_pct, const point& previous_center,
+    const point& current_center, const grid_dims& dims
+) {
+    using namespace tripwire_grid_stream_index_support;
+
+    if (dims.nx <= 0 || dims.ny <= 0) {
+        return {};
+    }
+
+    std::vector<std::uint8_t> seen_cells(
+        static_cast<size_t>(dims.nx * dims.ny), 0
+    );
+
+    std::vector<int> candidate_cell_indices;
+    candidate_cell_indices.reserve(
+        active_cell_indices.size() + contour_pct.size() + 8
+    );
+
+    for (const int cell_idx : active_cell_indices) {
+        const int cell_x = cell_idx % dims.nx;
+        const int cell_y = cell_idx / dims.nx;
+        add_grid_cell_index(
+            seen_cells, candidate_cell_indices, dims,
+            grid_point { cell_x, cell_y }
+        );
+    }
+
+    add_polyline_cells(
+        seen_cells, candidate_cell_indices, dims, contour_pct, true
+    );
+    add_grid_trace_cells(
+        seen_cells, candidate_cell_indices, dims, previous_center,
+        current_center
+    );
+
+    return candidate_cell_indices;
 }

@@ -1,9 +1,48 @@
 #include "analysis/processing_runtime.hpp"
 
 #include "analysis/default_processing_hooks.hpp"
+#include "analysis/processing_algorithm_catalog.hpp"
 #include "analysis/processing_preview_router.hpp"
 
 namespace yodau::core {
+
+namespace {
+
+std::unique_ptr<processing_algorithm> make_configured_processing_algorithm(
+    const processing_algorithm_settings& settings
+) {
+    const processing_algorithm_settings normalized_settings
+        = normalized_processing_algorithm_settings(settings);
+    if (normalized_settings.algorithm_id.empty()) {
+        return {};
+    }
+
+    auto algorithm = make_processing_algorithm(normalized_settings.algorithm_id);
+    if (!algorithm) {
+        return {};
+    }
+
+    processing_algorithm_settings configured_settings = normalized_settings;
+    configured_settings.algorithm_id = algorithm->algorithm_id();
+
+    algorithm->configure(
+        processing_algorithm_settings_configuration(configured_settings)
+    );
+    return algorithm;
+}
+
+std::unique_ptr<processing_algorithm> make_configured_processing_algorithm(
+    const std::string& algorithm_id, const std::string& preset_id = {}
+) {
+    processing_algorithm_settings settings
+        = default_processing_algorithm_settings(algorithm_id);
+    if (!preset_id.empty()) {
+        settings.preset_id = preset_id;
+    }
+    return make_configured_processing_algorithm(settings);
+}
+
+} // namespace
 
 std::string render_mode_name(const render_mode mode) {
     switch (mode) {
@@ -21,13 +60,19 @@ processing_runtime::processing_runtime(
 )
     : runtime_options(std::move(runtime_options_value))
     , session_store_(runtime_options.algorithm_id) {
+    processing_algorithm_settings default_settings
+        = default_processing_algorithm_settings(runtime_options.algorithm_id);
     if (auto default_algorithm
-        = make_processing_algorithm(runtime_options.algorithm_id)) {
-        runtime_options.algorithm_id = default_algorithm->algorithm_id();
+        = make_configured_processing_algorithm(default_settings)) {
+        default_settings.algorithm_id = default_algorithm->algorithm_id();
+        default_settings
+            = normalized_processing_algorithm_settings(std::move(default_settings));
+        runtime_options.algorithm_id = default_settings.algorithm_id;
+        session_store_.set_default_algorithm(std::move(default_settings));
     } else {
         runtime_options.algorithm_id.clear();
+        session_store_.set_default_algorithm(processing_algorithm_settings {});
     }
-    session_store_.set_default_algorithm(runtime_options.algorithm_id);
 
     if (runtime_options.mode == render_mode::core_only
         && runtime_options.enable_virtual_camera) {
@@ -101,10 +146,20 @@ std::string processing_runtime::default_algorithm_id() const {
     return session_store_.default_algorithm_id();
 }
 
+processing_algorithm_settings processing_runtime::default_algorithm_settings() const {
+    return session_store_.default_algorithm_settings();
+}
+
 std::string processing_runtime::algorithm_id_for_stream(
     const std::string& stream_name
 ) const {
     return session_store_.algorithm_id_for_stream(stream_name);
+}
+
+processing_algorithm_settings processing_runtime::algorithm_settings_for_stream(
+    const std::string& stream_name
+) const {
+    return session_store_.algorithm_settings_for_stream(stream_name);
 }
 
 std::vector<std::string> processing_runtime::available_algorithm_ids() const {
@@ -116,35 +171,70 @@ processing_runtime::stream_algorithm_overrides() const {
     return session_store_.stream_algorithm_overrides();
 }
 
+std::unordered_map<std::string, processing_algorithm_settings>
+processing_runtime::stream_algorithm_setting_overrides() const {
+    return session_store_.stream_algorithm_setting_overrides();
+}
+
 bool processing_runtime::set_default_algorithm(const std::string& algorithm_id) {
-    auto algorithm = make_processing_algorithm(algorithm_id);
+    return set_default_algorithm_settings(
+        default_processing_algorithm_settings(algorithm_id)
+    );
+}
+
+bool processing_runtime::set_default_algorithm_settings(
+    processing_algorithm_settings settings
+) {
+    settings = normalized_processing_algorithm_settings(std::move(settings));
+    auto algorithm = make_configured_processing_algorithm(settings);
     if (!algorithm) {
         return false;
     }
 
     const std::string canonical_algorithm_id = algorithm->algorithm_id();
     runtime_options.algorithm_id = canonical_algorithm_id;
-    session_store_.set_default_algorithm(canonical_algorithm_id);
+    settings.algorithm_id = canonical_algorithm_id;
+    settings = normalized_processing_algorithm_settings(std::move(settings));
+    session_store_.set_default_algorithm(std::move(settings));
     return true;
 }
 
 bool processing_runtime::set_stream_algorithm(
-    const std::string& stream_name, const std::string& algorithm_id
+    const std::string& stream_name, const std::string& algorithm_id,
+    const std::string& preset_id
 ) {
     if (stream_name.empty()) {
         return false;
     }
 
-    auto algorithm = make_processing_algorithm(algorithm_id);
+    processing_algorithm_settings settings
+        = default_processing_algorithm_settings(algorithm_id);
+    if (!preset_id.empty()) {
+        settings.preset_id = preset_id;
+    }
+    return set_stream_algorithm_settings(stream_name, std::move(settings));
+}
+
+bool processing_runtime::set_stream_algorithm_settings(
+    const std::string& stream_name, processing_algorithm_settings settings
+) {
+    if (stream_name.empty()) {
+        return false;
+    }
+
+    settings = normalized_processing_algorithm_settings(std::move(settings));
+    auto algorithm = make_configured_processing_algorithm(settings);
     if (!algorithm) {
         return false;
     }
 
     const std::string canonical_algorithm_id = algorithm->algorithm_id();
+    settings.algorithm_id = canonical_algorithm_id;
+    settings = normalized_processing_algorithm_settings(std::move(settings));
     auto shared_algorithm
         = std::shared_ptr<processing_algorithm>(std::move(algorithm));
     session_store_.set_stream_algorithm(
-        stream_name, canonical_algorithm_id, std::move(shared_algorithm)
+        stream_name, std::move(settings), std::move(shared_algorithm)
     );
     return true;
 }
@@ -195,8 +285,8 @@ std::shared_ptr<processing_algorithm>
 processing_runtime::active_algorithm_for_stream(const std::string& stream_name) {
     return session_store_.active_algorithm_for_stream(
         stream_name,
-        [](const std::string& algorithm_id) {
-            return make_processing_algorithm(algorithm_id);
+        [](const processing_algorithm_settings& settings) {
+            return make_configured_processing_algorithm(settings);
         }
     );
 }

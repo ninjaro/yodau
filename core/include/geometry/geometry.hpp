@@ -2,6 +2,7 @@
 #define YODAU_CORE_GEOMETRY_HPP
 #include "core/namespace_alias.hpp"
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -56,6 +57,15 @@ line_profile make_line_profile(
     std::string line_name, float visual_width = 1.0f,
     float interaction_width = 0.0f, float effective_length = 1.0f,
     float damping = 0.5f
+);
+
+float cross_z(const point& a, const point& b, const point& c);
+bool point_on_segment(const point& a, const point& b, const point& value);
+bool segments_intersect(
+    const point& p1, const point& p2, const point& q1, const point& q2
+);
+std::optional<point> segment_intersection(
+    const point& p1, const point& p2, const point& q1, const point& q2
 );
 
 std::vector<point> parse_points(const std::string& points_str);
