@@ -14,11 +14,10 @@ active_stream_state::active_stream_state(
     : catalog_state_(catalog_state)
     , route_state_(route_state)
     , widget_bridge_(widget_bridge)
-    , edit_session_(edit_session) {}
+    , edit_session_(edit_session) { }
 
-active_stream_state::selection_result active_stream_state::set_active_stream(
-    const QString& name
-) const {
+active_stream_state::selection_result
+active_stream_state::set_active_stream(const QString& name) const {
     selection_result result;
 
     const QString previous_active_name = route_state_.active_stream_name();
@@ -51,13 +50,12 @@ active_stream_state::settings_result active_stream_state::apply_stream_settings(
         return result;
     }
 
-    result.previous_settings = catalog_state_.settings_for(
-        settings_value.stream_name
-    );
+    result.previous_settings
+        = catalog_state_.settings_for(settings_value.stream_name);
     catalog_state_.set_stream_settings(settings_value);
     result.settings = catalog_state_.settings_for(settings_value.stream_name);
-    result.labels_changed
-        = result.previous_settings.labels_enabled != result.settings.labels_enabled;
+    result.labels_changed = result.previous_settings.labels_enabled
+        != result.settings.labels_enabled;
     result.standard_labels_changed
         = result.previous_settings.standard_labels_enabled
         != result.settings.standard_labels_enabled;

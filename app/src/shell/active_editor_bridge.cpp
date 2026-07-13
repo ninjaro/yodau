@@ -90,7 +90,7 @@ active_editor_bridge::active_editor_bridge(
 )
     : settings_(settings)
     , main_zone_(main_zone)
-    , grid_(main_zone != nullptr ? main_zone->grid_mode() : nullptr) {}
+    , grid_(main_zone != nullptr ? main_zone->grid_mode() : nullptr) { }
 
 void active_editor_bridge::initialize_editor_state(
     const active_edit_session& edit_session
@@ -180,8 +180,7 @@ void active_editor_bridge::apply_active_stream(
     if (settings_ != nullptr) {
         QObject::connect(
             cell, &stream_cell::line_edit_point_selected, settings_,
-            &settings_panel::select_active_line_edit_point,
-            Qt::UniqueConnection
+            &settings_panel::select_active_line_edit_point, Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_shape_drag_requested, settings_,
@@ -190,33 +189,28 @@ void active_editor_bridge::apply_active_stream(
         );
         QObject::connect(
             cell, &stream_cell::line_edit_point_move_requested, settings_,
-            &settings_panel::move_active_line_edit_point,
-            Qt::UniqueConnection
+            &settings_panel::move_active_line_edit_point, Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_point_split_requested, settings_,
-            &settings_panel::split_active_line_edit_point,
-            Qt::UniqueConnection
+            &settings_panel::split_active_line_edit_point, Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_segment_insert_requested, settings_,
-            &settings_panel::insert_active_line_edit_point_after,
+            &settings_panel::insert_active_line_point_after,
             Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_point_delete_requested, settings_,
-            &settings_panel::delete_active_line_edit_point,
-            Qt::UniqueConnection
+            &settings_panel::delete_active_line_edit_point, Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_shape_rotate_requested, settings_,
-            &settings_panel::rotate_active_line_edit_shape,
-            Qt::UniqueConnection
+            &settings_panel::rotate_active_line_edit_shape, Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_change_started, settings_,
-            &settings_panel::begin_active_line_edit_change,
-            Qt::UniqueConnection
+            &settings_panel::begin_active_line_edit_change, Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_change_finished, settings_,
@@ -225,13 +219,11 @@ void active_editor_bridge::apply_active_stream(
         );
         QObject::connect(
             cell, &stream_cell::line_edit_undo_requested, settings_,
-            &settings_panel::undo_active_line_edit_change,
-            Qt::UniqueConnection
+            &settings_panel::undo_active_line_edit_change, Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_redo_requested, settings_,
-            &settings_panel::redo_active_line_edit_change,
-            Qt::UniqueConnection
+            &settings_panel::redo_active_line_edit_change, Qt::UniqueConnection
         );
         QObject::connect(
             cell, &stream_cell::line_edit_revert_requested, settings_,
@@ -259,7 +251,8 @@ void active_editor_bridge::apply_active_stream(
     cell->set_drawing_enabled(edit_session.drawing_new_mode());
 
     if (edit_session.drawing_new_mode()) {
-        const line_profile& draft_line_profile = edit_session.draft_line_profile();
+        const line_profile& draft_line_profile
+            = edit_session.draft_line_profile();
         cell->set_draft_params(
             draft_line_profile.name, draft_line_profile.color,
             draft_line_profile.closed, draft_line_profile.color_mode_id,

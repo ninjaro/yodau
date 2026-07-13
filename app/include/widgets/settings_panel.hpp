@@ -29,11 +29,11 @@ public:
 
     void set_log_buffer(app_log_buffer* buffer);
     void set_log_mode(app_log_mode mode);
-    app_log_mode log_mode() const;
+    [[nodiscard]] app_log_mode log_mode() const;
     void append_log(app_log_entry entry) const;
-    QString compose_current_log_report() const;
-    QString compose_current_log_summary() const;
-    bool write_current_log_report(const QString& path) const;
+    [[nodiscard]] QString compose_current_log_report() const;
+    [[nodiscard]] QString compose_current_log_summary() const;
+    [[nodiscard]] bool write_current_log_report(const QString& path) const;
     log_toolbar_panel* take_log_toolbar_widget();
     QWidget* take_active_editor_widget();
 
@@ -56,44 +56,45 @@ public:
     void set_active_candidates(const QStringList& names) const;
     void set_active_current(const QString& name) const;
     void set_active_stream_settings(const stream_settings& settings_value);
-    stream_settings current_active_stream_settings() const;
+    [[nodiscard]] stream_settings current_active_stream_settings() const;
 
     // active tab: templates / lines
     void add_template_candidate(const QString& name) const;
     void set_template_candidates(const QStringList& names) const;
     void set_active_line_profile(const line_profile& profile);
-    line_profile current_active_line_profile() const;
-    void set_active_template_settings(
-        const template_apply_settings& settings_value
-    );
-    template_apply_settings current_active_template_settings() const;
+    [[nodiscard]] line_profile current_active_line_profile() const;
+    void
+    set_active_template_settings(const template_apply_settings& settings_value);
+    [[nodiscard]] template_apply_settings
+    current_active_template_settings() const;
 
     void reset_active_line_form();
     void reset_active_template_form();
 
     void set_active_line_closed(bool closed) const;
     void set_active_lines(const std::vector<stream_cell::line_instance>& lines);
-    bool select_active_line_edit_point(int visible_index) const;
-    bool translate_active_line_edit_shape(const QPointF& delta_pct) const;
-    bool move_active_line_edit_point(
+    [[nodiscard]] bool select_active_line_edit_point(int visible_index) const;
+    [[nodiscard]] bool
+    translate_active_line_edit_shape(const QPointF& delta_pct) const;
+    [[nodiscard]] bool move_active_line_edit_point(
         int visible_index, const QPointF& point_pct
     ) const;
-    bool split_active_line_edit_point(int visible_index) const;
-    bool insert_active_line_edit_point_after(
+    [[nodiscard]] bool split_active_line_edit_point(int visible_index) const;
+    [[nodiscard]] bool insert_active_line_point_after(
         int visible_segment_index, const QPointF& point_pct
     ) const;
-    bool delete_active_line_edit_point(int visible_index) const;
-    bool rotate_active_line_edit_shape(
+    [[nodiscard]] bool delete_active_line_edit_point(int visible_index) const;
+    [[nodiscard]] bool rotate_active_line_edit_shape(
         double delta_degrees, int visible_pivot_index = -1
     ) const;
     void begin_active_line_edit_change() const;
     void finish_active_line_edit_change() const;
-    bool undo_active_line_edit_change() const;
-    bool redo_active_line_edit_change() const;
-    bool revert_active_line_edit_changes() const;
+    [[nodiscard]] bool undo_active_line_edit_change() const;
+    [[nodiscard]] bool redo_active_line_edit_change() const;
+    [[nodiscard]] bool revert_active_line_edit_changes() const;
 
-    QString active_template_current() const;
-    QColor active_template_preview_color() const;
+    [[nodiscard]] QString active_template_current() const;
+    [[nodiscard]] QColor active_template_preview_color() const;
 
     void append_active_log(const QString& msg) const;
     void clear_active_log() const;
@@ -125,24 +126,21 @@ signals:
     void active_line_edit_preview_cleared();
     void active_line_edit_save_requested(line_edit_request request);
 
-    void active_template_add_requested(
-        template_apply_settings settings_value
-    );
-    void active_template_settings_changed(
-        template_apply_settings settings_value
-    );
+    void active_template_add_requested(template_apply_settings settings_value);
+    void
+    active_template_settings_changed(template_apply_settings settings_value);
 
 private:
     // ui build
     void build_ui();
     QWidget* build_streams_tab();
     QWidget* build_stream_settings_tab();
-    QStringList configured_stream_names() const;
+    [[nodiscard]] QStringList configured_stream_names() const;
     void sync_stream_settings_candidates() const;
 
 private slots:
-    void on_copy_logs_clicked();
-    void on_copy_summary_clicked();
+    void on_copy_logs_clicked() const;
+    void on_copy_summary_clicked() const;
     void on_save_logs_clicked();
 
 private:

@@ -1,8 +1,8 @@
 #ifndef YODAU_CORE_TRIPWIRE_GRID_INDEX_HPP
 #define YODAU_CORE_TRIPWIRE_GRID_INDEX_HPP
 
-#include "core/namespace_alias.hpp"
 #include "analysis/tripwire_grid.hpp"
+#include "core/namespace_alias.hpp"
 
 #include <cstddef>
 #include <vector>

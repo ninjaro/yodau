@@ -13,7 +13,7 @@ class stream_cell;
 
 class active_editor_bridge final {
 public:
-    active_editor_bridge(
+    explicit active_editor_bridge(
         stream_board* main_zone = nullptr, settings_panel* settings = nullptr
     );
 

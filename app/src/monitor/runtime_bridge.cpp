@@ -41,7 +41,15 @@ runtime_bridge::runtime_bridge(
     QObject::connect(
         broadcaster,
         &yodau::monitoring::debug_broadcaster::listener_connection_changed,
-        this, &runtime_bridge::state_changed
+        this, [this](bool connected) {
+            if (connected) {
+                publish_hello();
+                publish_capabilities();
+                publish_snapshot(QStringLiteral("listener_connected"));
+                publish_sample_batch();
+            }
+            emit state_changed();
+        }
     );
     QObject::connect(
         broadcaster, &yodau::monitoring::debug_broadcaster::warning_raised,
@@ -82,10 +90,6 @@ bool runtime_bridge::set_enabled(
         return changed;
     }
 
-    publish_hello();
-    publish_capabilities();
-    publish_snapshot(QStringLiteral("startup"));
-    publish_sample_batch();
     sample_timer->start();
     qInfo() << "yodau monitor endpoint:" << endpoint_path();
     emit state_changed();
@@ -98,7 +102,7 @@ bool runtime_bridge::is_enabled() const {
 
 QString runtime_bridge::endpoint_path() const {
     if (broadcaster == nullptr) {
-        return QString();
+        return {};
     }
     return broadcaster->state().endpoint_name;
 }

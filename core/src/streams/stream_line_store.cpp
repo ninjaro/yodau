@@ -17,10 +17,34 @@ line_ptr stream_line_store::add(
         line_name = "line_" + std::to_string(line_idx_++);
     }
 
+    validate_line_geometry(parsed_points, line_name, closed);
     auto new_line = make_line(std::move(parsed_points), line_name, closed);
     lines_.emplace(line_name, new_line);
     line_profiles_.emplace(line_name, make_line_profile(line_name));
     return new_line;
+}
+
+line_ptr stream_line_store::upsert(
+    const std::string& points, const bool closed, const std::string& name
+) {
+    if (name.empty()) {
+        throw std::invalid_argument("line name is required for upsert");
+    }
+    std::vector<point> parsed_points = parse_points(points);
+    validate_line_geometry(parsed_points, name, closed);
+    auto replacement = make_line(std::move(parsed_points), name, closed);
+
+    if (const auto existing = lines_.find(name);
+        existing != lines_.end() && existing->second) {
+        auto replacement_with_direction = std::make_shared<line>(*replacement);
+        replacement_with_direction->dir = existing->second->dir;
+        replacement = std::move(replacement_with_direction);
+        existing->second = replacement;
+    } else {
+        lines_.insert_or_assign(name, replacement);
+        line_profiles_.try_emplace(name, make_line_profile(name));
+    }
+    return replacement;
 }
 
 line_profile stream_line_store::set_profile(line_profile profile_value) {
@@ -37,9 +61,8 @@ line_profile stream_line_store::set_profile(line_profile profile_value) {
     return profile_value;
 }
 
-std::optional<line_profile> stream_line_store::find_profile(
-    const std::string& line_name
-) const {
+std::optional<line_profile>
+stream_line_store::find_profile(const std::string& line_name) const {
     if (!lines_.contains(line_name)) {
         return std::nullopt;
     }
@@ -52,17 +75,24 @@ std::optional<line_profile> stream_line_store::find_profile(
     return profile_it->second;
 }
 
-stream_line_connection stream_line_store::connection(
-    const std::string& line_name
-) const {
+std::optional<tripwire_dir>
+stream_line_store::find_direction(const std::string& line_name) const {
+    const auto line_it = lines_.find(line_name);
+    if (line_it == lines_.end() || !line_it->second) {
+        return std::nullopt;
+    }
+    return line_it->second->dir;
+}
+
+stream_line_connection
+stream_line_store::connection(const std::string& line_name) const {
     const auto line_it = lines_.find(line_name);
     if (line_it == lines_.end() || !line_it->second) {
         throw std::runtime_error("line not found: " + line_name);
     }
 
-    const auto profile = find_profile(line_name).value_or(
-        make_line_profile(line_name)
-    );
+    const auto profile
+        = find_profile(line_name).value_or(make_line_profile(line_name));
     return stream_line_connection {
         .line = line_it->second,
         .profile = profile,
@@ -71,6 +101,11 @@ stream_line_connection stream_line_store::connection(
 
 bool stream_line_store::contains(const std::string& line_name) const {
     return lines_.contains(line_name);
+}
+
+line_ptr stream_line_store::find(const std::string& line_name) const {
+    const auto line_it = lines_.find(line_name);
+    return line_it == lines_.end() ? line_ptr {} : line_it->second;
 }
 
 std::vector<std::string> stream_line_store::names() const {
@@ -94,9 +129,8 @@ stream_line_connection stream_line_store::set_direction(
 
     return stream_line_connection {
         .line = new_line,
-        .profile = find_profile(line_name).value_or(
-            make_line_profile(line_name)
-        ),
+        .profile
+        = find_profile(line_name).value_or(make_line_profile(line_name)),
     };
 }
 
@@ -110,9 +144,8 @@ void stream_line_store::dump(std::ostream& out) const {
         out << "\n\t";
         line_value->dump(out);
 
-        const auto profile = find_profile(line_value->name).value_or(
-            make_line_profile(line_value->name)
-        );
+        const auto profile = find_profile(line_value->name)
+                                 .value_or(make_line_profile(line_value->name));
         out << " profile(width=" << profile.visual_width
             << ", interaction=" << profile.interaction_width
             << ", length=" << profile.effective_length

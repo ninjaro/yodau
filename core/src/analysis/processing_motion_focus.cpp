@@ -14,96 +14,101 @@ namespace yodau::core {
 
 namespace {
 
-std::string normalized_focus_id(std::string_view value) {
-    std::string normalized;
-    normalized.reserve(value.size());
+    std::string normalized_focus_id(std::string_view value) {
+        std::string normalized;
+        normalized.reserve(value.size());
 
-    for (const char ch : value) {
-        if (std::isspace(static_cast<unsigned char>(ch)) || ch == '-') {
-            if (!normalized.empty() && normalized.back() != '_') {
-                normalized.push_back('_');
+        for (const char ch : value) {
+            if (std::isspace(static_cast<unsigned char>(ch)) || ch == '-') {
+                if (!normalized.empty() && normalized.back() != '_') {
+                    normalized.push_back('_');
+                }
+                continue;
             }
-            continue;
+
+            normalized.push_back(
+                static_cast<char>(std::tolower(static_cast<unsigned char>(ch)))
+            );
         }
 
-        normalized.push_back(
-            static_cast<char>(std::tolower(static_cast<unsigned char>(ch)))
+        while (!normalized.empty() && normalized.back() == '_') {
+            normalized.pop_back();
+        }
+
+        return normalized;
+    }
+
+    cv::Point point_to_pixel(const point& value, const cv::Size& frame_size) {
+        const int max_x = std::max(0, frame_size.width - 1);
+        const int max_y = std::max(0, frame_size.height - 1);
+        return { std::clamp(
+                     static_cast<int>(std::lround(
+                         static_cast<double>(value.x) / 100.0 * max_x
+                     )),
+                     0, max_x
+                 ),
+                 std::clamp(
+                     static_cast<int>(std::lround(
+                         static_cast<double>(value.y) / 100.0 * max_y
+                     )),
+                     0, max_y
+                 ) };
+    }
+
+    std::vector<cv::Point>
+    line_points_px(const line& line_value, const cv::Size& frame_size) {
+        std::vector<cv::Point> points;
+        points.reserve(line_value.points.size());
+
+        for (const point& point_value : line_value.points) {
+            points.push_back(point_to_pixel(point_value, frame_size));
+        }
+
+        return points;
+    }
+
+    int corridor_thickness_px(
+        const stream& stream_value, const line& line_value,
+        const cv::Size& frame_size,
+        const processing_motion_focus_options& options
+    ) {
+        float width_pct = std::max(options.corridor_width_pct, 0.1f);
+        if (const auto profile
+            = stream_value.find_line_profile(line_value.name)) {
+            width_pct = std::max(width_pct, profile->interaction_width);
+        }
+
+        const int base
+            = std::max(1, std::min(frame_size.width, frame_size.height));
+        return std::max(
+            3,
+            static_cast<int>(
+                std::lround(static_cast<double>(base) * width_pct / 100.0)
+            )
         );
     }
 
-    while (!normalized.empty() && normalized.back() == '_') {
-        normalized.pop_back();
+    bool include_regions(const processing_motion_focus_mode mode) {
+        // Automatic mode keeps the full frame so the downstream region filter
+        // can account for and diagnose detections outside configured regions.
+        // Region masking is an explicit performance/behavior choice.
+        return mode == processing_motion_focus_mode::regions;
     }
 
-    return normalized;
-}
-
-cv::Point point_to_pixel(const point& value, const cv::Size& frame_size) {
-    const int max_x = std::max(0, frame_size.width - 1);
-    const int max_y = std::max(0, frame_size.height - 1);
-    return cv::Point(
-        std::clamp(
-            static_cast<int>(
-                std::lround(static_cast<double>(value.x) / 100.0 * max_x)
-            ),
-            0, max_x
-        ),
-        std::clamp(
-            static_cast<int>(
-                std::lround(static_cast<double>(value.y) / 100.0 * max_y)
-            ),
-            0, max_y
-        )
-    );
-}
-
-std::vector<cv::Point> line_points_px(
-    const line& line_value, const cv::Size& frame_size
-) {
-    std::vector<cv::Point> points;
-    points.reserve(line_value.points.size());
-
-    for (const point& point_value : line_value.points) {
-        points.push_back(point_to_pixel(point_value, frame_size));
+    bool include_corridors(const processing_motion_focus_mode mode) {
+        // Open tripwires need observations from both sides to establish motion
+        // and crossing direction. Applying a narrow corridor in automatic mode
+        // can discard both observations before an object reaches the line.
+        // Operators can still opt into corridor-only processing explicitly.
+        return mode == processing_motion_focus_mode::corridors;
     }
-
-    return points;
-}
-
-int corridor_thickness_px(
-    const stream& stream_value, const line& line_value, const cv::Size& frame_size,
-    const processing_motion_focus_options& options
-) {
-    float width_pct = std::max(options.corridor_width_pct, 0.1f);
-    if (const auto profile = stream_value.find_line_profile(line_value.name)) {
-        width_pct = std::max(width_pct, profile->interaction_width);
-    }
-
-    const int base = std::max(1, std::min(frame_size.width, frame_size.height));
-    return std::max(
-        3, static_cast<int>(
-               std::lround(static_cast<double>(base) * width_pct / 100.0)
-           )
-    );
-}
-
-bool include_regions(const processing_motion_focus_mode mode) {
-    return mode == processing_motion_focus_mode::auto_focus
-        || mode == processing_motion_focus_mode::regions;
-}
-
-bool include_corridors(const processing_motion_focus_mode mode) {
-    return mode == processing_motion_focus_mode::auto_focus
-        || mode == processing_motion_focus_mode::corridors;
-}
 
 } // namespace
 
-processing_motion_focus_mode processing_motion_focus_mode_from_id(
-    std::string_view value
-) {
+processing_motion_focus_mode motion_focus_mode_from_id(std::string_view value) {
     const std::string normalized = normalized_focus_id(value);
-    if (normalized == "off" || normalized == "none" || normalized == "disabled") {
+    if (normalized == "off" || normalized == "none"
+        || normalized == "disabled") {
         return processing_motion_focus_mode::off;
     }
     if (normalized == "regions" || normalized == "roi"
@@ -117,9 +122,8 @@ processing_motion_focus_mode processing_motion_focus_mode_from_id(
     return processing_motion_focus_mode::auto_focus;
 }
 
-std::string processing_motion_focus_mode_id(
-    const processing_motion_focus_mode mode
-) {
+std::string
+processing_motion_focus_mode_id(const processing_motion_focus_mode mode) {
     if (mode == processing_motion_focus_mode::off) {
         return "off";
     }

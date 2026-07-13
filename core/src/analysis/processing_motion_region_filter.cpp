@@ -10,136 +10,135 @@ namespace yodau::core {
 
 namespace processing_motion_region_filter_support {
 
-struct motion_region {
-    std::string line_name;
-    std::vector<point> polygon_pct;
-};
+    struct motion_region {
+        std::string line_name;
+        std::vector<point> polygon_pct;
+    };
 
-bool polygon_contains_point(
-    const std::vector<point>& polygon_pct, const point& value
-) {
-    if (polygon_pct.size() < 3) {
-        return false;
+    bool polygon_contains_point(
+        const std::vector<point>& polygon_pct, const point& value
+    ) {
+        if (polygon_pct.size() < 3) {
+            return false;
+        }
+
+        bool inside = false;
+        for (size_t index = 0, previous = polygon_pct.size() - 1;
+             index < polygon_pct.size(); previous = index, index += 1) {
+            const point& a = polygon_pct[previous];
+            const point& b = polygon_pct[index];
+
+            if (yodau::core::point_on_segment(a, b, value)) {
+                return true;
+            }
+
+            const bool crosses_scanline = (a.y > value.y) != (b.y > value.y);
+            if (!crosses_scanline) {
+                continue;
+            }
+
+            const float denominator = b.y - a.y;
+            if (std::abs(denominator) <= point::epsilon) {
+                continue;
+            }
+
+            const float intersect_x
+                = a.x + (b.x - a.x) * ((value.y - a.y) / denominator);
+            if (intersect_x + point::epsilon >= value.x) {
+                inside = !inside;
+            }
+        }
+
+        return inside;
     }
 
-    bool inside = false;
-    for (size_t index = 0, previous = polygon_pct.size() - 1;
-         index < polygon_pct.size();
-         previous = index, index += 1) {
-        const point& a = polygon_pct[previous];
-        const point& b = polygon_pct[index];
+    std::vector<motion_region> regions_for_stream(const stream& stream_value) {
+        std::vector<motion_region> regions;
 
-        if (yodau::core::point_on_segment(a, b, value)) {
-            return true;
+        for (const auto& line_ptr_value : stream_value.lines_snapshot()) {
+            if (!line_ptr_value || !line_ptr_value->closed
+                || line_ptr_value->points.size() < 3) {
+                continue;
+            }
+
+            regions.push_back(
+                motion_region {
+                    .line_name = line_ptr_value->name,
+                    .polygon_pct = line_ptr_value->points,
+                }
+            );
         }
 
-        const bool crosses_scanline
-            = (a.y > value.y) != (b.y > value.y);
-        if (!crosses_scanline) {
-            continue;
-        }
-
-        const float denominator = b.y - a.y;
-        if (std::abs(denominator) <= point::epsilon) {
-            continue;
-        }
-
-        const float intersect_x
-            = a.x + (b.x - a.x) * ((value.y - a.y) / denominator);
-        if (intersect_x + point::epsilon >= value.x) {
-            inside = !inside;
-        }
+        return regions;
     }
 
-    return inside;
-}
+    std::vector<const motion_region*> matching_regions(
+        const std::vector<motion_region>& regions, const point& value
+    ) {
+        std::vector<const motion_region*> matches;
+        matches.reserve(regions.size());
 
-std::vector<motion_region> regions_for_stream(const stream& stream_value) {
-    std::vector<motion_region> regions;
-
-    for (const auto& line_ptr_value : stream_value.lines_snapshot()) {
-        if (!line_ptr_value || !line_ptr_value->closed
-            || line_ptr_value->points.size() < 3) {
-            continue;
+        for (const auto& region : regions) {
+            if (polygon_contains_point(region.polygon_pct, value)) {
+                matches.push_back(&region);
+            }
         }
 
-        regions.push_back(
-            motion_region {
-                .line_name = line_ptr_value->name,
-                .polygon_pct = line_ptr_value->points,
+        return matches;
+    }
+
+    std::optional<point> overlay_anchor_pct(const processing_overlay& overlay) {
+        if (overlay.anchor_pct.has_value()) {
+            return *overlay.anchor_pct;
+        }
+
+        if (overlay.points_pct.empty()) {
+            return std::nullopt;
+        }
+
+        point center;
+        for (const auto& point_value : overlay.points_pct) {
+            center.x += point_value.x;
+            center.y += point_value.y;
+        }
+
+        center.x /= static_cast<float>(overlay.points_pct.size());
+        center.y /= static_cast<float>(overlay.points_pct.size());
+        return center;
+    }
+
+    event roi_event_for_match(
+        const event& source_event, const std::string& line_name
+    ) {
+        event roi_event;
+        roi_event.kind = event_kind::roi;
+        roi_event.stream_name = source_event.stream_name;
+        roi_event.message = source_event.message.empty()
+            ? std::string("motion_region_match")
+            : std::string("motion_region_match|") + source_event.message;
+        roi_event.ts = source_event.ts;
+        roi_event.pos_pct = source_event.pos_pct;
+        roi_event.line_name = line_name;
+        return roi_event;
+    }
+
+    bool contains_named_region(
+        const std::vector<const motion_region*>& matches,
+        const std::string& line_name
+    ) {
+        return std::any_of(
+            matches.cbegin(), matches.cend(),
+            [&line_name](const motion_region* region) {
+                return region != nullptr && region->line_name == line_name;
             }
         );
     }
-
-    return regions;
-}
-
-std::vector<const motion_region*> matching_regions(
-    const std::vector<motion_region>& regions, const point& value
-) {
-    std::vector<const motion_region*> matches;
-    matches.reserve(regions.size());
-
-    for (const auto& region : regions) {
-        if (polygon_contains_point(region.polygon_pct, value)) {
-            matches.push_back(&region);
-        }
-    }
-
-    return matches;
-}
-
-std::optional<point> overlay_anchor_pct(const processing_overlay& overlay) {
-    if (overlay.anchor_pct.has_value()) {
-        return *overlay.anchor_pct;
-    }
-
-    if (overlay.points_pct.empty()) {
-        return std::nullopt;
-    }
-
-    point center;
-    for (const auto& point_value : overlay.points_pct) {
-        center.x += point_value.x;
-        center.y += point_value.y;
-    }
-
-    center.x /= static_cast<float>(overlay.points_pct.size());
-    center.y /= static_cast<float>(overlay.points_pct.size());
-    return center;
-}
-
-event roi_event_for_match(
-    const event& source_event, const std::string& line_name
-) {
-    event roi_event;
-    roi_event.kind = event_kind::roi;
-    roi_event.stream_name = source_event.stream_name;
-    roi_event.message = source_event.message.empty()
-        ? std::string("motion_region_match")
-        : std::string("motion_region_match|") + source_event.message;
-    roi_event.ts = source_event.ts;
-    roi_event.pos_pct = source_event.pos_pct;
-    roi_event.line_name = line_name;
-    return roi_event;
-}
-
-bool contains_named_region(
-    const std::vector<const motion_region*>& matches, const std::string& line_name
-) {
-    return std::any_of(
-        matches.cbegin(), matches.cend(),
-        [&line_name](const motion_region* region) {
-            return region != nullptr && region->line_name == line_name;
-        }
-    );
-}
 
 } // namespace processing_motion_region_filter_support
 
 processing_result processing_motion_region_filter::apply(
     const stream& stream_value, processing_result result
-) const {
+) {
     using namespace processing_motion_region_filter_support;
 
     const auto regions = regions_for_stream(stream_value);
@@ -248,7 +247,7 @@ processing_result processing_motion_region_filter::apply(
     );
     result.metrics.push_back(
         processing_metric {
-            .name = "motion_region_emitted_roi_event_count",
+            .name = "motion_region_roi_event_count",
             .value = static_cast<double>(emitted_roi_event_count),
             .unit = "events",
         }

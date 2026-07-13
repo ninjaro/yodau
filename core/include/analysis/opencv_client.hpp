@@ -3,18 +3,18 @@
 
 #ifdef YODAU_OPENCV
 
-#include "core/namespace_alias.hpp"
 #include "analysis/processing_motion_tools.hpp"
 #include "analysis/tripwire_grid_stream_index.hpp"
+#include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
 #include "streams/stream_manager.hpp"
 
-#include <opencv2/opencv.hpp>
-
 #include <chrono>
+#include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <stop_token>
 #include <string>
@@ -27,7 +27,7 @@ class opencv_client {
 public:
     opencv_client() = default;
 
-    void daemon_start(
+    static void daemon_start(
         const stream& s, const std::function<void(frame&&)>& on_frame,
         const std::stop_token& st
     );
@@ -45,12 +45,13 @@ private:
 
     struct grid_cache_entry {
         grid_dims dims;
-        std::vector<const line*> line_ptrs;
-        grid_stream_index index;
+        std::vector<line_ptr> line_snapshots;
+        std::shared_ptr<const grid_stream_index> index;
         size_t reuse_count { 0 };
+        std::uint64_t generation { 0 };
     };
 
-    const grid_stream_index&
+    std::shared_ptr<const grid_stream_index>
     get_grid_index_cached(const stream& s, const std::vector<line_ptr>& lines);
 
     processing_motion_event_state motion_state_;

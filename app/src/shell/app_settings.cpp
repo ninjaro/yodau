@@ -3,11 +3,11 @@
 #include "analysis/processing_algorithm_catalog.hpp"
 #include "analysis/processing_algorithm_ids.hpp"
 
+#include <QRandomGenerator>
 #include <algorithm>
 #include <cmath>
 #include <string>
 #include <vector>
-#include <QRandomGenerator>
 
 namespace app_settings_support {
 
@@ -37,7 +37,9 @@ QStringList qstring_list_from_std(const std::vector<std::string>& values) {
     return list;
 }
 
-bool algorithm_id_is(const QString& normalized_algorithm, const char* algorithm_id) {
+bool algorithm_id_is(
+    const QString& normalized_algorithm, const char* algorithm_id
+) {
     return normalized_algorithm == QString::fromLatin1(algorithm_id);
 }
 
@@ -47,8 +49,8 @@ int normalized_manual_fps(const int fps, const int fallback) {
 
 int normalized_manual_processing_pixels(const int pixels) {
     return std::clamp(
-        pixels > 0 ? pixels : default_manual_processing_pixels(),
-        16 * 16, 7680 * 4320
+        pixels > 0 ? pixels : default_manual_processing_pixels(), 16 * 16,
+        7680 * 4320
     );
 }
 
@@ -82,18 +84,13 @@ QString default_app_algorithm_id() {
     );
 }
 
-QString default_movement_display_mode_id() {
-    return QStringLiteral("auto");
-}
+QString default_movement_display_mode_id() { return QStringLiteral("auto"); }
 
 QStringList movement_display_mode_ids() {
     return {
-        QStringLiteral("auto"),
-        QStringLiteral("bubbles"),
-        QStringLiteral("contours"),
-        QStringLiteral("vectors"),
-        QStringLiteral("tracks"),
-        QStringLiteral("tripwire_waves"),
+        QStringLiteral("auto"),     QStringLiteral("bubbles"),
+        QStringLiteral("contours"), QStringLiteral("vectors"),
+        QStringLiteral("tracks"),   QStringLiteral("tripwire_waves"),
         QStringLiteral("off"),
     };
 }
@@ -162,7 +159,8 @@ QString normalized_movement_display_mode_id(const QString& mode_id) {
 }
 
 bool movement_display_enabled(const QString& mode_id) {
-    return normalized_movement_display_mode_id(mode_id) != QStringLiteral("off");
+    return normalized_movement_display_mode_id(mode_id)
+        != QStringLiteral("off");
 }
 
 QStringList app_algorithm_ids() {
@@ -221,19 +219,21 @@ QString algorithm_summary_text(
     const QString& algorithm_id, const QString& preset_id,
     const QString& movement_display_mode
 ) {
-    const QString normalized_algorithm = normalized_app_algorithm_id(algorithm_id);
+    const QString normalized_algorithm
+        = normalized_app_algorithm_id(algorithm_id);
     const QString algorithm_name = app_algorithm_display_name(algorithm_id);
     const QString preset_name
         = algorithm_preset_display_name(algorithm_id, preset_id);
     const QString display_name
         = movement_display_mode_display_name(movement_display_mode);
-    const QString overlay_text = QStringLiteral("movement display=%1").arg(display_name);
+    const QString overlay_text
+        = QStringLiteral("movement display=%1").arg(display_name);
 
     if (app_settings_support::algorithm_id_is(
             normalized_algorithm, algorithm_ids::spot_grid
         )) {
         return QStringLiteral(
-            "%1 uses point-style motion regions with a %2 preset; %3."
+                   "%1 uses point-style motion regions with a %2 preset; %3."
         )
             .arg(algorithm_name)
             .arg(preset_name)
@@ -244,8 +244,8 @@ QString algorithm_summary_text(
             normalized_algorithm, algorithm_ids::hybrid_auto
         )) {
         return QStringLiteral(
-            "%1 adapts between low-cost, tripwire, tracking, and "
-            "contour-heavy modes with a %2 preset; %3."
+                   "%1 adapts between low-cost, tripwire, tracking, and "
+                   "contour-heavy modes with a %2 preset; %3."
         )
             .arg(algorithm_name)
             .arg(preset_name)
@@ -256,7 +256,7 @@ QString algorithm_summary_text(
             normalized_algorithm, algorithm_ids::contour_mask
         )) {
         return QStringLiteral(
-            "%1 emphasizes contours and masks with a %2 preset; %3."
+                   "%1 emphasizes contours and masks with a %2 preset; %3."
         )
             .arg(algorithm_name)
             .arg(preset_name)
@@ -267,7 +267,8 @@ QString algorithm_summary_text(
             normalized_algorithm, algorithm_ids::centroid_track
         )) {
         return QStringLiteral(
-            "%1 follows motion centers into short tracks with a %2 preset; %3."
+                   "%1 follows motion centers into short tracks with a %2 "
+                   "preset; %3."
         )
             .arg(algorithm_name)
             .arg(preset_name)
@@ -275,7 +276,7 @@ QString algorithm_summary_text(
     }
 
     return QStringLiteral(
-        "%1 keeps the baseline motion path with a %2 preset; %3."
+               "%1 keeps the baseline motion path with a %2 preset; %3."
     )
         .arg(algorithm_name)
         .arg(preset_name)
@@ -289,28 +290,36 @@ QString algorithm_badge_text(
     stream_settings settings_value;
     settings_value.algorithm_id = algorithm_id;
     settings_value.algorithm_preset = preset_id;
+    settings_value.movement_display_mode = overlay_enabled
+        ? default_movement_display_mode_id()
+        : QStringLiteral("off");
     settings_value.algorithm_overlay_enabled = overlay_enabled;
 
-    const QString normalized_algorithm = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
+    const QString normalized_algorithm
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
     const QString profile_id = inferred_operator_profile_id(settings_value);
     QString short_algorithm = QStringLiteral("MB");
     if (app_settings_support::algorithm_id_is(
             normalized_algorithm, algorithm_ids::spot_grid
         )) {
         short_algorithm = QStringLiteral("SG");
-    } else if (app_settings_support::algorithm_id_is(
-                   normalized_algorithm, algorithm_ids::hybrid_auto
-               )) {
+    } else if (
+        app_settings_support::algorithm_id_is(
+            normalized_algorithm, algorithm_ids::hybrid_auto
+        )
+    ) {
         short_algorithm = QStringLiteral("HA");
-    } else if (app_settings_support::algorithm_id_is(
-                   normalized_algorithm, algorithm_ids::centroid_track
-               )) {
+    } else if (
+        app_settings_support::algorithm_id_is(
+            normalized_algorithm, algorithm_ids::centroid_track
+        )
+    ) {
         short_algorithm = QStringLiteral("CT");
-    } else if (app_settings_support::algorithm_id_is(
-                   normalized_algorithm, algorithm_ids::contour_mask
-               )) {
+    } else if (
+        app_settings_support::algorithm_id_is(
+            normalized_algorithm, algorithm_ids::contour_mask
+        )
+    ) {
         short_algorithm = QStringLiteral("CM");
     }
 
@@ -324,31 +333,30 @@ QString algorithm_badge_text(
 }
 
 QColor algorithm_badge_color(const QString& algorithm_id) {
-    const QString normalized
-        = normalized_app_algorithm_id(algorithm_id);
+    const QString normalized = normalized_app_algorithm_id(algorithm_id);
 
     if (app_settings_support::algorithm_id_is(
             normalized, algorithm_ids::spot_grid
         )) {
-        return QColor(QStringLiteral("#2a9d8f"));
+        return { QStringLiteral("#2a9d8f") };
     }
     if (app_settings_support::algorithm_id_is(
             normalized, algorithm_ids::hybrid_auto
         )) {
-        return QColor(QStringLiteral("#9c6644"));
+        return { QStringLiteral("#9c6644") };
     }
     if (app_settings_support::algorithm_id_is(
             normalized, algorithm_ids::contour_mask
         )) {
-        return QColor(QStringLiteral("#e76f51"));
+        return { QStringLiteral("#e76f51") };
     }
     if (app_settings_support::algorithm_id_is(
             normalized, algorithm_ids::centroid_track
         )) {
-        return QColor(QStringLiteral("#7f5539"));
+        return { QStringLiteral("#7f5539") };
     }
 
-    return QColor(QStringLiteral("#577590"));
+    return { QStringLiteral("#577590") };
 }
 
 QString normalized_app_algorithm_id(const QString& algorithm_id) {
@@ -392,8 +400,7 @@ QString operator_profile_display_name(const QString& profile_id) {
 }
 
 QString normalized_operator_profile_id(const QString& profile_id) {
-    const QString normalized
-        = app_settings_support::normalized_key(profile_id);
+    const QString normalized = app_settings_support::normalized_key(profile_id);
 
     if (normalized.isEmpty() || normalized == QStringLiteral("default")
         || normalized == QStringLiteral("balanced")) {
@@ -426,20 +433,19 @@ stream_settings apply_operator_profile(
     const QString normalized_profile
         = normalized_operator_profile_id(profile_id);
 
-    settings_value.algorithm_id = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
+    settings_value.algorithm_id
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
 
     if (normalized_profile == QStringLiteral("custom")) {
         settings_value.algorithm_preset = normalized_algorithm_preset_id(
             settings_value.algorithm_id, settings_value.algorithm_preset
         );
-        settings_value.movement_display_mode = normalized_movement_display_mode_id(
-            settings_value.movement_display_mode
-        );
-        settings_value.algorithm_overlay_enabled = movement_display_enabled(
-            settings_value.movement_display_mode
-        );
+        settings_value.movement_display_mode
+            = normalized_movement_display_mode_id(
+                settings_value.movement_display_mode
+            );
+        settings_value.algorithm_overlay_enabled
+            = movement_display_enabled(settings_value.movement_display_mode);
         return settings_value;
     }
 
@@ -456,26 +462,24 @@ stream_settings apply_operator_profile(
         = normalized_profile == QStringLiteral("simple")
         ? QStringLiteral("off")
         : default_movement_display_mode_id();
-    settings_value.algorithm_overlay_enabled = movement_display_enabled(
-        settings_value.movement_display_mode
-    );
+    settings_value.algorithm_overlay_enabled
+        = movement_display_enabled(settings_value.movement_display_mode);
     return settings_value;
 }
 
 QString inferred_operator_profile_id(const stream_settings& settings_value) {
     stream_settings normalized_settings = settings_value;
-    normalized_settings.algorithm_id = normalized_app_algorithm_id(
-        normalized_settings.algorithm_id
-    );
+    normalized_settings.algorithm_id
+        = normalized_app_algorithm_id(normalized_settings.algorithm_id);
     normalized_settings.algorithm_preset = normalized_algorithm_preset_id(
         normalized_settings.algorithm_id, normalized_settings.algorithm_preset
     );
-    normalized_settings.movement_display_mode = normalized_movement_display_mode_id(
-        normalized_settings.movement_display_mode
-    );
-    normalized_settings.algorithm_overlay_enabled = movement_display_enabled(
-        normalized_settings.movement_display_mode
-    );
+    normalized_settings.movement_display_mode
+        = normalized_movement_display_mode_id(
+            normalized_settings.movement_display_mode
+        );
+    normalized_settings.algorithm_overlay_enabled
+        = movement_display_enabled(normalized_settings.movement_display_mode);
 
     for (const QString& candidate : operator_profile_ids()) {
         const stream_settings candidate_settings
@@ -492,15 +496,13 @@ QString inferred_operator_profile_id(const stream_settings& settings_value) {
 }
 
 QString operator_profile_summary_text(const stream_settings& settings_value) {
-    const QString normalized_algorithm = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
-    const QString profile_id
-        = inferred_operator_profile_id(settings_value);
+    const QString normalized_algorithm
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
+    const QString profile_id = inferred_operator_profile_id(settings_value);
 
     if (profile_id == QStringLiteral("custom")) {
         return QStringLiteral(
-            "custom keeps a manual preset and movement display for %1."
+                   "custom keeps a manual preset and movement display for %1."
         )
             .arg(app_algorithm_display_name(normalized_algorithm));
     }
@@ -512,9 +514,10 @@ QString operator_profile_summary_text(const stream_settings& settings_value) {
     const QString preset_name = algorithm_preset_display_name(
         normalized_algorithm, applied_settings.algorithm_preset
     );
-    const QString overlay_text = QStringLiteral("movement display %1").arg(
-        movement_display_mode_display_name(applied_settings.movement_display_mode)
-    );
+    const QString overlay_text = QStringLiteral("movement display %1")
+                                     .arg(movement_display_mode_display_name(
+                                         applied_settings.movement_display_mode
+                                     ));
 
     return QStringLiteral("%1 maps %2 to %3 with %4.")
         .arg(operator_profile_display_name(profile_id))
@@ -525,9 +528,7 @@ QString operator_profile_summary_text(const stream_settings& settings_value) {
 
 QString default_line_width_text() { return QStringLiteral("medium"); }
 
-QString default_line_color_mode_id() {
-    return QStringLiteral("auto_palette");
-}
+QString default_line_color_mode_id() { return QStringLiteral("auto_palette"); }
 
 QStringList line_color_mode_ids() {
     return {
@@ -549,8 +550,7 @@ QString line_color_mode_display_name(const QString& mode_id) {
 }
 
 QString normalized_line_color_mode_id(const QString& mode_id) {
-    const QString normalized
-        = app_settings_support::normalized_key(mode_id);
+    const QString normalized = app_settings_support::normalized_key(mode_id);
 
     if (normalized == QStringLiteral("manual")
         || normalized == QStringLiteral("fixed")
@@ -571,25 +571,28 @@ QColor random_manual_line_color() {
     const int hue = QRandomGenerator::global()->bounded(360);
     const int saturation = 165 + QRandomGenerator::global()->bounded(60);
     const int value = 210 + QRandomGenerator::global()->bounded(36);
-    return QColor::fromHsv(hue, std::clamp(saturation, 0, 255), std::clamp(value, 0, 255));
+    return QColor::fromHsv(
+        hue, std::clamp(saturation, 0, 255), std::clamp(value, 0, 255)
+    );
 }
 
 QColor auto_palette_line_color(const int line_index, const int line_count) {
     const int clamped_count = std::max(1, line_count);
     const int clamped_index = std::clamp(line_index, 0, clamped_count - 1);
-    const double ratio
-        = static_cast<double>(clamped_index) / static_cast<double>(clamped_count);
-    const int hue = static_cast<int>(std::lround(std::fmod(22.0 + ratio * 330.0, 360.0)));
+    const double ratio = static_cast<double>(clamped_index)
+        / static_cast<double>(clamped_count);
+    const int hue
+        = static_cast<int>(std::lround(std::fmod(22.0 + ratio * 330.0, 360.0)));
     const int saturation = clamped_count <= 2 ? 150 : 178;
     const int value = clamped_count >= 7 ? 228 : 238;
     return QColor::fromHsv(hue, saturation, value);
 }
 
 QColor softened_negative_line_color(const QColor& sampled_color) {
-    const QColor base = sampled_color.isValid() ? sampled_color : QColor(QStringLiteral("#456b88"));
-    QColor inverted(
-        255 - base.red(), 255 - base.green(), 255 - base.blue()
-    );
+    const QColor base = sampled_color.isValid()
+        ? sampled_color
+        : QColor(QStringLiteral("#456b88"));
+    QColor inverted(255 - base.red(), 255 - base.green(), 255 - base.blue());
     QColor softened(
         static_cast<int>(std::lround(inverted.red() * 0.72 + 255.0 * 0.28)),
         static_cast<int>(std::lround(inverted.green() * 0.72 + 255.0 * 0.28)),
@@ -624,8 +627,7 @@ QString line_parameter_mode_display_name(const QString& mode_id) {
 }
 
 QString normalized_line_parameter_mode_id(const QString& mode_id) {
-    const QString normalized
-        = app_settings_support::normalized_key(mode_id);
+    const QString normalized = app_settings_support::normalized_key(mode_id);
 
     if (normalized == QStringLiteral("instrument")
         || normalized == QStringLiteral("string")
@@ -682,17 +684,14 @@ QString line_parameter_mode_hint_text(const QString& mode_id) {
 
 QStringList suggested_line_width_texts() {
     return {
-        QStringLiteral("thin"),
-        QStringLiteral("medium"),
-        QStringLiteral("thick"),
-        QStringLiteral("string_light"),
+        QStringLiteral("thin"),         QStringLiteral("medium"),
+        QStringLiteral("thick"),        QStringLiteral("string_light"),
         QStringLiteral("string_heavy"),
     };
 }
 
 QString normalized_line_width_text(const QString& width_text) {
-    const QString normalized
-        = app_settings_support::normalized_key(width_text);
+    const QString normalized = app_settings_support::normalized_key(width_text);
 
     if (normalized.isEmpty() || normalized == QStringLiteral("default")
         || normalized == QStringLiteral("normal")
@@ -861,9 +860,8 @@ QString line_profile_summary_text(
         .arg(normalized_line_response_text(response_text));
 }
 
-QString stream_processing_policy_summary_text(
-    const stream_settings& settings_value
-) {
+QString
+stream_processing_policy_summary_text(const stream_settings& settings_value) {
     if (!settings_value.manual_processing_policy_enabled) {
         return QStringLiteral(
             "auto calibration picks display fps, core fps, and processing "
@@ -872,8 +870,8 @@ QString stream_processing_policy_summary_text(
     }
 
     return QStringLiteral(
-        "manual caps display to %1 fps, core processing to %2 fps, and "
-        "processing input to %3."
+               "manual caps display to %1 fps, core processing to %2 fps, and "
+               "processing input to %3."
     )
         .arg(
             app_settings_support::normalized_manual_fps(
@@ -913,25 +911,25 @@ QString stream_runtime_metrics_text(const stream_runtime_metrics& metrics) {
     QString processed_size = QStringLiteral("--");
     if (metrics.processed_width > 0 && metrics.processed_height > 0) {
         processed_size = QStringLiteral("%1x%2")
-            .arg(metrics.processed_width)
-            .arg(metrics.processed_height);
+                             .arg(metrics.processed_width)
+                             .arg(metrics.processed_height);
     } else if (metrics.effective_processing_pixels > 0) {
         processed_size = app_settings_support::compact_pixels_text(
             metrics.effective_processing_pixels
         );
     }
 
-    QString text = QStringLiteral(
-        "video %1 fps | core %2 fps\n%3 %4/%5 fps | %6"
-    )
-        .arg(input_fps)
-        .arg(core_fps)
-        .arg(mode)
-        .arg(display_target)
-        .arg(core_target)
-        .arg(processed_size);
+    QString text
+        = QStringLiteral("video %1 fps | core %2 fps\n%3 %4/%5 fps | %6")
+              .arg(input_fps)
+              .arg(core_fps)
+              .arg(mode)
+              .arg(display_target)
+              .arg(core_target)
+              .arg(processed_size);
     if (!metrics.processing_summary.trimmed().isEmpty()) {
-        text += QStringLiteral("\n%1").arg(metrics.processing_summary.trimmed());
+        text
+            += QStringLiteral("\n%1").arg(metrics.processing_summary.trimmed());
     }
     return text;
 }

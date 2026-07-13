@@ -12,140 +12,165 @@ namespace yodau::core {
 
 namespace {
 
-using namespace processing_algorithm_ids;
+    using namespace processing_algorithm_ids;
 
-processing_parameter_descriptor parameter(
-    std::string id, std::string display_name, std::string default_value,
-    std::string unit = {},
-    std::optional<double> min_value = std::optional<double> {},
-    std::optional<double> max_value = std::optional<double> {},
-    processing_parameter_visibility visibility
+    processing_parameter_descriptor parameter(
+        std::string id, std::string display_name, std::string default_value,
+        std::string unit = {},
+        std::optional<double> min_value = std::optional<double> {},
+        std::optional<double> max_value = std::optional<double> {},
+        processing_parameter_visibility visibility
         = processing_parameter_visibility::advanced
-) {
-    return processing_parameter_descriptor {
-        .id = std::move(id),
-        .display_name = std::move(display_name),
-        .default_value = std::move(default_value),
-        .unit = std::move(unit),
-        .min_value = min_value,
-        .max_value = max_value,
-        .visibility = visibility,
-    };
-}
-
-bool token_matches(
-    const std::string& normalized, const std::string& id,
-    const std::vector<std::string>& aliases
-) {
-    if (normalized == id) {
-        return true;
-    }
-
-    return std::ranges::any_of(
-        aliases,
-        [&normalized](const std::string& alias) {
-            return normalized
-                == processing_algorithm_registry::normalized_algorithm_id(alias);
+    ) {
+        processing_parameter_kind kind = processing_parameter_kind::text;
+        std::vector<std::string> allowed_values;
+        if (unit == "bool") {
+            kind = processing_parameter_kind::boolean;
+        } else if (min_value.has_value() || max_value.has_value()) {
+            // Every current numeric algorithm setting is consumed through the
+            // integer configuration adapter. Keep that contract explicit so
+            // JSON configuration cannot silently truncate or fall back.
+            kind = processing_parameter_kind::integer;
+        } else if (id == "background_model") {
+            allowed_values = { "frame_delta", "mog2", "knn" };
+        } else if (id == "motion_focus_mode") {
+            allowed_values = { "auto", "off", "regions", "corridors" };
+        } else {
+            allowed_values = { default_value };
         }
-    );
-}
 
-const processing_algorithm_descriptor* descriptor_ptr_for(
-    std::string_view algorithm_id
-) {
-    const std::string normalized
-        = processing_algorithm_registry::normalized_algorithm_id(algorithm_id);
+        return processing_parameter_descriptor {
+            .id = std::move(id),
+            .display_name = std::move(display_name),
+            .default_value = std::move(default_value),
+            .unit = std::move(unit),
+            .min_value = min_value,
+            .max_value = max_value,
+            .kind = kind,
+            .allowed_values = std::move(allowed_values),
+            .visibility = visibility,
+        };
+    }
 
-    for (const auto& descriptor : default_processing_algorithm_descriptors()) {
-        if (token_matches(normalized, descriptor.id, descriptor.aliases)) {
-            return &descriptor;
+    bool token_matches(
+        const std::string& normalized, const std::string& id,
+        const std::vector<std::string>& aliases
+    ) {
+        if (normalized == id) {
+            return true;
         }
+
+        return std::ranges::any_of(
+            aliases, [&normalized](const std::string& alias) {
+                return normalized
+                    == processing_algorithm_registry::normalized_algorithm_id(
+                           alias
+                    );
+            }
+        );
     }
 
-    return nullptr;
-}
-
-const processing_algorithm_descriptor& default_descriptor() {
-    if (const auto* descriptor = descriptor_ptr_for(motion_baseline)) {
-        return *descriptor;
-    }
-
-    return default_processing_algorithm_descriptors().front();
-}
-
-const processing_preset_descriptor& default_preset(
-    const processing_algorithm_descriptor& descriptor
-) {
-    const auto it = std::ranges::find_if(
-        descriptor.presets,
-        [&descriptor](const processing_preset_descriptor& preset) {
-            return preset.id == descriptor.default_preset_id;
-        }
-    );
-
-    return it == descriptor.presets.end() ? descriptor.presets.front() : *it;
-}
-
-const processing_preset_descriptor* preset_ptr_for(
-    const processing_algorithm_descriptor& descriptor, std::string_view preset_id
-) {
-    const std::string normalized
-        = processing_algorithm_registry::normalized_algorithm_id(preset_id);
-
-    for (const auto& preset : descriptor.presets) {
-        if (token_matches(normalized, preset.id, preset.aliases)) {
-            return &preset;
-        }
-    }
-
-    return nullptr;
-}
-
-const processing_parameter_descriptor* parameter_ptr_for(
-    const processing_algorithm_descriptor& descriptor,
-    std::string_view parameter_id
-) {
-    const std::string normalized
-        = processing_algorithm_registry::normalized_algorithm_id(parameter_id);
-
-    const auto it = std::ranges::find_if(
-        descriptor.parameters,
-        [&normalized](const processing_parameter_descriptor& parameter_value) {
-            return parameter_value.id == normalized;
-        }
-    );
-
-    return it == descriptor.parameters.end() ? nullptr : &*it;
-}
-
-std::string parameter_value_to_string(
-    const processing_algorithm_parameter_value& value
-) {
-    if (const auto* text = std::get_if<std::string>(&value)) {
-        return *text;
-    }
-    if (const auto* flag = std::get_if<bool>(&value)) {
-        return *flag ? "1" : "0";
-    }
-    if (const auto* integer = std::get_if<std::int64_t>(&value)) {
-        return std::to_string(*integer);
-    }
-    if (const auto* number = std::get_if<double>(&value)) {
-        if (std::isfinite(*number)) {
-            std::string text(64, '\0');
-            const auto [ptr, error] = std::to_chars(
-                text.data(), text.data() + text.size(), *number
+    const processing_algorithm_descriptor*
+    descriptor_ptr_for(std::string_view algorithm_id) {
+        const std::string normalized
+            = processing_algorithm_registry::normalized_algorithm_id(
+                algorithm_id
             );
-            if (error == std::errc()) {
-                text.resize(static_cast<size_t>(ptr - text.data()));
-                return text;
+
+        for (const auto& descriptor :
+             default_processing_algorithm_descriptors()) {
+            if (token_matches(normalized, descriptor.id, descriptor.aliases)) {
+                return &descriptor;
             }
         }
-        return std::to_string(*number);
+
+        return nullptr;
     }
 
-    return {};
-}
+    const processing_algorithm_descriptor& default_descriptor() {
+        if (const auto* descriptor = descriptor_ptr_for(motion_baseline)) {
+            return *descriptor;
+        }
+
+        return default_processing_algorithm_descriptors().front();
+    }
+
+    const processing_preset_descriptor&
+    default_preset(const processing_algorithm_descriptor& descriptor) {
+        const auto it = std::ranges::find_if(
+            descriptor.presets,
+            [&descriptor](const processing_preset_descriptor& preset) {
+                return preset.id == descriptor.default_preset_id;
+            }
+        );
+
+        return it == descriptor.presets.end() ? descriptor.presets.front()
+                                              : *it;
+    }
+
+    const processing_preset_descriptor* preset_ptr_for(
+        const processing_algorithm_descriptor& descriptor,
+        std::string_view preset_id
+    ) {
+        const std::string normalized
+            = processing_algorithm_registry::normalized_algorithm_id(preset_id);
+
+        for (const auto& preset : descriptor.presets) {
+            if (token_matches(normalized, preset.id, preset.aliases)) {
+                return &preset;
+            }
+        }
+
+        return nullptr;
+    }
+
+    const processing_parameter_descriptor* parameter_ptr_for(
+        const processing_algorithm_descriptor& descriptor,
+        std::string_view parameter_id
+    ) {
+        const std::string normalized
+            = processing_algorithm_registry::normalized_algorithm_id(
+                parameter_id
+            );
+
+        const auto it = std::ranges::find_if(
+            descriptor.parameters,
+            [&normalized](
+                const processing_parameter_descriptor& parameter_value
+            ) { return parameter_value.id == normalized; }
+        );
+
+        return it == descriptor.parameters.end() ? nullptr : &*it;
+    }
+
+    std::string parameter_value_to_string(
+        const processing_algorithm_parameter_value& value
+    ) {
+        if (const auto* text = std::get_if<std::string>(&value)) {
+            return *text;
+        }
+        if (const auto* flag = std::get_if<bool>(&value)) {
+            return *flag ? "1" : "0";
+        }
+        if (const auto* integer = std::get_if<std::int64_t>(&value)) {
+            return std::to_string(*integer);
+        }
+        if (const auto* number = std::get_if<double>(&value)) {
+            if (std::isfinite(*number)) {
+                std::string text(64, '\0');
+                const auto [ptr, error] = std::to_chars(
+                    text.data(), text.data() + text.size(), *number
+                );
+                if (error == std::errc()) {
+                    text.resize(static_cast<size_t>(ptr - text.data()));
+                    return text;
+                }
+            }
+            return std::to_string(*number);
+        }
+
+        return {};
+    }
 
 } // namespace
 
@@ -162,16 +187,19 @@ default_processing_algorithm_descriptors() {
                     .id = "simple",
                     .display_name = "simple",
                     .aliases = { "basic" },
+                    .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "balanced",
                     .display_name = "balanced",
                     .aliases = { "default" },
+                    .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "debug",
                     .display_name = "debug",
                     .aliases = { "debug_heavy" },
+                    .configuration_values = {},
                 },
             },
             .parameters = {
@@ -208,6 +236,7 @@ default_processing_algorithm_descriptors() {
                     .id = "adaptive",
                     .display_name = "adaptive",
                     .aliases = { "balanced", "default" },
+                    .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "tripwire_bias",
@@ -279,6 +308,7 @@ default_processing_algorithm_descriptors() {
                     .id = "balanced",
                     .display_name = "balanced",
                     .aliases = { "default" },
+                    .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "dense",
@@ -322,7 +352,7 @@ default_processing_algorithm_descriptors() {
             .id = std::string(contour_mask),
             .display_name = "contour mask",
             .aliases = { "contour", "contours", "mask" },
-            .default_preset_id = "outline",
+            .default_preset_id = "balanced",
             .presets = {
                 processing_preset_descriptor {
                     .id = "outline",
@@ -342,6 +372,7 @@ default_processing_algorithm_descriptors() {
                     .id = "balanced",
                     .display_name = "balanced",
                     .aliases = { "default" },
+                    .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "mask_heavy",
@@ -453,6 +484,7 @@ default_processing_algorithm_descriptors() {
                     .id = "balanced",
                     .display_name = "balanced",
                     .aliases = { "default" },
+                    .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "persistent",
@@ -529,7 +561,7 @@ default_processing_algorithm_descriptors() {
                     "12", "permille", 1.0, 1000.0
                 ),
                 parameter(
-                    "sparse_flow_min_feature_distance_px",
+                    "sparse_flow_min_distance_px",
                     "sparse flow feature spacing", "7", "px", 1.0, 512.0
                 ),
                 parameter(
@@ -622,12 +654,12 @@ std::vector<std::string> processing_algorithm_catalog_ids() {
     return ids;
 }
 
-std::optional<processing_algorithm_descriptor> processing_algorithm_descriptor_for(
-    std::string_view algorithm_id
-) {
+std::optional<processing_algorithm_descriptor>
+processing_algorithm_descriptor_for(std::string_view algorithm_id) {
     const auto* descriptor = descriptor_ptr_for(algorithm_id);
-    return descriptor == nullptr ? std::optional<processing_algorithm_descriptor> {}
-                                 : *descriptor;
+    return descriptor == nullptr
+        ? std::optional<processing_algorithm_descriptor> {}
+        : *descriptor;
 }
 
 std::string normalized_processing_algorithm_id(std::string_view algorithm_id) {
@@ -646,9 +678,8 @@ std::string processing_algorithm_display_name(std::string_view algorithm_id) {
     return default_descriptor().display_name;
 }
 
-std::string processing_algorithm_default_preset_id(
-    std::string_view algorithm_id
-) {
+std::string
+processing_algorithm_default_preset_id(std::string_view algorithm_id) {
     if (const auto* descriptor = descriptor_ptr_for(algorithm_id)) {
         return descriptor->default_preset_id;
     }
@@ -656,9 +687,8 @@ std::string processing_algorithm_default_preset_id(
     return default_descriptor().default_preset_id;
 }
 
-processing_algorithm_configuration processing_algorithm_default_configuration(
-    std::string_view algorithm_id
-) {
+processing_algorithm_configuration
+processing_algorithm_default_configuration(std::string_view algorithm_id) {
     const auto* descriptor = descriptor_ptr_for(algorithm_id);
     if (descriptor == nullptr) {
         descriptor = &default_descriptor();
@@ -713,9 +743,8 @@ processing_algorithm_configuration processing_algorithm_preset_configuration(
     return configuration;
 }
 
-processing_algorithm_settings default_processing_algorithm_settings(
-    std::string_view algorithm_id
-) {
+processing_algorithm_settings
+default_processing_algorithm_settings(std::string_view algorithm_id) {
     processing_algorithm_settings settings;
     settings.algorithm_id = normalized_processing_algorithm_id(algorithm_id);
     if (!settings.algorithm_id.empty()) {
@@ -734,9 +763,8 @@ processing_algorithm_settings normalized_processing_algorithm_settings(
         return settings;
     }
 
-    settings.algorithm_id = normalized_processing_algorithm_id(
-        settings.algorithm_id
-    );
+    settings.algorithm_id
+        = normalized_processing_algorithm_id(settings.algorithm_id);
     settings.preset_id = settings.preset_id.empty()
         ? processing_algorithm_default_preset_id(settings.algorithm_id)
         : normalized_processing_algorithm_preset_id(
@@ -787,9 +815,8 @@ processing_algorithm_configuration processing_algorithm_settings_configuration(
     return configuration;
 }
 
-std::vector<std::string> processing_algorithm_preset_ids(
-    std::string_view algorithm_id
-) {
+std::vector<std::string>
+processing_algorithm_preset_ids(std::string_view algorithm_id) {
     const auto* descriptor = descriptor_ptr_for(algorithm_id);
     if (descriptor == nullptr) {
         descriptor = &default_descriptor();
@@ -843,14 +870,16 @@ std::string processing_algorithm_preset_display_name(
 
     const std::string normalized_preset_id
         = normalized_processing_algorithm_preset_id(descriptor->id, preset_id);
-    if (const auto* preset = preset_ptr_for(*descriptor, normalized_preset_id)) {
+    if (const auto* preset
+        = preset_ptr_for(*descriptor, normalized_preset_id)) {
         return preset->display_name;
     }
 
     return default_preset(*descriptor).display_name;
 }
 
-std::optional<processing_parameter_descriptor> processing_parameter_descriptor_for(
+std::optional<processing_parameter_descriptor>
+processing_parameter_descriptor_for(
     std::string_view algorithm_id, std::string_view parameter_id
 ) {
     const auto* descriptor = descriptor_ptr_for(algorithm_id);

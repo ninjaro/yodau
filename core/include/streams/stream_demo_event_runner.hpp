@@ -9,6 +9,7 @@
 #include "streams/stream_processed_frame_router.hpp"
 
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -61,13 +62,9 @@ public:
 
         std::jthread thread(
             [this, snapshot_streams = std::move(snapshot_streams),
-             snapshot_hooks = std::move(snapshot_hooks)](
-                std::stop_token stop_token
-            ) mutable {
-                run(
-                    stop_token, std::move(snapshot_streams),
-                    std::move(snapshot_hooks)
-                );
+             snapshot_hooks
+             = std::move(snapshot_hooks)](const std::stop_token& stop_token) {
+                run(stop_token, snapshot_streams, snapshot_hooks);
             }
         );
 
@@ -98,49 +95,57 @@ public:
 
         if (thread.joinable()) {
             thread.request_stop();
+            wake_.notify_all();
         }
     }
 
 private:
-    int current_interval_ms() const {
-        std::scoped_lock lock(mtx_);
-        return interval_ms_;
-    }
-
-    void run(
-        std::stop_token stop_token,
+    void
+    run(const std::stop_token& stop_token,
         const stream_demo_snapshot_fn& snapshot_streams,
-        const stream_demo_hooks_snapshot_fn& snapshot_hooks
-    ) const {
+        const stream_demo_hooks_snapshot_fn& snapshot_hooks) noexcept {
         frame dummy;
 
         while (!stop_token.stop_requested()) {
-            const auto streams = snapshot_streams();
-            const auto hooks = snapshot_hooks();
+            try {
+                const auto streams = snapshot_streams();
+                const auto hooks = snapshot_hooks();
 
-            if (hooks.frame_processor) {
-                for (const auto& stream_ptr : streams) {
-                    if (!stream_ptr) {
-                        continue;
+                if (hooks.frame_processor) {
+                    for (const auto& stream_ptr : streams) {
+                        if (!stream_ptr) {
+                            continue;
+                        }
+
+                        auto events = hooks.frame_processor(*stream_ptr, dummy);
+
+                        if (hooks.processed_frame_sink) {
+                            hooks.processed_frame_sink(
+                                *stream_ptr, dummy, events
+                            );
+                        }
+
+                        hooks.event_sinks.dispatch(events, true);
                     }
-
-                    auto events = hooks.frame_processor(*stream_ptr, dummy);
-
-                    if (hooks.processed_frame_sink) {
-                        hooks.processed_frame_sink(*stream_ptr, dummy, events);
-                    }
-
-                    hooks.event_sinks.dispatch(events, true);
                 }
+            } catch (...) {
+                // Never allow an injected processor or sink to terminate the
+                // process from this background thread.
+                std::scoped_lock lock(mtx_);
+                enabled_ = false;
+                return;
             }
 
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(current_interval_ms())
+            std::unique_lock lock(mtx_);
+            wake_.wait_for(
+                lock, stop_token, std::chrono::milliseconds(interval_ms_),
+                [] { return false; }
             );
         }
     }
 
     mutable std::mutex mtx_;
+    mutable std::condition_variable_any wake_;
     std::jthread thread_;
     int interval_ms_ { 700 };
     bool enabled_ { false };

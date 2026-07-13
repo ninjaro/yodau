@@ -31,14 +31,14 @@ public:
         active_edit_actions& edit_actions
     );
 
-    [[nodiscard]] transition_result set_drawing_new_mode(bool drawing_new) const;
+    [[nodiscard]] transition_result
+    set_drawing_new_mode(bool drawing_new) const;
     [[nodiscard]] transition_result
     apply_line_profile(line_profile profile_value) const;
     [[nodiscard]] transition_result
     save_active_line(line_profile profile_value) const;
-    [[nodiscard]] transition_result apply_template_settings(
-        template_apply_settings settings_value
-    ) const;
+    [[nodiscard]] transition_result
+    apply_template_settings(template_apply_settings settings_value) const;
     [[nodiscard]] transition_result
     apply_active_template(template_apply_settings settings_value) const;
     [[nodiscard]] transition_result

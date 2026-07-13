@@ -1,8 +1,8 @@
 #include "widgets/template_apply_panel.hpp"
 #include "shell/str_label.hpp"
 
-#include <QColorDialog>
 #include <QCheckBox>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QLabel>
 #include <QPushButton>
@@ -119,19 +119,21 @@ void template_apply_panel::set_template_settings(
 
     {
         QSignalBlocker blocker(template_combo);
-        template_combo->setCurrentIndex(template_index >= 0 ? template_index : 0);
+        template_combo->setCurrentIndex(
+            template_index >= 0 ? template_index : 0
+        );
     }
 
-    current_color = settings_value.color.isValid()
-        ? settings_value.color
-        : QColor(Qt::red);
+    current_color = settings_value.color.isValid() ? settings_value.color
+                                                   : QColor(Qt::red);
     {
         QSignalBlocker blocker(color_mode_combo);
-        const QString color_mode_id = normalized_line_color_mode_id(
-            settings_value.color_mode_id
-        );
+        const QString color_mode_id
+            = normalized_line_color_mode_id(settings_value.color_mode_id);
         const int color_mode_index = color_mode_combo->findData(color_mode_id);
-        color_mode_combo->setCurrentIndex(color_mode_index >= 0 ? color_mode_index : 0);
+        color_mode_combo->setCurrentIndex(
+            color_mode_index >= 0 ? color_mode_index : 0
+        );
     }
     template_apply_panel_support::set_button_color(color_button, current_color);
     template_apply_panel_support::set_editable_combo_value(
@@ -141,7 +143,8 @@ void template_apply_panel::set_template_settings(
         length_combo, normalized_line_length_text(settings_value.length_text)
     );
     template_apply_panel_support::set_editable_combo_value(
-        response_combo, normalized_line_response_text(settings_value.response_text)
+        response_combo,
+        normalized_line_response_text(settings_value.response_text)
     );
 
     refresh_color_controls();
@@ -150,7 +153,8 @@ void template_apply_panel::set_template_settings(
     refresh_summary();
 }
 
-template_apply_settings template_apply_panel::current_template_settings() const {
+template_apply_settings
+template_apply_panel::current_template_settings() const {
     template_apply_settings settings_value;
 
     if (template_combo != nullptr) {
@@ -297,13 +301,15 @@ void template_apply_panel::build_ui() {
 
     template_combo = new QComboBox(this);
     template_combo->setEditable(false);
-    template_combo->setObjectName(QStringLiteral("settings_active_template_combo"));
+    template_combo->setObjectName(
+        QStringLiteral("settings_active_template_combo")
+    );
     template_combo->addItem(str_label("none"), QVariant());
     layout->addWidget(template_combo);
 
     color_mode_combo = new QComboBox(this);
     color_mode_combo->setObjectName(
-        QStringLiteral("settings_active_template_color_mode_combo")
+        QStringLiteral("active_template_color_mode_combo")
     );
     for (const QString& mode_id : line_color_mode_ids()) {
         color_mode_combo->addItem(
@@ -321,13 +327,12 @@ void template_apply_panel::build_ui() {
 
     random_color_button = new QPushButton(str_label("random color"), this);
     random_color_button->setObjectName(
-        QStringLiteral("settings_active_template_random_color_button")
+        QStringLiteral("active_template_random_color_button")
     );
     layout->addWidget(random_color_button);
 
-    advanced_settings_checkbox = new QCheckBox(
-        str_label("advanced settings"), this
-    );
+    advanced_settings_checkbox
+        = new QCheckBox(str_label("advanced settings"), this);
     advanced_settings_checkbox->setObjectName(
         QStringLiteral("settings_active_template_advanced_checkbox")
     );
@@ -336,7 +341,7 @@ void template_apply_panel::build_ui() {
 
     parameter_mode_combo = new QComboBox(this);
     parameter_mode_combo->setObjectName(
-        QStringLiteral("settings_active_template_parameter_mode_combo")
+        QStringLiteral("active_template_parameter_mode_combo")
     );
     for (const QString& mode_id : line_parameter_mode_ids()) {
         parameter_mode_combo->addItem(
@@ -348,7 +353,7 @@ void template_apply_panel::build_ui() {
 
     parameter_mode_hint_label = new QLabel(this);
     parameter_mode_hint_label->setObjectName(
-        QStringLiteral("settings_active_template_parameter_mode_hint_label")
+        QStringLiteral("active_template_parameter_hint_label")
     );
     parameter_mode_hint_label->setWordWrap(true);
     layout->addWidget(parameter_mode_hint_label);
@@ -400,7 +405,9 @@ void template_apply_panel::build_ui() {
     layout->addWidget(summary_label);
 
     add_button = new QPushButton(str_label("add template"), this);
-    add_button->setObjectName(QStringLiteral("settings_active_template_add_button"));
+    add_button->setObjectName(
+        QStringLiteral("settings_active_template_add_button")
+    );
     layout->addWidget(add_button);
 
     connect(
@@ -416,9 +423,8 @@ void template_apply_panel::build_ui() {
         &template_apply_panel::on_random_color_clicked
     );
     connect(
-        color_mode_combo,
-        QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-        &template_apply_panel::on_color_mode_changed
+        color_mode_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &template_apply_panel::on_color_mode_changed
     );
     connect(
         advanced_settings_checkbox, &QCheckBox::toggled, this,
@@ -454,7 +460,9 @@ void template_apply_panel::build_ui() {
 
 QString template_apply_panel::current_color_mode_id() const {
     return color_mode_combo != nullptr
-        ? normalized_line_color_mode_id(color_mode_combo->currentData().toString())
+        ? normalized_line_color_mode_id(
+              color_mode_combo->currentData().toString()
+          )
         : default_line_color_mode_id();
 }
 
@@ -526,10 +534,14 @@ void template_apply_panel::refresh_parameter_mode_labels() {
     const QString mode_id = current_parameter_mode_id();
 
     if (width_label != nullptr) {
-        width_label->setText(str_label("%1").arg(line_width_label_text(mode_id)));
+        width_label->setText(
+            str_label("%1").arg(line_width_label_text(mode_id))
+        );
     }
     if (length_label != nullptr) {
-        length_label->setText(str_label("%1").arg(line_length_label_text(mode_id)));
+        length_label->setText(
+            str_label("%1").arg(line_length_label_text(mode_id))
+        );
     }
     if (response_label != nullptr) {
         response_label->setText(
@@ -553,11 +565,13 @@ void template_apply_panel::refresh_summary() {
         settings_value.width_text, settings_value.length_text,
         settings_value.response_text, current_parameter_mode_id()
     );
-    text += QStringLiteral(" color=%1").arg(
-        line_color_mode_display_name(settings_value.color_mode_id)
-    );
+    text
+        += QStringLiteral(" color=%1")
+               .arg(line_color_mode_display_name(settings_value.color_mode_id));
     if (settings_value.color_mode_id == QStringLiteral("manual")) {
-        text += QStringLiteral(" %1").arg(settings_value.color.name(QColor::HexRgb));
+        text += QStringLiteral(" %1").arg(
+            settings_value.color.name(QColor::HexRgb)
+        );
     }
 
     if (!settings_value.template_name.isEmpty()) {

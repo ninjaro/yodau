@@ -47,7 +47,7 @@ public:
     static QString event_kind_text(yodau::core::event_kind kind);
 
 private:
-    QHash<QString, QDateTime> last_gui_motion_event_ts_;
+    QHash<QString, QDateTime> gui_motion_event_ts_;
     int motion_gui_interval_ms_ { 80 };
     std::deque<std::chrono::steady_clock::time_point> recent_motion_events_;
 };

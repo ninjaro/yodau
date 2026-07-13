@@ -9,31 +9,35 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace yodau::core {
 
 namespace {
 
-int local_capture_index_from_path(const std::string& path) {
-    const std::string pref = "/dev/video";
-    if (path.rfind(pref, 0) != 0) {
-        return -1;
+    int local_capture_index_from_path(const std::string& path) {
+        const std::string pref = "/dev/video";
+        if (path.rfind(pref, 0) != 0) {
+            return -1;
+        }
+
+        const auto tail = path.substr(pref.size());
+        int idx = -1;
+
+        const auto res
+            = std::from_chars(tail.data(), tail.data() + tail.size(), idx);
+        if (res.ec != std::errc() || res.ptr != tail.data() + tail.size()) {
+            return -1;
+        }
+
+        return idx;
     }
-
-    const auto tail = path.substr(pref.size());
-    int idx = -1;
-
-    const auto res
-        = std::from_chars(tail.data(), tail.data() + tail.size(), idx);
-    if (res.ec != std::errc() || res.ptr != tail.data() + tail.size()) {
-        return -1;
-    }
-
-    return idx;
-}
 
 } // namespace
 
@@ -60,15 +64,14 @@ int config_int(
 
 std::string config_string(
     const processing_algorithm_configuration& configuration,
-    const std::string& key, std::string fallback
+    const std::string& key, const std::string& fallback
 ) {
     const auto it = configuration.values.find(key);
-    return it == configuration.values.end() ? std::move(fallback) : it->second;
+    return it == configuration.values.end() ? fallback : it->second;
 }
 
 cv::Mat frame_to_gray_mat(const frame& frame_value) {
-    if (frame_value.width <= 0 || frame_value.height <= 0
-        || frame_value.stride <= 0 || frame_value.data.empty()) {
+    if (!validate_frame_layout(frame_value)) {
         return {};
     }
 
@@ -123,11 +126,12 @@ cv::Mat frame_to_gray_mat(const frame& frame_value) {
     return {};
 }
 
-bool frame_to_bgr_and_gray_mat(
+bool frame_to_bgr_gray_mats(
     const frame& frame_value, cv::Mat& bgr, cv::Mat& gray
 ) {
-    if (frame_value.width <= 0 || frame_value.height <= 0
-        || frame_value.stride <= 0 || frame_value.data.empty()) {
+    bgr.release();
+    gray.release();
+    if (!validate_frame_layout(frame_value)) {
         return false;
     }
 
@@ -187,20 +191,42 @@ bool frame_to_bgr_and_gray_mat(
 frame bgr_mat_to_frame(
     const cv::Mat& image, const std::chrono::steady_clock::time_point timestamp
 ) {
+    if (image.empty()) {
+        return {};
+    }
+    if (image.dims != 2) {
+        throw std::invalid_argument(
+            "bgr_mat_to_frame requires a two-dimensional image"
+        );
+    }
+    if (image.depth() != CV_8U) {
+        throw std::invalid_argument("bgr_mat_to_frame requires an 8-bit image");
+    }
+
     cv::Mat bgr;
-    if (image.channels() == 3 && image.type() == CV_8UC3) {
+    if (image.channels() == 3) {
         bgr = image;
     } else if (image.channels() == 1) {
         cv::cvtColor(image, bgr, cv::COLOR_GRAY2BGR);
     } else if (image.channels() == 4) {
         cv::cvtColor(image, bgr, cv::COLOR_BGRA2BGR);
     } else {
-        image.convertTo(bgr, CV_8UC3);
+        throw std::invalid_argument(
+            "bgr_mat_to_frame requires a 1-, 3-, or 4-channel image"
+        );
     }
 
     if (!bgr.isContinuous()) {
         bgr = bgr.clone();
     }
+    if (bgr.step > static_cast<size_t>(std::numeric_limits<int>::max())) {
+        throw std::overflow_error("BGR image stride does not fit in frame");
+    }
+    if (bgr.elemSize() == 0
+        || bgr.total() > std::numeric_limits<size_t>::max() / bgr.elemSize()) {
+        throw std::overflow_error("BGR image extent does not fit in frame");
+    }
+    const size_t data_size = bgr.total() * bgr.elemSize();
 
     frame out;
     out.width = bgr.cols;
@@ -208,21 +234,96 @@ frame bgr_mat_to_frame(
     out.stride = static_cast<int>(bgr.step);
     out.ts = timestamp;
     out.format = pixel_format::bgr24;
-    out.data.assign(bgr.data, bgr.data + bgr.total() * bgr.elemSize());
+    out.data.assign(bgr.data, bgr.data + data_size);
+
+    if (!validate_frame_layout(out)) {
+        throw std::runtime_error("OpenCV produced an invalid BGR frame layout");
+    }
     return out;
+}
+
+frame scaled_frame_to_max_pixels(
+    const frame& frame_value, const int max_pixels
+) {
+    if (!validate_frame_layout(frame_value) || max_pixels <= 0) {
+        return {};
+    }
+
+    const auto source_pixels = static_cast<std::int64_t>(frame_value.width)
+        * static_cast<std::int64_t>(frame_value.height);
+    if (source_pixels <= static_cast<std::int64_t>(max_pixels)) {
+        return frame_value;
+    }
+
+    cv::Mat bgr;
+    cv::Mat gray;
+    if (!frame_to_bgr_gray_mats(frame_value, bgr, gray) || bgr.empty()) {
+        return {};
+    }
+
+    const double scale = std::sqrt(
+        static_cast<double>(max_pixels) / static_cast<double>(source_pixels)
+    );
+    int width = std::max(
+        1,
+        static_cast<int>(
+            std::floor(static_cast<double>(frame_value.width) * scale)
+        )
+    );
+    int height = std::max(
+        1,
+        static_cast<int>(
+            std::floor(static_cast<double>(frame_value.height) * scale)
+        )
+    );
+    while (static_cast<std::int64_t>(width) * static_cast<std::int64_t>(height)
+           > static_cast<std::int64_t>(max_pixels)) {
+        if (width >= height && width > 1) {
+            --width;
+        } else if (height > 1) {
+            --height;
+        } else {
+            break;
+        }
+    }
+
+    cv::Mat resized;
+    cv::resize(bgr, resized, cv::Size(width, height), 0.0, 0.0, cv::INTER_AREA);
+    return bgr_mat_to_frame(resized, frame_value.ts);
 }
 
 bool open_video_capture_for_stream(
     const stream& stream_value, cv::VideoCapture& capture
 ) {
     const auto path = stream_value.get_path();
-    const int idx = local_capture_index_from_path(path);
-    if (idx >= 0) {
 #ifdef __linux__
+    if (stream_value.get_type() == stream_type::local) {
         if (!is_linux_capture_device(path)) {
             return false;
         }
+        capture.open(path, cv::CAP_V4L2);
+        return capture.isOpened();
+    }
 #endif
+
+    if (stream_value.get_type() == stream_type::rtsp
+        || stream_value.get_type() == stream_type::http) {
+        constexpr int open_timeout_ms = 5000;
+        constexpr int read_timeout_ms = 1000;
+        capture.open(
+            path, cv::CAP_ANY,
+            {
+                cv::CAP_PROP_OPEN_TIMEOUT_MSEC,
+                open_timeout_ms,
+                cv::CAP_PROP_READ_TIMEOUT_MSEC,
+                read_timeout_ms,
+            }
+        );
+        return capture.isOpened();
+    }
+
+    const int idx = local_capture_index_from_path(path);
+    if (idx >= 0) {
         capture.open(idx);
     } else {
         capture.open(path);
@@ -232,16 +333,48 @@ bool open_video_capture_for_stream(
 }
 
 video_capture_read_status read_video_capture_frame(
-    const stream& stream_value, cv::VideoCapture& capture, cv::Mat& image
+    const stream& stream_value, cv::VideoCapture& capture, cv::Mat& image,
+    const std::stop_token& stop_token
 ) {
+    if (!capture.isOpened()) {
+        return video_capture_read_status::finished;
+    }
+
+#ifdef __linux__
+    if (stream_value.get_type() == stream_type::local) {
+        if (stop_token.stop_requested()) {
+            return video_capture_read_status::finished;
+        }
+        std::vector<cv::VideoCapture> captures { capture };
+        std::vector<int> ready;
+        constexpr std::int64_t wait_timeout_ns = 100'000'000;
+        if (!cv::VideoCapture::waitAny(captures, ready, wait_timeout_ns)) {
+            return video_capture_read_status::wait_timeout;
+        }
+        if (ready.empty() || stop_token.stop_requested()
+            || !captures.front().retrieve(image) || image.empty()) {
+            return video_capture_read_status::finished;
+        }
+        return video_capture_read_status::frame_ready;
+    }
+#endif
+
     if (capture.read(image) && !image.empty()) {
         return video_capture_read_status::frame_ready;
     }
 
     if (stream_value.is_looping()
         && stream_value.get_type() == stream_type::file) {
-        capture.set(cv::CAP_PROP_POS_FRAMES, 0);
-        return video_capture_read_status::rewound;
+        if (!capture.set(cv::CAP_PROP_POS_FRAMES, 0)) {
+            return video_capture_read_status::finished;
+        }
+
+        // A looping source gets one bounded rewind attempt. Reading the first
+        // frame here distinguishes a usable rewind from an empty, corrupt, or
+        // unseekable source and prevents the caller from busy-spinning.
+        if (capture.read(image) && !image.empty()) {
+            return video_capture_read_status::frame_ready;
+        }
     }
 
     return video_capture_read_status::finished;
@@ -251,10 +384,12 @@ point grid_cell_center_pct(
     const int col, const int row, const int cols, const int rows
 ) {
     return point {
-        .x = static_cast<float>((static_cast<double>(col) + 0.5) * 100.0
-                                / static_cast<double>(cols)),
-        .y = static_cast<float>((static_cast<double>(row) + 0.5) * 100.0
-                                / static_cast<double>(rows)),
+        .x = static_cast<float>(
+            (static_cast<double>(col) + 0.5) * 100.0 / static_cast<double>(cols)
+        ),
+        .y = static_cast<float>(
+            (static_cast<double>(row) + 0.5) * 100.0 / static_cast<double>(rows)
+        ),
     };
 }
 

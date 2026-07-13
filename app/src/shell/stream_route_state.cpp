@@ -72,8 +72,7 @@ bool stream_route_state::hide_stream(const QString& stream_name) {
     return true;
 }
 
-QString
-stream_route_state::next_active_stream_for_enlarge(
+QString stream_route_state::next_active_stream_for_enlarge(
     const QString& stream_name
 ) const {
     const QString normalized_name = normalized_stream_name(stream_name);

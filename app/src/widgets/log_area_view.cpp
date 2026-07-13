@@ -22,36 +22,36 @@ QTextCharFormat format_with_color(
 QColor severity_color(const app_log_severity severity) {
     switch (severity) {
     case app_log_severity::debug:
-        return QColor(QStringLiteral("#9ca3af"));
+        return { QStringLiteral("#9ca3af") };
     case app_log_severity::warning:
-        return QColor(QStringLiteral("#f4a261"));
+        return { QStringLiteral("#f4a261") };
     case app_log_severity::error:
-        return QColor(QStringLiteral("#e63946"));
+        return { QStringLiteral("#e63946") };
     case app_log_severity::info:
     default:
-        return QColor(QStringLiteral("#dce1de"));
+        return { QStringLiteral("#dce1de") };
     }
 }
 
 QColor event_color(const QString& event_type) {
     const QString normalized = event_type.trimmed().toLower();
     if (normalized == QStringLiteral("tripwire")) {
-        return QColor(QStringLiteral("#e63946"));
+        return { QStringLiteral("#e63946") };
     }
     if (normalized == QStringLiteral("roi")) {
-        return QColor(QStringLiteral("#2a9d8f"));
+        return { QStringLiteral("#2a9d8f") };
     }
     if (normalized == QStringLiteral("motion")) {
-        return QColor(QStringLiteral("#f4a261"));
+        return { QStringLiteral("#f4a261") };
     }
-    return QColor(QStringLiteral("#adb5bd"));
+    return { QStringLiteral("#adb5bd") };
 }
 
 class log_entry_highlighter final : public QSyntaxHighlighter {
 public:
     explicit log_entry_highlighter(log_area_view* owner)
         : QSyntaxHighlighter(owner->document())
-        , owner_(owner) {}
+        , owner_(owner) { }
 
 protected:
     void highlightBlock(const QString& text) override {
@@ -72,7 +72,9 @@ protected:
         if (timestamp_end >= 0) {
             setFormat(
                 0, static_cast<int>(timestamp_end + 1),
-                format_with_color(QColor(QStringLiteral("#7f8c8d")), false, true)
+                format_with_color(
+                    QColor(QStringLiteral("#7f8c8d")), false, true
+                )
             );
         }
 
@@ -170,6 +172,10 @@ void log_area_view::set_log_toolbar(log_toolbar_panel* toolbar) {
             log_toolbar_widget, &log_toolbar_panel::view_state_changed, this,
             [this]() { rebuild_from_toolbar(); }
         );
+        connect(
+            log_toolbar_widget, &log_toolbar_panel::entry_available, this,
+            [this](const app_log_entry& entry) { append_entry(entry); }
+        );
     }
 
     rebuild_from_toolbar();
@@ -187,13 +193,11 @@ bool log_area_view::append_entry(const app_log_entry& entry) const {
 
     const auto self = const_cast<log_area_view*>(this);
     self->visible_entries_.push_back(entry);
-    self->appendPlainText(
-        format_app_log_entry(
-            log_toolbar_widget != nullptr ? log_toolbar_widget->log_mode()
-                                          : app_log_mode::release,
-            entry
-        )
-    );
+    self->appendPlainText(format_app_log_entry(
+        log_toolbar_widget != nullptr ? log_toolbar_widget->log_mode()
+                                      : app_log_mode::release,
+        entry
+    ));
     return true;
 }
 

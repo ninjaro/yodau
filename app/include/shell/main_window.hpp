@@ -41,17 +41,22 @@ public:
     ~main_window() override;
 
 private slots:
+    void on_import_line_configuration_triggered();
+    void on_export_line_configuration_triggered();
     void on_toggle_debug_monitor_triggered(bool checked);
     void refresh_debug_monitor_ui();
 
 private:
     void setup_platform_layout();
+    void setup_configuration_actions();
     void setup_debug_monitor_ui();
 
     stream_board* main_zone;
     settings_panel* settings;
     std::unique_ptr<yodau::core::stream_manager> core_manager;
     stream_controller* app_stream_controller;
+    QAction* import_line_configuration_action;
+    QAction* export_line_configuration_action;
     yodau::monitor::runtime_bridge* debug_monitor;
     QAction* toggle_debug_monitor_action;
     QLabel* debug_monitor_status_label;

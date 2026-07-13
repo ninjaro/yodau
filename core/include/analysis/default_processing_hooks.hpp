@@ -1,8 +1,8 @@
 #ifndef YODAU_CORE_DEFAULT_PROCESSING_HOOKS_HPP
 #define YODAU_CORE_DEFAULT_PROCESSING_HOOKS_HPP
 
-#include "core/namespace_alias.hpp"
 #include "analysis/processing_algorithm.hpp"
+#include "core/namespace_alias.hpp"
 #include "streams/stream_manager.hpp"
 
 #include <memory>

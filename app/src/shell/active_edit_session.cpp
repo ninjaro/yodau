@@ -66,7 +66,9 @@ void active_edit_session::reset_active_template_settings() {
 }
 
 bool active_edit_session::has_template(const QString& template_name) const {
-    return templates_.contains(active_edit_session_support::trimmed_name(template_name));
+    return templates_.contains(
+        active_edit_session_support::trimmed_name(template_name)
+    );
 }
 
 std::optional<active_edit_session::template_line>
@@ -107,8 +109,9 @@ stream_cell::line_instance active_edit_session::store_applied_template_line(
     }
 
     stream_cell::line_instance inst;
-    inst.template_name
-        = active_edit_session_support::trimmed_name(settings_value.template_name);
+    inst.template_name = active_edit_session_support::trimmed_name(
+        settings_value.template_name
+    );
     inst.color = settings_value.color;
     inst.color_mode_id = settings_value.color_mode_id;
     inst.enabled = true;
@@ -202,35 +205,42 @@ std::optional<stream_cell::line_instance> active_edit_session::find_stream_line(
 stream_cell::line_instance active_edit_session::store_stream_line(
     const QString& stream_name, stream_cell::line_instance line_value
 ) {
-    line_value.template_name = active_edit_session_support::trimmed_name(
-        line_value.template_name
-    );
-    line_value.color_mode_id = normalized_line_color_mode_id(
-        line_value.color_mode_id
-    );
+    line_value.template_name
+        = active_edit_session_support::trimmed_name(line_value.template_name);
+    line_value.color_mode_id
+        = normalized_line_color_mode_id(line_value.color_mode_id);
     line_value.width_text = normalized_line_width_text(line_value.width_text);
-    line_value.length_text = normalized_line_length_text(line_value.length_text);
-    line_value.response_text = normalized_line_response_text(
-        line_value.response_text
-    );
+    line_value.length_text
+        = normalized_line_length_text(line_value.length_text);
+    line_value.response_text
+        = normalized_line_response_text(line_value.response_text);
 
     per_stream_lines_[stream_name].push_back(line_value);
     templates_[line_value.template_name] = template_line {
-        line_value.pts_pct,
-        line_value.closed,
-        line_value.width_text,
-        line_value.length_text,
-        line_value.response_text,
+        line_value.pts_pct,     line_value.closed,        line_value.width_text,
+        line_value.length_text, line_value.response_text,
     };
 
     return line_value;
+}
+
+void active_edit_session::replace_stream_lines(
+    const QString& stream_name,
+    std::vector<stream_cell::line_instance> line_values
+) {
+    per_stream_lines_.remove(stream_name);
+    for (auto& line_value : line_values) {
+        store_stream_line(stream_name, std::move(line_value));
+    }
 }
 
 void active_edit_session::set_active_line_edit(line_edit_request request) {
     active_line_edit_ = normalized_line_edit_request(std::move(request));
 }
 
-void active_edit_session::clear_active_line_edit() { active_line_edit_.reset(); }
+void active_edit_session::clear_active_line_edit() {
+    active_line_edit_.reset();
+}
 
 std::optional<line_edit_request> active_edit_session::active_line_edit() const {
     return active_line_edit_;
@@ -278,50 +288,40 @@ line_profile
 active_edit_session::normalized_line_profile(line_profile profile_value) {
     profile_value.name
         = active_edit_session_support::trimmed_name(profile_value.name);
-    profile_value.color_mode_id = normalized_line_color_mode_id(
-        profile_value.color_mode_id
-    );
-    profile_value.width_text = normalized_line_width_text(
-        profile_value.width_text
-    );
-    profile_value.length_text = normalized_line_length_text(
-        profile_value.length_text
-    );
-    profile_value.response_text = normalized_line_response_text(
-        profile_value.response_text
-    );
+    profile_value.color_mode_id
+        = normalized_line_color_mode_id(profile_value.color_mode_id);
+    profile_value.width_text
+        = normalized_line_width_text(profile_value.width_text);
+    profile_value.length_text
+        = normalized_line_length_text(profile_value.length_text);
+    profile_value.response_text
+        = normalized_line_response_text(profile_value.response_text);
     return profile_value;
 }
 
 template_apply_settings active_edit_session::normalized_template_settings(
     template_apply_settings settings_value
 ) {
-    settings_value.template_name
-        = active_edit_session_support::trimmed_name(settings_value.template_name);
-    settings_value.color_mode_id = normalized_line_color_mode_id(
-        settings_value.color_mode_id
+    settings_value.template_name = active_edit_session_support::trimmed_name(
+        settings_value.template_name
     );
-    settings_value.width_text = normalized_line_width_text(
-        settings_value.width_text
-    );
-    settings_value.length_text = normalized_line_length_text(
-        settings_value.length_text
-    );
-    settings_value.response_text = normalized_line_response_text(
-        settings_value.response_text
-    );
+    settings_value.color_mode_id
+        = normalized_line_color_mode_id(settings_value.color_mode_id);
+    settings_value.width_text
+        = normalized_line_width_text(settings_value.width_text);
+    settings_value.length_text
+        = normalized_line_length_text(settings_value.length_text);
+    settings_value.response_text
+        = normalized_line_response_text(settings_value.response_text);
     return settings_value;
 }
 
-line_edit_request active_edit_session::normalized_line_edit_request(
-    line_edit_request request
-) {
-    request.stream_name = active_edit_session_support::trimmed_name(
-        request.stream_name
-    );
-    request.source_line_name = active_edit_session_support::trimmed_name(
-        request.source_line_name
-    );
+line_edit_request
+active_edit_session::normalized_line_edit_request(line_edit_request request) {
+    request.stream_name
+        = active_edit_session_support::trimmed_name(request.stream_name);
+    request.source_line_name
+        = active_edit_session_support::trimmed_name(request.source_line_name);
     request.profile = normalized_line_profile(std::move(request.profile));
     if (request.selected_visible_index
         >= static_cast<int>(request.points_pct.size())) {

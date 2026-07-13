@@ -39,9 +39,8 @@ cv::Mat downsample_motion_mask_to_grid(
     const cv::Mat& binary_mask, const grid_dims& grid
 );
 
-std::vector<int> active_motion_grid_cells(
-    const cv::Mat& grid_mask, const grid_dims& grid
-);
+std::vector<int>
+active_motion_grid_cells(const cv::Mat& grid_mask, const grid_dims& grid);
 
 double legacy_impact_speed(
     const point& previous_center, const point& current_center,
@@ -87,10 +86,10 @@ private:
     std::mutex mtx_;
     std::unordered_map<std::string, cv::Mat> previous_gray_by_stream_;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point>
-        last_motion_emit_by_stream_;
-    std::unordered_map<std::string, point> last_motion_position_by_stream_;
+        motion_emit_by_stream_;
+    std::unordered_map<std::string, point> motion_position_by_stream_;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point>
-        last_tripwire_emit_by_key_;
+        tripwire_emit_by_key_;
 };
 
 } // namespace yodau::core

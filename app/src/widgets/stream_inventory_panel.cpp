@@ -18,7 +18,9 @@ stream_inventory_panel::stream_inventory_panel(QWidget* parent)
     layout->setSpacing(10);
 
     summary_label = new QLabel(this);
-    summary_label->setObjectName(QStringLiteral("settings_streams_summary_label"));
+    summary_label->setObjectName(
+        QStringLiteral("settings_streams_summary_label")
+    );
     summary_label->setWordWrap(true);
     layout->addWidget(summary_label);
 
@@ -97,9 +99,7 @@ void stream_inventory_panel::on_stream_item_changed(
         return;
     }
 
-    emit show_stream_changed(
-        item->text(1), item->checkState(0) == Qt::Checked
-    );
+    emit show_stream_changed(item->text(1), item->checkState(0) == Qt::Checked);
     refresh_summary();
 }
 
@@ -118,12 +118,10 @@ void stream_inventory_panel::refresh_summary() const {
     }
 
     if (total == 0) {
-        summary_label->setText(
-            QStringLiteral(
-                "No configured streams yet. Add a source, then enable it in "
-                "the grid from this list."
-            )
-        );
+        summary_label->setText(QStringLiteral(
+            "No configured streams yet. Add a source, then enable it in "
+            "the grid from this list."
+        ));
         return;
     }
 

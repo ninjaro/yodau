@@ -14,7 +14,7 @@ QString algorithm_detail_text(const stream_settings& settings_value) {
 QString processing_policy_detail_text(const stream_settings& settings_value) {
     return QStringLiteral(
                "manual=%1 display_fps=%2 core_fps=%3 processing_pixels=%4"
-           )
+    )
         .arg(
             settings_value.manual_processing_policy_enabled
                 ? QStringLiteral("true")
@@ -30,7 +30,7 @@ QString processing_policy_detail_text(const stream_settings& settings_value) {
 active_stream_workflow::active_stream_workflow(
     active_stream_state& active_streams
 )
-    : active_streams_(active_streams) {}
+    : active_streams_(active_streams) { }
 
 active_stream_workflow::transition_result
 active_stream_workflow::set_active_stream(const QString& name) const {
@@ -54,62 +54,53 @@ active_stream_workflow::apply_stream_settings(
     }
 
     if (result.outcome_value
-        == active_stream_state::settings_result::outcome::ignored_empty_stream) {
+        == active_stream_state::settings_result::outcome::
+            ignored_empty_stream) {
         return transition;
     }
 
     if (result.labels_changed) {
-        transition.entries.push_back(
-            make_entry(
-                app_log_severity::info, QStringLiteral("stream_settings"),
-                result.settings.labels_enabled
-                    ? QStringLiteral("line labels enabled")
-                    : QStringLiteral("line labels disabled"),
-                result.settings.stream_name
-            )
-        );
+        transition.entries.push_back(make_entry(
+            app_log_severity::info, QStringLiteral("stream_settings"),
+            result.settings.labels_enabled
+                ? QStringLiteral("line labels enabled")
+                : QStringLiteral("line labels disabled"),
+            result.settings.stream_name
+        ));
     }
 
     if (result.standard_labels_changed) {
-        transition.entries.push_back(
-            make_entry(
-                app_log_severity::info, QStringLiteral("stream_settings"),
-                result.settings.standard_labels_enabled
-                    ? QStringLiteral("standard labels enabled")
-                    : QStringLiteral("standard labels disabled"),
-                result.settings.stream_name
-            )
-        );
+        transition.entries.push_back(make_entry(
+            app_log_severity::info, QStringLiteral("stream_settings"),
+            result.settings.standard_labels_enabled
+                ? QStringLiteral("standard labels enabled")
+                : QStringLiteral("standard labels disabled"),
+            result.settings.stream_name
+        ));
     }
 
     if (result.algorithm_changed) {
-        transition.entries.push_back(
-            make_entry(
-                app_log_severity::info,
-                QStringLiteral("stream_settings"),
-                QStringLiteral("algorithm preference updated"),
-                result.settings.stream_name,
-                active_stream_workflow_support::algorithm_detail_text(
-                    result.settings
-                ),
-                result.settings.algorithm_id
-            )
-        );
+        transition.entries.push_back(make_entry(
+            app_log_severity::info, QStringLiteral("stream_settings"),
+            QStringLiteral("algorithm preference updated"),
+            result.settings.stream_name,
+            active_stream_workflow_support::algorithm_detail_text(
+                result.settings
+            ),
+            result.settings.algorithm_id
+        ));
     }
 
     if (result.processing_policy_changed) {
-        transition.entries.push_back(
-            make_entry(
-                app_log_severity::info,
-                QStringLiteral("stream_processing"),
-                QStringLiteral("processing tuning updated"),
-                result.settings.stream_name,
-                active_stream_workflow_support::processing_policy_detail_text(
-                    result.settings
-                ),
-                result.settings.algorithm_id
-            )
-        );
+        transition.entries.push_back(make_entry(
+            app_log_severity::info, QStringLiteral("stream_processing"),
+            QStringLiteral("processing tuning updated"),
+            result.settings.stream_name,
+            active_stream_workflow_support::processing_policy_detail_text(
+                result.settings
+            ),
+            result.settings.algorithm_id
+        ));
         transition.refresh_fps = true;
     }
 
@@ -147,15 +138,13 @@ active_stream_workflow::selection_result_entry(
         ? QStringLiteral("active_stream_cleared")
         : QStringLiteral("active_stream_selected");
 
-    transition.entries.push_back(
-        make_entry(
-            app_log_severity::info, QStringLiteral("active_stream"),
-            selection.active_name.isEmpty()
-                ? QStringLiteral("active stream cleared")
-                : QStringLiteral("active stream selected"),
-            selection.active_name, QString(), selection.settings.algorithm_id
-        )
-    );
+    transition.entries.push_back(make_entry(
+        app_log_severity::info, QStringLiteral("active_stream"),
+        selection.active_name.isEmpty()
+            ? QStringLiteral("active stream cleared")
+            : QStringLiteral("active stream selected"),
+        selection.active_name, QString(), selection.settings.algorithm_id
+    ));
 
     return transition;
 }

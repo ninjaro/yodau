@@ -3,8 +3,8 @@
 #include "shell/str_label.hpp"
 #include "widgets/log_area_view.hpp"
 #include "widgets/log_toolbar_panel.hpp"
-#include "widgets/stream_board.hpp"
 #include "widgets/settings_panel.hpp"
+#include "widgets/stream_board.hpp"
 
 #include <QDockWidget>
 #include <QStackedWidget>
@@ -52,7 +52,9 @@ void main_window::setup_platform_layout() {
     line_action->setText(str_label("lines"));
 
     auto* log_dock_content = new QWidget(log_dock);
-    log_dock_content->setObjectName(QStringLiteral("main_window_log_dock_content"));
+    log_dock_content->setObjectName(
+        QStringLiteral("main_window_log_dock_content")
+    );
     auto* log_dock_layout = new QVBoxLayout(log_dock_content);
     log_dock_layout->setContentsMargins(8, 8, 8, 8);
 
@@ -70,7 +72,7 @@ void main_window::setup_platform_layout() {
     log_dock->setWidget(log_dock_content);
     log_dock->setAllowedAreas(
         Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea
-            | Qt::LeftDockWidgetArea
+        | Qt::LeftDockWidgetArea
     );
     log_dock->setFeatures(
         QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable

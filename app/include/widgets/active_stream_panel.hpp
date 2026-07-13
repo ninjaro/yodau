@@ -31,11 +31,11 @@ public:
     void set_active_candidates(const QStringList& names) const;
     void set_active_current(const QString& name) const;
     void set_stream_settings(const stream_settings& settings_value);
-    stream_settings current_stream_settings() const;
+    [[nodiscard]] stream_settings current_stream_settings() const;
     QWidget* take_edit_mode_widget();
 
-    bool has_active_stream() const;
-    bool drawing_new_mode() const;
+    [[nodiscard]] bool has_active_stream() const;
+    [[nodiscard]] bool drawing_new_mode() const;
 
 signals:
     void stream_selected(const QString& name);
@@ -58,12 +58,13 @@ private slots:
 private:
     void build_ui();
     void refresh_panel_state() const;
-    void sync_operator_profile_from_settings(const stream_settings& settings_value);
+    void
+    sync_operator_profile_from_settings(const stream_settings& settings_value);
     void refresh_operator_profile_summary();
     void refresh_processing_policy_state() const;
     void refresh_processing_policy_summary();
 
-    QString object_name(const QString& suffix) const;
+    [[nodiscard]] QString object_name(const QString& suffix) const;
 
     QComboBox* active_combo { nullptr };
     QCheckBox* active_labels_cb { nullptr };

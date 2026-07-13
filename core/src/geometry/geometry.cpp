@@ -1,8 +1,11 @@
 #include "geometry/geometry.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <cmath>
+#include <stdexcept>
+#include <string>
 
 namespace {
 
@@ -24,6 +27,69 @@ bool between(const float a, const float b, const float c) {
     const auto [lo, hi] = std::minmax(a, b);
     return lo <= c + yodau::core::point::epsilon
         && c <= hi + yodau::core::point::epsilon;
+}
+
+void validate_point_coordinate(
+    const float value, const size_t point_index, const char axis
+) {
+    const std::string field
+        = "line point " + std::to_string(point_index + 1U) + " " + axis;
+    if (!std::isfinite(value)) {
+        throw std::invalid_argument(field + " coordinate must be finite");
+    }
+    if (value < 0.0f || value > 100.0f) {
+        throw std::invalid_argument(
+            field + " coordinate " + std::to_string(value)
+            + " is outside the inclusive range [0, 100]"
+        );
+    }
+}
+
+bool has_usable_name(const std::string_view name) {
+    bool has_visible_character = false;
+    for (const char value : name) {
+        const auto ch = static_cast<unsigned char>(value);
+        if (std::iscntrl(ch) != 0) {
+            return false;
+        }
+        if (std::isspace(ch) == 0) {
+            has_visible_character = true;
+        }
+    }
+    return has_visible_character;
+}
+
+bool has_distinct_point_count(
+    const std::span<const yodau::core::point> points,
+    const size_t required_count
+) {
+    std::vector<yodau::core::point> distinct;
+    distinct.reserve(required_count);
+    for (const auto& value : points) {
+        const bool already_seen = std::ranges::any_of(
+            distinct, [&value](const yodau::core::point& other) {
+                return value.compare(other);
+            }
+        );
+        if (!already_seen) {
+            distinct.push_back(value);
+            if (distinct.size() >= required_count) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+double doubled_polygon_area(const std::span<const yodau::core::point> points) {
+    double area = 0.0;
+    for (size_t i = 0; i < points.size(); ++i) {
+        const auto& current = points[i];
+        const auto& next = points[(i + 1U) % points.size()];
+        area += static_cast<double>(current.x) * static_cast<double>(next.y)
+            - static_cast<double>(next.x) * static_cast<double>(current.y);
+    }
+    return std::abs(area);
 }
 
 } // namespace
@@ -104,27 +170,33 @@ bool yodau::core::line::operator==(const line& other) const {
 }
 
 void yodau::core::line_profile::normalize() {
-    if (visual_width <= point::epsilon) {
+    constexpr float maximum_profile_extent = 100.0f;
+    if (!std::isfinite(visual_width) || visual_width <= point::epsilon) {
         visual_width = 1.0f;
+    } else {
+        visual_width = std::min(visual_width, maximum_profile_extent);
     }
-    if (interaction_width <= point::epsilon) {
+    if (!std::isfinite(interaction_width)
+        || interaction_width <= point::epsilon) {
         interaction_width = visual_width;
+    } else {
+        interaction_width = std::min(interaction_width, maximum_profile_extent);
     }
-    if (effective_length <= point::epsilon) {
+    if (!std::isfinite(effective_length)
+        || effective_length <= point::epsilon) {
         effective_length = 1.0f;
+    } else {
+        effective_length = std::min(effective_length, maximum_profile_extent);
     }
-    damping = std::clamp(damping, 0.0f, 1.0f);
+    damping = std::isfinite(damping) ? std::clamp(damping, 0.0f, 1.0f) : 0.5f;
 }
 
-bool yodau::core::line_profile::operator==(
-    const line_profile& other
-) const {
+bool yodau::core::line_profile::operator==(const line_profile& other) const {
     return line_name == other.line_name
         && std::fabs(visual_width - other.visual_width) < point::epsilon
         && std::fabs(interaction_width - other.interaction_width)
-            < point::epsilon
-        && std::fabs(effective_length - other.effective_length)
-            < point::epsilon
+        < point::epsilon
+        && std::fabs(effective_length - other.effective_length) < point::epsilon
         && std::fabs(damping - other.damping) < point::epsilon;
 }
 
@@ -154,9 +226,61 @@ yodau::core::line_profile yodau::core::make_line_profile(
     return profile;
 }
 
-float yodau::core::cross_z(
-    const point& a, const point& b, const point& c
+void yodau::core::validate_line_geometry(
+    const std::span<const point> points, const std::string_view name,
+    const bool closed
 ) {
+    if (!has_usable_name(name)) {
+        throw std::invalid_argument(
+            "line name must contain a visible character and no control "
+            "characters"
+        );
+    }
+
+    const size_t minimum_points = closed ? 3U : 2U;
+    if (points.size() < minimum_points) {
+        throw std::invalid_argument(
+            std::string(closed ? "closed line" : "open line")
+            + " requires at least " + std::to_string(minimum_points) + " points"
+        );
+    }
+
+    for (size_t i = 0; i < points.size(); ++i) {
+        validate_point_coordinate(points[i].x, i, 'x');
+        validate_point_coordinate(points[i].y, i, 'y');
+        if (i > 0U && points[i].compare(points[i - 1U])) {
+            throw std::invalid_argument(
+                "line points " + std::to_string(i) + " and "
+                + std::to_string(i + 1U) + " must be distinct"
+            );
+        }
+    }
+
+    const size_t minimum_distinct = closed ? 3U : 2U;
+    if (!has_distinct_point_count(points, minimum_distinct)) {
+        throw std::invalid_argument(
+            std::string(closed ? "closed line" : "open line")
+            + " requires at least " + std::to_string(minimum_distinct)
+            + " distinct points"
+        );
+    }
+
+    if (!closed) {
+        return;
+    }
+    if (points.front().compare(points.back())) {
+        throw std::invalid_argument(
+            "closed line must not repeat its first point at the end"
+        );
+    }
+    if (doubled_polygon_area(points) <= point::epsilon) {
+        throw std::invalid_argument(
+            "closed line points must form a non-degenerate polygon"
+        );
+    }
+}
+
+float yodau::core::cross_z(const point& a, const point& b, const point& c) {
     return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
@@ -212,8 +336,8 @@ std::optional<yodau::core::point> yodau::core::segment_intersection(
     const float t = (qpx * spy - qpy * spx) / denominator;
     const float u = (qpx * rpy - qpy * rpx) / denominator;
 
-    if (t < -point::epsilon || t > 1.0f + point::epsilon
-        || u < -point::epsilon || u > 1.0f + point::epsilon) {
+    if (t < -point::epsilon || t > 1.0f + point::epsilon || u < -point::epsilon
+        || u > 1.0f + point::epsilon) {
         return std::nullopt;
     }
 
@@ -251,6 +375,8 @@ yodau::core::parse_points(const std::string& points_str) {
             }
             float x = parse_float(x_str);
             float y = parse_float(y_str);
+            validate_point_coordinate(x, points.size(), 'x');
+            validate_point_coordinate(y, points.size(), 'y');
             points.emplace_back(x, y);
         }
         start = end + 1;
@@ -267,7 +393,8 @@ std::string yodau::core::normalize_str(const std::string_view str) {
     std::string normalized;
     normalized.reserve(str.size());
     for (const char ch : str) {
-        if (std::isspace(ch) || ch == '(' || ch == ')') {
+        if (std::isspace(static_cast<unsigned char>(ch)) != 0 || ch == '('
+            || ch == ')') {
             continue;
         }
         normalized.push_back(ch);

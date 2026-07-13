@@ -11,9 +11,8 @@
 
 namespace yodau::core {
 
-using stream_processed_frame_sink_fn = std::function<void(
-    const stream& s, const frame& f, const std::vector<event>& events
-)>;
+using stream_processed_frame_sink_fn = std::function<
+    void(const stream& s, const frame& f, const std::vector<event>& events)>;
 
 class stream_processed_frame_router {
 public:

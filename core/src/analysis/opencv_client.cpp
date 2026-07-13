@@ -10,7 +10,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <opencv2/core/version.hpp>
 #include <optional>
+#if CV_VERSION_MAJOR >= 5
+#include <opencv2/geometry.hpp>
+#endif
+#include <opencv2/imgproc.hpp>
+#include <opencv2/videoio.hpp>
+#include <stdexcept>
 
 // #define YODAU_DUMP_DEBUG_FRAMES
 // #define YODAU_DEBUG_GRID
@@ -24,50 +31,50 @@ namespace yodau::core {
 
 namespace opencv_client_support {
 
-constexpr size_t grid_layout_recalc_interval = 120;
+    constexpr size_t grid_layout_recalc_interval = 120;
 
-bool same_line_ptrs(
-    const std::vector<const line*>& lhs, const std::vector<const line*>& rhs
-) {
-    if (lhs.size() != rhs.size()) {
-        return false;
-    }
-
-    for (size_t i = 0; i < lhs.size(); ++i) {
-        if (lhs[i] != rhs[i]) {
+    bool same_line_ptrs(
+        const std::vector<line_ptr>& lhs, const std::vector<line_ptr>& rhs
+    ) {
+        if (lhs.size() != rhs.size()) {
             return false;
         }
-    }
 
-    return true;
-}
-
-const line* find_focus_line_for_rebuild(
-    const std::vector<const line*>& previous_line_ptrs,
-    const std::vector<line_ptr>& current_lines
-) {
-    const line* focus_line = nullptr;
-
-    for (const auto& line_ptr_value : current_lines) {
-        if (!line_ptr_value) {
-            continue;
-        }
-
-        bool seen_before = false;
-        for (const line* previous_ptr : previous_line_ptrs) {
-            if (previous_ptr == line_ptr_value.get()) {
-                seen_before = true;
-                break;
+        for (size_t i = 0; i < lhs.size(); ++i) {
+            if (lhs[i].get() != rhs[i].get()) {
+                return false;
             }
         }
 
-        if (!seen_before) {
-            focus_line = line_ptr_value.get();
-        }
+        return true;
     }
 
-    return focus_line;
-}
+    const line* find_focus_line_for_rebuild(
+        const std::vector<line_ptr>& previous_lines,
+        const std::vector<line_ptr>& current_lines
+    ) {
+        const line* focus_line = nullptr;
+
+        for (const auto& line_ptr_value : current_lines) {
+            if (!line_ptr_value) {
+                continue;
+            }
+
+            bool seen_before = false;
+            for (const auto& previous_line : previous_lines) {
+                if (previous_line.get() == line_ptr_value.get()) {
+                    seen_before = true;
+                    break;
+                }
+            }
+
+            if (!seen_before) {
+                focus_line = line_ptr_value.get();
+            }
+        }
+
+        return focus_line;
+    }
 
 } // namespace opencv_client_support
 
@@ -109,16 +116,26 @@ void opencv_client::daemon_start(
 ) {
     cv::VideoCapture cap;
     if (!open_video_capture_for_stream(s, cap)) {
-        return;
+        throw std::runtime_error(
+            "capture source could not be opened (stream type: "
+            + stream::type_name(s.get_type()) + ")"
+        );
     }
 
     cv::Mat m;
     while (!st.stop_requested()) {
-        const auto read_status = read_video_capture_frame(s, cap, m);
-        if (read_status == video_capture_read_status::rewound) {
+        const auto read_status = read_video_capture_frame(s, cap, m, st);
+        if (read_status == video_capture_read_status::wait_timeout) {
             continue;
         }
         if (read_status == video_capture_read_status::finished) {
+            if (!st.stop_requested()
+                && (s.get_type() != stream_type::file || s.is_looping())) {
+                throw std::runtime_error(
+                    "capture source ended unexpectedly (stream type: "
+                    + stream::type_name(s.get_type()) + ")"
+                );
+            }
             break;
         }
 
@@ -127,23 +144,13 @@ void opencv_client::daemon_start(
     }
 }
 
-const grid_stream_index&
-opencv_client::get_grid_index_cached(
+std::shared_ptr<const grid_stream_index> opencv_client::get_grid_index_cached(
     const stream& s, const std::vector<line_ptr>& lines
 ) {
     using namespace opencv_client_support;
 
-    std::vector<const line*> ptrs;
-    ptrs.reserve(lines.size());
-
-    for (const auto& lp : lines) {
-        if (!lp) {
-            continue;
-        }
-        ptrs.push_back(lp.get());
-    }
-
     grid_dims desired_dims = recommend_grid_dims(lines);
+    std::uint64_t observed_generation = 0;
 
     {
         std::scoped_lock lock(grid_cache_mtx);
@@ -151,42 +158,64 @@ opencv_client::get_grid_index_cached(
         auto it = grid_cache_by_stream.find(s.get_name());
         if (it != grid_cache_by_stream.end()) {
             const bool same_line_set
-                = same_line_ptrs(it->second.line_ptrs, ptrs);
-            const bool periodic_recalc_due
-                = same_line_set
+                = same_line_ptrs(it->second.line_snapshots, lines);
+            const bool periodic_recalc_due = same_line_set
                 && it->second.reuse_count >= grid_layout_recalc_interval;
 
             if (!same_line_set) {
-                const line* focus_line
-                    = find_focus_line_for_rebuild(it->second.line_ptrs, lines);
+                const line* focus_line = find_focus_line_for_rebuild(
+                    it->second.line_snapshots, lines
+                );
                 desired_dims = recommend_grid_dims(lines, focus_line);
             }
 
             if (same_line_set && !periodic_recalc_due
                 && it->second.dims.nx == desired_dims.nx
-                && it->second.dims.ny == desired_dims.ny) {
+                && it->second.dims.ny == desired_dims.ny && it->second.index) {
                 ++it->second.reuse_count;
                 return it->second.index;
             }
+
+            observed_generation = it->second.generation;
         }
     }
 
-    const grid_stream_index rebuilt = build_grid_stream_index(lines, desired_dims);
+    auto rebuilt = std::make_shared<const grid_stream_index>(
+        build_grid_stream_index(lines, desired_dims)
+    );
 
     {
         std::scoped_lock lock(grid_cache_mtx);
 
+        const auto current = grid_cache_by_stream.find(s.get_name());
+        if (current != grid_cache_by_stream.end()
+            && current->second.generation != observed_generation) {
+            if (same_line_ptrs(current->second.line_snapshots, lines)
+                && current->second.dims.nx == desired_dims.nx
+                && current->second.dims.ny == desired_dims.ny
+                && current->second.index) {
+                ++current->second.reuse_count;
+                return current->second.index;
+            }
+
+            // Another thread installed a newer snapshot while this one was
+            // being built. The local immutable result remains safe for this
+            // reader, but must not replace newer cache state.
+            return rebuilt;
+        }
+
         grid_cache_entry& e = grid_cache_by_stream[s.get_name()];
         e.dims = desired_dims;
-        e.line_ptrs = std::move(ptrs);
+        e.line_snapshots = lines;
         e.index = rebuilt;
         e.reuse_count = 0;
+        e.generation = observed_generation + 1;
 
 #ifdef YODAU_DEBUG_GRID
         std::cerr << "grid_index_rebuild stream=" << s.get_name()
-                  << " lines=" << lines.size()
-                  << " dims=" << e.index.dims.nx << "x" << e.index.dims.ny
-                  << " segments=" << e.index.segments.size() << std::endl;
+                  << " lines=" << lines.size() << " dims=" << e.index->dims.nx
+                  << "x" << e.index->dims.ny
+                  << " segments=" << e.index->segments.size() << std::endl;
 #endif
 
         return e.index;
@@ -203,7 +232,7 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 
     cv::Mat bgr;
     cv::Mat gray;
-    if (!frame_to_bgr_and_gray_mat(f, bgr, gray)) {
+    if (!frame_to_bgr_gray_mats(f, bgr, gray)) {
         return out;
     }
 
@@ -248,9 +277,8 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
         return out;
     }
 
-    const cv::Mat diff = legacy_frame_delta_motion_mask(
-        prev_gray, gray, 25, 1, 2
-    );
+    const cv::Mat diff
+        = legacy_frame_delta_motion_mask(prev_gray, gray, 25, 1, 2);
 
 #ifdef YODAU_DUMP_DEBUG_FRAMES
     if (do_dump && !base_name.empty()) {
@@ -353,20 +381,20 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 
     double impact_speed = 1.0;
     if (has_prev) {
-        impact_speed = legacy_impact_speed(
-            prev_pos, cur_pos_pct, ratio, min_ratio
-        );
+        impact_speed
+            = legacy_impact_speed(prev_pos, cur_pos_pct, ratio, min_ratio);
     }
 
     auto lines = s.lines_snapshot();
     normalize_lines_snapshot(lines);
 
+    std::shared_ptr<const grid_stream_index> idx_snapshot;
     const grid_stream_index* idx_ptr = nullptr;
     grid_dims g = recommend_grid_dims(lines);
     if (has_prev && !lines.empty()) {
-        const grid_stream_index& idx_ref = get_grid_index_cached(s, lines);
-        idx_ptr = &idx_ref;
-        g = idx_ref.dims;
+        idx_snapshot = get_grid_index_cached(s, lines);
+        idx_ptr = idx_snapshot.get();
+        g = idx_snapshot->dims;
     }
 
     const cv::Mat grid_u8 = downsample_motion_mask_to_grid(diff, g);
@@ -389,8 +417,7 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
             candidate_filter_ready = !candidate_cell_indices.empty();
 
             collect_grid_candidates(
-                *idx_ptr, candidate_cell_indices, tracker,
-                candidate_segment_ids
+                *idx_ptr, candidate_cell_indices, tracker, candidate_segment_ids
             );
 
             if (!candidate_segment_ids.empty()) {
@@ -476,9 +503,8 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 
                 if (do_fallback) {
                     bool line_box_ok = false;
-                    const pct_bbox line_box = compute_pct_bbox(
-                        pts, line_box_ok
-                    );
+                    const pct_bbox line_box
+                        = compute_pct_bbox(pts, line_box_ok);
                     if (!line_box_ok) {
                         continue;
                     }
@@ -524,8 +550,8 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
                 continue;
             }
 
-            const std::string key = s.get_name() + "|"
-                + tripwire_crossing_key(crossings.front());
+            const std::string key
+                = s.get_name() + "|" + tripwire_crossing_key(crossings.front());
             if (!motion_state_.allow_tripwire_emit(
                     key, now, std::chrono::milliseconds(1200)
                 )) {
@@ -537,10 +563,9 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
                     s.get_name(), crossing, now, impact_speed
                 );
 
-                std::cerr << "tripwire stream=" << tripwire_event.stream_name
-                          << " line=" << tripwire_event.line_name
-                          << " dir=" << crossing.direction << std::endl;
-
+                // Tripwire events flow through the structured event sink.
+                // Clients own filtering, retention, and presentation; avoid
+                // an unconditional synchronous stderr side channel here.
                 out.push_back(std::move(tripwire_event));
             }
         }
@@ -553,18 +578,18 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 #ifdef YODAU_DEBUG_GRID
     if (!active_cell_indices.empty()) {
         if (!lines.empty()) {
-            const grid_stream_index& idx = get_grid_index_cached(s, lines);
+            const auto idx = get_grid_index_cached(s, lines);
 
             grid_candidate_tracker tracker;
             std::vector<size_t> candidate_segment_ids;
 
             collect_grid_candidates(
-                idx, active_cell_indices, tracker, candidate_segment_ids
+                *idx, active_cell_indices, tracker, candidate_segment_ids
             );
 
             std::cerr << "grid_candidates stream=" << s.get_name()
                       << " active_cells=" << active_cell_indices.size()
-                      << " segments=" << idx.segments.size()
+                      << " segments=" << idx->segments.size()
                       << " candidates=" << candidate_segment_ids.size()
                       << std::endl;
         }
@@ -579,7 +604,7 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 }
 
 stream_manager::daemon_start_fn opencv_client::daemon_start_fn() {
-    return std::bind_front(&opencv_client::daemon_start, this);
+    return &opencv_client::daemon_start;
 }
 
 stream_manager::frame_processor_fn opencv_client::frame_processor_fn() {
@@ -595,7 +620,7 @@ void opencv_daemon_start(
     const stream& s, const std::function<void(frame&&)>& on_frame,
     const std::stop_token& st
 ) {
-    opencv_client::shared_instance().daemon_start(s, on_frame, st);
+    opencv_client::daemon_start(s, on_frame, st);
 }
 
 std::vector<event> opencv_motion_processor(const stream& s, const frame& f) {

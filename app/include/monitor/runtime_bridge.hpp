@@ -2,8 +2,8 @@
 #define YODAU_APP_MONITOR_RUNTIME_BRIDGE_HPP
 
 #include "core/namespace_alias.hpp"
-#include "streams/event.hpp"
 #include "monitor/debug_probe.hpp"
+#include "streams/event.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -43,8 +43,8 @@ public:
     void record_event_batch(const std::vector<yodau::core::event>& events);
     void add_marker(const QString& label);
 
-    bool is_enabled() const;
-    QString endpoint_path() const;
+    [[nodiscard]] bool is_enabled() const;
+    [[nodiscard]] QString endpoint_path() const;
 
 signals:
     void state_changed();
@@ -78,13 +78,15 @@ private:
     qint64 sample_tick_count;
 
     static QString event_kind_to_string(yodau::core::event_kind kind);
-    qint64 monotonic_timestamp_ms() const;
-    qint64 event_timestamp_ms(const yodau::core::event& event) const;
-    debug_probe::protocol_identity identity() const;
+    [[nodiscard]] qint64 monotonic_timestamp_ms() const;
+    [[nodiscard]] qint64
+    event_timestamp_ms(const yodau::core::event& event) const;
+    [[nodiscard]] debug_probe::protocol_identity identity() const;
     static void
     append_sample(QJsonArray& samples, const QString& metric_id, qint64 value);
-    QJsonArray build_sample_array() const;
-    QJsonObject build_snapshot_payload(const QString& reason) const;
+    [[nodiscard]] QJsonArray build_sample_array() const;
+    [[nodiscard]] QJsonObject
+    build_snapshot_payload(const QString& reason) const;
     void publish_hello();
     void publish_capabilities();
     void publish_sample_batch();

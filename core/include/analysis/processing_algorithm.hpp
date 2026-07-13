@@ -55,29 +55,35 @@ class processing_algorithm {
 public:
     virtual ~processing_algorithm() = default;
 
-    virtual std::string algorithm_id() const = 0;
-    virtual std::string display_name() const = 0;
+    [[nodiscard]] virtual std::string algorithm_id() const = 0;
+    [[nodiscard]] virtual std::string display_name() const = 0;
 
-    virtual processing_algorithm_configuration default_configuration() const {
+    [[nodiscard]] virtual processing_algorithm_configuration
+    default_configuration() const {
         return {};
     }
 
-    virtual processing_algorithm_configuration configuration() const {
+    [[nodiscard]] virtual processing_algorithm_configuration
+    configuration() const {
         return default_configuration();
     }
 
-    virtual void configure(processing_algorithm_configuration configuration) {
+    // The by-value API lets stateful overrides move configuration into storage.
+    virtual void configure(
+        processing_algorithm_configuration
+            configuration // NOLINT(performance-unnecessary-value-param)
+    ) {
         (void)configuration;
     }
 
     virtual void daemon_start(
-        const stream& stream_value, const std::function<void(frame&&)>& on_frame,
+        const stream& stream_value,
+        const std::function<void(frame&&)>& on_frame,
         const std::stop_token& stop_token
     ) = 0;
 
-    virtual processing_result process_frame(
-        const stream& stream_value, const frame& frame_value
-    ) = 0;
+    virtual processing_result
+    process_frame(const stream& stream_value, const frame& frame_value) = 0;
 };
 
 inline processing_metric make_processing_metric(
@@ -99,9 +105,8 @@ inline void add_processing_metric(
     );
 }
 
-inline processing_diagnostic make_processing_diagnostic(
-    std::string key, std::string value
-) {
+inline processing_diagnostic
+make_processing_diagnostic(std::string key, std::string value) {
     return processing_diagnostic {
         .key = std::move(key),
         .value = std::move(value),
@@ -142,9 +147,8 @@ public:
     };
 
     bool register_algorithm(entry entry_value) {
-        entry_value.algorithm_id = normalized_algorithm_id(
-            entry_value.algorithm_id
-        );
+        entry_value.algorithm_id
+            = normalized_algorithm_id(entry_value.algorithm_id);
         if (entry_value.algorithm_id.empty() || !entry_value.create) {
             return false;
         }
@@ -160,16 +164,15 @@ public:
         return entries_.contains(normalized_algorithm_id(algorithm_id));
     }
 
-    [[nodiscard]] std::optional<entry> find(
-        const std::string& algorithm_id
-    ) const {
+    [[nodiscard]] std::optional<entry>
+    find(const std::string& algorithm_id) const {
         const auto it = entries_.find(normalized_algorithm_id(algorithm_id));
-        return it == entries_.end() ? std::nullopt : std::optional<entry>(it->second);
+        return it == entries_.end() ? std::nullopt
+                                    : std::optional<entry>(it->second);
     }
 
-    [[nodiscard]] std::unique_ptr<processing_algorithm> create(
-        const std::string& algorithm_id
-    ) const {
+    [[nodiscard]] std::unique_ptr<processing_algorithm>
+    create(const std::string& algorithm_id) const {
         const auto entry_value = find(algorithm_id);
         return entry_value.has_value() ? entry_value->create() : nullptr;
     }
@@ -190,8 +193,7 @@ public:
         normalized.reserve(text.size());
 
         for (const char ch : text) {
-            if (std::isspace(static_cast<unsigned char>(ch))
-                || ch == '-') {
+            if (std::isspace(static_cast<unsigned char>(ch)) || ch == '-') {
                 if (normalized.empty() || normalized.back() == '_') {
                     continue;
                 }

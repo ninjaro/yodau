@@ -10,7 +10,9 @@ yodau::core::build_grid_line_index(const line& l, const grid_dims& g) {
     }
 
     out.segments = compile_line_to_grid_segments(l, g);
-    out.cell_to_segments.resize(static_cast<size_t>(g.nx * g.ny));
+    out.cell_to_segments.resize(
+        static_cast<size_t>(g.nx) * static_cast<size_t>(g.ny)
+    );
 
     for (size_t seg_i = 0; seg_i < out.segments.size(); ++seg_i) {
         const auto& seg = out.segments[seg_i];

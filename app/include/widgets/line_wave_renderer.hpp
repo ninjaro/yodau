@@ -131,20 +131,18 @@ inline visual_style style_for_line(
     const QString& response_text
 ) {
     const double width_scale = std::clamp(
-        static_cast<double>(line_width_visual_value(width_text)) / 3.0,
-        0.6, 2.2
+        static_cast<double>(line_width_visual_value(width_text)) / 3.0, 0.6, 2.2
     );
     const double length_scale = line_length_scale(length_text);
     const double response_scale = line_response_scale(response_text);
 
     visual_style style;
     style.amplitude_k = std::clamp(
-        0.74 + width_scale * 0.24 + (response_scale - 1.0) * 0.28,
-        0.55, 1.85
+        0.74 + width_scale * 0.24 + (response_scale - 1.0) * 0.28, 0.55, 1.85
     );
     style.speed_k = std::clamp(
-        1.08 - (width_scale - 1.0) * 0.18 - (length_scale - 1.0) * 0.40,
-        0.55, 1.45
+        1.08 - (width_scale - 1.0) * 0.18 - (length_scale - 1.0) * 0.40, 0.55,
+        1.45
     );
     style.spread_k = std::clamp(
         0.84 + width_scale * 0.18 + length_scale * 0.20
@@ -152,8 +150,8 @@ inline visual_style style_for_line(
         0.65, 1.95
     );
     style.frequency_k = std::clamp(
-        1.16 - (width_scale - 1.0) * 0.16 - (length_scale - 1.0) * 0.42,
-        0.5, 1.65
+        1.16 - (width_scale - 1.0) * 0.16 - (length_scale - 1.0) * 0.42, 0.5,
+        1.65
     );
     style.damping_k = std::clamp(
         1.08 - (width_scale - 1.0) * 0.08 - (length_scale - 1.0) * 0.16
@@ -161,15 +159,13 @@ inline visual_style style_for_line(
         0.45, 1.55
     );
     style.glow_width_k = std::clamp(
-        0.9 + width_scale * 0.16 + (response_scale - 1.0) * 0.14,
-        0.75, 1.55
+        0.9 + width_scale * 0.16 + (response_scale - 1.0) * 0.14, 0.75, 1.55
     );
     return style;
 }
 
-inline path_geometry build_path_geometry(
-    const std::vector<QPointF>& pts_pct, const bool closed
-) {
+inline path_geometry
+build_path_geometry(const std::vector<QPointF>& pts_pct, const bool closed) {
     path_geometry geometry;
     geometry.closed = closed;
 
@@ -286,7 +282,8 @@ inline double forward_distance(
     const double sample_pos, const int travel_sign
 ) {
     if (!geometry.closed) {
-        return travel_sign > 0 ? sample_pos - origin_pos : origin_pos - sample_pos;
+        return travel_sign > 0 ? sample_pos - origin_pos
+                               : origin_pos - sample_pos;
     }
 
     if (geometry.total_length <= 0.0) {
@@ -346,9 +343,8 @@ inline double displacement_px(
         const int hops = segment_hops(
             geometry, pulse_value.source_segment_index, segment_index
         );
-        const double joint_factor = std::pow(
-            joint_transfer, static_cast<double>(hops)
-        );
+        const double joint_factor
+            = std::pow(joint_transfer, static_cast<double>(hops));
         const double time_decay = std::exp(-pulse_value.damping_per_s * age_s);
 
         double edge_factor = 1.0;
@@ -374,17 +370,16 @@ inline double displacement_px(
 }
 
 inline QPointF to_px(const QPointF& pos_pct, const QSize& target_size) {
-    return {
-        pos_pct.x() / 100.0 * static_cast<double>(target_size.width()),
-        pos_pct.y() / 100.0 * static_cast<double>(target_size.height())
-    };
+    return { pos_pct.x() / 100.0 * static_cast<double>(target_size.width()),
+             pos_pct.y() / 100.0 * static_cast<double>(target_size.height()) };
 }
 
 inline bool draw(
-    QPainter& painter, const path_geometry& geometry, const QVector<pulse>& pulses,
-    const QSize& target_size, const QColor& line_color,
-    const QString& width_text, const QString& length_text,
-    const QString& response_text, const qint64 now_ms
+    QPainter& painter, const path_geometry& geometry,
+    const QVector<pulse>& pulses, const QSize& target_size,
+    const QColor& line_color, const QString& width_text,
+    const QString& length_text, const QString& response_text,
+    const qint64 now_ms
 ) {
     if (pulses.isEmpty() || geometry.segments.empty()) {
         return false;
@@ -394,7 +389,8 @@ inline bool draw(
     QPolygonF wave_poly;
     bool has_visible_wave = false;
 
-    for (size_t segment_i = 0; segment_i < geometry.segments.size(); ++segment_i) {
+    for (size_t segment_i = 0; segment_i < geometry.segments.size();
+         ++segment_i) {
         const auto& segment = geometry.segments[segment_i];
         const QLineF segment_px(
             to_px(segment.a_pct, target_size), to_px(segment.b_pct, target_size)
@@ -413,14 +409,15 @@ inline bool draw(
 
         for (int sample_i = segment_i == 0 ? 0 : 1; sample_i <= samples;
              sample_i += 1) {
-            const double t = static_cast<double>(sample_i)
-                / static_cast<double>(samples);
+            const double t
+                = static_cast<double>(sample_i) / static_cast<double>(samples);
             const QPointF base_pct(
                 segment.a_pct.x() + (segment.b_pct.x() - segment.a_pct.x()) * t,
                 segment.a_pct.y() + (segment.b_pct.y() - segment.a_pct.y()) * t
             );
             const QPointF base_px = to_px(base_pct, target_size);
-            const double sample_path_pos = segment.start_pos + t * segment.length;
+            const double sample_path_pos
+                = segment.start_pos + t * segment.length;
             const double sample_displacement_px = displacement_px(
                 geometry, segment.index, sample_path_pos, now_ms, pulses
             );
@@ -454,8 +451,7 @@ inline bool draw(
     QColor wave_color = line_color.lighter(125);
     wave_color.setAlpha(
         std::clamp(
-            static_cast<int>(208.0 + (style.amplitude_k - 1.0) * 36.0),
-            160, 245
+            static_cast<int>(208.0 + (style.amplitude_k - 1.0) * 36.0), 160, 245
         )
     );
     QPen wave_pen(wave_color);
@@ -489,8 +485,7 @@ inline void add_pulses(
         next_pulse.start_ms = now_ms;
         next_pulse.origin_path_pos = projection.path_pos;
         next_pulse.amplitude = std::clamp(
-            (5.0 + 9.0 * clamped_strength * clamped_speed)
-                * style.amplitude_k,
+            (5.0 + 9.0 * clamped_strength * clamped_speed) * style.amplitude_k,
             3.0, 24.0
         );
         next_pulse.speed = std::clamp(
@@ -516,8 +511,7 @@ inline void add_pulses(
             const qint64 merge_age = now_ms - existing.start_ms;
             if (existing.source_segment_index != next_pulse.source_segment_index
                 || existing.travel_sign != next_pulse.travel_sign
-                || merge_age < 0
-                || merge_age > merge_window_ms) {
+                || merge_age < 0 || merge_age > merge_window_ms) {
                 continue;
             }
 
@@ -530,9 +524,8 @@ inline void add_pulses(
                 existing.damping_per_s = next_pulse.damping_per_s;
                 existing.displacement_sign = next_pulse.displacement_sign;
             } else {
-                existing.amplitude = std::max(
-                    existing.amplitude, next_pulse.amplitude
-                );
+                existing.amplitude
+                    = std::max(existing.amplitude, next_pulse.amplitude);
             }
 
             if (next_pulse.start_ms < existing.start_ms) {

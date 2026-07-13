@@ -32,9 +32,7 @@ std::vector<processing_tripwire_crossing> tripwire_crossings_for_contour_line(
     const std::vector<size_t>* candidate_segment_indices = nullptr
 );
 
-std::string tripwire_crossing_key(
-    const processing_tripwire_crossing& crossing
-);
+std::string tripwire_crossing_key(const processing_tripwire_crossing& crossing);
 
 event make_tripwire_event(
     std::string stream_name, const processing_tripwire_crossing& crossing,

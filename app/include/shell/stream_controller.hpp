@@ -3,13 +3,18 @@
 
 #include "core/namespace_alias.hpp"
 #include <QColor>
+#include <QHash>
+#include <QImage>
 #include <QMap>
+#include <QMutex>
 #include <QObject>
 #include <QPointF>
 #include <QRandomGenerator>
 #include <QString>
+#include <QThreadPool>
 #include <QTimer>
 
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <vector>
@@ -49,8 +54,17 @@ public:
         stream_board* zone, yodau::monitor::runtime_bridge* monitor = nullptr,
         QObject* parent = nullptr
     );
+    ~stream_controller() override;
 
     void init_from_core();
+
+    [[nodiscard]] QString active_configuration_stream_name() const;
+    [[nodiscard]] bool export_line_configuration_to(
+        const QString& path, QString* error_message = nullptr
+    ) const;
+    [[nodiscard]] bool import_line_configuration_from(
+        const QString& path, QString* error_message = nullptr
+    );
 
 public slots:
     // add tab
@@ -87,22 +101,19 @@ private slots:
     void on_active_line_save_requested(line_profile profile_value);
     void on_active_line_enabled_changed(const QString& line_name, bool enabled);
     void on_active_line_detach_requested(const QString& line_name);
-    void on_active_line_edit_preview_changed(line_edit_request request);
-    void on_active_line_edit_preview_cleared();
-    void on_active_line_edit_save_requested(line_edit_request request);
+    void on_line_edit_preview_changed(line_edit_request request);
+    void on_line_edit_preview_cleared();
+    void on_line_edit_save_requested(line_edit_request request);
 
-    void on_active_template_add_requested(
-        template_apply_settings settings_value
-    );
-    void on_active_template_settings_changed(
-        template_apply_settings settings_value
-    );
+    void
+    on_active_template_add_requested(template_apply_settings settings_value);
+    void
+    on_active_template_settings_changed(template_apply_settings settings_value);
 
     void on_active_line_undo_requested();
-    void on_core_frame_processed(
-        QString stream_name, int width, int height
-    );
-    void on_core_event_queued(yodau::core::event event_value);
+    void
+    on_core_frame_processed(const QString& stream_name, int width, int height);
+    void on_core_event_queued(const yodau::core::event& event_value);
 
 private:
     // setup
@@ -126,9 +137,8 @@ private:
     void append_log_entry(app_log_entry entry) const;
     void append_log_entries(const QVector<app_log_entry>& entries) const;
     void append_log(
-        app_log_area area, app_log_severity severity,
-        const QString& subsystem, const QString& message,
-        const QString& stream_name = QString(),
+        app_log_area area, app_log_severity severity, const QString& subsystem,
+        const QString& message, const QString& stream_name = QString(),
         const QString& detail = QString(),
         const QString& algorithm_id = QString(),
         const QString& line_name = QString(),
@@ -169,18 +179,20 @@ private:
     static int interval_ms_for_fps(int fps);
     static int fps_for_interval_ms(int interval_ms);
     static double update_fps_ema(
-        std::chrono::steady_clock::time_point& last_sample,
-        double& ema_fps, std::chrono::steady_clock::time_point now
+        std::chrono::steady_clock::time_point& last_sample, double& ema_fps,
+        std::chrono::steady_clock::time_point now
     );
-    QImage scaled_processing_image(
+    QSize processing_image_size(
         const QString& stream_name, const QImage& image
     ) const;
+    void schedule_gui_frame_worker(const QString& stream_name, int delay_ms);
+    void drain_latest_gui_frames(const QString& stream_name);
     void update_monitor_inventory();
 
     void on_core_event(const yodau::core::event& e);
     void on_core_events(const std::vector<yodau::core::event>& evs);
 
-    yodau::core::frame frame_from_image(const QImage& image) const;
+    static yodau::core::frame frame_from_image(const QImage& image);
 
 private:
     yodau::core::processing_runtime core_runtime;
@@ -208,16 +220,33 @@ private:
 
     yodau::core::fps_capability_profile fps_capability;
     QHash<QString, int> processing_scale_percent_by_stream;
+    QHash<QString, QString> virtual_camera_path_by_stream;
     QHash<QString, stream_runtime_metrics> runtime_metrics_by_stream;
+
     struct stream_rate_tracker {
         std::chrono::steady_clock::time_point last_input_frame {};
         std::chrono::steady_clock::time_point last_core_frame {};
         double input_fps_ema { 0.0 };
         double core_fps_ema { 0.0 };
     };
+
     QHash<QString, stream_rate_tracker> rate_trackers_by_stream;
     double processing_cost_ema_ms { 0.0 };
     std::chrono::steady_clock::time_point last_fps_policy_refresh {};
+
+    struct pending_gui_frame {
+        QImage latest_image;
+        QSize processing_size;
+        bool worker_scheduled { false };
+        quint64 dropped_frames { 0 };
+        int minimum_interval_ms { 1 };
+        std::chrono::steady_clock::time_point last_scheduled {};
+    };
+
+    QHash<QString, pending_gui_frame> pending_gui_frames;
+    QMutex pending_gui_frames_mutex;
+    QThreadPool processing_pool;
+    std::atomic_bool shutting_down { false };
 };
 
 #endif // YODAU_APP_SHELL_STREAM_CONTROLLER_HPP

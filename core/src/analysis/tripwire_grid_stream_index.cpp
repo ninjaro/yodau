@@ -52,7 +52,7 @@ void add_grid_cell_index(
         return;
     }
 
-    const size_t index = static_cast<size_t>(cell_idx);
+    const auto index = static_cast<size_t>(cell_idx);
     if (index >= seen_cells.size() || seen_cells[index] != 0) {
         return;
     }
@@ -164,7 +164,9 @@ yodau::core::grid_stream_index yodau::core::build_grid_stream_index(
         return out;
     }
 
-    out.cell_to_segment_ids.resize(static_cast<size_t>(g.nx * g.ny));
+    out.cell_to_segment_ids.resize(
+        static_cast<size_t>(g.nx) * static_cast<size_t>(g.ny)
+    );
 
     for (const auto& lp : input_lines) {
         if (!lp) {
@@ -231,8 +233,7 @@ yodau::core::grid_dims yodau::core::recommend_grid_dims(
         segment_count += line_segments;
 
         bool bbox_ok = false;
-        const pct_bbox bbox
-            = compute_pct_bbox(line_ptr_value->points, bbox_ok);
+        const pct_bbox bbox = compute_pct_bbox(line_ptr_value->points, bbox_ok);
         if (!bbox_ok) {
             continue;
         }
@@ -270,12 +271,10 @@ yodau::core::grid_dims yodau::core::recommend_grid_dims(
         side += 2;
     }
 
-    const float avg_span_pct
-        = line_count > 0
+    const float avg_span_pct = line_count > 0
         ? span_sum_pct / static_cast<float>(line_count)
         : 100.0f;
-    const float avg_area_pct
-        = line_count > 0
+    const float avg_area_pct = line_count > 0
         ? area_sum_pct / static_cast<float>(line_count)
         : 10000.0f;
 

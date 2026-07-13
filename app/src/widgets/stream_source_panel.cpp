@@ -5,8 +5,8 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
-#include <QFileInfo>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -96,6 +96,15 @@ void stream_source_panel::build_ui() {
     name_edit = new QLineEdit(name_box);
     name_edit->setObjectName(QStringLiteral("settings_add_name_edit"));
     name_layout->addWidget(name_edit);
+    name_error_label = new QLabel(name_box);
+    name_error_label->setObjectName(
+        QStringLiteral("settings_add_name_error_label")
+    );
+    name_error_label->setWordWrap(true);
+    name_error_label->setStyleSheet(QStringLiteral("color: #b00020;"));
+    name_error_label->setAccessibleName(tr("Stream name error"));
+    name_error_label->hide();
+    name_layout->addWidget(name_error_label);
     layout->addWidget(name_box);
 
     connect(
@@ -136,7 +145,9 @@ void stream_source_panel::build_ui() {
     const auto file_layout = new QVBoxLayout(add_file_box);
     const auto file_form = new QFormLayout();
     file_path_edit = new QLineEdit(add_file_box);
-    file_path_edit->setObjectName(QStringLiteral("settings_add_file_path_edit"));
+    file_path_edit->setObjectName(
+        QStringLiteral("settings_add_file_path_edit")
+    );
     file_path_edit->setReadOnly(true);
     loop_checkbox = new QCheckBox(str_label("loop"), add_file_box);
     loop_checkbox->setObjectName(QStringLiteral("settings_add_loop_checkbox"));
@@ -201,7 +212,8 @@ void stream_source_panel::build_ui() {
     layout->addWidget(add_btn);
 
     connect(
-        add_btn, &QPushButton::clicked, this, &stream_source_panel::on_add_clicked
+        add_btn, &QPushButton::clicked, this,
+        &stream_source_panel::on_add_clicked
     );
 }
 
@@ -290,27 +302,24 @@ void stream_source_panel::refresh_summary() const {
             ? file_path_edit->text().trimmed()
             : QString();
         if (path.isEmpty()) {
-            summary_label->setText(
-                QStringLiteral(
-                    "File mode waits for a clip or recording path before the "
-                    "stream can be added."
-                )
-            );
+            summary_label->setText(QStringLiteral(
+                "File mode waits for a clip or recording path before the "
+                "stream can be added."
+            ));
             return;
         }
 
         const QString file_name = QFileInfo(path).fileName();
-        summary_label->setText(
-            QStringLiteral("%1 | file %2 as %3 | loop %4")
-                .arg(readiness)
-                .arg(file_name.isEmpty() ? path : file_name)
-                .arg(target_name)
-                .arg(
-                    loop_checkbox != nullptr && loop_checkbox->isChecked()
-                        ? QStringLiteral("on")
-                        : QStringLiteral("off")
-                )
-        );
+        summary_label->setText(QStringLiteral("%1 | file %2 as %3 | loop %4")
+                                   .arg(readiness)
+                                   .arg(file_name.isEmpty() ? path : file_name)
+                                   .arg(target_name)
+                                   .arg(
+                                       loop_checkbox != nullptr
+                                               && loop_checkbox->isChecked()
+                                           ? QStringLiteral("on")
+                                           : QStringLiteral("off")
+                                   ));
         return;
     }
     case input_mode::local: {
@@ -319,39 +328,31 @@ void stream_source_panel::refresh_summary() const {
             : QString();
         if (source.isEmpty()) {
             summary_label->setText(
-                QStringLiteral(
-                    "Local mode waits for a detected camera source."
-                )
+                QStringLiteral("Local mode waits for a detected camera source.")
             );
             return;
         }
 
-        summary_label->setText(
-            QStringLiteral("%1 | local source %2 as %3")
-                .arg(readiness)
-                .arg(source)
-                .arg(target_name)
-        );
+        summary_label->setText(QStringLiteral("%1 | local source %2 as %3")
+                                   .arg(readiness)
+                                   .arg(source)
+                                   .arg(target_name));
         return;
     }
     case input_mode::url: {
-        const QString url = url_edit != nullptr ? url_edit->text().trimmed()
-                                                : QString();
+        const QString url
+            = url_edit != nullptr ? url_edit->text().trimmed() : QString();
         if (url.isEmpty()) {
             summary_label->setText(
-                QStringLiteral(
-                    "URL mode waits for a network stream address."
-                )
+                QStringLiteral("URL mode waits for a network stream address.")
             );
             return;
         }
 
-        summary_label->setText(
-            QStringLiteral("%1 | url %2 as %3")
-                .arg(readiness)
-                .arg(url)
-                .arg(target_name)
-        );
+        summary_label->setText(QStringLiteral("%1 | url %2 as %3")
+                                   .arg(readiness)
+                                   .arg(url)
+                                   .arg(target_name));
         return;
     }
     }
@@ -394,11 +395,22 @@ void stream_source_panel::set_name_error(const bool error) const {
     if (!error) {
         name_edit->setStyleSheet(QString());
         name_edit->setToolTip(QString());
+        name_edit->setAccessibleDescription(QString());
+        if (name_error_label != nullptr) {
+            name_error_label->clear();
+            name_error_label->hide();
+        }
         return;
     }
 
+    const QString message = str_label("name is already taken");
     name_edit->setStyleSheet("border: 1px solid red;");
-    name_edit->setToolTip(str_label("name is already taken"));
+    name_edit->setToolTip(message);
+    name_edit->setAccessibleDescription(message);
+    if (name_error_label != nullptr) {
+        name_error_label->setText(message);
+        name_error_label->show();
+    }
 }
 
 void stream_source_panel::on_choose_file() {
@@ -410,10 +422,12 @@ void stream_source_panel::on_choose_file() {
     );
     if (!path.isEmpty() && file_path_edit != nullptr) {
         file_path_edit->setText(path);
-        emit log_requested(stream_source_panel_support::make_log_entry(
-            app_log_severity::info, QStringLiteral("file selected"),
-            QString(), path
-        ));
+        emit log_requested(
+            stream_source_panel_support::make_log_entry(
+                app_log_severity::info, QStringLiteral("file selected"),
+                QString(), path
+            )
+        );
     }
     update_add_enabled();
 }
@@ -421,39 +435,46 @@ void stream_source_panel::on_choose_file() {
 void stream_source_panel::on_add_clicked() {
     const QString name = resolved_name_for_current_input();
     if (!name_is_unique(name)) {
-        emit log_requested(stream_source_panel_support::make_log_entry(
-            app_log_severity::warning,
-            QStringLiteral("stream name already exists"), name
-        ));
+        emit log_requested(
+            stream_source_panel_support::make_log_entry(
+                app_log_severity::warning,
+                QStringLiteral("stream name already exists"), name
+            )
+        );
         set_name_error(true);
         update_add_enabled();
         return;
     }
 
     if (!current_input_valid()) {
-        emit log_requested(stream_source_panel_support::make_log_entry(
-            app_log_severity::warning,
-            QStringLiteral("stream add input is incomplete"), name
-        ));
+        emit log_requested(
+            stream_source_panel_support::make_log_entry(
+                app_log_severity::warning,
+                QStringLiteral("stream add input is incomplete"), name
+            )
+        );
         update_add_enabled();
         return;
     }
 
     switch (current_mode) {
     case input_mode::file: {
-        const QString path
-            = file_path_edit != nullptr ? file_path_edit->text().trimmed()
-                                        : QString();
-        const bool loop = loop_checkbox != nullptr && loop_checkbox->isChecked();
-        emit log_requested(stream_source_panel_support::make_log_entry(
-            app_log_severity::info,
-            QStringLiteral("requested file stream add"), name,
-            QStringLiteral("path=%1 loop=%2")
-                .arg(
-                    path,
-                    loop ? QStringLiteral("true") : QStringLiteral("false")
-                )
-        ));
+        const QString path = file_path_edit != nullptr
+            ? file_path_edit->text().trimmed()
+            : QString();
+        const bool loop
+            = loop_checkbox != nullptr && loop_checkbox->isChecked();
+        emit log_requested(
+            stream_source_panel_support::make_log_entry(
+                app_log_severity::info,
+                QStringLiteral("requested file stream add"), name,
+                QStringLiteral("path=%1 loop=%2")
+                    .arg(
+                        path,
+                        loop ? QStringLiteral("true") : QStringLiteral("false")
+                    )
+            )
+        );
         emit add_file_stream(path, name, loop);
         break;
     }
@@ -461,20 +482,24 @@ void stream_source_panel::on_add_clicked() {
         const QString source = local_sources_combo != nullptr
             ? local_sources_combo->currentText().trimmed()
             : QString();
-        emit log_requested(stream_source_panel_support::make_log_entry(
-            app_log_severity::info,
-            QStringLiteral("requested local stream add"), name, source
-        ));
+        emit log_requested(
+            stream_source_panel_support::make_log_entry(
+                app_log_severity::info,
+                QStringLiteral("requested local stream add"), name, source
+            )
+        );
         emit add_local_stream(source, name);
         break;
     }
     case input_mode::url: {
         const QString url
             = url_edit != nullptr ? url_edit->text().trimmed() : QString();
-        emit log_requested(stream_source_panel_support::make_log_entry(
-            app_log_severity::info,
-            QStringLiteral("requested url stream add"), name, url
-        ));
+        emit log_requested(
+            stream_source_panel_support::make_log_entry(
+                app_log_severity::info,
+                QStringLiteral("requested url stream add"), name, url
+            )
+        );
         emit add_url_stream(url, name);
         break;
     }
@@ -483,13 +508,15 @@ void stream_source_panel::on_add_clicked() {
 
 void stream_source_panel::on_refresh_local() {
     emit detect_local_sources_requested();
-    emit log_requested(stream_source_panel_support::make_log_entry(
-        app_log_severity::info,
-        QStringLiteral("local source detection requested")
-    ));
+    emit log_requested(
+        stream_source_panel_support::make_log_entry(
+            app_log_severity::info,
+            QStringLiteral("local source detection requested")
+        )
+    );
 }
 
-void stream_source_panel::on_name_changed(QString) const {
+void stream_source_panel::on_name_changed(const QString&) const {
     const QString name = resolved_name_for_current_input();
     set_name_error(!name_is_unique(name));
     update_add_enabled();

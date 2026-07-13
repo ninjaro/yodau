@@ -1,7 +1,7 @@
 #include "shell/main_window.hpp"
 
-#include "shell/str_label.hpp"
 #include "monitor/runtime_bridge.hpp"
+#include "shell/str_label.hpp"
 
 #include <QAction>
 #include <QLabel>

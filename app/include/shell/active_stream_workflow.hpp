@@ -18,10 +18,10 @@ public:
 
     explicit active_stream_workflow(active_stream_state& active_streams);
 
-    [[nodiscard]] transition_result set_active_stream(const QString& name) const;
-    [[nodiscard]] transition_result apply_stream_settings(
-        stream_settings settings_value
-    ) const;
+    [[nodiscard]] transition_result
+    set_active_stream(const QString& name) const;
+    [[nodiscard]] transition_result
+    apply_stream_settings(stream_settings settings_value) const;
 
 private:
     [[nodiscard]] static app_log_entry make_entry(
@@ -33,9 +33,8 @@ private:
     [[nodiscard]] static transition_result selection_result_entry(
         const active_stream_state::selection_result& selection
     );
-    [[nodiscard]] static transition_result switched_result_entry(
-        const active_stream_state::settings_result& result
-    );
+    [[nodiscard]] static transition_result
+    switched_result_entry(const active_stream_state::settings_result& result);
 
     active_stream_state& active_streams_;
 };

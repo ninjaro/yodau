@@ -1,8 +1,8 @@
 #ifndef YODAU_APP_WIDGETS_STREAM_CELL_HPP
 #define YODAU_APP_WIDGETS_STREAM_CELL_HPP
 
-#include "shell/app_settings.hpp"
 #include "shell/app_log.hpp"
+#include "shell/app_settings.hpp"
 #include "widgets/line_edit_interaction.hpp"
 #include "widgets/line_wave_renderer.hpp"
 #include "widgets/processing_overlay.hpp"
@@ -63,7 +63,7 @@ public:
     explicit stream_cell(const QString& name, QWidget* parent = nullptr);
 
     [[nodiscard]] const QString& get_name() const;
-    bool is_active() const;
+    [[nodiscard]] bool is_active() const;
 
     [[nodiscard]] std::vector<QPointF> draft_points_pct() const;
     [[nodiscard]] bool draft_closed() const;
@@ -73,10 +73,10 @@ public:
     [[nodiscard]] bool has_line_edit_preview() const;
     [[nodiscard]] QString line_edit_preview_name() const;
 
-    bool is_draft_preview() const;
-    stream_settings current_stream_settings() const;
-    stream_runtime_metrics current_runtime_metrics() const;
-    app_log_mode current_log_mode() const;
+    [[nodiscard]] bool is_draft_preview() const;
+    [[nodiscard]] stream_settings current_stream_settings() const;
+    [[nodiscard]] stream_runtime_metrics current_runtime_metrics() const;
+    [[nodiscard]] app_log_mode current_log_mode() const;
 
     void set_active(bool val);
     void set_drawing_enabled(bool on);
@@ -84,8 +84,7 @@ public:
     void set_runtime_metrics(const stream_runtime_metrics& metrics);
     void set_log_mode(app_log_mode mode);
 
-    void
-    set_draft_params(
+    void set_draft_params(
         const QString& name, const QColor& color, bool closed,
         const QString& color_mode_id = default_line_color_mode_id(),
         const QString& width_text = default_line_width_text(),
@@ -101,9 +100,8 @@ public:
 
     void set_draft_preview(bool on);
     void set_line_edit_preview(const std::optional<line_instance>& line_value);
-    void set_line_edit_source_line(
-        const std::optional<line_instance>& line_value
-    );
+    void
+    set_line_edit_source_line(const std::optional<line_instance>& line_value);
     void set_labels_enabled(bool on);
 
     void set_source(const QUrl& source);
@@ -120,7 +118,8 @@ public:
     using processing_overlay_instance = ::processing_overlay_instance;
 
     void add_event(const QPointF& pos_pct, const QColor& color);
-    void set_processing_overlays(std::vector<processing_overlay_instance> overlays);
+    void
+    set_processing_overlays(std::vector<processing_overlay_instance> overlays);
     void set_repaint_interval_ms(int ms);
     void highlight_line(const QString& line_name);
 
@@ -135,13 +134,15 @@ signals:
     void frame_ready(const QString& stream_name, const QImage& image);
     void line_edit_point_selected(int visible_index);
     void line_edit_shape_drag_requested(QPointF delta_pct);
-    void
-    line_edit_point_move_requested(int visible_index, QPointF point_pct);
+    void line_edit_point_move_requested(int visible_index, QPointF point_pct);
     void line_edit_point_split_requested(int visible_index);
-    void
-    line_edit_segment_insert_requested(int visible_segment_index, QPointF point_pct);
+    void line_edit_segment_insert_requested(
+        int visible_segment_index, QPointF point_pct
+    );
     void line_edit_point_delete_requested(int visible_index);
-    void line_edit_shape_rotate_requested(double delta_degrees, int visible_pivot_index);
+    void line_edit_shape_rotate_requested(
+        double delta_degrees, int visible_pivot_index
+    );
     void line_edit_change_started();
     void line_edit_change_finished();
     void line_edit_undo_requested();
@@ -162,6 +163,7 @@ protected:
 private:
     void build_ui();
     void update_icon();
+    void update_accessible_description();
 
     void draw_poly_with_points(
         QPainter& p, const std::vector<QPointF>& pts_pct, const QColor& color,
@@ -178,28 +180,28 @@ private:
     void draw_runtime_metrics(QPainter& p) const;
     void update_line_edit_cursor(const QPointF& pos_px);
 
-    QPointF label_pos_px(const line_instance& l) const;
+    [[nodiscard]] QPointF label_pos_px(const line_instance& l) const;
 
     struct line_edit_segment_hit_info {
         int visible_segment_index { -1 };
         QPointF point_pct;
     };
 
-    QPointF to_pct(const QPointF& pos_px) const;
-    QPointF to_px(const QPointF& pos_pct) const;
-    std::optional<int> line_edit_vertex_at(const QPointF& pos_px) const;
-    std::optional<line_edit_segment_hit_info> line_edit_segment_hit(
-        const QPointF& pos_px
-    ) const;
+    [[nodiscard]] QPointF to_pct(const QPointF& pos_px) const;
+    [[nodiscard]] QPointF to_px(const QPointF& pos_pct) const;
+    [[nodiscard]] std::optional<int>
+    line_edit_vertex_at(const QPointF& pos_px) const;
+    [[nodiscard]] std::optional<line_edit_segment_hit_info>
+    line_edit_segment_hit(const QPointF& pos_px) const;
     void reset_line_edit_drag_state();
     void sync_mouse_tracking();
     void draw_processing_overlays(QPainter& p) const;
     void draw_events(QPainter& p);
 
-    double segment_impact_k(
+    [[nodiscard]] static double segment_impact_k(
         const QPointF& a_pct, const QPointF& b_pct,
         const QVector<hit_info>& hit_points, double falloff_pct, double ktime
-    ) const;
+    );
     void draw_wave_overlay(
         QPainter& p, const line_instance& line_value, const QColor& line_color
     ) const;

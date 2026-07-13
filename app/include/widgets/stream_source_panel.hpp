@@ -45,16 +45,16 @@ private:
     void update_add_enabled() const;
     void refresh_summary() const;
 
-    QString resolved_name_for_current_input() const;
-    bool name_is_unique(const QString& name) const;
-    bool current_input_valid() const;
+    [[nodiscard]] QString resolved_name_for_current_input() const;
+    [[nodiscard]] bool name_is_unique(const QString& name) const;
+    [[nodiscard]] bool current_input_valid() const;
     void set_name_error(bool error) const;
 
 private slots:
     void on_choose_file();
     void on_add_clicked();
     void on_refresh_local();
-    void on_name_changed(QString text) const;
+    void on_name_changed(const QString& text) const;
     void on_mode_group_clicked(int id);
     void on_local_source_changed();
     void on_url_text_changed();
@@ -69,6 +69,7 @@ private:
     QRadioButton* local_radio { nullptr };
     QRadioButton* url_radio { nullptr };
     QLabel* summary_label { nullptr };
+    QLabel* name_error_label { nullptr };
 
     QGroupBox* add_file_box { nullptr };
     QLineEdit* file_path_edit { nullptr };

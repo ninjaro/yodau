@@ -88,7 +88,7 @@ QJsonArray debug_probe::protocol_required_identity_fields_v1() {
     );
 }
 
-QJsonArray debug_probe::protocol_required_metric_hint_fields_v1() {
+QJsonArray debug_probe::required_metric_hint_fields_v1() {
     return string_list_to_json_array(
         {
             QStringLiteral("kind"),
@@ -180,20 +180,19 @@ QJsonArray debug_probe::protocol_metric_catalog_v1() {
     return metrics;
 }
 
-QJsonObject
-debug_probe::protocol_metric_hint_for_id_v1(const QString& metric_id) {
+QJsonObject debug_probe::metric_hint_for_id_v1(const QString& metric_id) {
     if (metric_id.isEmpty()) {
-        return QJsonObject();
+        return {};
     }
 
     const QJsonArray catalog = protocol_metric_catalog_v1();
-    for (const QJsonValue& value : catalog) {
+    for (const auto& value : catalog) {
         const QJsonObject metric = value.toObject();
         if (metric.value(QStringLiteral("id")).toString() == metric_id) {
             return metric;
         }
     }
-    return QJsonObject();
+    return {};
 }
 
 QJsonObject debug_probe::protocol_capabilities_v1() {
@@ -225,7 +224,7 @@ QJsonObject debug_probe::protocol_capabilities_v1() {
     );
     capabilities.insert(
         QStringLiteral("required_metric_hint_fields"),
-        protocol_required_metric_hint_fields_v1()
+        required_metric_hint_fields_v1()
     );
     capabilities.insert(
         QStringLiteral("card_image_domain_hint_fields"), QJsonArray()
@@ -249,7 +248,7 @@ QJsonObject debug_probe::build_protocol_message_v1(
     );
     protocol.insert(
         QStringLiteral("required_metric_hint_fields"),
-        protocol_required_metric_hint_fields_v1()
+        required_metric_hint_fields_v1()
     );
     protocol.insert(QStringLiteral("capabilities"), protocol_capabilities_v1());
     protocol.insert(

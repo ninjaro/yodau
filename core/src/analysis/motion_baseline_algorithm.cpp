@@ -12,60 +12,66 @@ namespace yodau::core {
 
 namespace {
 
-class motion_baseline_algorithm final : public processing_algorithm {
-public:
-    motion_baseline_algorithm() { configuration_ = default_configuration(); }
+    class motion_baseline_algorithm final : public processing_algorithm {
+    public:
+        motion_baseline_algorithm() {
+            configuration_ = default_configuration();
+        }
 
-    std::string algorithm_id() const override {
-        return processing_algorithm_ids::motion_baseline;
-    }
+        std::string algorithm_id() const override {
+            return processing_algorithm_ids::motion_baseline;
+        }
 
-    std::string display_name() const override {
-        return processing_algorithm_display_name(algorithm_id());
-    }
+        std::string display_name() const override {
+            return processing_algorithm_display_name(algorithm_id());
+        }
 
-    processing_algorithm_configuration default_configuration() const override {
-        return processing_algorithm_default_configuration(algorithm_id());
-    }
+        processing_algorithm_configuration
+        default_configuration() const override {
+            return processing_algorithm_default_configuration(algorithm_id());
+        }
 
-    processing_algorithm_configuration configuration() const override {
-        return configuration_;
-    }
+        processing_algorithm_configuration configuration() const override {
+            return configuration_;
+        }
 
-    void configure(processing_algorithm_configuration configuration) override {
-        configuration_ = completed_processing_configuration(
-            algorithm_id(), std::move(configuration)
-        );
-    }
+        void
+        configure(processing_algorithm_configuration configuration) override {
+            configuration_ = completed_processing_configuration(
+                algorithm_id(), std::move(configuration)
+            );
+        }
 
-    void daemon_start(
-        const stream& stream_value, const std::function<void(frame&&)>& on_frame,
-        const std::stop_token& stop_token
-    ) override {
-        client_.daemon_start(stream_value, on_frame, stop_token);
-    }
+        void daemon_start(
+            const stream& stream_value,
+            const std::function<void(frame&&)>& on_frame,
+            const std::stop_token& stop_token
+        ) override {
+            opencv_client::daemon_start(stream_value, on_frame, stop_token);
+        }
 
-    processing_result process_frame(
-        const stream& stream_value, const frame& frame_value
-    ) override {
-        processing_result result;
-        result.events = client_.motion_processor(stream_value, frame_value);
-        add_processing_metric(
-            result, "event_count", static_cast<double>(result.events.size()),
-            "events"
-        );
-        add_processing_metric(
-            result, "line_count",
-            static_cast<double>(stream_value.lines_snapshot().size()), "lines"
-        );
-        add_algorithm_diagnostics(result, *this);
-        return result;
-    }
+        processing_result process_frame(
+            const stream& stream_value, const frame& frame_value
+        ) override {
+            processing_result result;
+            result.events = client_.motion_processor(stream_value, frame_value);
+            add_processing_metric(
+                result, "event_count",
+                static_cast<double>(result.events.size()), "events"
+            );
+            add_processing_metric(
+                result, "line_count",
+                static_cast<double>(stream_value.lines_snapshot().size()),
+                "lines"
+            );
+            add_algorithm_diagnostics(result, *this);
+            return result;
+        }
 
-private:
-    opencv_client client_;
-    processing_algorithm_configuration configuration_;
-};
+    private:
+        opencv_client client_;
+        processing_algorithm_configuration configuration_;
+    };
 
 } // namespace
 

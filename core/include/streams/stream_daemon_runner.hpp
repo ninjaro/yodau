@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stop_token>
 #include <string>
 #include <thread>
@@ -16,11 +17,26 @@
 namespace yodau::core {
 
 using stream_daemon_start_fn = std::function<void(
-    const stream& s, std::function<void(frame&&)> on_frame,
-    std::stop_token st
+    const stream& s, std::function<void(frame&&)> on_frame, std::stop_token st
 )>;
 using stream_daemon_push_fn
     = std::function<void(const std::string& stream_name, frame&& f)>;
+
+enum class stream_daemon_state {
+    starting,
+    running,
+    stopping,
+    completed,
+    failed,
+};
+
+struct stream_daemon_status {
+    stream_daemon_state state { stream_daemon_state::completed };
+    std::string error;
+};
+
+using stream_daemon_completion_fn = std::function<
+    void(const std::string& stream_name, const stream_daemon_status& status)>;
 
 class stream_daemon_runner {
 public:
@@ -28,21 +44,41 @@ public:
 
     bool start(
         const std::string& name, std::shared_ptr<stream> stream_ptr,
-        stream_daemon_start_fn daemon_fn, stream_daemon_push_fn push_fn
+        stream_daemon_start_fn daemon_fn, stream_daemon_push_fn push_fn,
+        stream_daemon_completion_fn completion_fn = {}
     );
 
     bool stop(const std::string& name);
     void stop_all();
     [[nodiscard]] bool is_running(const std::string& name) const;
+    [[nodiscard]] std::optional<stream_daemon_status>
+    status(const std::string& name) const;
 
 private:
-    static void run(
-        std::string stream_name, std::shared_ptr<stream> stream_ptr,
-        stream_daemon_start_fn daemon_fn, stream_daemon_push_fn push_fn,
-        std::stop_token st
-    );
+    struct daemon_state {
+        mutable std::mutex mtx;
+        stream_daemon_status status { stream_daemon_state::starting, {} };
+    };
 
-    std::unordered_map<std::string, std::jthread> daemons_;
+    struct daemon_entry {
+        std::jthread thread;
+        std::shared_ptr<daemon_state> state;
+    };
+
+    static void
+    run(const std::string& stream_name,
+        const std::shared_ptr<stream>& stream_ptr,
+        const stream_daemon_start_fn& daemon_fn, stream_daemon_push_fn push_fn,
+        const stream_daemon_completion_fn& completion_fn,
+        const std::shared_ptr<daemon_state>& state, const std::stop_token& st);
+
+    static stream_daemon_status snapshot(const daemon_state& state);
+    static void set_status(
+        daemon_state& state, stream_daemon_state value, std::string error = {}
+    );
+    static bool is_active(stream_daemon_state state);
+
+    std::unordered_map<std::string, daemon_entry> daemons_;
     mutable std::mutex mtx_;
 };
 

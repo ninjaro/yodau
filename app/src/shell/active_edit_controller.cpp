@@ -10,13 +10,15 @@ active_edit_controller::active_edit_controller(
     active_edit_session& edit_session, stream_widget_bridge& widget_bridge
 )
     : edit_session_(edit_session)
-    , widget_bridge_(widget_bridge) {}
+    , widget_bridge_(widget_bridge) { }
 
 void active_edit_controller::initialize_editor_state() const {
     widget_bridge_.initialize_editor_state(edit_session_);
 }
 
-void active_edit_controller::set_drawing_new_mode(const bool drawing_new) const {
+void active_edit_controller::set_drawing_new_mode(
+    const bool drawing_new
+) const {
     edit_session_.set_drawing_new_mode(drawing_new);
 
     auto* cell = widget_bridge_.active_cell();
@@ -28,7 +30,8 @@ void active_edit_controller::set_drawing_new_mode(const bool drawing_new) const 
     cell->set_drawing_enabled(drawing_new);
 
     if (drawing_new) {
-        const line_profile& draft_line_profile = edit_session_.draft_line_profile();
+        const line_profile& draft_line_profile
+            = edit_session_.draft_line_profile();
         cell->set_draft_params(
             draft_line_profile.name, draft_line_profile.color,
             draft_line_profile.closed, draft_line_profile.color_mode_id,
@@ -44,9 +47,8 @@ void active_edit_controller::set_drawing_new_mode(const bool drawing_new) const 
     );
 }
 
-const line_profile& active_edit_controller::apply_line_profile(
-    line_profile profile_value
-) const {
+const line_profile&
+active_edit_controller::apply_line_profile(line_profile profile_value) const {
     edit_session_.set_draft_line_profile(std::move(profile_value));
     const line_profile& draft_line_profile = edit_session_.draft_line_profile();
 

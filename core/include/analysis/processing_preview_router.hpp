@@ -1,12 +1,13 @@
 #ifndef YODAU_CORE_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP
 #define YODAU_CORE_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP
 
-#include "core/namespace_alias.hpp"
 #include "analysis/processing_algorithm.hpp"
+#include "core/namespace_alias.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace yodau::core {
@@ -15,17 +16,20 @@ class virtual_camera;
 
 class processing_preview_router {
 public:
-    explicit processing_preview_router(bool enable_virtual_camera);
+    explicit processing_preview_router(
+        bool enable_virtual_camera, std::string virtual_camera_device = {}
+    );
     ~processing_preview_router();
 
     processing_preview_router(const processing_preview_router&) = delete;
-    processing_preview_router& operator=(const processing_preview_router&) = delete;
+    processing_preview_router& operator=(const processing_preview_router&)
+        = delete;
     processing_preview_router(processing_preview_router&&) noexcept;
     processing_preview_router& operator=(processing_preview_router&&) noexcept;
 
-    bool has_virtual_camera() const;
-    virtual_camera* preview_camera();
-    const virtual_camera* preview_camera() const;
+    [[nodiscard]] bool has_virtual_camera() const;
+    [[nodiscard]] virtual_camera* preview_camera();
+    [[nodiscard]] const virtual_camera* preview_camera() const;
 
     void publish_processed_frame(
         const stream& stream_value, const frame& source_frame,

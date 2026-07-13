@@ -111,7 +111,9 @@ QString settings_panel::compose_current_log_report() const {
 QString settings_panel::compose_current_log_summary() const {
     return log_toolbar_widget != nullptr
         ? log_toolbar_widget->compose_log_summary(std::nullopt)
-        : QStringLiteral("yodau log summary\nentries=0 debug=0 info=0 warn=0 error=0");
+        : QStringLiteral(
+              "yodau log summary\nentries=0 debug=0 info=0 warn=0 error=0"
+          );
 }
 
 bool settings_panel::write_current_log_report(const QString& path) const {
@@ -297,7 +299,8 @@ void settings_panel::set_active_template_settings(
     active_editor_panel_widget->set_template_settings(settings_value);
 }
 
-template_apply_settings settings_panel::current_active_template_settings() const {
+template_apply_settings
+settings_panel::current_active_template_settings() const {
     return active_editor_panel_widget != nullptr
         ? active_editor_panel_widget->current_template_settings()
         : template_apply_settings {};
@@ -337,7 +340,9 @@ void settings_panel::set_active_lines(
     active_editor_panel_widget->set_active_lines(lines);
 }
 
-bool settings_panel::select_active_line_edit_point(const int visible_index) const {
+bool settings_panel::select_active_line_edit_point(
+    const int visible_index
+) const {
     return active_editor_panel_widget != nullptr
         && active_editor_panel_widget->select_line_edit_point(visible_index);
 }
@@ -358,12 +363,14 @@ bool settings_panel::move_active_line_edit_point(
         );
 }
 
-bool settings_panel::split_active_line_edit_point(const int visible_index) const {
+bool settings_panel::split_active_line_edit_point(
+    const int visible_index
+) const {
     return active_editor_panel_widget != nullptr
         && active_editor_panel_widget->split_line_edit_point(visible_index);
 }
 
-bool settings_panel::insert_active_line_edit_point_after(
+bool settings_panel::insert_active_line_point_after(
     const int visible_segment_index, const QPointF& point_pct
 ) const {
     return active_editor_panel_widget != nullptr
@@ -372,7 +379,9 @@ bool settings_panel::insert_active_line_edit_point_after(
         );
 }
 
-bool settings_panel::delete_active_line_edit_point(const int visible_index) const {
+bool settings_panel::delete_active_line_edit_point(
+    const int visible_index
+) const {
     return active_editor_panel_widget != nullptr
         && active_editor_panel_widget->delete_line_edit_point(visible_index);
 }
@@ -436,9 +445,7 @@ void settings_panel::append_active_log(const QString& msg) const {
     );
 }
 
-void settings_panel::clear_active_log() const {
-    Q_UNUSED(this);
-}
+void settings_panel::clear_active_log() const { Q_UNUSED(this); }
 
 void settings_panel::build_ui() {
     const auto root_layout = new QVBoxLayout(this);
@@ -476,33 +483,28 @@ void settings_panel::build_ui() {
         &settings_panel::active_stream_selected
     );
     connect(
-        active_editor_panel_widget, &active_editor_panel::edit_mode_changed, this,
-        &settings_panel::active_edit_mode_changed
+        active_editor_panel_widget, &active_editor_panel::edit_mode_changed,
+        this, &settings_panel::active_edit_mode_changed
     );
     connect(
         active_editor_panel_widget, &active_editor_panel::line_profile_changed,
-        this,
-        &settings_panel::active_line_profile_changed
+        this, &settings_panel::active_line_profile_changed
     );
     connect(
         active_editor_panel_widget, &active_editor_panel::line_save_requested,
-        this,
-        &settings_panel::active_line_save_requested
+        this, &settings_panel::active_line_save_requested
     );
     connect(
         active_editor_panel_widget, &active_editor_panel::line_undo_requested,
-        this,
-        &settings_panel::active_line_undo_requested
+        this, &settings_panel::active_line_undo_requested
     );
     connect(
         active_editor_panel_widget, &active_editor_panel::line_enabled_changed,
-        this,
-        &settings_panel::active_line_enabled_changed
+        this, &settings_panel::active_line_enabled_changed
     );
     connect(
         active_editor_panel_widget, &active_editor_panel::line_detach_requested,
-        this,
-        &settings_panel::active_line_detach_requested
+        this, &settings_panel::active_line_detach_requested
     );
     connect(
         active_editor_panel_widget,
@@ -515,8 +517,8 @@ void settings_panel::build_ui() {
         &settings_panel::active_line_edit_preview_cleared
     );
     connect(
-        active_editor_panel_widget, &active_editor_panel::line_edit_save_requested,
-        this,
+        active_editor_panel_widget,
+        &active_editor_panel::line_edit_save_requested, this,
         &settings_panel::active_line_edit_save_requested
     );
     connect(
@@ -525,8 +527,8 @@ void settings_panel::build_ui() {
         &settings_panel::active_template_settings_changed
     );
     connect(
-        active_editor_panel_widget, &active_editor_panel::template_add_requested,
-        this,
+        active_editor_panel_widget,
+        &active_editor_panel::template_add_requested, this,
         &settings_panel::active_template_add_requested
     );
 }
@@ -546,7 +548,9 @@ QWidget* settings_panel::build_streams_tab() {
         ),
         tab
     );
-    summary_label->setObjectName(QStringLiteral("settings_streams_intro_label"));
+    summary_label->setObjectName(
+        QStringLiteral("settings_streams_intro_label")
+    );
     summary_label->setWordWrap(true);
     layout->addWidget(summary_label);
 
@@ -570,12 +574,12 @@ QWidget* settings_panel::build_streams_tab() {
         &settings_panel::add_url_stream
     );
     connect(
-        source_panel, &stream_source_panel::detect_local_sources_requested, this,
-        &settings_panel::detect_local_sources_requested
+        source_panel, &stream_source_panel::detect_local_sources_requested,
+        this, &settings_panel::detect_local_sources_requested
     );
     connect(
         source_panel, &stream_source_panel::log_requested, this,
-        [this](app_log_entry entry) { append_log(entry); }
+        [this](app_log_entry entry) { append_log(std::move(entry)); }
     );
     connect(
         inventory_panel, &stream_inventory_panel::show_stream_changed, this,
@@ -604,13 +608,13 @@ QWidget* settings_panel::build_stream_settings_tab() {
         QStringLiteral("settings_stream_settings_tab")
     );
     connect(
-        stream_settings_panel_widget, &active_stream_panel::stream_selected, this,
-        &settings_panel::stream_settings_selection_changed
+        stream_settings_panel_widget, &active_stream_panel::stream_selected,
+        this, &settings_panel::stream_settings_selection_changed
     );
     connect(
         stream_settings_panel_widget,
-        &active_stream_panel::stream_settings_changed,
-        this, &settings_panel::active_stream_settings_changed
+        &active_stream_panel::stream_settings_changed, this,
+        &settings_panel::active_stream_settings_changed
     );
     sync_stream_settings_candidates();
     return stream_settings_panel_widget;
@@ -629,13 +633,14 @@ void settings_panel::sync_stream_settings_candidates() const {
 
     const QStringList names = configured_stream_names();
     stream_settings_panel_widget->set_active_candidates(names);
-    if (stream_settings_panel_widget->current_stream_settings().stream_name.isEmpty()
+    if (stream_settings_panel_widget->current_stream_settings()
+            .stream_name.isEmpty()
         && !names.isEmpty()) {
         stream_settings_panel_widget->set_active_current(names.front());
     }
 }
 
-void settings_panel::on_copy_logs_clicked() {
+void settings_panel::on_copy_logs_clicked() const {
     if (QApplication::clipboard() == nullptr) {
         return;
     }
@@ -643,7 +648,7 @@ void settings_panel::on_copy_logs_clicked() {
     QApplication::clipboard()->setText(compose_current_log_report());
 }
 
-void settings_panel::on_copy_summary_clicked() {
+void settings_panel::on_copy_summary_clicked() const {
     if (QApplication::clipboard() == nullptr) {
         return;
     }
@@ -652,13 +657,12 @@ void settings_panel::on_copy_summary_clicked() {
 }
 
 void settings_panel::on_save_logs_clicked() {
-    const QString default_name = QStringLiteral(
-        "yodau-log-report.txt"
-    );
+    const QString default_name = QStringLiteral("yodau-log-report.txt");
     const QString path = QFileDialog::getSaveFileName(
         this, str_label("save log report"), default_name,
         str_label(
-            "Text files (*.txt);;TSV files (*.tsv);;JSON files (*.json);;All files (*)"
+            "Text files (*.txt);;TSV files (*.tsv);;JSON files (*.json);;All "
+            "files (*)"
         )
     );
     if (path.isEmpty()) {

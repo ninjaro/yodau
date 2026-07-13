@@ -23,9 +23,9 @@ public:
     static QString protocol_version_string();
     static QJsonArray protocol_message_families_v1();
     static QJsonArray protocol_required_identity_fields_v1();
-    static QJsonArray protocol_required_metric_hint_fields_v1();
+    static QJsonArray required_metric_hint_fields_v1();
     static QJsonArray protocol_metric_catalog_v1();
-    static QJsonObject protocol_metric_hint_for_id_v1(const QString& metric_id);
+    static QJsonObject metric_hint_for_id_v1(const QString& metric_id);
     static QJsonObject protocol_capabilities_v1();
     static QJsonObject build_protocol_message_v1(
         const QString& message_family, const protocol_identity& identity,

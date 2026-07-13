@@ -70,11 +70,12 @@ void line_profile_panel::set_line_profile(const line_profile& profile) {
     current_color = profile.color.isValid() ? profile.color : QColor(Qt::red);
     {
         QSignalBlocker blocker(color_mode_combo);
-        const QString color_mode_id = normalized_line_color_mode_id(
-            profile.color_mode_id
-        );
+        const QString color_mode_id
+            = normalized_line_color_mode_id(profile.color_mode_id);
         const int color_mode_index = color_mode_combo->findData(color_mode_id);
-        color_mode_combo->setCurrentIndex(color_mode_index >= 0 ? color_mode_index : 0);
+        color_mode_combo->setCurrentIndex(
+            color_mode_index >= 0 ? color_mode_index : 0
+        );
     }
     line_profile_panel_support::set_button_color(color_button, current_color);
     line_profile_panel_support::set_editable_combo_value(
@@ -102,8 +103,7 @@ line_profile line_profile_panel::current_line_profile() const {
 
     profile.color = current_color;
     profile.color_mode_id = current_color_mode_id();
-    profile.closed
-        = closed_checkbox != nullptr && closed_checkbox->isChecked();
+    profile.closed = closed_checkbox != nullptr && closed_checkbox->isChecked();
     profile.width_text = width_combo != nullptr
         ? normalized_line_width_text(width_combo->currentText())
         : default_line_width_text();
@@ -242,7 +242,7 @@ void line_profile_panel::build_ui() {
 
     color_mode_combo = new QComboBox(this);
     color_mode_combo->setObjectName(
-        QStringLiteral("settings_active_line_color_mode_combo")
+        QStringLiteral("active_line_color_mode_combo")
     );
     for (const QString& mode_id : line_color_mode_ids()) {
         color_mode_combo->addItem(
@@ -252,19 +252,20 @@ void line_profile_panel::build_ui() {
     layout->addWidget(color_mode_combo);
 
     color_button = new QPushButton(str_label("color"), this);
-    color_button->setObjectName(QStringLiteral("settings_active_line_color_button"));
+    color_button->setObjectName(
+        QStringLiteral("settings_active_line_color_button")
+    );
     line_profile_panel_support::set_button_color(color_button, current_color);
     layout->addWidget(color_button);
 
     random_color_button = new QPushButton(str_label("random color"), this);
     random_color_button->setObjectName(
-        QStringLiteral("settings_active_line_random_color_button")
+        QStringLiteral("active_line_random_color_button")
     );
     layout->addWidget(random_color_button);
 
-    advanced_settings_checkbox = new QCheckBox(
-        str_label("advanced settings"), this
-    );
+    advanced_settings_checkbox
+        = new QCheckBox(str_label("advanced settings"), this);
     advanced_settings_checkbox->setObjectName(
         QStringLiteral("settings_active_line_advanced_checkbox")
     );
@@ -273,7 +274,7 @@ void line_profile_panel::build_ui() {
 
     parameter_mode_combo = new QComboBox(this);
     parameter_mode_combo->setObjectName(
-        QStringLiteral("settings_active_line_parameter_mode_combo")
+        QStringLiteral("active_line_parameter_mode_combo")
     );
     for (const QString& mode_id : line_parameter_mode_ids()) {
         parameter_mode_combo->addItem(
@@ -285,7 +286,7 @@ void line_profile_panel::build_ui() {
 
     parameter_mode_hint_label = new QLabel(this);
     parameter_mode_hint_label->setObjectName(
-        QStringLiteral("settings_active_line_parameter_mode_hint_label")
+        QStringLiteral("active_line_parameter_hint_label")
     );
     parameter_mode_hint_label->setWordWrap(true);
     layout->addWidget(parameter_mode_hint_label);
@@ -294,7 +295,9 @@ void line_profile_panel::build_ui() {
     layout->addWidget(width_label);
     width_combo = new QComboBox(this);
     width_combo->setEditable(true);
-    width_combo->setObjectName(QStringLiteral("settings_active_line_width_combo"));
+    width_combo->setObjectName(
+        QStringLiteral("settings_active_line_width_combo")
+    );
     line_profile_panel_support::populate_combo(
         width_combo, suggested_line_width_texts()
     );
@@ -328,16 +331,22 @@ void line_profile_panel::build_ui() {
     layout->addWidget(response_combo);
 
     summary_label = new QLabel(this);
-    summary_label->setObjectName(QStringLiteral("settings_active_line_summary_label"));
+    summary_label->setObjectName(
+        QStringLiteral("settings_active_line_summary_label")
+    );
     summary_label->setWordWrap(true);
     layout->addWidget(summary_label);
 
     undo_button = new QPushButton(str_label("undo point"), this);
-    undo_button->setObjectName(QStringLiteral("settings_active_line_undo_button"));
+    undo_button->setObjectName(
+        QStringLiteral("settings_active_line_undo_button")
+    );
     layout->addWidget(undo_button);
 
     save_button = new QPushButton(str_label("add line"), this);
-    save_button->setObjectName(QStringLiteral("settings_active_line_save_button"));
+    save_button->setObjectName(
+        QStringLiteral("settings_active_line_save_button")
+    );
     layout->addWidget(save_button);
 
     connect(
@@ -361,9 +370,8 @@ void line_profile_panel::build_ui() {
         &line_profile_panel::on_name_finished
     );
     connect(
-        color_mode_combo,
-        QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-        &line_profile_panel::on_color_mode_changed
+        color_mode_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &line_profile_panel::on_color_mode_changed
     );
     connect(
         advanced_settings_checkbox, &QCheckBox::toggled, this,
@@ -399,7 +407,9 @@ void line_profile_panel::build_ui() {
 
 QString line_profile_panel::current_color_mode_id() const {
     return color_mode_combo != nullptr
-        ? normalized_line_color_mode_id(color_mode_combo->currentData().toString())
+        ? normalized_line_color_mode_id(
+              color_mode_combo->currentData().toString()
+          )
         : default_line_color_mode_id();
 }
 
@@ -471,10 +481,14 @@ void line_profile_panel::refresh_parameter_mode_labels() {
     const QString mode_id = current_parameter_mode_id();
 
     if (width_label != nullptr) {
-        width_label->setText(str_label("%1").arg(line_width_label_text(mode_id)));
+        width_label->setText(
+            str_label("%1").arg(line_width_label_text(mode_id))
+        );
     }
     if (length_label != nullptr) {
-        length_label->setText(str_label("%1").arg(line_length_label_text(mode_id)));
+        length_label->setText(
+            str_label("%1").arg(line_length_label_text(mode_id))
+        );
     }
     if (response_label != nullptr) {
         response_label->setText(
@@ -498,10 +512,10 @@ void line_profile_panel::refresh_summary() {
         profile.width_text, profile.length_text, profile.response_text,
         current_parameter_mode_id()
     );
-    text += profile.closed ? QStringLiteral(" closed") : QStringLiteral(" open");
-    text += QStringLiteral(" color=%1").arg(
-        line_color_mode_display_name(profile.color_mode_id)
-    );
+    text
+        += profile.closed ? QStringLiteral(" closed") : QStringLiteral(" open");
+    text += QStringLiteral(" color=%1")
+                .arg(line_color_mode_display_name(profile.color_mode_id));
     if (profile.color_mode_id == QStringLiteral("manual")) {
         text += QStringLiteral(" %1").arg(profile.color.name(QColor::HexRgb));
     }

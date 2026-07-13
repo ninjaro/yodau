@@ -19,9 +19,7 @@ void populate_algorithm_combo(QComboBox* combo) {
 
     combo->clear();
     for (const QString& algorithm_id : app_algorithm_ids()) {
-        combo->addItem(
-            app_algorithm_display_name(algorithm_id), algorithm_id
-        );
+        combo->addItem(app_algorithm_display_name(algorithm_id), algorithm_id);
     }
 }
 
@@ -49,7 +47,9 @@ void populate_display_mode_combo(QComboBox* combo) {
     }
 }
 
-void set_form_row_visible(QFormLayout* form, QWidget* field, const bool visible) {
+void set_form_row_visible(
+    QFormLayout* form, QWidget* field, const bool visible
+) {
     if (field == nullptr) {
         return;
     }
@@ -72,14 +72,18 @@ algorithm_panel::algorithm_panel(QString object_prefix, QWidget* parent)
     set_stream_settings(stream_settings {});
 }
 
-void algorithm_panel::set_stream_settings(const stream_settings& settings_value) {
+void algorithm_panel::set_stream_settings(
+    const stream_settings& settings_value
+) {
     current_settings = normalized_settings(settings_value);
 
     if (algorithm_combo != nullptr) {
         const int algorithm_index
             = algorithm_combo->findData(current_settings.algorithm_id);
         QSignalBlocker blocker(algorithm_combo);
-        algorithm_combo->setCurrentIndex(algorithm_index >= 0 ? algorithm_index : 0);
+        algorithm_combo->setCurrentIndex(
+            algorithm_index >= 0 ? algorithm_index : 0
+        );
     }
 
     refresh_preset_options();
@@ -125,7 +129,8 @@ void algorithm_panel::on_preset_changed(const int index) {
 
     if (preset_combo != nullptr) {
         current_settings.algorithm_preset = normalized_algorithm_preset_id(
-            current_settings.algorithm_id, preset_combo->currentData().toString()
+            current_settings.algorithm_id,
+            preset_combo->currentData().toString()
         );
     }
     refresh_summary();
@@ -142,12 +147,12 @@ void algorithm_panel::on_display_mode_changed(const int index) {
     Q_UNUSED(index);
 
     if (display_mode_combo != nullptr) {
-        current_settings.movement_display_mode = normalized_movement_display_mode_id(
-            display_mode_combo->currentData().toString()
-        );
-        current_settings.algorithm_overlay_enabled = movement_display_enabled(
-            current_settings.movement_display_mode
-        );
+        current_settings.movement_display_mode
+            = normalized_movement_display_mode_id(
+                display_mode_combo->currentData().toString()
+            );
+        current_settings.algorithm_overlay_enabled
+            = movement_display_enabled(current_settings.movement_display_mode);
     }
     refresh_summary();
     emit settings_changed(current_settings);
@@ -159,7 +164,9 @@ void algorithm_panel::build_ui() {
     form_ = new QFormLayout();
 
     algorithm_combo = new QComboBox(this);
-    algorithm_combo->setObjectName(object_name(QStringLiteral("algorithm_combo")));
+    algorithm_combo->setObjectName(
+        object_name(QStringLiteral("algorithm_combo"))
+    );
     algorithm_panel_support::populate_algorithm_combo(algorithm_combo);
     form_->addRow(str_label("algorithm"), algorithm_combo);
 
@@ -167,37 +174,36 @@ void algorithm_panel::build_ui() {
     display_mode_combo->setObjectName(
         object_name(QStringLiteral("movement_display_combo"))
     );
-    display_mode_combo->setToolTip(
-        QStringLiteral(
-            "Choose how motion is drawn for this stream, or use auto to follow "
-            "the algorithm output."
-        )
-    );
+    display_mode_combo->setToolTip(QStringLiteral(
+        "Choose how motion is drawn for this stream, or use auto to follow "
+        "the algorithm output."
+    ));
     algorithm_panel_support::populate_display_mode_combo(display_mode_combo);
     form_->addRow(str_label("movement display"), display_mode_combo);
 
-    advanced_checkbox = new QCheckBox(
-        str_label("advanced algorithm settings"), this
-    );
+    advanced_checkbox
+        = new QCheckBox(str_label("advanced algorithm settings"), this);
     advanced_checkbox->setObjectName(
         object_name(QStringLiteral("algorithm_advanced_checkbox"))
     );
-    advanced_checkbox->setToolTip(
-        QStringLiteral(
-            "Show or hide algorithm-specific preset controls. Leave this off "
-            "to keep the shared stream settings compact."
-        )
-    );
+    advanced_checkbox->setToolTip(QStringLiteral(
+        "Show or hide algorithm-specific preset controls. Leave this off "
+        "to keep the shared stream settings compact."
+    ));
     form_->addRow(QString(), advanced_checkbox);
 
     preset_combo = new QComboBox(this);
-    preset_combo->setObjectName(object_name(QStringLiteral("algorithm_preset_combo")));
+    preset_combo->setObjectName(
+        object_name(QStringLiteral("algorithm_preset_combo"))
+    );
     form_->addRow(str_label("preset"), preset_combo);
 
     layout->addLayout(form_);
 
     summary_label = new QLabel(this);
-    summary_label->setObjectName(object_name(QStringLiteral("algorithm_summary_label")));
+    summary_label->setObjectName(
+        object_name(QStringLiteral("algorithm_summary_label"))
+    );
     summary_label->setWordWrap(true);
     layout->addWidget(summary_label);
 
@@ -222,8 +228,8 @@ void algorithm_panel::build_ui() {
 }
 
 void algorithm_panel::refresh_advanced_controls() const {
-    const bool advanced_enabled = advanced_checkbox != nullptr
-        && advanced_checkbox->isChecked();
+    const bool advanced_enabled
+        = advanced_checkbox != nullptr && advanced_checkbox->isChecked();
 
     algorithm_panel_support::set_form_row_visible(
         form_, preset_combo, advanced_enabled
@@ -240,9 +246,8 @@ void algorithm_panel::refresh_preset_options() {
         preset_combo, current_settings.algorithm_id
     );
 
-    const int preset_index = preset_combo->findData(
-        current_settings.algorithm_preset
-    );
+    const int preset_index
+        = preset_combo->findData(current_settings.algorithm_preset);
     preset_combo->setCurrentIndex(preset_index >= 0 ? preset_index : 0);
 }
 
@@ -251,28 +256,24 @@ void algorithm_panel::refresh_summary() {
         return;
     }
 
-    summary_label->setText(
-        algorithm_summary_text(
-            current_settings.algorithm_id, current_settings.algorithm_preset,
-            current_settings.movement_display_mode
-        )
-    );
+    summary_label->setText(algorithm_summary_text(
+        current_settings.algorithm_id, current_settings.algorithm_preset,
+        current_settings.movement_display_mode
+    ));
 }
 
 stream_settings
-algorithm_panel::normalized_settings(stream_settings settings_value) const {
-    settings_value.algorithm_id = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
+algorithm_panel::normalized_settings(stream_settings settings_value) {
+    settings_value.algorithm_id
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
     settings_value.algorithm_preset = normalized_algorithm_preset_id(
         settings_value.algorithm_id, settings_value.algorithm_preset
     );
     settings_value.movement_display_mode = normalized_movement_display_mode_id(
         settings_value.movement_display_mode
     );
-    settings_value.algorithm_overlay_enabled = movement_display_enabled(
-        settings_value.movement_display_mode
-    );
+    settings_value.algorithm_overlay_enabled
+        = movement_display_enabled(settings_value.movement_display_mode);
     return settings_value;
 }
 

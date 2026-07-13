@@ -16,18 +16,18 @@ class grid_view final : public QWidget {
 public:
     explicit grid_view(QWidget* parent = nullptr);
 
-    bool has_stream(const QString& name) const;
-    QStringList stream_names() const;
-    int layout_row_count() const;
-    int layout_column_count() const;
-    int layout_cell_count() const;
+    [[nodiscard]] bool has_stream(const QString& name) const;
+    [[nodiscard]] QStringList stream_names() const;
+    [[nodiscard]] int layout_row_count() const;
+    [[nodiscard]] int layout_column_count() const;
+    [[nodiscard]] int layout_cell_count() const;
 
     void add_stream(const QString& name);
     void remove_stream(const QString& name);
 
     stream_cell* take_stream_cell(const QString& name);
     void put_stream_cell(stream_cell* cell);
-    stream_cell* peek_stream_cell(const QString& name) const;
+    [[nodiscard]] stream_cell* peek_stream_cell(const QString& name) const;
 
 signals:
     void stream_closed(const QString& name);

@@ -12,30 +12,31 @@ int normalized_manual_fps(const int fps, const int fallback) {
 
 int normalized_manual_processing_pixels(const int pixels) {
     return std::clamp(
-        pixels > 0 ? pixels : default_manual_processing_pixels(),
-        16 * 16, 7680 * 4320
+        pixels > 0 ? pixels : default_manual_processing_pixels(), 16 * 16,
+        7680 * 4320
     );
 }
 
 } // namespace stream_catalog_state_support
 
-stream_settings stream_catalog_state::default_stream_settings(
-    const QString& stream_name
-) {
-    return normalized_stream_settings(stream_settings {
-        .stream_name = normalized_stream_name(stream_name),
-        .labels_enabled = true,
-        .algorithm_id = default_app_algorithm_id(),
-        .algorithm_preset = default_algorithm_preset_id(
-            default_app_algorithm_id()
-        ),
-    });
+stream_settings
+stream_catalog_state::default_stream_settings(const QString& stream_name) {
+    return normalized_stream_settings(
+        stream_settings {
+            .stream_name = normalized_stream_name(stream_name),
+            .labels_enabled = true,
+            .algorithm_id = default_app_algorithm_id(),
+            .algorithm_preset
+            = default_algorithm_preset_id(default_app_algorithm_id()),
+        }
+    );
 }
 
 stream_settings stream_catalog_state::normalized_stream_settings(
     stream_settings settings_value
 ) {
-    settings_value.stream_name = normalized_stream_name(settings_value.stream_name);
+    settings_value.stream_name
+        = normalized_stream_name(settings_value.stream_name);
     settings_value.algorithm_id
         = normalized_app_algorithm_id(settings_value.algorithm_id);
     settings_value.algorithm_preset = normalized_algorithm_preset_id(
@@ -44,9 +45,8 @@ stream_settings stream_catalog_state::normalized_stream_settings(
     settings_value.movement_display_mode = normalized_movement_display_mode_id(
         settings_value.movement_display_mode
     );
-    settings_value.algorithm_overlay_enabled = movement_display_enabled(
-        settings_value.movement_display_mode
-    );
+    settings_value.algorithm_overlay_enabled
+        = movement_display_enabled(settings_value.movement_display_mode);
     settings_value.manual_display_fps
         = stream_catalog_state_support::normalized_manual_fps(
             settings_value.manual_display_fps, default_manual_display_fps()
@@ -68,7 +68,8 @@ QStringList stream_catalog_state::detected_local_sources(
     QStringList locals;
 
     for (const std::string& name : core_names) {
-        const QString qname = normalized_stream_name(QString::fromStdString(name));
+        const QString qname
+            = normalized_stream_name(QString::fromStdString(name));
         if (!qname.isEmpty() && qname.startsWith(QStringLiteral("video"))) {
             locals.push_back(qname);
         }
@@ -89,6 +90,10 @@ void stream_catalog_state::ensure_stream(const QString& stream_name) {
     );
 }
 
+void stream_catalog_state::remove_stream(const QString& stream_name) {
+    settings_by_stream_.remove(normalized_stream_name(stream_name));
+}
+
 void stream_catalog_state::set_stream_settings(stream_settings settings_value) {
     settings_value = normalized_stream_settings(std::move(settings_value));
     if (settings_value.stream_name.isEmpty()) {
@@ -106,14 +111,17 @@ stream_catalog_state::settings_for(const QString& stream_name) const {
     }
 
     const auto it = settings_by_stream_.constFind(normalized_name);
-    return it == settings_by_stream_.cend() ? default_stream_settings(normalized_name)
-                                            : it.value();
+    return it == settings_by_stream_.cend()
+        ? default_stream_settings(normalized_name)
+        : it.value();
 }
 
-QString stream_catalog_state::algorithm_id_for(const QString& stream_name) const {
+QString
+stream_catalog_state::algorithm_id_for(const QString& stream_name) const {
     return settings_for(stream_name).algorithm_id;
 }
 
-QString stream_catalog_state::normalized_stream_name(const QString& stream_name) {
+QString
+stream_catalog_state::normalized_stream_name(const QString& stream_name) {
     return stream_catalog_state_support::trimmed_name(stream_name);
 }

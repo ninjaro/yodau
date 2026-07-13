@@ -33,6 +33,10 @@ bool stream_registry::add_detected(stream detected_stream) {
     return true;
 }
 
+bool stream_registry::erase(const std::string& name) {
+    return streams_.erase(name) != 0;
+}
+
 bool stream_registry::contains(const std::string& name) const {
     return streams_.contains(name);
 }
@@ -42,9 +46,8 @@ std::shared_ptr<stream> stream_registry::find(const std::string& name) const {
     return it == streams_.end() ? nullptr : it->second;
 }
 
-std::shared_ptr<const stream> stream_registry::find_const(
-    const std::string& name
-) const {
+std::shared_ptr<const stream>
+stream_registry::find_const(const std::string& name) const {
     const auto it = streams_.find(name);
     return it == streams_.end() ? nullptr : it->second;
 }

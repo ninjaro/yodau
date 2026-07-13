@@ -27,13 +27,13 @@ void populate_operator_profile_combo(QComboBox* combo) {
 
     combo->clear();
     for (const QString& profile_id : operator_profile_ids(true)) {
-        combo->addItem(
-            operator_profile_display_name(profile_id), profile_id
-        );
+        combo->addItem(operator_profile_display_name(profile_id), profile_id);
     }
 }
 
-void set_form_row_visible(QFormLayout* form, QWidget* field, const bool visible) {
+void set_form_row_visible(
+    QFormLayout* form, QWidget* field, const bool visible
+) {
     if (field == nullptr) {
         return;
     }
@@ -59,7 +59,9 @@ active_stream_panel::active_stream_panel(
     refresh_panel_state();
 }
 
-void active_stream_panel::set_active_candidates(const QStringList& names) const {
+void active_stream_panel::set_active_candidates(
+    const QStringList& names
+) const {
     if (active_combo == nullptr) {
         return;
     }
@@ -170,9 +172,8 @@ void active_stream_panel::set_stream_settings(
     refresh_panel_state();
     refresh_operator_profile_summary();
     refresh_processing_policy_summary();
-    last_algorithm_id_ = normalized_app_algorithm_id(
-        current_stream_settings().algorithm_id
-    );
+    last_algorithm_id_
+        = normalized_app_algorithm_id(current_stream_settings().algorithm_id);
 }
 
 stream_settings active_stream_panel::current_stream_settings() const {
@@ -189,7 +190,8 @@ stream_settings active_stream_panel::current_stream_settings() const {
         settings_value.labels_enabled = active_labels_cb->isChecked();
     }
     if (standard_labels_cb != nullptr) {
-        settings_value.standard_labels_enabled = standard_labels_cb->isChecked();
+        settings_value.standard_labels_enabled
+            = standard_labels_cb->isChecked();
     }
 
     if (active_algorithm_panel != nullptr) {
@@ -199,14 +201,12 @@ stream_settings active_stream_panel::current_stream_settings() const {
         settings_value.algorithm_preset = algorithm_settings.algorithm_preset;
         settings_value.movement_display_mode
             = algorithm_settings.movement_display_mode;
-        settings_value.algorithm_overlay_enabled = movement_display_enabled(
-            settings_value.movement_display_mode
-        );
+        settings_value.algorithm_overlay_enabled
+            = movement_display_enabled(settings_value.movement_display_mode);
     } else {
         settings_value.algorithm_id = default_app_algorithm_id();
-        settings_value.algorithm_preset = default_algorithm_preset_id(
-            settings_value.algorithm_id
-        );
+        settings_value.algorithm_preset
+            = default_algorithm_preset_id(settings_value.algorithm_id);
     }
 
     if (manual_processing_checkbox != nullptr) {
@@ -243,11 +243,12 @@ QWidget* active_stream_panel::take_edit_mode_widget() {
 bool active_stream_panel::has_active_stream() const {
     return active_combo != nullptr
         && active_combo->currentText().trimmed()
-            != active_stream_panel_support::none_text();
+        != active_stream_panel_support::none_text();
 }
 
 bool active_stream_panel::drawing_new_mode() const {
-    return active_mode_draw_radio == nullptr || active_mode_draw_radio->isChecked();
+    return active_mode_draw_radio == nullptr
+        || active_mode_draw_radio->isChecked();
 }
 
 void active_stream_panel::on_active_combo_changed(const QString& text) {
@@ -256,9 +257,8 @@ void active_stream_panel::on_active_combo_changed(const QString& text) {
     refresh_panel_state();
     refresh_operator_profile_summary();
     const stream_settings settings_value = current_stream_settings();
-    last_algorithm_id_ = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
+    last_algorithm_id_
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
     emit stream_selected(settings_value.stream_name);
 }
 
@@ -290,15 +290,13 @@ void active_stream_panel::on_operator_profile_changed(const int index) {
         return;
     }
 
-    const stream_settings updated_settings = apply_operator_profile(
-        current_stream_settings(), profile_id
-    );
+    const stream_settings updated_settings
+        = apply_operator_profile(current_stream_settings(), profile_id);
     active_algorithm_panel->set_stream_settings(updated_settings);
     sync_operator_profile_from_settings(updated_settings);
     refresh_operator_profile_summary();
-    last_algorithm_id_ = normalized_app_algorithm_id(
-        updated_settings.algorithm_id
-    );
+    last_algorithm_id_
+        = normalized_app_algorithm_id(updated_settings.algorithm_id);
     emit stream_settings_changed(current_stream_settings());
 }
 
@@ -308,8 +306,7 @@ void active_stream_panel::on_algorithm_panel_settings_changed(
     if (operator_profile_combo != nullptr
         && normalized_operator_profile_id(
                operator_profile_combo->currentData().toString()
-           )
-            != QStringLiteral("custom")
+           ) != QStringLiteral("custom")
         && normalized_app_algorithm_id(settings_value.algorithm_id)
             != last_algorithm_id_) {
         settings_value = apply_operator_profile(
@@ -320,9 +317,8 @@ void active_stream_panel::on_algorithm_panel_settings_changed(
 
     sync_operator_profile_from_settings(settings_value);
     refresh_operator_profile_summary();
-    last_algorithm_id_ = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
+    last_algorithm_id_
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
     emit stream_settings_changed(current_stream_settings());
 }
 
@@ -382,30 +378,28 @@ void active_stream_panel::build_ui() {
     active_combo->addItem(active_stream_panel_support::none_text(), QVariant());
     active_stream_layout->addWidget(active_combo);
 
-    active_labels_cb = new QCheckBox(str_label("line name labels"), active_stream_box);
-    active_labels_cb->setObjectName(object_name(QStringLiteral("labels_checkbox")));
-    active_labels_cb->setChecked(true);
-    active_labels_cb->setToolTip(
-        QStringLiteral(
-            "Show or hide saved line names on top of the stream preview. "
-            "This does not affect FPS, algorithm, or coordinate overlays."
-        )
+    active_labels_cb
+        = new QCheckBox(str_label("line name labels"), active_stream_box);
+    active_labels_cb->setObjectName(
+        object_name(QStringLiteral("labels_checkbox"))
     );
+    active_labels_cb->setChecked(true);
+    active_labels_cb->setToolTip(QStringLiteral(
+        "Show or hide saved line names on top of the stream preview. "
+        "This does not affect FPS, algorithm, or coordinate overlays."
+    ));
     active_stream_layout->addWidget(active_labels_cb);
 
-    standard_labels_cb = new QCheckBox(
-        str_label("standard labels"), active_stream_box
-    );
+    standard_labels_cb
+        = new QCheckBox(str_label("standard labels"), active_stream_box);
     standard_labels_cb->setObjectName(
         object_name(QStringLiteral("standard_labels_checkbox"))
     );
     standard_labels_cb->setChecked(true);
-    standard_labels_cb->setToolTip(
-        QStringLiteral(
-            "Show or hide stream overlays such as algorithm badges, log mode, "
-            "hover coordinates, and FPS/runtime metrics."
-        )
-    );
+    standard_labels_cb->setToolTip(QStringLiteral(
+        "Show or hide stream overlays such as algorithm badges, log mode, "
+        "hover coordinates, and FPS/runtime metrics."
+    ));
     active_stream_layout->addWidget(standard_labels_cb);
 
     layout->addWidget(active_stream_box);
@@ -442,8 +436,7 @@ void active_stream_panel::build_ui() {
     layout->addWidget(operator_profile_box);
     layout->addWidget(active_algorithm_panel);
 
-    processing_policy_box
-        = new QGroupBox(str_label("processing budget"), this);
+    processing_policy_box = new QGroupBox(str_label("processing budget"), this);
     processing_policy_box->setObjectName(
         object_name(QStringLiteral("processing_policy_box"))
     );
@@ -456,19 +449,16 @@ void active_stream_panel::build_ui() {
     processing_summary_label->setWordWrap(true);
     processing_policy_form_->addRow(QString(), processing_summary_label);
 
-    processing_advanced_checkbox = new QCheckBox(
-        str_label("advanced tuning"), processing_policy_box
-    );
+    processing_advanced_checkbox
+        = new QCheckBox(str_label("advanced tuning"), processing_policy_box);
     processing_advanced_checkbox->setObjectName(
         object_name(QStringLiteral("processing_advanced_checkbox"))
     );
-    processing_advanced_checkbox->setToolTip(
-        QStringLiteral(
-            "Show manual FPS and processing-size overrides for this stream. "
-            "Leave this off to keep the default auto-calibrated policy "
-            "summary only."
-        )
-    );
+    processing_advanced_checkbox->setToolTip(QStringLiteral(
+        "Show manual FPS and processing-size overrides for this stream. "
+        "Leave this off to keep the default auto-calibrated policy "
+        "summary only."
+    ));
     processing_policy_form_->addRow(QString(), processing_advanced_checkbox);
 
     manual_processing_checkbox = new QCheckBox(
@@ -573,8 +563,8 @@ void active_stream_panel::build_ui() {
         this, &active_stream_panel::on_manual_display_fps_changed
     );
     connect(
-        manual_core_fps_spin, QOverload<int>::of(&QSpinBox::valueChanged),
-        this, &active_stream_panel::on_manual_core_fps_changed
+        manual_core_fps_spin, QOverload<int>::of(&QSpinBox::valueChanged), this,
+        &active_stream_panel::on_manual_core_fps_changed
     );
     connect(
         manual_processing_pixels_spin,
@@ -635,7 +625,9 @@ void active_stream_panel::sync_operator_profile_from_settings(
         inferred_operator_profile_id(settings_value)
     );
     QSignalBlocker blocker(operator_profile_combo);
-    operator_profile_combo->setCurrentIndex(profile_index >= 0 ? profile_index : 0);
+    operator_profile_combo->setCurrentIndex(
+        profile_index >= 0 ? profile_index : 0
+    );
 }
 
 void active_stream_panel::refresh_operator_profile_summary() {
@@ -679,8 +671,8 @@ void active_stream_panel::refresh_processing_policy_state() const {
         processing_policy_form_, manual_core_fps_spin, show_advanced_controls
     );
     active_stream_panel_support::set_form_row_visible(
-        processing_policy_form_,
-        manual_processing_pixels_spin, show_advanced_controls
+        processing_policy_form_, manual_processing_pixels_spin,
+        show_advanced_controls
     );
 
     if (manual_display_fps_spin != nullptr) {

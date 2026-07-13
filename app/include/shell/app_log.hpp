@@ -38,19 +38,26 @@ class app_log_buffer final : public QObject {
     Q_OBJECT
 
 public:
+    static constexpr qsizetype default_capacity { 4096 };
+
     explicit app_log_buffer(QObject* parent = nullptr);
 
-    const QVector<app_log_entry>& entries() const;
-    QVector<app_log_entry> entries_for_area(app_log_area area) const;
+    [[nodiscard]] const QVector<app_log_entry>& entries() const;
+    [[nodiscard]] QVector<app_log_entry>
+    entries_for_area(app_log_area area) const;
+    [[nodiscard]] qsizetype capacity() const;
+    void set_capacity(qsizetype maximum_entries);
     void append(app_log_entry entry);
     void clear();
 
 signals:
     void entry_appended(app_log_entry entry);
+    void entries_pruned(qsizetype count);
     void cleared();
 
 private:
     QVector<app_log_entry> entry_list;
+    qsizetype maximum_entries_ { default_capacity };
 };
 
 #endif // YODAU_APP_SHELL_APP_LOG_HPP

@@ -31,31 +31,32 @@ public:
 
     void set_active_candidates(const QStringList& names) const;
     void set_active_current(const QString& name) const;
-    void set_active_lines(
-        const std::vector<stream_cell::line_instance>& lines
-    );
+    void set_active_lines(const std::vector<stream_cell::line_instance>& lines);
 
     void add_template_candidate(const QString& name) const;
     void set_template_candidates(const QStringList& names) const;
     void set_line_profile(const line_profile& profile);
-    line_profile current_line_profile() const;
+    [[nodiscard]] line_profile current_line_profile() const;
     void set_template_settings(const template_apply_settings& settings_value);
-    template_apply_settings current_template_settings() const;
+    [[nodiscard]] template_apply_settings current_template_settings() const;
 
     void reset_line_form();
     void reset_template_form();
 
     void set_line_closed(bool closed) const;
 
-    QString current_template_name() const;
-    QColor preview_color() const;
+    [[nodiscard]] QString current_template_name() const;
+    [[nodiscard]] QColor preview_color() const;
     bool select_line_edit_point(int visible_index);
     bool translate_line_edit_shape(const QPointF& delta_pct);
     bool move_line_edit_point(int visible_index, const QPointF& point_pct);
     bool split_line_edit_point(int visible_index);
-    bool insert_line_edit_point_after(int visible_segment_index, const QPointF& point_pct);
+    bool insert_line_edit_point_after(
+        int visible_segment_index, const QPointF& point_pct
+    );
     bool delete_line_edit_point(int visible_index);
-    bool rotate_line_edit_shape(double delta_degrees, int visible_pivot_index = -1);
+    bool
+    rotate_line_edit_shape(double delta_degrees, int visible_pivot_index = -1);
     void begin_line_edit_change();
     void finish_line_edit_change();
     bool undo_line_edit_change();
@@ -89,18 +90,18 @@ private:
     void refresh_line_edit_table();
     void refresh_line_edit_summary() const;
     void refresh_line_edit_state() const;
-    void initialize_line_edit_points_from_source();
-    void emit_line_edit_preview_if_visible();
-    line_edit_request current_line_edit_request() const;
+    void initialize_line_points_from_source();
+    void emit_line_preview_if_visible();
+    [[nodiscard]] line_edit_request current_line_edit_request() const;
     void clear_line_edit_history();
     void record_line_edit_mutation();
     void push_line_edit_undo_snapshot();
     void restore_line_edit_snapshot(const line_edit_snapshot& snapshot);
     void refresh_line_edit_after_mutation();
-    bool line_edit_has_unsaved_changes() const;
+    [[nodiscard]] bool line_edit_has_unsaved_changes() const;
     bool delete_line_edit_row(int row);
     void emit_line_enabled_changed_queued(QString line_name, bool enabled);
-    QString selected_line_name() const;
+    [[nodiscard]] QString selected_line_name() const;
 
 private slots:
     void on_line_item_changed(QTreeWidgetItem* item, int column);
@@ -108,9 +109,9 @@ private slots:
     void on_detach_selected_line_clicked();
     void on_editor_tab_changed(int index);
     void on_line_edit_selection_changed(int index);
-    void on_line_edit_table_selection_changed();
-    void on_line_edit_point_item_changed(QTableWidgetItem* item);
-    void on_line_edit_name_text_changed(const QString& text);
+    void on_line_table_selection_changed();
+    void on_line_point_item_changed(QTableWidgetItem* item);
+    void on_line_name_text_changed(const QString& text);
     void on_line_edit_undo_clicked();
     void on_line_edit_redo_clicked();
     void on_line_edit_revert_clicked();
@@ -124,8 +125,9 @@ private:
         int selected_row { -1 };
     };
 
-    line_edit_snapshot current_line_edit_snapshot() const;
-    bool snapshot_matches_current(const line_edit_snapshot& snapshot) const;
+    [[nodiscard]] line_edit_snapshot current_line_edit_snapshot() const;
+    [[nodiscard]] bool
+    snapshot_matches_current(const line_edit_snapshot& snapshot) const;
 
     active_stream_panel* active_stream_panel_widget { nullptr };
     line_profile_panel* active_line_panel { nullptr };
@@ -149,7 +151,7 @@ private:
     std::vector<std::pair<QString, bool>> pending_line_toggles_;
     std::vector<QPointF> line_edit_points_pct_;
     std::vector<bool> line_edit_point_enabled_;
-    QString current_line_edit_source_name_;
+    QString line_edit_source_name_;
     int line_edit_selected_row_ { -1 };
     std::vector<line_edit_snapshot> line_edit_undo_stack_;
     std::vector<line_edit_snapshot> line_edit_redo_stack_;

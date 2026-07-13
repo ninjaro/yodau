@@ -1,8 +1,8 @@
 #ifndef YODAU_CORE_TRIPWIRE_GRID_STREAM_INDEX_HPP
 #define YODAU_CORE_TRIPWIRE_GRID_STREAM_INDEX_HPP
 
-#include "core/namespace_alias.hpp"
 #include "analysis/tripwire_grid_index.hpp"
+#include "core/namespace_alias.hpp"
 
 #include <cstdint>
 #include <string>
@@ -44,7 +44,7 @@ struct grid_candidate_tracker {
     std::vector<std::uint32_t> seen;
     std::uint32_t stamp { 1 };
 
-    void ensure_size(const size_t n);
+    void ensure_size(size_t n);
 
     void next_stamp();
 };
@@ -53,8 +53,9 @@ grid_stream_index build_grid_stream_index(
     const std::vector<line_ptr>& input_lines, const grid_dims& g
 );
 
-grid_dims
-recommend_grid_dims(const std::vector<line_ptr>& input_lines, const line* focus_line = nullptr);
+grid_dims recommend_grid_dims(
+    const std::vector<line_ptr>& input_lines, const line* focus_line = nullptr
+);
 
 void collect_grid_candidates(
     const grid_stream_index& idx, const std::vector<int>& active_cell_indices,

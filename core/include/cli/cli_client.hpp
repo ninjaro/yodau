@@ -1,9 +1,9 @@
 #ifndef YODAU_CORE_CLI_CLIENT_HPP
 #define YODAU_CORE_CLI_CLIENT_HPP
 
-#include "core/namespace_alias.hpp"
 #include "analysis/processing_runtime.hpp"
 #include "cli/cli_log.hpp"
+#include "core/namespace_alias.hpp"
 
 #include <cxxopts.hpp>
 #include <mutex>
@@ -14,6 +14,7 @@ namespace yodau::core {
 class cli_client {
 public:
     explicit cli_client(yodau::core::stream_manager& mgr);
+    ~cli_client();
     int run();
 
 private:

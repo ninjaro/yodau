@@ -20,11 +20,11 @@ public:
     void add_template_candidate(const QString& name);
     void set_template_candidates(const QStringList& names);
     void set_template_settings(const template_apply_settings& settings_value);
-    template_apply_settings current_template_settings() const;
+    [[nodiscard]] template_apply_settings current_template_settings() const;
     void reset_form();
-    QString current_template_name() const;
-    QColor preview_color() const;
-    bool has_template_candidates() const;
+    [[nodiscard]] QString current_template_name() const;
+    [[nodiscard]] QColor preview_color() const;
+    [[nodiscard]] bool has_template_candidates() const;
     void set_panel_active(bool active);
 
 signals:
@@ -45,9 +45,9 @@ private slots:
 
 private:
     void build_ui();
-    QString current_color_mode_id() const;
-    QString current_parameter_mode_id() const;
-    bool advanced_settings_enabled() const;
+    [[nodiscard]] QString current_color_mode_id() const;
+    [[nodiscard]] QString current_parameter_mode_id() const;
+    [[nodiscard]] bool advanced_settings_enabled() const;
     void refresh_color_controls();
     void refresh_advanced_settings_controls();
     void refresh_parameter_mode_labels();

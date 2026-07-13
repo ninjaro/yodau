@@ -44,7 +44,7 @@ stream_widget_bridge::stream_widget_bridge(
     : editor_bridge_(main_zone, settings)
     , settings_(settings)
     , main_zone_(main_zone)
-    , grid_(main_zone != nullptr ? main_zone->grid_mode() : nullptr) {}
+    , grid_(main_zone != nullptr ? main_zone->grid_mode() : nullptr) { }
 
 grid_view* stream_widget_bridge::grid() const { return grid_; }
 
@@ -105,6 +105,24 @@ void stream_widget_bridge::register_stream_entry(
     editor_bridge_.sync_active_candidates();
 }
 
+void stream_widget_bridge::unregister_stream_entry(const QString& name) const {
+    if (settings_ != nullptr) {
+        settings_->remove_stream_entry(name);
+    }
+    if (grid_ != nullptr) {
+        grid_->remove_stream(name);
+    }
+    if (main_zone_ != nullptr) {
+        if (stream_cell* active = main_zone_->active_cell();
+            active != nullptr && active->get_name() == name) {
+            if (stream_cell* removed = main_zone_->take_active_cell()) {
+                removed->deleteLater();
+            }
+        }
+    }
+    editor_bridge_.sync_active_candidates();
+}
+
 stream_cell* stream_widget_bridge::show_stream_in_grid(
     const QString& name, const stream_settings& settings_value,
     const active_edit_session& edit_session, const grid_stream_binding& binding
@@ -123,8 +141,7 @@ stream_cell* stream_widget_bridge::show_stream_in_grid(
     tile->set_stream_settings(settings_value);
     tile->set_labels_enabled(settings_value.labels_enabled);
     tile->set_log_mode(
-        settings_ != nullptr ? settings_->log_mode()
-                             : app_log_mode::release
+        settings_ != nullptr ? settings_->log_mode() : app_log_mode::release
     );
     stream_widget_bridge_support::apply_grid_stream_binding(tile, binding);
     editor_bridge_.sync_active_candidates();
@@ -194,7 +211,9 @@ void stream_widget_bridge::apply_active_stream(
     const QString& active_name, const stream_settings& settings_value,
     const active_edit_session& edit_session
 ) const {
-    editor_bridge_.apply_active_stream(active_name, settings_value, edit_session);
+    editor_bridge_.apply_active_stream(
+        active_name, settings_value, edit_session
+    );
 }
 
 void stream_widget_bridge::sync_active_persistent(

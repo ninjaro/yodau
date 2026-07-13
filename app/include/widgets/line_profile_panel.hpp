@@ -19,7 +19,7 @@ public:
     explicit line_profile_panel(QWidget* parent = nullptr);
 
     void set_line_profile(const line_profile& profile);
-    line_profile current_line_profile() const;
+    [[nodiscard]] line_profile current_line_profile() const;
     void reset_form();
     void set_panel_active(bool active);
     void set_line_closed(bool closed);
@@ -45,9 +45,9 @@ private slots:
 
 private:
     void build_ui();
-    QString current_color_mode_id() const;
-    QString current_parameter_mode_id() const;
-    bool advanced_settings_enabled() const;
+    [[nodiscard]] QString current_color_mode_id() const;
+    [[nodiscard]] QString current_parameter_mode_id() const;
+    [[nodiscard]] bool advanced_settings_enabled() const;
     void refresh_color_controls();
     void refresh_advanced_settings_controls();
     void refresh_parameter_mode_labels();

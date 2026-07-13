@@ -14,11 +14,12 @@ public:
 
     void initialize_editor_state() const;
     void set_drawing_new_mode(bool drawing_new) const;
-    const line_profile& apply_line_profile(line_profile profile_value) const;
-    const template_apply_settings& apply_template_settings(
-        template_apply_settings settings_value
-    ) const;
-    line_edit_request apply_line_edit_preview(line_edit_request request) const;
+    [[nodiscard]] const line_profile&
+    apply_line_profile(line_profile profile_value) const;
+    [[nodiscard]] const template_apply_settings&
+    apply_template_settings(template_apply_settings settings_value) const;
+    [[nodiscard]] line_edit_request
+    apply_line_edit_preview(line_edit_request request) const;
     void clear_line_edit_preview() const;
     void reset_after_line_saved(const QString& final_name) const;
     void reset_after_line_edit_saved() const;

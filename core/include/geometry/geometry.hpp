@@ -3,7 +3,9 @@
 #include "core/namespace_alias.hpp"
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace yodau::core {
@@ -13,17 +15,16 @@ struct point {
 
     static constexpr float epsilon { 0.001f };
 
-    float distance_to(const point& other) const;
+    [[nodiscard]] float distance_to(const point& other) const;
 
-    bool compare(const point& other) const;
+    [[nodiscard]] bool compare(const point& other) const;
 };
 
 enum class tripwire_dir { any, neg_to_pos, pos_to_neg };
 
-// Core line geometry stays intentionally minimal. Width, string-length,
-// damping, or other richer semantics belong in app-only settings today
-// and should move into a separate profile type later rather than widening this
-// geometry struct implicitly.
+// Core line geometry stays intentionally minimal. make_line is deliberately
+// permissive so clients can represent an in-progress UI draft; validate a line
+// before attaching it to a stream or accepting it as persisted configuration.
 struct line {
     std::string name;
     std::vector<point> points;
@@ -36,8 +37,9 @@ struct line {
 };
 
 // Richer line or string semantics live beside `line` instead of widening the
-// core geometry struct. The current runtime does not consume this profile yet,
-// but it provides a core-owned foothold for future width/response settings.
+// geometry struct. The runtime consumes visual_width for rendered previews and
+// interaction_width for motion-focus corridors. effective_length and damping
+// remain configuration metadata for algorithms that opt into those semantics.
 struct line_profile {
     std::string line_name;
     float visual_width { 1.0f };
@@ -57,6 +59,13 @@ line_profile make_line_profile(
     std::string line_name, float visual_width = 1.0f,
     float interaction_width = 0.0f, float effective_length = 1.0f,
     float damping = 0.5f
+);
+
+// Throws std::invalid_argument with a field-specific diagnostic. Processing
+// lines require finite in-range percentages, a usable name, distinct geometry,
+// and a non-degenerate polygon when closed.
+void validate_line_geometry(
+    std::span<const point> points, std::string_view name, bool closed
 );
 
 float cross_z(const point& a, const point& b, const point& c);

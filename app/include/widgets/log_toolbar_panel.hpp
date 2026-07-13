@@ -18,30 +18,27 @@ public:
     explicit log_toolbar_panel(QWidget* parent = nullptr);
 
     void set_log_buffer(app_log_buffer* buffer);
-    bool append_entry(app_log_entry entry) const;
+    [[nodiscard]] bool append_entry(app_log_entry entry) const;
 
     void set_log_mode(app_log_mode mode);
-    app_log_mode log_mode() const;
-    bool entry_matches(const app_log_entry& entry) const;
+    [[nodiscard]] app_log_mode log_mode() const;
+    [[nodiscard]] bool entry_matches(const app_log_entry& entry) const;
 
-    QVector<app_log_entry> filtered_entries(
-        std::optional<app_log_area> area = std::nullopt
-    ) const;
-    QStringList formatted_entries(
-        std::optional<app_log_area> area = std::nullopt
-    ) const;
-    QString compose_log_report(
-        std::optional<app_log_area> area = std::nullopt
-    ) const;
-    QString compose_log_summary(
-        std::optional<app_log_area> area = std::nullopt
-    ) const;
-    bool write_log_report(
+    [[nodiscard]] QVector<app_log_entry>
+    filtered_entries(std::optional<app_log_area> area = std::nullopt) const;
+    [[nodiscard]] QStringList
+    formatted_entries(std::optional<app_log_area> area = std::nullopt) const;
+    [[nodiscard]] QString
+    compose_log_report(std::optional<app_log_area> area = std::nullopt) const;
+    [[nodiscard]] QString
+    compose_log_summary(std::optional<app_log_area> area = std::nullopt) const;
+    [[nodiscard]] bool write_log_report(
         std::optional<app_log_area> area, const QString& path
     ) const;
 
 signals:
     void view_state_changed();
+    void entry_available(app_log_entry entry);
     void log_mode_changed(app_log_mode mode);
     void copy_logs_requested();
     void copy_summary_requested();
@@ -60,6 +57,7 @@ private slots:
 
 private:
     void build_ui();
+    void append_filter_options(const app_log_entry& entry) const;
     void refresh_filter_options() const;
 
     QComboBox* log_mode_combo { nullptr };

@@ -5,6 +5,10 @@
 #include "analysis/processing_contour_tools.hpp"
 #include "analysis/processing_motion_tools.hpp"
 
+#include <opencv2/core/version.hpp>
+#if CV_VERSION_MAJOR >= 5
+#include <opencv2/features.hpp>
+#endif
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
@@ -16,10 +20,10 @@ namespace yodau::core {
 
 namespace {
 
-cv::Size tracking_window_size(const int window_size_px) {
-    const int size = normalized_odd_kernel_size(window_size_px);
-    return cv::Size(size, size);
-}
+    cv::Size tracking_window_size(const int window_size_px) {
+        const int size = normalized_odd_kernel_size(window_size_px);
+        return { size, size };
+    }
 
 } // namespace
 
@@ -37,8 +41,7 @@ processing_sparse_flow_result sparse_optical_flow(
     cv::goodFeaturesToTrack(
         previous_gray, previous_points, std::max(1, options.max_features),
         std::clamp(
-            static_cast<double>(options.quality_permille) / 1000.0,
-            0.001, 1.0
+            static_cast<double>(options.quality_permille) / 1000.0, 0.001, 1.0
         ),
         static_cast<double>(std::max(1, options.min_feature_distance_px)),
         feature_mask.empty() ? cv::Mat {} : feature_mask
@@ -56,9 +59,8 @@ processing_sparse_flow_result sparse_optical_flow(
         std::max(0, options.pyramid_levels)
     );
 
-    const double min_distance2 = static_cast<double>(
-        std::max(0, options.min_vector_length_px)
-    )
+    const double min_distance2
+        = static_cast<double>(std::max(0, options.min_vector_length_px))
         * static_cast<double>(std::max(0, options.min_vector_length_px));
     const float max_error = static_cast<float>(std::max(0, options.max_error));
 
@@ -72,7 +74,8 @@ processing_sparse_flow_result sparse_optical_flow(
             continue;
         }
 
-        const cv::Point2f delta = current_points[index] - previous_points[index];
+        const cv::Point2f delta
+            = current_points[index] - previous_points[index];
         const double distance2 = static_cast<double>(delta.x) * delta.x
             + static_cast<double>(delta.y) * delta.y;
         if (distance2 < min_distance2) {

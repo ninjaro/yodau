@@ -30,15 +30,20 @@ public:
     }
 
     [[nodiscard]] bool press_active() const { return press_active_; }
+
     [[nodiscard]] bool press_moved() const { return press_moved_; }
+
     [[nodiscard]] bool press_hit_shape() const { return press_hit_shape_; }
+
     [[nodiscard]] drag_mode current_drag_mode() const { return drag_mode_; }
+
     [[nodiscard]] QPointF press_origin_pct() const { return press_origin_pct_; }
 
     void sync_preview_selection(
         const int selected_visible_index, const int point_count
     ) {
-        if (selected_visible_index >= 0 && selected_visible_index < point_count) {
+        if (selected_visible_index >= 0
+            && selected_visible_index < point_count) {
             selected_vertex_ = selected_visible_index;
             return;
         }
@@ -87,9 +92,8 @@ public:
         return result;
     }
 
-    [[nodiscard]] bool start_drag_if_threshold(
-        const QPoint& current_px, const int threshold_px
-    ) {
+    [[nodiscard]] bool
+    start_drag_if_threshold(const QPoint& current_px, const int threshold_px) {
         if (!press_active_ || !press_hit_shape_ || press_moved_) {
             return false;
         }
@@ -99,12 +103,13 @@ public:
         }
 
         press_moved_ = true;
-        drag_mode_ = pressed_vertex_.has_value() ? drag_mode::point
-                                                 : drag_mode::shape;
+        drag_mode_
+            = pressed_vertex_.has_value() ? drag_mode::point : drag_mode::shape;
         return true;
     }
 
-    void update_press_origin(const QPointF& origin_pct, const QPoint& origin_px) {
+    void
+    update_press_origin(const QPointF& origin_pct, const QPoint& origin_px) {
         press_origin_pct_ = origin_pct;
         press_origin_px_ = origin_px;
     }
@@ -123,9 +128,8 @@ public:
         drag_mode_ = drag_mode::none;
     }
 
-    [[nodiscard]] Qt::CursorShape cursor_shape(
-        const bool vertex_hit, const bool segment_hit
-    ) const {
+    [[nodiscard]] Qt::CursorShape
+    cursor_shape(const bool vertex_hit, const bool segment_hit) const {
         if (press_active_ && press_hit_shape_) {
             return Qt::ClosedHandCursor;
         }

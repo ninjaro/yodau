@@ -59,14 +59,14 @@ void prune_expired_motion_events(
 QColor overlay_color_for_event_kind(const yodau::core::event_kind kind) {
     switch (kind) {
     case yodau::core::event_kind::motion:
-        return QColor(QStringLiteral("#f4a261"));
+        return { QStringLiteral("#f4a261") };
     case yodau::core::event_kind::tripwire:
-        return QColor(QStringLiteral("#e63946"));
+        return { QStringLiteral("#e63946") };
     case yodau::core::event_kind::roi:
-        return QColor(QStringLiteral("#2a9d8f"));
+        return { QStringLiteral("#2a9d8f") };
     case yodau::core::event_kind::info:
     default:
-        return QColor(QStringLiteral("#adb5bd"));
+        return { QStringLiteral("#adb5bd") };
     }
 }
 
@@ -141,7 +141,8 @@ processing_feedback_state::consume_event(
     }
 
     if (event_value.kind == yodau::core::event_kind::tripwire
-        && result.overlay_position_pct.has_value() && !result.line_name.isEmpty()) {
+        && result.overlay_position_pct.has_value()
+        && !result.line_name.isEmpty()) {
         const auto payload
             = processing_feedback_state_support::parse_tripwire_visual_payload(
                 event_value.message
@@ -165,9 +166,9 @@ processing_feedback_state::consume_event(
     );
 
     if (!result.stream_name.isEmpty()
-        && last_gui_motion_event_ts_.contains(result.stream_name)) {
+        && gui_motion_event_ts_.contains(result.stream_name)) {
         const int age = static_cast<int>(
-            last_gui_motion_event_ts_[result.stream_name].msecsTo(current_time)
+            gui_motion_event_ts_[result.stream_name].msecsTo(current_time)
         );
         if (age < motion_gui_interval_ms_) {
             result.allow_gui_overlay = false;
@@ -176,7 +177,7 @@ processing_feedback_state::consume_event(
     }
 
     if (!result.stream_name.isEmpty()) {
-        last_gui_motion_event_ts_[result.stream_name] = current_time;
+        gui_motion_event_ts_[result.stream_name] = current_time;
     }
 
     return result;

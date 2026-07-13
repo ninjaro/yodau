@@ -24,60 +24,66 @@ public:
 
     active_edit_session();
 
-    bool drawing_new_mode() const;
+    [[nodiscard]] bool drawing_new_mode() const;
     void set_drawing_new_mode(bool drawing_new);
 
-    const line_profile& draft_line_profile() const;
+    [[nodiscard]] const line_profile& draft_line_profile() const;
     void set_draft_line_profile(line_profile profile_value);
     void reset_draft_line_profile();
 
-    const template_apply_settings& active_template_settings() const;
+    [[nodiscard]] const template_apply_settings&
+    active_template_settings() const;
     void set_active_template_settings(template_apply_settings settings_value);
-    template_apply_settings resolved_template_settings(
+    [[nodiscard]] template_apply_settings resolved_template_settings(
         template_apply_settings settings_value, bool inherit_template_profile
     ) const;
     void reset_active_template_settings();
 
-    bool has_template(const QString& template_name) const;
-    std::optional<template_line> template_value(const QString& template_name) const;
+    [[nodiscard]] bool has_template(const QString& template_name) const;
+    [[nodiscard]] std::optional<template_line>
+    template_value(const QString& template_name) const;
 
     stream_cell::line_instance store_saved_line(
         const QString& stream_name, const QString& final_name,
         const std::vector<QPointF>& pts, bool closed
     );
     stream_cell::line_instance store_applied_template_line(
-        const QString& stream_name, const template_apply_settings& settings_value
+        const QString& stream_name,
+        const template_apply_settings& settings_value
     );
     bool set_stream_line_enabled(
         const QString& stream_name, const QString& line_name, bool enabled
     );
-    bool detach_stream_line(
-        const QString& stream_name, const QString& line_name
-    );
-    std::optional<stream_cell::line_instance> find_stream_line(
+    bool
+    detach_stream_line(const QString& stream_name, const QString& line_name);
+    [[nodiscard]] std::optional<stream_cell::line_instance> find_stream_line(
         const QString& stream_name, const QString& line_name
     ) const;
     stream_cell::line_instance store_stream_line(
         const QString& stream_name, stream_cell::line_instance line_value
     );
+    void replace_stream_lines(
+        const QString& stream_name,
+        std::vector<stream_cell::line_instance> line_values
+    );
 
     void set_active_line_edit(line_edit_request request);
     void clear_active_line_edit();
-    std::optional<line_edit_request> active_line_edit() const;
+    [[nodiscard]] std::optional<line_edit_request> active_line_edit() const;
 
-    const std::vector<stream_cell::line_instance>&
+    [[nodiscard]] const std::vector<stream_cell::line_instance>&
     stream_lines(const QString& stream_name) const;
-    QSet<QString> used_template_names_for_stream(const QString& stream_name) const;
-    QStringList template_candidates_excluding(const QSet<QString>& used) const;
+    [[nodiscard]] QSet<QString>
+    used_template_names_for_stream(const QString& stream_name) const;
+    [[nodiscard]] QStringList
+    template_candidates_excluding(const QSet<QString>& used) const;
 
 private:
     static line_profile normalized_line_profile(line_profile profile_value);
-    static template_apply_settings normalized_template_settings(
-        template_apply_settings settings_value
-    );
-    static line_edit_request normalized_line_edit_request(
-        line_edit_request request
-    );
+    static template_apply_settings
+    normalized_template_settings(template_apply_settings settings_value);
+    static line_edit_request
+    normalized_line_edit_request(line_edit_request request);
 
     bool drawing_new_mode_ { true };
     line_profile draft_line_profile_;

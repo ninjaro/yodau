@@ -37,24 +37,22 @@ class processing_candidate_source {
 public:
     virtual ~processing_candidate_source() = default;
 
-    virtual std::string source_id() const = 0;
-    virtual processing_candidate_set candidates_for_frame(
-        const stream& stream_value, const frame& frame_value
-    ) = 0;
+    [[nodiscard]] virtual std::string source_id() const = 0;
+    virtual processing_candidate_set
+    candidates_for_frame(const stream& stream_value, const frame& frame_value)
+        = 0;
 };
 
-inline processing_candidate_box_pct candidate_center_box_pct(
-    const point center_pct
-) {
+inline processing_candidate_box_pct
+candidate_center_box_pct(const point center_pct) {
     return processing_candidate_box_pct {
         .top_left_pct = center_pct,
         .bottom_right_pct = center_pct,
     };
 }
 
-inline std::optional<processing_candidate_box_pct> candidate_box_from_mask_pct(
-    const std::vector<point>& mask_pct
-) {
+inline std::optional<processing_candidate_box_pct>
+candidate_box_from_mask_pct(const std::vector<point>& mask_pct) {
     if (mask_pct.empty()) {
         return std::nullopt;
     }

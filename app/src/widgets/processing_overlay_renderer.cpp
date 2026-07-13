@@ -14,12 +14,18 @@
 
 namespace {
 
-enum class overlay_layer { bubbles, contours, vectors, tracks, labels, unknown };
+enum class overlay_layer {
+    bubbles,
+    contours,
+    vectors,
+    tracks,
+    labels,
+    unknown
+};
 
 QString automatic_movement_mode(const stream_settings& settings_value) {
-    const QString algorithm_id = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
+    const QString algorithm_id
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
     const QString preset_id = normalized_algorithm_preset_id(
         algorithm_id, settings_value.algorithm_preset
     );
@@ -53,7 +59,8 @@ QColor color_with_alpha(QColor color, const int alpha) {
 }
 
 QColor overlay_color_for_label(const QString& label) {
-    const auto seed = qHash(label.isEmpty() ? QStringLiteral("overlay") : label);
+    const auto seed
+        = qHash(label.isEmpty() ? QStringLiteral("overlay") : label);
     return QColor::fromHsv(static_cast<int>(seed % 360U), 165, 235);
 }
 
@@ -207,9 +214,8 @@ void draw_arrow_head(
 }
 
 double event_region_scale(const stream_settings& settings_value) {
-    const QString algorithm_id = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
+    const QString algorithm_id
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
     const QString preset_id = normalized_algorithm_preset_id(
         algorithm_id, settings_value.algorithm_preset
     );
@@ -329,7 +335,9 @@ void draw_baseline_event_bubble(
     }
 
     if (preset_id == QStringLiteral("debug")) {
-        QPen cross_pen(color_with_alpha(color, static_cast<int>(160.0 * life_k)));
+        QPen cross_pen(
+            color_with_alpha(color, static_cast<int>(160.0 * life_k))
+        );
         cross_pen.setWidthF(1.0);
         cross_pen.setStyle(Qt::DashLine);
         painter.setPen(cross_pen);
@@ -400,7 +408,9 @@ void draw_contour_event_bubble(
 
     if (preset_id == QStringLiteral("mask_heavy")) {
         painter.setPen(Qt::NoPen);
-        painter.setBrush(color_with_alpha(color, static_cast<int>(42.0 * life_k)));
+        painter.setBrush(
+            color_with_alpha(color, static_cast<int>(42.0 * life_k))
+        );
         painter.drawRoundedRect(region, 10.0, 10.0);
     }
 
@@ -421,10 +431,14 @@ void draw_contour_event_bubble(
     painter.drawPolygon(contour);
 
     if (preset_id != QStringLiteral("outline")) {
-        painter.drawEllipse(center, region.width() * 0.28, region.height() * 0.28);
+        painter.drawEllipse(
+            center, region.width() * 0.28, region.height() * 0.28
+        );
     }
 
-    painter.setPen(QPen(color_with_alpha(color, static_cast<int>(190.0 * life_k)), 1.2));
+    painter.setPen(
+        QPen(color_with_alpha(color, static_cast<int>(190.0 * life_k)), 1.2)
+    );
     painter.drawLine(
         QPointF(center.x() - radius * 1.8, center.y()),
         QPointF(center.x() + radius * 1.8, center.y())
@@ -444,7 +458,9 @@ void draw_hybrid_event_bubble(
         : (preset_id == QStringLiteral("tripwire_bias") ? 4 : 3);
 
     QPen frame_pen(color_with_alpha(color, static_cast<int>(155.0 * life_k)));
-    frame_pen.setWidthF(preset_id == QStringLiteral("tripwire_bias") ? 2.0 : 1.4);
+    frame_pen.setWidthF(
+        preset_id == QStringLiteral("tripwire_bias") ? 2.0 : 1.4
+    );
     frame_pen.setStyle(
         preset_id == QStringLiteral("load_guard") ? Qt::DotLine : Qt::DashLine
     );
@@ -476,7 +492,9 @@ void draw_hybrid_event_bubble(
             << QPointF(center.x(), region.bottom())
             << QPointF(region.left(), center.y());
     QPen contour_pen(color_with_alpha(color, static_cast<int>(180.0 * life_k)));
-    contour_pen.setWidthF(preset_id == QStringLiteral("tripwire_bias") ? 1.9 : 1.4);
+    contour_pen.setWidthF(
+        preset_id == QStringLiteral("tripwire_bias") ? 1.9 : 1.4
+    );
     painter.setPen(contour_pen);
     painter.drawPolygon(contour);
 
@@ -533,10 +551,12 @@ void draw_centroid_event_bubble(
             const double k = 1.0
                 - static_cast<double>(index + 1)
                     / static_cast<double>(track_path.size());
-            painter.setBrush(
-                color_with_alpha(color, static_cast<int>((60.0 + k * 70.0) * life_k))
+            painter.setBrush(color_with_alpha(
+                color, static_cast<int>((60.0 + k * 70.0) * life_k)
+            ));
+            painter.drawEllipse(
+                track_path.at(index), radius * 0.42, radius * 0.42
             );
-            painter.drawEllipse(track_path.at(index), radius * 0.42, radius * 0.42);
         }
     }
 
@@ -556,11 +576,13 @@ void draw_centroid_event_bubble(
 namespace processing_overlay_renderer {
 
 QString selected_movement_mode(const stream_settings& settings_value) {
-    return normalized_movement_display_mode_id(settings_value.movement_display_mode);
+    return normalized_movement_display_mode_id(
+        settings_value.movement_display_mode
+    );
 }
 
 QString resolved_backend_overlay_mode(const stream_settings& settings_value) {
-    const QString mode = selected_movement_mode(settings_value);
+    QString mode = selected_movement_mode(settings_value);
     if (mode == QStringLiteral("auto")) {
         return automatic_movement_mode(settings_value);
     }
@@ -571,7 +593,7 @@ QString resolved_draw_overlay_mode(
     const stream_settings& settings_value,
     const std::vector<processing_overlay_instance>& overlays
 ) {
-    const QString mode = selected_movement_mode(settings_value);
+    QString mode = selected_movement_mode(settings_value);
     if (mode != QStringLiteral("auto")) {
         return mode;
     }
@@ -588,8 +610,16 @@ bool event_bubbles_visible(
     const stream_settings& settings_value,
     const std::vector<processing_overlay_instance>& overlays
 ) {
-    return resolved_draw_overlay_mode(settings_value, overlays)
-        == QStringLiteral("bubbles");
+    if (resolved_draw_overlay_mode(settings_value, overlays)
+        == QStringLiteral("bubbles")) {
+        return true;
+    }
+
+    // Before the backend has produced a contour/vector/track overlay, keep a
+    // symbolic event marker visible in automatic mode. This gives immediate
+    // feedback and lets each algorithm use its distinct fallback rendering.
+    return selected_movement_mode(settings_value) == QStringLiteral("auto")
+        && settings_value.algorithm_overlay_enabled && overlays.empty();
 }
 
 bool tripwire_waves_visible(const stream_settings& settings_value) {
@@ -624,12 +654,8 @@ void draw(
             }
             const QPointF center = to_px(bounds, *overlay.anchor_pct);
             const bool track_point = is_track_overlay(overlay.label);
-            painter.setPen(
-                QPen(color.lighter(135), track_point ? 1.9 : 1.6)
-            );
-            painter.setBrush(
-                color_with_alpha(color, track_point ? 112 : 82)
-            );
+            painter.setPen(QPen(color.lighter(135), track_point ? 1.9 : 1.6));
+            painter.setBrush(color_with_alpha(color, track_point ? 112 : 82));
             painter.drawEllipse(
                 center, track_point ? 7.0 : 9.0, track_point ? 7.0 : 9.0
             );
@@ -666,16 +692,17 @@ void draw(
         const bool track_overlay = is_track_overlay(overlay.label);
         QPen pen(color);
         pen.setWidthF(
-            average_flow ? 2.8
-            : (flow_overlay ? 1.7
-                            : (mode == QStringLiteral("vectors") ? 2.1 : 1.8))
+            average_flow
+                ? 2.8
+                : (flow_overlay
+                       ? 1.7
+                       : (mode == QStringLiteral("vectors") ? 2.1 : 1.8))
         );
         pen.setStyle(
-            flow_overlay
-                ? Qt::DashLine
-                : (mode == QStringLiteral("tracks") || track_overlay
-                       ? Qt::SolidLine
-                       : Qt::DashLine)
+            flow_overlay ? Qt::DashLine
+                         : (mode == QStringLiteral("tracks") || track_overlay
+                                ? Qt::SolidLine
+                                : Qt::DashLine)
         );
         pen.setCapStyle(Qt::RoundCap);
         pen.setJoinStyle(Qt::RoundJoin);
@@ -713,9 +740,8 @@ void draw_event_bubble(
     const double radius, const QColor& color,
     const stream_settings& settings_value, const double life_k
 ) {
-    const QString algorithm_id = normalized_app_algorithm_id(
-        settings_value.algorithm_id
-    );
+    const QString algorithm_id
+        = normalized_app_algorithm_id(settings_value.algorithm_id);
     const QRectF region = event_region_rect(bounds, center, settings_value);
 
     if (algorithm_id == QStringLiteral("spot_grid")) {

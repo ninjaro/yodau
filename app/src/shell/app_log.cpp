@@ -1,6 +1,7 @@
 #include "shell/app_log.hpp"
 
 #include <QStringList>
+#include <algorithm>
 
 namespace app_log_support {
 
@@ -103,9 +104,8 @@ QString app_log_mode_name(const app_log_mode mode) {
     }
 }
 
-QString format_app_log_entry(
-    const app_log_mode mode, const app_log_entry& entry
-) {
+QString
+format_app_log_entry(const app_log_mode mode, const app_log_entry& entry) {
     switch (mode) {
     case app_log_mode::debug:
         return app_log_support::format_debug_log_entry(entry);
@@ -136,9 +136,29 @@ app_log_buffer::entries_for_area(const app_log_area area) const {
     return filtered_entries;
 }
 
+qsizetype app_log_buffer::capacity() const { return maximum_entries_; }
+
+void app_log_buffer::set_capacity(const qsizetype maximum_entries) {
+    maximum_entries_ = std::clamp<qsizetype>(maximum_entries, 1, 100000);
+    if (entry_list.size() <= maximum_entries_) {
+        return;
+    }
+
+    const qsizetype remove_count = entry_list.size() - maximum_entries_;
+    entry_list.remove(0, remove_count);
+    emit entries_pruned(remove_count);
+}
+
 void app_log_buffer::append(app_log_entry entry) {
     if (!entry.timestamp.isValid()) {
         entry.timestamp = QDateTime::currentDateTime();
+    }
+
+    if (entry_list.size() >= maximum_entries_) {
+        const qsizetype trim_count
+            = std::max<qsizetype>(1, maximum_entries_ / 4);
+        entry_list.remove(0, std::min(trim_count, entry_list.size()));
+        emit entries_pruned(trim_count);
     }
 
     entry_list.push_back(entry);

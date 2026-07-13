@@ -35,8 +35,8 @@ void draw(
 );
 void draw_event_bubble(
     QPainter& painter, const QRect& bounds, const QPointF& center,
-    double radius, const QColor& color,
-    const stream_settings& settings_value, double life_k
+    double radius, const QColor& color, const stream_settings& settings_value,
+    double life_k
 );
 
 } // namespace processing_overlay_renderer

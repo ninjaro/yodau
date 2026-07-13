@@ -41,9 +41,8 @@ cv::Mat binary_motion_mask(
     const cv::Mat& previous_gray, const cv::Mat& current_gray,
     const int diff_threshold, const int blur_kernel, const int morph_kernel
 ) {
-    const cv::Mat diff = blurred_absdiff(
-        previous_gray, current_gray, blur_kernel
-    );
+    const cv::Mat diff
+        = blurred_absdiff(previous_gray, current_gray, blur_kernel);
 
     cv::Mat binary_mask;
     cv::threshold(
@@ -51,7 +50,8 @@ cv::Mat binary_motion_mask(
         cv::THRESH_BINARY
     );
 
-    const int normalized_morph_kernel = normalized_odd_kernel_size(morph_kernel);
+    const int normalized_morph_kernel
+        = normalized_odd_kernel_size(morph_kernel);
     if (normalized_morph_kernel > 1) {
         const cv::Mat kernel = cv::getStructuringElement(
             cv::MORPH_ELLIPSE,
@@ -76,14 +76,10 @@ cv::Mat legacy_frame_delta_motion_mask(
     );
 
     if (erode_iterations > 0) {
-        cv::erode(
-            mask, mask, cv::Mat(), cv::Point(-1, -1), erode_iterations
-        );
+        cv::erode(mask, mask, cv::Mat(), cv::Point(-1, -1), erode_iterations);
     }
     if (dilate_iterations > 0) {
-        cv::dilate(
-            mask, mask, cv::Mat(), cv::Point(-1, -1), dilate_iterations
-        );
+        cv::dilate(mask, mask, cv::Mat(), cv::Point(-1, -1), dilate_iterations);
     }
 
     return mask;
@@ -112,23 +108,23 @@ cv::Mat downsample_motion_mask_to_grid(
     }
 
     cv::resize(
-        binary_mask, out, cv::Size(grid.nx, grid.ny), 0.0, 0.0,
-        cv::INTER_AREA
+        binary_mask, out, cv::Size(grid.nx, grid.ny), 0.0, 0.0, cv::INTER_AREA
     );
     return out;
 }
 
-std::vector<int> active_motion_grid_cells(
-    const cv::Mat& grid_mask, const grid_dims& grid
-) {
+std::vector<int>
+active_motion_grid_cells(const cv::Mat& grid_mask, const grid_dims& grid) {
     std::vector<int> active_cell_indices;
     if (grid_mask.empty()) {
         return active_cell_indices;
     }
 
-    active_cell_indices.reserve(static_cast<size_t>(grid.nx * grid.ny));
+    active_cell_indices.reserve(
+        static_cast<size_t>(grid.nx) * static_cast<size_t>(grid.ny)
+    );
     for (int cell_y = 0; cell_y < grid.ny; ++cell_y) {
-        const std::uint8_t* row = grid_mask.ptr<std::uint8_t>(cell_y);
+        const auto* row = grid_mask.ptr<std::uint8_t>(cell_y);
         for (int cell_x = 0; cell_x < grid.nx; ++cell_x) {
             if (row[cell_x] == 0) {
                 continue;
@@ -145,12 +141,11 @@ double legacy_impact_speed(
     const point& previous_center, const point& current_center,
     const double motion_ratio, const double min_ratio
 ) {
-    const double dx = static_cast<double>(current_center.x - previous_center.x);
-    const double dy = static_cast<double>(current_center.y - previous_center.y);
+    const auto dx = static_cast<double>(current_center.x - previous_center.x);
+    const auto dy = static_cast<double>(current_center.y - previous_center.y);
     const double distance_pct = std::sqrt(dx * dx + dy * dy);
-    const double ratio_boost = std::clamp(
-        (motion_ratio - min_ratio) * 18.0, 0.0, 1.2
-    );
+    const double ratio_boost
+        = std::clamp((motion_ratio - min_ratio) * 18.0, 0.0, 1.2);
     return std::clamp(0.35 + distance_pct / 8.0 + ratio_boost, 0.35, 2.5);
 }
 
@@ -182,12 +177,10 @@ void append_motion_grid_cell_events(
         const int cell_x = cell_idx % grid.nx;
         const int cell_y = cell_idx / grid.nx;
 
-        events.push_back(
-            make_motion_event(
-                stream_name, timestamp,
-                grid_cell_center_pct(grid_point { cell_x, cell_y }, grid)
-            )
-        );
+        events.push_back(make_motion_event(
+            stream_name, timestamp,
+            grid_cell_center_pct(grid_point { cell_x, cell_y }, grid)
+        ));
 
         ++emitted;
         if (emitted >= max_events) {
@@ -224,13 +217,12 @@ bool processing_motion_event_state::allow_motion_emit(
     const std::chrono::milliseconds cooldown
 ) {
     std::scoped_lock lock(mtx_);
-    auto it = last_motion_emit_by_stream_.find(stream_name);
-    if (it != last_motion_emit_by_stream_.end()
-        && now - it->second < cooldown) {
+    auto it = motion_emit_by_stream_.find(stream_name);
+    if (it != motion_emit_by_stream_.end() && now - it->second < cooldown) {
         return false;
     }
 
-    last_motion_emit_by_stream_[stream_name] = now;
+    motion_emit_by_stream_[stream_name] = now;
     return true;
 }
 
@@ -239,9 +231,9 @@ bool processing_motion_event_state::update_motion_position(
     point& previous_position
 ) {
     std::scoped_lock lock(mtx_);
-    auto it = last_motion_position_by_stream_.find(stream_name);
-    if (it == last_motion_position_by_stream_.end()) {
-        last_motion_position_by_stream_[stream_name] = current_position;
+    auto it = motion_position_by_stream_.find(stream_name);
+    if (it == motion_position_by_stream_.end()) {
+        motion_position_by_stream_[stream_name] = current_position;
         return false;
     }
 
@@ -255,12 +247,12 @@ bool processing_motion_event_state::allow_tripwire_emit(
     const std::chrono::milliseconds cooldown
 ) {
     std::scoped_lock lock(mtx_);
-    auto it = last_tripwire_emit_by_key_.find(key);
-    if (it != last_tripwire_emit_by_key_.end() && now - it->second < cooldown) {
+    auto it = tripwire_emit_by_key_.find(key);
+    if (it != tripwire_emit_by_key_.end() && now - it->second < cooldown) {
         return false;
     }
 
-    last_tripwire_emit_by_key_[key] = now;
+    tripwire_emit_by_key_[key] = now;
     return true;
 }
 

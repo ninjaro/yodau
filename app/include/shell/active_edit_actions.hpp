@@ -36,7 +36,9 @@ public:
     };
 
     struct template_apply_result {
-        template_apply_status status { template_apply_status::unknown_template };
+        template_apply_status status {
+            template_apply_status::unknown_template
+        };
         template_apply_settings settings;
         QString error_detail;
         stream_cell::line_instance line;

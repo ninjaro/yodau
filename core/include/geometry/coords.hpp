@@ -28,23 +28,22 @@ struct cell_bounds_pct {
     float y1 {};
 };
 
-int clamp_int(const int v, const int lo, const int hi);
+int clamp_int(int v, int lo, int hi);
 
-float clamp_float(const float v, const float lo, const float hi);
+float clamp_float(float v, float lo, float hi);
 
-int pct_to_px(const float pct, const int size);
+int pct_to_px(float pct, int size);
 
-float px_to_pct(const int px, const int size);
+float px_to_pct(int px, int size);
 
-px_point pct_point_to_px(const point& p, const int width, const int height);
+px_point pct_point_to_px(const point& p, int width, int height);
 
-point px_point_to_pct(const px_point& p, const int width, const int height);
+point px_point_to_pct(const px_point& p, int width, int height);
 
 grid_point pct_point_to_grid(const point& p, const grid_dims& g);
 
-grid_point px_point_to_grid(
-    const px_point& p, const int width, const int height, const grid_dims& g
-);
+grid_point
+px_point_to_grid(const px_point& p, int width, int height, const grid_dims& g);
 
 cell_bounds_pct grid_cell_bounds_pct(const grid_point& c, const grid_dims& g);
 

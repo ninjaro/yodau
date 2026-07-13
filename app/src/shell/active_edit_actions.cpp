@@ -6,8 +6,8 @@
 #include "shell/stream_widget_bridge.hpp"
 #include "streams/stream_manager.hpp"
 
-#include <algorithm>
 #include <QStringList>
+#include <algorithm>
 #include <utility>
 
 namespace active_edit_actions_support {
@@ -20,18 +20,14 @@ line_edit_request normalized_line_edit_request(line_edit_request request) {
     request.stream_name = request.stream_name.trimmed();
     request.source_line_name = request.source_line_name.trimmed();
     request.profile.name = request.profile.name.trimmed();
-    request.profile.color_mode_id = normalized_line_color_mode_id(
-        request.profile.color_mode_id
-    );
-    request.profile.width_text = normalized_line_width_text(
-        request.profile.width_text
-    );
-    request.profile.length_text = normalized_line_length_text(
-        request.profile.length_text
-    );
-    request.profile.response_text = normalized_line_response_text(
-        request.profile.response_text
-    );
+    request.profile.color_mode_id
+        = normalized_line_color_mode_id(request.profile.color_mode_id);
+    request.profile.width_text
+        = normalized_line_width_text(request.profile.width_text);
+    request.profile.length_text
+        = normalized_line_length_text(request.profile.length_text);
+    request.profile.response_text
+        = normalized_line_response_text(request.profile.response_text);
     if (request.selected_visible_index
         >= static_cast<int>(request.points_pct.size())) {
         request.selected_visible_index = -1;
@@ -91,7 +87,7 @@ float interaction_width_value(
 yodau::core::line_profile core_profile_from_line_editor(
     const QString& line_name, const line_profile& profile_value
 ) {
-    const float visual_width
+    const auto visual_width
         = static_cast<float>(line_width_visual_value(profile_value.width_text));
     return yodau::core::make_line_profile(
         line_name.toStdString(), visual_width,
@@ -104,8 +100,9 @@ yodau::core::line_profile core_profile_from_line_editor(
 yodau::core::line_profile core_profile_from_template_settings(
     const QString& line_name, const template_apply_settings& settings_value
 ) {
-    const float visual_width
-        = static_cast<float>(line_width_visual_value(settings_value.width_text));
+    const auto visual_width = static_cast<float>(
+        line_width_visual_value(settings_value.width_text)
+    );
     return yodau::core::make_line_profile(
         line_name.toStdString(), visual_width,
         interaction_width_value(settings_value.width_text, visual_width),
@@ -114,10 +111,9 @@ yodau::core::line_profile core_profile_from_template_settings(
     );
 }
 
-yodau::core::line_profile core_profile_from_line_instance(
-    const stream_cell::line_instance& line_value
-) {
-    const float visual_width
+yodau::core::line_profile
+core_profile_from_line_instance(const stream_cell::line_instance& line_value) {
+    const auto visual_width
         = static_cast<float>(line_width_visual_value(line_value.width_text));
     return yodau::core::make_line_profile(
         line_value.template_name.toStdString(), visual_width,
@@ -130,14 +126,13 @@ yodau::core::line_profile core_profile_from_line_instance(
 } // namespace active_edit_actions_support
 
 active_edit_actions::active_edit_actions(
-    yodau::core::stream_manager* stream_mgr,
-    active_edit_session& edit_session, stream_widget_bridge& widget_bridge,
-    active_edit_controller& edit_controller
+    yodau::core::stream_manager* stream_mgr, active_edit_session& edit_session,
+    stream_widget_bridge& widget_bridge, active_edit_controller& edit_controller
 )
     : stream_mgr_(stream_mgr)
     , edit_session_(edit_session)
     , widget_bridge_(widget_bridge)
-    , edit_controller_(edit_controller) {}
+    , edit_controller_(edit_controller) { }
 
 active_edit_actions::line_save_result active_edit_actions::save_active_line(
     const QString& active_name, line_profile profile_value, stream_cell& cell
@@ -149,7 +144,8 @@ active_edit_actions::line_save_result active_edit_actions::save_active_line(
 
     const auto pts = cell.draft_points_pct();
     result.point_count = static_cast<int>(pts.size());
-    if (pts.size() < 2) {
+    const size_t minimum_points = result.profile.closed ? 3U : 2U;
+    if (pts.size() < minimum_points) {
         return result;
     }
 
@@ -157,7 +153,8 @@ active_edit_actions::line_save_result active_edit_actions::save_active_line(
 
     if (stream_mgr_ == nullptr) {
         result.status = line_save_status::core_error;
-        result.error_detail = active_edit_actions_support::core_unavailable_detail();
+        result.error_detail
+            = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -210,7 +207,8 @@ active_edit_actions::apply_active_template(
 
     if (stream_mgr_ == nullptr) {
         result.status = template_apply_status::core_error;
-        result.error_detail = active_edit_actions_support::core_unavailable_detail();
+        result.error_detail
+            = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -252,9 +250,8 @@ active_edit_actions::set_stream_line_enabled(
     result.line_name = line_name.trimmed();
     result.enabled = enabled;
 
-    const auto line_value = edit_session_.find_stream_line(
-        result.stream_name, result.line_name
-    );
+    const auto line_value
+        = edit_session_.find_stream_line(result.stream_name, result.line_name);
     if (!line_value.has_value()) {
         return result;
     }
@@ -263,7 +260,8 @@ active_edit_actions::set_stream_line_enabled(
 
     if (stream_mgr_ == nullptr) {
         result.status = line_toggle_status::core_error;
-        result.error_detail = active_edit_actions_support::core_unavailable_detail();
+        result.error_detail
+            = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -302,17 +300,15 @@ active_edit_actions::set_stream_line_enabled(
     return result;
 }
 
-active_edit_actions::line_detach_result
-active_edit_actions::detach_stream_line(
+active_edit_actions::line_detach_result active_edit_actions::detach_stream_line(
     const QString& stream_name, const QString& line_name
 ) const {
     line_detach_result result;
     result.stream_name = stream_name.trimmed();
     result.line_name = line_name.trimmed();
 
-    const auto line_value = edit_session_.find_stream_line(
-        result.stream_name, result.line_name
-    );
+    const auto line_value
+        = edit_session_.find_stream_line(result.stream_name, result.line_name);
     if (!line_value.has_value()) {
         return result;
     }
@@ -321,7 +317,8 @@ active_edit_actions::detach_stream_line(
 
     if (stream_mgr_ == nullptr) {
         result.status = line_detach_status::core_error;
-        result.error_detail = active_edit_actions_support::core_unavailable_detail();
+        result.error_detail
+            = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -335,7 +332,9 @@ active_edit_actions::detach_stream_line(
         return result;
     }
 
-    if (!edit_session_.detach_stream_line(result.stream_name, result.line_name)) {
+    if (!edit_session_.detach_stream_line(
+            result.stream_name, result.line_name
+        )) {
         result.status = line_detach_status::missing_line;
         return result;
     }
@@ -360,7 +359,8 @@ active_edit_actions::save_active_line_edit(
         return result;
     }
 
-    if (result.request.points_pct.size() < 2) {
+    const qsizetype minimum_points = result.request.profile.closed ? 3 : 2;
+    if (result.request.points_pct.size() < minimum_points) {
         result.status = line_edit_save_status::insufficient_points;
         return result;
     }
@@ -388,7 +388,8 @@ active_edit_actions::save_active_line_edit(
 
     if (stream_mgr_ == nullptr) {
         result.status = line_edit_save_status::core_error;
-        result.error_detail = active_edit_actions_support::core_unavailable_detail();
+        result.error_detail
+            = active_edit_actions_support::core_unavailable_detail();
         return result;
     }
 
@@ -445,9 +446,8 @@ active_edit_actions::save_active_line_edit(
     }
 }
 
-QString active_edit_actions::points_str_from_pct(
-    const std::vector<QPointF>& pts
-) {
+QString
+active_edit_actions::points_str_from_pct(const std::vector<QPointF>& pts) {
     QStringList parts;
     parts.reserve(static_cast<int>(pts.size()));
     for (const auto& p : pts) {

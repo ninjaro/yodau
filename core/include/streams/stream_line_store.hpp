@@ -21,28 +21,29 @@ struct stream_line_connection {
 
 class stream_line_store {
 public:
-    line_ptr add(
-        const std::string& points, bool closed = false,
-        const std::string& name = {}
-    );
+    line_ptr
+    add(const std::string& points, bool closed = false,
+        const std::string& name = {});
+    line_ptr
+    upsert(const std::string& points, bool closed, const std::string& name);
 
     line_profile set_profile(line_profile profile_value);
 
-    [[nodiscard]] std::optional<line_profile> find_profile(
-        const std::string& line_name
-    ) const;
+    [[nodiscard]] std::optional<line_profile>
+    find_profile(const std::string& line_name) const;
+    [[nodiscard]] std::optional<tripwire_dir>
+    find_direction(const std::string& line_name) const;
 
-    [[nodiscard]] stream_line_connection connection(
-        const std::string& line_name
-    ) const;
+    [[nodiscard]] stream_line_connection
+    connection(const std::string& line_name) const;
 
     [[nodiscard]] bool contains(const std::string& line_name) const;
+    [[nodiscard]] line_ptr find(const std::string& line_name) const;
     [[nodiscard]] std::vector<std::string> names() const;
     [[nodiscard]] size_t size() const;
 
-    stream_line_connection set_direction(
-        const std::string& line_name, tripwire_dir dir
-    );
+    stream_line_connection
+    set_direction(const std::string& line_name, tripwire_dir dir);
 
     void dump(std::ostream& out) const;
 

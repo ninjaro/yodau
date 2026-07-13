@@ -15,19 +15,18 @@ namespace yodau::core {
 
 class stream_registry {
 public:
-    stream& add(
-        const std::string& path, const std::string& name = {},
-        const std::string& type = {}, bool loop = true
-    );
+    stream&
+    add(const std::string& path, const std::string& name = {},
+        const std::string& type = {}, bool loop = true);
 
     bool add_detected(stream detected_stream);
+    bool erase(const std::string& name);
 
     [[nodiscard]] bool contains(const std::string& name) const;
 
     [[nodiscard]] std::shared_ptr<stream> find(const std::string& name) const;
-    [[nodiscard]] std::shared_ptr<const stream> find_const(
-        const std::string& name
-    ) const;
+    [[nodiscard]] std::shared_ptr<const stream>
+    find_const(const std::string& name) const;
 
     [[nodiscard]] std::vector<std::shared_ptr<stream>> snapshot() const;
     [[nodiscard]] std::vector<std::string> names() const;

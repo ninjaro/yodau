@@ -6,11 +6,11 @@
 namespace yodau::core {
 
 processing_session_store::processing_session_store(
-    std::string default_algorithm_id
+    const std::string& default_algorithm_id
 )
     : default_algorithm_settings_(
           default_processing_algorithm_settings(default_algorithm_id)
-      ) {}
+      ) { }
 
 processing_session_store::processing_session_store(
     processing_session_store&& other
@@ -19,9 +19,9 @@ processing_session_store::processing_session_store(
     default_algorithm_settings_ = std::move(other.default_algorithm_settings_);
     algorithm_overrides_by_stream_
         = std::move(other.algorithm_overrides_by_stream_);
-    active_algorithms_by_stream_ = std::move(other.active_algorithms_by_stream_);
-    active_algorithm_settings_by_stream_
-        = std::move(other.active_algorithm_settings_by_stream_);
+    active_algorithms_by_stream_
+        = std::move(other.active_algorithms_by_stream_);
+    active_settings_by_stream_ = std::move(other.active_settings_by_stream_);
     latest_results_by_stream_ = std::move(other.latest_results_by_stream_);
 }
 
@@ -38,9 +38,9 @@ processing_session_store::operator=(processing_session_store&& other) noexcept {
     default_algorithm_settings_ = std::move(other.default_algorithm_settings_);
     algorithm_overrides_by_stream_
         = std::move(other.algorithm_overrides_by_stream_);
-    active_algorithms_by_stream_ = std::move(other.active_algorithms_by_stream_);
-    active_algorithm_settings_by_stream_
-        = std::move(other.active_algorithm_settings_by_stream_);
+    active_algorithms_by_stream_
+        = std::move(other.active_algorithms_by_stream_);
+    active_settings_by_stream_ = std::move(other.active_settings_by_stream_);
     latest_results_by_stream_ = std::move(other.latest_results_by_stream_);
     return *this;
 }
@@ -60,14 +60,15 @@ std::string processing_session_store::algorithm_id_for_stream(
     const std::string& stream_name
 ) const {
     std::scoped_lock lock(algorithms_mtx_);
-    return resolved_algorithm_settings_for_stream_locked(stream_name).algorithm_id;
+    return resolved_settings_for_stream_locked(stream_name).algorithm_id;
 }
 
-processing_algorithm_settings processing_session_store::algorithm_settings_for_stream(
+processing_algorithm_settings
+processing_session_store::algorithm_settings_for_stream(
     const std::string& stream_name
 ) const {
     std::scoped_lock lock(algorithms_mtx_);
-    return resolved_algorithm_settings_for_stream_locked(stream_name);
+    return resolved_settings_for_stream_locked(stream_name);
 }
 
 std::unordered_map<std::string, std::string>
@@ -105,7 +106,7 @@ void processing_session_store::set_default_algorithm(
              it != active_algorithms_by_stream_.end();) {
             if (!algorithm_overrides_by_stream_.contains(it->first)) {
                 streams_using_default.push_back(it->first);
-                active_algorithm_settings_by_stream_.erase(it->first);
+                active_settings_by_stream_.erase(it->first);
                 it = active_algorithms_by_stream_.erase(it);
                 continue;
             }
@@ -125,7 +126,7 @@ void processing_session_store::set_default_algorithm(
 }
 
 void processing_session_store::set_default_algorithm(
-    std::string canonical_algorithm_id
+    const std::string& canonical_algorithm_id
 ) {
     set_default_algorithm(
         default_processing_algorithm_settings(canonical_algorithm_id)
@@ -150,7 +151,7 @@ void processing_session_store::set_stream_algorithm(
             algorithm_overrides_by_stream_[stream_name] = settings;
         }
 
-        active_algorithm_settings_by_stream_[stream_name] = std::move(settings);
+        active_settings_by_stream_[stream_name] = std::move(settings);
         active_algorithms_by_stream_[stream_name] = std::move(algorithm);
     }
 
@@ -158,11 +159,12 @@ void processing_session_store::set_stream_algorithm(
 }
 
 void processing_session_store::set_stream_algorithm(
-    const std::string& stream_name, std::string canonical_algorithm_id,
+    const std::string& stream_name, const std::string& canonical_algorithm_id,
     std::shared_ptr<processing_algorithm> algorithm
 ) {
     set_stream_algorithm(
-        stream_name, default_processing_algorithm_settings(canonical_algorithm_id),
+        stream_name,
+        default_processing_algorithm_settings(canonical_algorithm_id),
         std::move(algorithm)
     );
 }
@@ -178,7 +180,7 @@ void processing_session_store::clear_stream_algorithm(
         std::scoped_lock lock(algorithms_mtx_);
         algorithm_overrides_by_stream_.erase(stream_name);
         active_algorithms_by_stream_.erase(stream_name);
-        active_algorithm_settings_by_stream_.erase(stream_name);
+        active_settings_by_stream_.erase(stream_name);
     }
 
     clear_latest_processing_result(stream_name);
@@ -194,18 +196,16 @@ processing_session_store::active_algorithm_for_stream(
 
     std::scoped_lock lock(algorithms_mtx_);
     const processing_algorithm_settings resolved_settings
-        = resolved_algorithm_settings_for_stream_locked(stream_name);
+        = resolved_settings_for_stream_locked(stream_name);
     if (resolved_settings.algorithm_id.empty()) {
         return {};
     }
 
     const auto algorithm_it = active_algorithms_by_stream_.find(stream_name);
-    const auto settings_it = active_algorithm_settings_by_stream_.find(
-        stream_name
-    );
+    const auto settings_it = active_settings_by_stream_.find(stream_name);
     if (algorithm_it != active_algorithms_by_stream_.end()
         && algorithm_it->second != nullptr
-        && settings_it != active_algorithm_settings_by_stream_.end()
+        && settings_it != active_settings_by_stream_.end()
         && settings_it->second == resolved_settings) {
         return algorithm_it->second;
     }
@@ -222,7 +222,7 @@ processing_session_store::active_algorithm_for_stream(
     auto shared_algorithm
         = std::shared_ptr<processing_algorithm>(std::move(algorithm));
     active_algorithms_by_stream_[stream_name] = shared_algorithm;
-    active_algorithm_settings_by_stream_[stream_name] = resolved_settings;
+    active_settings_by_stream_[stream_name] = resolved_settings;
     return shared_algorithm;
 }
 
@@ -235,8 +235,7 @@ processing_session_store::active_algorithm_for_stream(
     }
 
     return active_algorithm_for_stream(
-        stream_name,
-        [&factory](const processing_algorithm_settings& settings) {
+        stream_name, [&factory](const processing_algorithm_settings& settings) {
             return factory(settings.algorithm_id);
         }
     );
@@ -272,7 +271,7 @@ void processing_session_store::clear_latest_processing_result(
 }
 
 processing_algorithm_settings
-processing_session_store::resolved_algorithm_settings_for_stream_locked(
+processing_session_store::resolved_settings_for_stream_locked(
     const std::string& stream_name
 ) const {
     const auto override_it = algorithm_overrides_by_stream_.find(stream_name);

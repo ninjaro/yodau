@@ -10,9 +10,7 @@ int yodau::core::clamp_int(const int v, const int lo, const int hi) {
     return v;
 }
 
-float yodau::core::clamp_float(
-    const float v, const float lo, const float hi
-) {
+float yodau::core::clamp_float(const float v, const float lo, const float hi) {
     if (v < lo) {
         return lo;
     }

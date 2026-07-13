@@ -14,8 +14,8 @@ class stream_board final : public QWidget {
 public:
     explicit stream_board(QWidget* parent = nullptr);
 
-    grid_view* grid_mode() const;
-    stream_cell* active_cell() const;
+    [[nodiscard]] grid_view* grid_mode() const;
+    [[nodiscard]] stream_cell* active_cell() const;
 
     void set_active_stream(const QString& name);
     void clear_active();

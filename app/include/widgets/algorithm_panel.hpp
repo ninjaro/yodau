@@ -20,7 +20,7 @@ public:
     );
 
     void set_stream_settings(const stream_settings& settings_value);
-    stream_settings current_stream_settings() const;
+    [[nodiscard]] stream_settings current_stream_settings() const;
     void set_stream_active(bool active);
 
 signals:
@@ -37,8 +37,9 @@ private:
     void refresh_advanced_controls() const;
     void refresh_preset_options();
     void refresh_summary();
-    stream_settings normalized_settings(stream_settings settings_value) const;
-    QString object_name(const QString& suffix) const;
+    [[nodiscard]] static stream_settings
+    normalized_settings(stream_settings settings_value);
+    [[nodiscard]] QString object_name(const QString& suffix) const;
 
     QComboBox* algorithm_combo { nullptr };
     QFormLayout* form_ { nullptr };

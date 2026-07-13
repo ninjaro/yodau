@@ -17,6 +17,9 @@ namespace yodau::core {
 enum class processing_motion_focus_mode { off, auto_focus, regions, corridors };
 
 struct processing_motion_focus_options {
+    // Automatic mode preserves full-frame detection so downstream tripwire and
+    // region filters retain observations and diagnostics. `regions` and
+    // `corridors` opt into early spatial masking explicitly.
     processing_motion_focus_mode mode {
         processing_motion_focus_mode::auto_focus
     };
@@ -28,9 +31,7 @@ struct processing_motion_focus_result {
     size_t shape_count { 0 };
 };
 
-processing_motion_focus_mode processing_motion_focus_mode_from_id(
-    std::string_view value
-);
+processing_motion_focus_mode motion_focus_mode_from_id(std::string_view value);
 std::string processing_motion_focus_mode_id(processing_motion_focus_mode mode);
 
 processing_motion_focus_result build_motion_focus_mask(

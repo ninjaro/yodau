@@ -14,61 +14,62 @@ namespace yodau::core {
 
 namespace {
 
-std::string normalized_model_id(std::string_view value) {
-    std::string normalized;
-    normalized.reserve(value.size());
+    std::string normalized_model_id(std::string_view value) {
+        std::string normalized;
+        normalized.reserve(value.size());
 
-    for (const char ch : value) {
-        if (std::isspace(static_cast<unsigned char>(ch)) || ch == '-') {
-            if (!normalized.empty() && normalized.back() != '_') {
-                normalized.push_back('_');
+        for (const char ch : value) {
+            if (std::isspace(static_cast<unsigned char>(ch)) || ch == '-') {
+                if (!normalized.empty() && normalized.back() != '_') {
+                    normalized.push_back('_');
+                }
+                continue;
             }
-            continue;
+
+            normalized.push_back(
+                static_cast<char>(std::tolower(static_cast<unsigned char>(ch)))
+            );
         }
 
-        normalized.push_back(
-            static_cast<char>(std::tolower(static_cast<unsigned char>(ch)))
+        while (!normalized.empty() && normalized.back() == '_') {
+            normalized.pop_back();
+        }
+
+        return normalized;
+    }
+
+    cv::Mat blurred_gray(const cv::Mat& gray, const int blur_kernel) {
+        const int kernel_size = normalized_odd_kernel_size(blur_kernel);
+        if (kernel_size <= 1) {
+            return gray;
+        }
+
+        cv::Mat blurred;
+        cv::GaussianBlur(
+            gray, blurred, cv::Size(kernel_size, kernel_size), 0.0
         );
+        return blurred;
     }
 
-    while (!normalized.empty() && normalized.back() == '_') {
-        normalized.pop_back();
-    }
+    cv::Ptr<cv::BackgroundSubtractor> make_subtractor(
+        const processing_background_model_kind kind, const int history_frames,
+        const double model_threshold, const bool detect_shadows
+    ) {
+        if (kind == processing_background_model_kind::knn) {
+            return cv::createBackgroundSubtractorKNN(
+                history_frames, model_threshold, detect_shadows
+            );
+        }
 
-    return normalized;
-}
-
-cv::Mat blurred_gray(const cv::Mat& gray, const int blur_kernel) {
-    const int kernel_size = normalized_odd_kernel_size(blur_kernel);
-    if (kernel_size <= 1) {
-        return gray;
-    }
-
-    cv::Mat blurred;
-    cv::GaussianBlur(gray, blurred, cv::Size(kernel_size, kernel_size), 0.0);
-    return blurred;
-}
-
-cv::Ptr<cv::BackgroundSubtractor> make_subtractor(
-    const processing_background_model_kind kind, const int history_frames,
-    const double model_threshold, const bool detect_shadows
-) {
-    if (kind == processing_background_model_kind::knn) {
-        return cv::createBackgroundSubtractorKNN(
+        return cv::createBackgroundSubtractorMOG2(
             history_frames, model_threshold, detect_shadows
         );
     }
 
-    return cv::createBackgroundSubtractorMOG2(
-        history_frames, model_threshold, detect_shadows
-    );
-}
-
 } // namespace
 
-processing_background_model_kind processing_background_model_kind_from_id(
-    std::string_view value
-) {
+processing_background_model_kind
+background_model_kind_from_id(std::string_view value) {
     const std::string normalized = normalized_model_id(value);
     if (normalized == "mog2" || normalized == "gaussian_mixture") {
         return processing_background_model_kind::mog2;
@@ -112,8 +113,10 @@ cv::Mat processing_background_model_store::motion_mask(
     const double model_threshold = std::max(1.0, options.model_threshold);
     const double learning_rate = std::clamp(options.learning_rate, -1.0, 1.0);
 
-    const cv::Mat previous_input = blurred_gray(previous_gray, options.blur_kernel);
-    const cv::Mat current_input = blurred_gray(current_gray, options.blur_kernel);
+    const cv::Mat previous_input
+        = blurred_gray(previous_gray, options.blur_kernel);
+    const cv::Mat current_input
+        = blurred_gray(current_gray, options.blur_kernel);
 
     std::scoped_lock lock(mtx_);
     model_state& state = state_by_stream_[stream_name];

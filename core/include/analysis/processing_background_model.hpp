@@ -30,12 +30,10 @@ struct processing_background_model_options {
     bool detect_shadows { false };
 };
 
-processing_background_model_kind processing_background_model_kind_from_id(
-    std::string_view value
-);
-std::string processing_background_model_kind_id(
-    processing_background_model_kind kind
-);
+processing_background_model_kind
+background_model_kind_from_id(std::string_view value);
+std::string
+processing_background_model_kind_id(processing_background_model_kind kind);
 
 class processing_background_model_store {
 public:

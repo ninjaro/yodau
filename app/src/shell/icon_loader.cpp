@@ -37,8 +37,7 @@ QIcon icon_loader::title_bar_restore_icon() {
     );
 #else
     return themed(
-        { "view-restore", "window-restore" },
-        QStyle::SP_TitleBarNormalButton
+        { "view-restore", "window-restore" }, QStyle::SP_TitleBarNormalButton
     );
 #endif
 }

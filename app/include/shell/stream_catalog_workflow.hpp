@@ -5,6 +5,7 @@
 #include "shell/app_log.hpp"
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 #include <string>
@@ -21,6 +22,7 @@ class stream_catalog_workflow final {
 public:
     struct transition_result {
         QVector<app_log_entry> entries;
+        QStringList removed_streams;
         bool refresh_fps { false };
         bool update_monitor_inventory { false };
         QString monitor_marker;

@@ -4,8 +4,8 @@
 #include "analysis/processing_algorithm.hpp"
 #include "core/namespace_alias.hpp"
 
-#include <optional>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -22,6 +22,7 @@ struct processing_preset_descriptor {
 };
 
 enum class processing_parameter_visibility { basic, advanced };
+enum class processing_parameter_kind { text, boolean, integer, real };
 
 struct processing_parameter_descriptor {
     std::string id;
@@ -30,6 +31,8 @@ struct processing_parameter_descriptor {
     std::string unit;
     std::optional<double> min_value;
     std::optional<double> max_value;
+    processing_parameter_kind kind { processing_parameter_kind::text };
+    std::vector<std::string> allowed_values;
     processing_parameter_visibility visibility {
         processing_parameter_visibility::advanced
     };
@@ -44,12 +47,8 @@ struct processing_algorithm_descriptor {
     std::vector<processing_parameter_descriptor> parameters;
 };
 
-using processing_algorithm_parameter_value = std::variant<
-    std::string,
-    bool,
-    std::int64_t,
-    double
->;
+using processing_algorithm_parameter_value
+    = std::variant<std::string, bool, std::int64_t, double>;
 
 struct processing_algorithm_settings {
     std::string algorithm_id;
@@ -65,19 +64,18 @@ default_processing_algorithm_descriptors();
 
 std::vector<std::string> processing_algorithm_catalog_ids();
 
-std::optional<processing_algorithm_descriptor> processing_algorithm_descriptor_for(
-    std::string_view algorithm_id
-);
+std::optional<processing_algorithm_descriptor>
+processing_algorithm_descriptor_for(std::string_view algorithm_id);
 
 std::string normalized_processing_algorithm_id(std::string_view algorithm_id);
 
 std::string processing_algorithm_display_name(std::string_view algorithm_id);
 
-std::string processing_algorithm_default_preset_id(std::string_view algorithm_id);
+std::string
+processing_algorithm_default_preset_id(std::string_view algorithm_id);
 
-processing_algorithm_configuration processing_algorithm_default_configuration(
-    std::string_view algorithm_id
-);
+processing_algorithm_configuration
+processing_algorithm_default_configuration(std::string_view algorithm_id);
 
 processing_algorithm_configuration completed_processing_configuration(
     std::string_view algorithm_id,
@@ -88,9 +86,8 @@ processing_algorithm_configuration processing_algorithm_preset_configuration(
     std::string_view algorithm_id, std::string_view preset_id
 );
 
-processing_algorithm_settings default_processing_algorithm_settings(
-    std::string_view algorithm_id
-);
+processing_algorithm_settings
+default_processing_algorithm_settings(std::string_view algorithm_id);
 
 processing_algorithm_settings normalized_processing_algorithm_settings(
     processing_algorithm_settings settings
@@ -100,9 +97,8 @@ processing_algorithm_configuration processing_algorithm_settings_configuration(
     const processing_algorithm_settings& settings
 );
 
-std::vector<std::string> processing_algorithm_preset_ids(
-    std::string_view algorithm_id
-);
+std::vector<std::string>
+processing_algorithm_preset_ids(std::string_view algorithm_id);
 
 std::optional<processing_preset_descriptor> processing_preset_descriptor_for(
     std::string_view algorithm_id, std::string_view preset_id
@@ -116,7 +112,8 @@ std::string processing_algorithm_preset_display_name(
     std::string_view algorithm_id, std::string_view preset_id
 );
 
-std::optional<processing_parameter_descriptor> processing_parameter_descriptor_for(
+std::optional<processing_parameter_descriptor>
+processing_parameter_descriptor_for(
     std::string_view algorithm_id, std::string_view parameter_id
 );
 

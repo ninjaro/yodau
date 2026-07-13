@@ -5,8 +5,8 @@
 #include <QMetaType>
 #include <QPointF>
 #include <QString>
-#include <QVector>
 #include <QStringList>
+#include <QVector>
 
 QString default_line_color_mode_id();
 QStringList line_color_mode_ids();
@@ -127,8 +127,7 @@ QString algorithm_summary_text(
     const QString& movement_display_mode
 );
 QString algorithm_badge_text(
-    const QString& algorithm_id, const QString& preset_id,
-    bool overlay_enabled
+    const QString& algorithm_id, const QString& preset_id, bool overlay_enabled
 );
 QColor algorithm_badge_color(const QString& algorithm_id);
 
@@ -144,9 +143,8 @@ QString line_profile_summary_text(
     const QString& response_text,
     const QString& parameter_mode_id = default_line_parameter_mode_id()
 );
-QString stream_processing_policy_summary_text(
-    const stream_settings& settings_value
-);
+QString
+stream_processing_policy_summary_text(const stream_settings& settings_value);
 QString stream_runtime_metrics_text(const stream_runtime_metrics& metrics);
 
 #endif // YODAU_APP_SHELL_APP_SETTINGS_HPP

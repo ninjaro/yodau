@@ -17,6 +17,7 @@ public:
     void set_default_interval_ms(int ms);
     void set_stream_interval_ms(const std::string& stream_name, int ms);
     void clear_stream_interval_ms(const std::string& stream_name);
+    void remove_stream(const std::string& stream_name);
 
     int interval_for_stream(const std::string& stream_name) const;
     bool should_process(

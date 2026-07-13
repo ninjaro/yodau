@@ -42,9 +42,8 @@ public:
     );
 
     [[nodiscard]] selection_result set_active_stream(const QString& name) const;
-    [[nodiscard]] settings_result apply_stream_settings(
-        stream_settings settings_value
-    ) const;
+    [[nodiscard]] settings_result
+    apply_stream_settings(stream_settings settings_value) const;
 
 private:
     stream_catalog_state& catalog_state_;

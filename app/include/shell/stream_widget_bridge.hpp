@@ -22,13 +22,13 @@ public:
         bool loop { true };
     };
 
-    stream_widget_bridge(
+    explicit stream_widget_bridge(
         stream_board* main_zone = nullptr, settings_panel* settings = nullptr
     );
 
-    grid_view* grid() const;
-    stream_cell* active_cell() const;
-    stream_cell* tile_for_stream_name(
+    [[nodiscard]] grid_view* grid() const;
+    [[nodiscard]] stream_cell* active_cell() const;
+    [[nodiscard]] stream_cell* tile_for_stream_name(
         const QString& name, const stream_route_state& route_state
     ) const;
 
@@ -43,7 +43,8 @@ public:
     void register_stream_entry(
         const QString& final_name, const QString& source_desc
     ) const;
-    stream_cell* show_stream_in_grid(
+    void unregister_stream_entry(const QString& name) const;
+    [[nodiscard]] stream_cell* show_stream_in_grid(
         const QString& name, const stream_settings& settings_value,
         const active_edit_session& edit_session,
         const grid_stream_binding& binding

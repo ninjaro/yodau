@@ -1,9 +1,7 @@
 #include "analysis/tripwire_grid.hpp"
 
 std::vector<yodau::core::grid_tripwire_segment>
-yodau::core::compile_line_to_grid_segments(
-    const line& l, const grid_dims& g
-) {
+yodau::core::compile_line_to_grid_segments(const line& l, const grid_dims& g) {
     std::vector<grid_tripwire_segment> out;
 
     const size_t n = l.points.size();

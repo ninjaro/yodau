@@ -4,10 +4,13 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QJsonDocument>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QLockFile>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QUuid>
 
 #include <algorithm>
@@ -24,6 +27,7 @@ debug_broadcaster::debug_broadcaster(
       )
     , runtime_enabled(false)
     , endpoint_name()
+    , endpoint_lock()
     , local_server(nullptr)
     , listener_socket(nullptr)
     , pending_packets()
@@ -65,10 +69,11 @@ bool debug_broadcaster::set_enabled(
         requested_endpoint_name.isEmpty() ? build_default_endpoint_name()
                                           : requested_endpoint_name
     );
-    const QString endpoint_path = QDir::temp().filePath(
-        QStringLiteral("%1.sock").arg(effective_endpoint)
-    );
-    if (effective_endpoint.isEmpty()) {
+    const QString runtime_directory = runtime_directory_path();
+    const QString endpoint_path
+        = QDir(runtime_directory)
+              .filePath(QStringLiteral("%1.sock").arg(effective_endpoint));
+    if (effective_endpoint.isEmpty() || runtime_directory.isEmpty()) {
         emit warning_raised(
             QStringLiteral("broadcaster_invalid_endpoint"),
             QStringLiteral("unable to determine local IPC endpoint")
@@ -77,35 +82,43 @@ bool debug_broadcaster::set_enabled(
     }
 
     auto* server = new QLocalServer(this);
+    server->setSocketOptions(QLocalServer::UserAccessOption);
     QObject::connect(
         server, &QLocalServer::newConnection, this,
         &debug_broadcaster::on_new_connection
     );
 
-    QString resolved_endpoint = endpoint_path;
-    if (!endpoint_path.isEmpty()) {
-        QLocalServer::removeServer(endpoint_path);
-    }
-    if (!effective_endpoint.isEmpty()) {
-        QLocalServer::removeServer(effective_endpoint);
-    }
-
-    if (!endpoint_path.isEmpty() && !server->listen(endpoint_path)) {
-        const QString path_error = server->errorString();
-        if (!server->listen(effective_endpoint)) {
+    auto lock
+        = std::make_unique<QLockFile>(endpoint_path + QStringLiteral(".lock"));
+    // Process liveness, rather than lock-file age, decides whether an endpoint
+    // may be reclaimed. This prevents a second process from unlinking a live
+    // listener while still recovering after a crash.
+    lock->setStaleLockTime(0);
+    if (!lock->tryLock()) {
+        if (!lock->removeStaleLockFile() || !lock->tryLock()) {
             emit warning_raised(
-                QStringLiteral("broadcaster_listen_failed"),
-                QStringLiteral("%1; fallback failed: %2")
-                    .arg(path_error, server->errorString())
+                QStringLiteral("broadcaster_endpoint_in_use"),
+                QStringLiteral("local IPC endpoint is already owned: %1")
+                    .arg(endpoint_path)
             );
             server->deleteLater();
             return false;
         }
-        resolved_endpoint = effective_endpoint;
+    }
+
+    QLocalServer::removeServer(endpoint_path);
+    if (!server->listen(endpoint_path)) {
+        emit warning_raised(
+            QStringLiteral("broadcaster_listen_failed"), server->errorString()
+        );
+        lock->unlock();
+        server->deleteLater();
+        return false;
     }
 
     local_server = server;
-    endpoint_name = resolved_endpoint;
+    endpoint_lock = std::move(lock);
+    endpoint_name = endpoint_path;
     runtime_enabled = true;
     return true;
 }
@@ -140,7 +153,7 @@ bool debug_broadcaster::publish_json(
     QByteArray payload = document.toJson(QJsonDocument::Compact);
     payload.append('\n');
 
-    const qint64 payload_bytes = static_cast<qint64>(payload.size());
+    const auto payload_bytes = static_cast<qint64>(payload.size());
     if (!make_room_for_packet(payload_bytes, priority, droppable)) {
         mark_dropped(priority);
         return false;
@@ -164,7 +177,12 @@ void debug_broadcaster::on_new_connection() {
 
     QLocalSocket* newest_socket = nullptr;
     while (local_server->hasPendingConnections()) {
-        newest_socket = local_server->nextPendingConnection();
+        QLocalSocket* pending_socket = local_server->nextPendingConnection();
+        if (newest_socket != nullptr) {
+            newest_socket->close();
+            newest_socket->deleteLater();
+        }
+        newest_socket = pending_socket;
     }
     if (newest_socket == nullptr) {
         return;
@@ -177,6 +195,10 @@ void debug_broadcaster::on_new_connection() {
         listener_socket = nullptr;
     }
 
+    // Buffered live telemetry belongs to the prior/no listener. A replacement
+    // starts from a fresh protocol handshake and current-state snapshot.
+    pending_packets.clear();
+    pending_packet_bytes = 0;
     attach_socket(newest_socket);
     emit listener_connection_changed(true);
     try_flush();
@@ -192,7 +214,7 @@ void debug_broadcaster::on_socket_bytes_written(qint64 bytes_written) {
     try_flush();
 }
 
-QString debug_broadcaster::build_default_endpoint_name() const {
+QString debug_broadcaster::build_default_endpoint_name() {
     const QString suffix
         = QUuid::createUuid().toString(QUuid::WithoutBraces).left(6);
     return QStringLiteral("yodau_%1_%2")
@@ -214,6 +236,33 @@ QString debug_broadcaster::sanitize_endpoint_name(const QString& raw_name) {
     return endpoint;
 }
 
+QString debug_broadcaster::runtime_directory_path() {
+    QString runtime_directory
+        = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+    if (runtime_directory.isEmpty()) {
+        const QString app_data = QStandardPaths::writableLocation(
+            QStandardPaths::AppLocalDataLocation
+        );
+        if (app_data.isEmpty()) {
+            return {};
+        }
+        runtime_directory = QDir(app_data).filePath(QStringLiteral("runtime"));
+    } else {
+        runtime_directory
+            = QDir(runtime_directory).filePath(QStringLiteral("yodau"));
+    }
+
+    if (!QDir().mkpath(runtime_directory)) {
+        return {};
+    }
+    const QFile::Permissions owner_only = QFileDevice::ReadOwner
+        | QFileDevice::WriteOwner | QFileDevice::ExeOwner;
+    if (!QFile::setPermissions(runtime_directory, owner_only)) {
+        return {};
+    }
+    return runtime_directory;
+}
+
 void debug_broadcaster::close_transport() {
     clear_socket();
 
@@ -225,6 +274,11 @@ void debug_broadcaster::close_transport() {
         if (!existing_endpoint.isEmpty()) {
             QLocalServer::removeServer(existing_endpoint);
         }
+    }
+
+    if (endpoint_lock != nullptr) {
+        endpoint_lock->unlock();
+        endpoint_lock.reset();
     }
 
     pending_packets.clear();

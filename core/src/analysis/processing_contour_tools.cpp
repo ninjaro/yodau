@@ -2,6 +2,10 @@
 
 #ifdef YODAU_OPENCV
 
+#include <opencv2/core/version.hpp>
+#if CV_VERSION_MAJOR >= 5
+#include <opencv2/geometry.hpp>
+#endif
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
@@ -56,9 +60,8 @@ std::vector<point> contour_to_pct(
         return points_pct;
     }
 
-    const size_t step = std::max<size_t>(
-        1, contour.size() / std::max<size_t>(1, limit)
-    );
+    const size_t step
+        = std::max<size_t>(1, contour.size() / std::max<size_t>(1, limit));
     points_pct.reserve(std::min(contour.size(), limit + 1));
     for (size_t index = 0; index < contour.size(); index += step) {
         points_pct.push_back(pixel_to_pct(contour[index], size));
@@ -79,14 +82,12 @@ std::vector<point> contour_to_pct(
 
 double distance_pct(const point& lhs, const point& rhs) {
     return std::hypot(
-        static_cast<double>(rhs.x - lhs.x),
-        static_cast<double>(rhs.y - lhs.y)
+        static_cast<double>(rhs.x - lhs.x), static_cast<double>(rhs.y - lhs.y)
     );
 }
 
-std::optional<size_t> largest_contour_index(
-    const std::vector<std::vector<cv::Point>>& contours
-) {
+std::optional<size_t>
+largest_contour_index(const std::vector<std::vector<cv::Point>>& contours) {
     if (contours.empty()) {
         return std::nullopt;
     }
@@ -136,9 +137,8 @@ std::vector<processing_contour_candidate> contour_candidates_by_area(
     const cv::Mat& binary_mask, const cv::Size& frame_size,
     const double min_area_px2
 ) {
-    const auto accepted_contours = accepted_contours_by_area(
-        binary_mask, min_area_px2
-    );
+    const auto accepted_contours
+        = accepted_contours_by_area(binary_mask, min_area_px2);
 
     std::vector<processing_contour_candidate> candidates;
     candidates.reserve(accepted_contours.size());
@@ -164,21 +164,19 @@ std::vector<processing_contour_candidate> contour_candidates_by_area(
 std::vector<processing_candidate> processing_candidates_from_contours(
     const std::vector<processing_contour_candidate>& contour_candidates,
     const cv::Size& frame_size, const size_t mask_point_limit,
-    std::optional<std::string> class_id
+    const std::optional<std::string>& class_id
 ) {
     std::vector<processing_candidate> candidates;
     candidates.reserve(contour_candidates.size());
 
     for (const auto& contour_candidate : contour_candidates) {
-        candidates.push_back(
-            make_processing_candidate(
-                contour_candidate.center_pct, contour_candidate.area_px2,
-                contour_to_pct(
-                    contour_candidate.contour, frame_size, mask_point_limit
-                ),
-                1.0, class_id
-            )
-        );
+        candidates.push_back(make_processing_candidate(
+            contour_candidate.center_pct, contour_candidate.area_px2,
+            contour_to_pct(
+                contour_candidate.contour, frame_size, mask_point_limit
+            ),
+            1.0, class_id
+        ));
     }
 
     return candidates;

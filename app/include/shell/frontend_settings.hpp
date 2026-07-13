@@ -7,9 +7,7 @@ inline QString default_frontend_algorithm_id() {
     return default_app_algorithm_id();
 }
 
-inline QStringList frontend_algorithm_ids() {
-    return app_algorithm_ids();
-}
+inline QStringList frontend_algorithm_ids() { return app_algorithm_ids(); }
 
 inline QString frontend_algorithm_display_name(const QString& algorithm_id) {
     return app_algorithm_display_name(algorithm_id);

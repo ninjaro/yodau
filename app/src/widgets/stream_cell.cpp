@@ -1,14 +1,15 @@
 #include "widgets/stream_cell.hpp"
 
+#include <QAccessible>
+#include <QBrush>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineF>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
-#include <QFontMetrics>
 #include <QPen>
-#include <QBrush>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QStyle>
@@ -25,13 +26,13 @@
 
 namespace stream_cell_support {
 
-constexpr qreal line_edit_vertex_hit_radius_px = 11.0;
-constexpr qreal line_edit_segment_hit_radius_px = 8.0;
+constexpr qreal edit_vertex_hit_radius_px = 11.0;
+constexpr qreal edit_segment_hit_radius_px = 8.0;
 constexpr int line_edit_drag_threshold_px = 4;
 constexpr double line_edit_key_nudge_px = 1.0;
-constexpr double line_edit_key_nudge_fast_px = 5.0;
-constexpr double line_edit_wheel_degrees_per_step = 5.0;
-constexpr double line_edit_wheel_fine_degrees_per_step = 1.0;
+constexpr double edit_key_nudge_fast_px = 5.0;
+constexpr double edit_wheel_degrees_per_step = 5.0;
+constexpr double edit_wheel_fine_step_degrees = 1.0;
 
 QPointF clamped_pct(QPointF point_pct) {
     point_pct.setX(std::clamp(point_pct.x(), 0.0, 100.0));
@@ -45,9 +46,8 @@ QColor color_with_alpha(QColor color, const int alpha) {
 }
 
 QColor log_mode_badge_color(const app_log_mode mode) {
-    return mode == app_log_mode::debug
-        ? QColor(QStringLiteral("#bc6c25"))
-        : QColor(QStringLiteral("#3a5a40"));
+    return mode == app_log_mode::debug ? QColor(QStringLiteral("#bc6c25"))
+                                       : QColor(QStringLiteral("#3a5a40"));
 }
 
 double point_segment_distance_px(
@@ -86,8 +86,8 @@ QPointF closest_point_on_segment_px(
 }
 
 QColor contrasting_text_color(const QColor& background) {
-    const double luma = 0.2126 * background.redF() + 0.7152 * background.greenF()
-        + 0.0722 * background.blueF();
+    const double luma = 0.2126 * background.redF()
+        + 0.7152 * background.greenF() + 0.0722 * background.blueF();
     return luma >= 0.62 ? QColor(Qt::black) : QColor(Qt::white);
 }
 
@@ -107,13 +107,15 @@ QRect anchored_hover_label_rect(
     }
 
     left = std::clamp(
-        left, bounds.left(), std::max(bounds.left(), bounds.right() - label_size.width())
+        left, bounds.left(),
+        std::max(bounds.left(), bounds.right() - label_size.width())
     );
     top = std::clamp(
-        top, bounds.top(), std::max(bounds.top(), bounds.bottom() - label_size.height())
+        top, bounds.top(),
+        std::max(bounds.top(), bounds.bottom() - label_size.height())
     );
 
-    return QRect(QPoint(left, top), label_size);
+    return { QPoint(left, top), label_size };
 }
 
 QPointF average_point_pct(const std::vector<QPointF>& pts_pct) {
@@ -128,15 +130,12 @@ QPointF average_point_pct(const std::vector<QPointF>& pts_pct) {
         sum_y += pt_pct.y();
     }
 
-    return QPointF(
-        sum_x / static_cast<double>(pts_pct.size()),
-        sum_y / static_cast<double>(pts_pct.size())
-    );
+    return { sum_x / static_cast<double>(pts_pct.size()),
+             sum_y / static_cast<double>(pts_pct.size()) };
 }
 
-QColor sampled_stream_color(
-    const QImage& frame, const std::vector<QPointF>& pts_pct
-) {
+QColor
+sampled_stream_color(const QImage& frame, const std::vector<QPointF>& pts_pct) {
     if (frame.isNull() || pts_pct.empty()) {
         return {};
     }
@@ -149,9 +148,9 @@ QColor sampled_stream_color(
         0, std::max(0, frame.width() - 1)
     );
     const int center_y = std::clamp(
-        static_cast<int>(
-            std::lround(anchor_pct.y() / 100.0 * std::max(0, frame.height() - 1))
-        ),
+        static_cast<int>(std::lround(
+            anchor_pct.y() / 100.0 * std::max(0, frame.height() - 1)
+        )),
         0, std::max(0, frame.height() - 1)
     );
 
@@ -162,8 +161,10 @@ QColor sampled_stream_color(
 
     for (int dy = -1; dy <= 1; dy += 1) {
         for (int dx = -1; dx <= 1; dx += 1) {
-            const int sample_x = std::clamp(center_x + dx, 0, frame.width() - 1);
-            const int sample_y = std::clamp(center_y + dy, 0, frame.height() - 1);
+            const int sample_x
+                = std::clamp(center_x + dx, 0, frame.width() - 1);
+            const int sample_y
+                = std::clamp(center_y + dy, 0, frame.height() - 1);
             const QColor sample = frame.pixelColor(sample_x, sample_y);
             sum_red += sample.red();
             sum_green += sample.green();
@@ -176,18 +177,16 @@ QColor sampled_stream_color(
         return {};
     }
 
-    return QColor(
-        sum_red / sample_count, sum_green / sample_count, sum_blue / sample_count
-    );
+    return { sum_red / sample_count, sum_green / sample_count,
+             sum_blue / sample_count };
 }
 
 QColor effective_line_color(
     const stream_cell::line_instance& line_value, const int line_index,
     const int line_count, const QImage& frame
 ) {
-    const QString color_mode_id = normalized_line_color_mode_id(
-        line_value.color_mode_id
-    );
+    const QString color_mode_id
+        = normalized_line_color_mode_id(line_value.color_mode_id);
 
     if (color_mode_id == QStringLiteral("manual")) {
         return line_value.color.isValid() ? line_value.color : QColor(Qt::red);
@@ -221,10 +220,8 @@ bool uses_content_inversion(const QString& color_mode_id) {
 }
 
 QPointF to_image_px(const QPointF& pos_pct, const QSize& size) {
-    return {
-        pos_pct.x() / 100.0 * static_cast<double>(size.width()),
-        pos_pct.y() / 100.0 * static_cast<double>(size.height())
-    };
+    return { pos_pct.x() / 100.0 * static_cast<double>(size.width()),
+             pos_pct.y() / 100.0 * static_cast<double>(size.height()) };
 }
 
 QPolygonF polygon_for_target_size(
@@ -239,17 +236,16 @@ QPolygonF polygon_for_target_size(
 }
 
 qreal scaled_image_pen_width(
-    const qreal display_width, const QSize& display_size, const QSize& image_size
+    const qreal display_width, const QSize& display_size,
+    const QSize& image_size
 ) {
     if (display_size.width() <= 0 || display_size.height() <= 0) {
         return std::max<qreal>(1.0, display_width);
     }
 
-    const qreal scale_x
-        = static_cast<qreal>(image_size.width())
+    const qreal scale_x = static_cast<qreal>(image_size.width())
         / static_cast<qreal>(display_size.width());
-    const qreal scale_y
-        = static_cast<qreal>(image_size.height())
+    const qreal scale_y = static_cast<qreal>(image_size.height())
         / static_cast<qreal>(display_size.height());
     return std::max<qreal>(1.0, display_width * (scale_x + scale_y) * 0.5);
 }
@@ -282,9 +278,8 @@ void apply_content_inversion_mask(
     invert_pen.setJoinStyle(Qt::RoundJoin);
     painter.setPen(invert_pen);
     painter.setBrush(
-        fill_closed_area && closed && style == Qt::SolidLine
-            ? QBrush(Qt::white)
-            : Qt::NoBrush
+        fill_closed_area && closed && style == Qt::SolidLine ? QBrush(Qt::white)
+                                                             : Qt::NoBrush
     );
 
     if (closed && poly.size() >= 3) {
@@ -294,9 +289,7 @@ void apply_content_inversion_mask(
     }
 }
 
-int enabled_line_count(
-    const std::vector<stream_cell::line_instance>& lines
-) {
+int enabled_line_count(const std::vector<stream_cell::line_instance>& lines) {
     return static_cast<int>(std::count_if(
         lines.cbegin(), lines.cend(),
         [](const stream_cell::line_instance& line_value) {
@@ -319,13 +312,13 @@ stream_cell::stream_cell(const QString& stream_name, QWidget* parent)
     , session(nullptr) {
     stream_settings_value.stream_name = stream_name;
     stream_settings_value.algorithm_id = default_app_algorithm_id();
-    stream_settings_value.algorithm_preset = default_algorithm_preset_id(
-        stream_settings_value.algorithm_id
-    );
+    stream_settings_value.algorithm_preset
+        = default_algorithm_preset_id(stream_settings_value.algorithm_id);
     build_ui();
     setFocusPolicy(Qt::StrongFocus);
+    setAccessibleName(tr("Video stream %1").arg(name));
+    update_accessible_description();
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    repaint_timer.start();
     animation_clock.start();
 }
 
@@ -364,9 +357,7 @@ stream_runtime_metrics stream_cell::current_runtime_metrics() const {
     return runtime_metrics_value;
 }
 
-app_log_mode stream_cell::current_log_mode() const {
-    return log_mode_value;
-}
+app_log_mode stream_cell::current_log_mode() const { return log_mode_value; }
 
 void stream_cell::set_active(const bool val) {
     if (active == val) {
@@ -378,15 +369,19 @@ void stream_cell::set_active(const bool val) {
         clear_draft();
     }
     update_icon();
+    update_accessible_description();
     update();
 }
 
 void stream_cell::set_drawing_enabled(const bool on) {
     drawing_enabled = on;
-    if (!on) {
+    if (on && !hover_point_pct.has_value()) {
+        hover_point_pct = QPointF(50.0, 50.0);
+    } else if (!on) {
         hover_point_pct.reset();
     }
     sync_mouse_tracking();
+    update_accessible_description();
     update();
 }
 
@@ -395,19 +390,18 @@ void stream_cell::set_stream_settings(const stream_settings& settings_value) {
     if (stream_settings_value.stream_name.trimmed().isEmpty()) {
         stream_settings_value.stream_name = name;
     }
-    stream_settings_value.algorithm_id = normalized_app_algorithm_id(
-        stream_settings_value.algorithm_id
-    );
+    stream_settings_value.algorithm_id
+        = normalized_app_algorithm_id(stream_settings_value.algorithm_id);
     stream_settings_value.algorithm_preset = normalized_algorithm_preset_id(
         stream_settings_value.algorithm_id,
         stream_settings_value.algorithm_preset
     );
-    stream_settings_value.movement_display_mode = normalized_movement_display_mode_id(
-        stream_settings_value.movement_display_mode
-    );
-    stream_settings_value.algorithm_overlay_enabled = movement_display_enabled(
-        stream_settings_value.movement_display_mode
-    );
+    stream_settings_value.movement_display_mode
+        = normalized_movement_display_mode_id(
+            stream_settings_value.movement_display_mode
+        );
+    stream_settings_value.algorithm_overlay_enabled
+        = movement_display_enabled(stream_settings_value.movement_display_mode);
     update();
 }
 
@@ -437,11 +431,13 @@ void stream_cell::set_draft_params(
     draft_line_width_text = normalized_line_width_text(width_text);
     draft_line_length_text = normalized_line_length_text(length_text);
     draft_line_response_text = normalized_line_response_text(response_text);
+    update_accessible_description();
     update();
 }
 
 void stream_cell::set_draft_points_pct(const std::vector<QPointF>& pts) {
     draft_line_points_pct = pts;
+    update_accessible_description();
     update();
 }
 
@@ -454,6 +450,7 @@ void stream_cell::clear_draft() {
     draft_line_length_text = default_line_length_text();
     draft_line_response_text = default_line_response_text();
     sync_mouse_tracking();
+    update_accessible_description();
     update();
 }
 
@@ -465,11 +462,13 @@ void stream_cell::set_persistent_lines(
     line_hits.clear();
     line_waves.clear();
     update_animation_timer();
+    update_accessible_description();
     update();
 }
 
 void stream_cell::add_persistent_line(const line_instance& line) {
     persistent_lines.push_back(line);
+    update_accessible_description();
     update();
 }
 
@@ -479,6 +478,7 @@ void stream_cell::clear_persistent_lines() {
     line_hits.clear();
     line_waves.clear();
     update_animation_timer();
+    update_accessible_description();
     update();
 }
 
@@ -505,6 +505,7 @@ void stream_cell::set_line_edit_preview(
     }
     sync_mouse_tracking();
     update_animation_timer();
+    update_accessible_description();
     update();
 }
 
@@ -513,6 +514,7 @@ void stream_cell::set_line_edit_source_line(
 ) {
     line_edit_source_line_ = line_value;
     update_animation_timer();
+    update_accessible_description();
     update();
 }
 
@@ -531,6 +533,7 @@ void stream_cell::set_source(const QUrl& source) {
 
     last_error.clear();
     last_frame = QImage();
+    update_accessible_description();
 
     player->setSource(source);
     player->play();
@@ -543,6 +546,7 @@ void stream_cell::set_camera_id(const QByteArray& id) {
 
     last_error.clear();
     last_frame = QImage();
+    update_accessible_description();
 
     if (player) {
         player->stop();
@@ -570,6 +574,7 @@ void stream_cell::set_camera_id(const QByteArray& id) {
 
     if (device.isNull()) {
         last_error = tr("camera not found");
+        update_accessible_description();
         update();
         return;
     }
@@ -585,12 +590,16 @@ void stream_cell::set_camera_id(const QByteArray& id) {
 }
 
 void stream_cell::add_event(const QPointF& pos_pct, const QColor& color) {
+    const bool had_events = !events.isEmpty();
     event_instance e;
     e.pos_pct = pos_pct;
     e.color = color;
     e.ts = QDateTime::currentDateTime();
 
     events.push_back(e);
+    if (!had_events) {
+        update_accessible_description();
+    }
     update();
 }
 
@@ -598,6 +607,7 @@ void stream_cell::set_processing_overlays(
     std::vector<processing_overlay_instance> overlays
 ) {
     processing_overlays = std::move(overlays);
+    update_accessible_description();
     update();
 }
 
@@ -667,35 +677,35 @@ void stream_cell::paintEvent(QPaintEvent* event) {
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
 
     if (!last_frame.isNull()) {
-        const bool has_content_inversion = std::any_of(
-            persistent_lines.cbegin(), persistent_lines.cend(),
-            [](const line_instance& line_value) {
-                return line_value.enabled
-                    && !line_value.template_name.trimmed().isEmpty()
-                    && stream_cell_support::uses_content_inversion(
-                        line_value.color_mode_id
-                    );
-            }
-        ) && std::any_of(
-            persistent_lines.cbegin(), persistent_lines.cend(),
-            [this](const line_instance& line_value) {
-                const QString key = line_value.template_name.trimmed();
-                return line_value.enabled
-                    && !key.isEmpty()
-                    && line_highlights.contains(key)
-                    && stream_cell_support::uses_content_inversion(
-                        line_value.color_mode_id
-                    );
-            }
-        );
+        const bool has_content_inversion
+            = std::any_of(
+                  persistent_lines.cbegin(), persistent_lines.cend(),
+                  [](const line_instance& line_value) {
+                      return line_value.enabled
+                          && !line_value.template_name.trimmed().isEmpty()
+                          && stream_cell_support::uses_content_inversion(
+                                 line_value.color_mode_id
+                          );
+                  }
+              )
+            && std::any_of(
+                  persistent_lines.cbegin(), persistent_lines.cend(),
+                  [this](const line_instance& line_value) {
+                      const QString key = line_value.template_name.trimmed();
+                      return line_value.enabled && !key.isEmpty()
+                          && line_highlights.contains(key)
+                          && stream_cell_support::uses_content_inversion(
+                                 line_value.color_mode_id
+                          );
+                  }
+            );
 
         if (has_content_inversion) {
             QImage composited_frame = last_frame;
 
             for (const auto& line_value : persistent_lines) {
                 const QString key = line_value.template_name.trimmed();
-                if (!line_value.enabled
-                    || key.isEmpty()
+                if (!line_value.enabled || key.isEmpty()
                     || !line_highlights.contains(key)
                     || !stream_cell_support::uses_content_inversion(
                         line_value.color_mode_id
@@ -775,6 +785,7 @@ void stream_cell::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         setFocus();
         draft_line_points_pct.push_back(to_pct(event->pos()));
+        update_accessible_description();
         update();
         event->accept();
         return;
@@ -830,8 +841,7 @@ void stream_cell::mouseDoubleClickEvent(QMouseEvent* event) {
                 segment_hit->visible_segment_index + 1
             );
             emit line_edit_segment_insert_requested(
-                segment_hit->visible_segment_index,
-                segment_hit->point_pct
+                segment_hit->visible_segment_index, segment_hit->point_pct
             );
             update();
             event->accept();
@@ -862,16 +872,20 @@ void stream_cell::mouseMoveEvent(QMouseEvent* event) {
                 if (line_edit_interaction_.current_drag_mode()
                     == line_edit_interaction::drag_mode::shape) {
                     const QPointF current_pct
-                        = stream_cell_support::clamped_pct(to_pct(event->pos()));
-                    const QPointF delta_pct
-                        = current_pct - line_edit_interaction_.press_origin_pct();
+                        = stream_cell_support::clamped_pct(
+                            to_pct(event->pos())
+                        );
+                    const QPointF delta_pct = current_pct
+                        - line_edit_interaction_.press_origin_pct();
                     emit line_edit_shape_drag_requested(delta_pct);
                     line_edit_interaction_.update_press_origin(
                         current_pct, event->pos()
                     );
-                } else if (line_edit_interaction_.current_drag_mode()
-                               == line_edit_interaction::drag_mode::point
-                           && line_edit_interaction_.pressed_vertex().has_value()) {
+                } else if (
+                    line_edit_interaction_.current_drag_mode()
+                        == line_edit_interaction::drag_mode::point
+                    && line_edit_interaction_.pressed_vertex().has_value()
+                ) {
                     line_edit_interaction_.set_selected_vertex(
                         line_edit_interaction_.pressed_vertex()
                     );
@@ -954,9 +968,8 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
             return;
         }
 
-        const double step_px
-            = (event->modifiers() & Qt::ShiftModifier) != 0
-            ? stream_cell_support::line_edit_key_nudge_fast_px
+        const double step_px = (event->modifiers() & Qt::ShiftModifier) != 0
+            ? stream_cell_support::edit_key_nudge_fast_px
             : stream_cell_support::line_edit_key_nudge_px;
         const QPointF delta_pct(
             width() > 0 ? step_px / static_cast<double>(width()) * 100.0 : 0.0,
@@ -985,9 +998,9 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
 
         if (handled) {
             setFocus();
-            const auto selected_vertex = line_edit_interaction_.selected_vertex();
-            if (selected_vertex.has_value()
-                && *selected_vertex >= 0
+            const auto selected_vertex
+                = line_edit_interaction_.selected_vertex();
+            if (selected_vertex.has_value() && *selected_vertex >= 0
                 && *selected_vertex
                     < static_cast<int>(line_edit_preview_->pts_pct.size())) {
                 const QPointF current_point = line_edit_preview_->pts_pct.at(
@@ -1015,6 +1028,53 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
+    if (event->key() == Qt::Key_Escape) {
+        clear_draft();
+        hover_point_pct = QPointF(50.0, 50.0);
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Return
+        || event->key() == Qt::Key_Enter) {
+        if (!hover_point_pct.has_value()) {
+            hover_point_pct = QPointF(50.0, 50.0);
+        }
+        draft_line_points_pct.push_back(*hover_point_pct);
+        update_accessible_description();
+        update();
+        event->accept();
+        return;
+    }
+
+    QPointF keyboard_delta;
+    const double keyboard_step
+        = (event->modifiers() & Qt::ShiftModifier) != 0 ? 5.0 : 1.0;
+    switch (event->key()) {
+    case Qt::Key_Left:
+        keyboard_delta.setX(-keyboard_step);
+        break;
+    case Qt::Key_Right:
+        keyboard_delta.setX(keyboard_step);
+        break;
+    case Qt::Key_Up:
+        keyboard_delta.setY(-keyboard_step);
+        break;
+    case Qt::Key_Down:
+        keyboard_delta.setY(keyboard_step);
+        break;
+    default:
+        break;
+    }
+    if (!keyboard_delta.isNull()) {
+        hover_point_pct = stream_cell_support::clamped_pct(
+            hover_point_pct.value_or(QPointF(50.0, 50.0)) + keyboard_delta
+        );
+        update();
+        event->accept();
+        return;
+    }
+
     const bool undo_key = (event->key() == Qt::Key_Backspace)
         || (event->key() == Qt::Key_Z
             && (event->modifiers() & Qt::ControlModifier));
@@ -1027,6 +1087,7 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
     if (!draft_line_points_pct.empty()) {
         draft_line_points_pct.pop_back();
         hover_point_pct.reset();
+        update_accessible_description();
         update();
     }
 
@@ -1040,11 +1101,10 @@ void stream_cell::wheelEvent(QWheelEvent* event) {
         if (!angle_delta.isNull()) {
             const double degrees_per_step
                 = (event->modifiers() & Qt::ShiftModifier) != 0
-                ? stream_cell_support::line_edit_wheel_fine_degrees_per_step
-                : stream_cell_support::line_edit_wheel_degrees_per_step;
-            const double delta_degrees
-                = static_cast<double>(angle_delta.y()) / 120.0
-                * degrees_per_step;
+                ? stream_cell_support::edit_wheel_fine_step_degrees
+                : stream_cell_support::edit_wheel_degrees_per_step;
+            const double delta_degrees = static_cast<double>(angle_delta.y())
+                / 120.0 * degrees_per_step;
             if (std::abs(delta_degrees)
                 > std::numeric_limits<double>::epsilon()) {
                 setFocus();
@@ -1074,19 +1134,25 @@ void stream_cell::build_ui() {
     top_row->addStretch();
 
     focus_btn = new QPushButton(this);
-    focus_btn->setFixedSize(24, 24);
-    focus_btn->setIconSize(QSize(16, 16));
+    focus_btn->setObjectName(QStringLiteral("stream_cell_focus_button"));
+    focus_btn->setFixedSize(32, 32);
+    focus_btn->setIconSize(QSize(20, 20));
     focus_btn->setFlat(true);
-    focus_btn->setFocusPolicy(Qt::NoFocus);
+    focus_btn->setFocusPolicy(Qt::StrongFocus);
     update_icon();
     top_row->addWidget(focus_btn);
 
     close_btn = new QPushButton(this);
-    close_btn->setFixedSize(24, 24);
-    close_btn->setIconSize(QSize(16, 16));
+    close_btn->setObjectName(QStringLiteral("stream_cell_close_button"));
+    close_btn->setFixedSize(32, 32);
+    close_btn->setIconSize(QSize(20, 20));
     close_btn->setToolTip(tr("close"));
+    close_btn->setAccessibleName(tr("Close stream %1").arg(name));
+    close_btn->setAccessibleDescription(
+        tr("Remove this stream from the visible grid")
+    );
     close_btn->setFlat(true);
-    close_btn->setFocusPolicy(Qt::NoFocus);
+    close_btn->setFocusPolicy(Qt::StrongFocus);
     close_btn->setIcon(icon_loader::title_bar_close_icon());
     top_row->addWidget(close_btn);
     root->addLayout(top_row);
@@ -1130,11 +1196,77 @@ void stream_cell::update_icon() {
     }
     if (active) {
         focus_btn->setToolTip(tr("shrink"));
+        focus_btn->setAccessibleName(
+            tr("Return %1 to the stream grid").arg(name)
+        );
+        focus_btn->setAccessibleDescription(
+            tr("Leave the enlarged stream view")
+        );
         focus_btn->setIcon(icon_loader::title_bar_restore_icon());
     } else {
         focus_btn->setToolTip(tr("enlarge"));
+        focus_btn->setAccessibleName(tr("Enlarge stream %1").arg(name));
+        focus_btn->setAccessibleDescription(
+            tr("Open this stream in the focused editor view")
+        );
         focus_btn->setIcon(icon_loader::title_bar_maximize_icon());
     }
+}
+
+void stream_cell::update_accessible_description() {
+    QStringList details;
+    if (!last_error.isEmpty()) {
+        details.push_back(tr("Stream error: %1").arg(last_error));
+    } else if (!last_frame.isNull()) {
+        details.push_back(tr("Receiving video at %1 by %2 pixels")
+                              .arg(last_frame.width())
+                              .arg(last_frame.height()));
+    } else {
+        details.push_back(tr("No video signal is currently available"));
+    }
+
+    if (!persistent_lines.empty()) {
+        details.push_back(
+            tr("%1 configured lines, %2 enabled")
+                .arg(static_cast<int>(persistent_lines.size()))
+                .arg(stream_cell_support::enabled_line_count(persistent_lines))
+        );
+    }
+    if (!processing_overlays.empty()) {
+        details.push_back(
+            tr("%1 processing overlays")
+                .arg(static_cast<int>(processing_overlays.size()))
+        );
+    }
+    if (!events.isEmpty()) {
+        details.push_back(tr("Recent motion or line event marker available"));
+    }
+    if (line_edit_preview_.has_value()) {
+        QString edit_detail
+            = tr("Editing line %1 with %2 points")
+                  .arg(line_edit_preview_->template_name)
+                  .arg(static_cast<int>(line_edit_preview_->pts_pct.size()));
+        if (const auto selected = line_edit_interaction_.selected_vertex()) {
+            edit_detail += tr(", point %1 selected").arg(*selected + 1);
+        } else {
+            edit_detail += tr(", whole shape selected");
+        }
+        details.push_back(edit_detail);
+    } else if (drawing_enabled && active) {
+        details.push_back(
+            tr("Drawing a new line with %1 placed points; use arrow keys to "
+               "move the cursor and Space to place a point")
+                .arg(static_cast<int>(draft_line_points_pct.size()))
+        );
+    }
+
+    const QString description = details.join(QStringLiteral(". "));
+    if (accessibleDescription() == description) {
+        return;
+    }
+    setAccessibleDescription(description);
+    QAccessibleEvent accessibility_event(this, QAccessible::DescriptionChanged);
+    QAccessible::updateAccessibility(&accessibility_event);
 }
 
 void stream_cell::draw_poly_with_points(
@@ -1176,16 +1308,18 @@ void stream_cell::draw_persistent(QPainter& p) const {
     );
     int enabled_line_index = 0;
 
-    for (int line_index = 0; line_index < static_cast<int>(persistent_lines.size());
+    for (int line_index = 0;
+         line_index < static_cast<int>(persistent_lines.size());
          line_index += 1) {
         const auto& l = persistent_lines[static_cast<size_t>(line_index)];
         if (!l.enabled) {
             continue;
         }
         const auto key = l.template_name.trimmed();
-        const QColor effective_color = stream_cell_support::effective_line_color(
-            l, enabled_line_index, line_count, last_frame
-        );
+        const QColor effective_color
+            = stream_cell_support::effective_line_color(
+                l, enabled_line_index, line_count, last_frame
+            );
         enabled_line_index += 1;
 
         if (!key.isEmpty() && line_highlights.contains(key)) {
@@ -1307,7 +1441,7 @@ void stream_cell::draw_persistent(QPainter& p) const {
             continue;
         }
 
-        const auto text = key;
+        const auto& text = key;
         if (text.isEmpty()) {
             continue;
         }
@@ -1322,13 +1456,13 @@ void stream_cell::draw_draft(QPainter& p) const {
         return;
     }
 
-    const int enabled_line_count = stream_cell_support::enabled_line_count(
-        persistent_lines
-    );
-    const QColor effective_color = stream_cell_support::effective_draft_line_color(
-        draft_line_color_mode_id, draft_line_color, draft_line_points_pct,
-        last_frame, enabled_line_count, enabled_line_count + 1
-    );
+    const int enabled_line_count
+        = stream_cell_support::enabled_line_count(persistent_lines);
+    const QColor effective_color
+        = stream_cell_support::effective_draft_line_color(
+            draft_line_color_mode_id, draft_line_color, draft_line_points_pct,
+            last_frame, enabled_line_count, enabled_line_count + 1
+        );
     draw_poly_with_points(
         p, draft_line_points_pct, effective_color, draft_line_closed,
         Qt::DashLine, line_width_visual_value(draft_line_width_text)
@@ -1342,13 +1476,13 @@ void stream_cell::draw_line_edit_preview(QPainter& p) const {
     }
 
     const auto& line_value = *line_edit_preview_;
-    const int enabled_line_count = stream_cell_support::enabled_line_count(
-        persistent_lines
-    );
-    const QColor effective_color = stream_cell_support::effective_draft_line_color(
-        line_value.color_mode_id, line_value.color, line_value.pts_pct,
-        last_frame, enabled_line_count, enabled_line_count + 1
-    );
+    const int enabled_line_count
+        = stream_cell_support::enabled_line_count(persistent_lines);
+    const QColor effective_color
+        = stream_cell_support::effective_draft_line_color(
+            line_value.color_mode_id, line_value.color, line_value.pts_pct,
+            last_frame, enabled_line_count, enabled_line_count + 1
+        );
     if (line_edit_source_line_.has_value()
         && line_edit_source_line_->pts_pct.size() >= 2) {
         const auto& source_line = *line_edit_source_line_;
@@ -1356,11 +1490,9 @@ void stream_cell::draw_line_edit_preview(QPainter& p) const {
             source_line.color_mode_id, source_line.color, source_line.pts_pct,
             last_frame, enabled_line_count, enabled_line_count + 1
         );
-        const double pulse = (std::sin(
-                                  static_cast<double>(animation_clock.elapsed())
-                                  / 260.0
-                              )
-                              + 1.0)
+        const double pulse
+            = (std::sin(static_cast<double>(animation_clock.elapsed()) / 260.0)
+               + 1.0)
             / 2.0;
         source_color.setAlpha(static_cast<int>(70.0 + 60.0 * pulse));
         draw_poly_with_points(
@@ -1375,31 +1507,30 @@ void stream_cell::draw_line_edit_preview(QPainter& p) const {
         );
     }
 
-    QColor outline_color = stream_cell_support::contrasting_text_color(
-        effective_color
-    );
+    QColor outline_color
+        = stream_cell_support::contrasting_text_color(effective_color);
     outline_color.setAlpha(150);
     draw_poly_with_points(
         p, line_value.pts_pct, outline_color, line_value.closed, Qt::SolidLine,
         line_width_visual_value(line_value.width_text) + 2.0, false
     );
     draw_poly_with_points(
-        p, line_value.pts_pct, effective_color, line_value.closed, Qt::SolidLine,
-        line_width_visual_value(line_value.width_text) + 0.5
+        p, line_value.pts_pct, effective_color, line_value.closed,
+        Qt::SolidLine, line_width_visual_value(line_value.width_text) + 0.5
     );
 
     const auto selected_vertex = line_edit_interaction_.selected_vertex();
-    if (!selected_vertex.has_value()
-        || *selected_vertex < 0
-        || *selected_vertex
-            >= static_cast<int>(line_value.pts_pct.size())) {
+    if (!selected_vertex.has_value() || *selected_vertex < 0
+        || *selected_vertex >= static_cast<int>(line_value.pts_pct.size())) {
         return;
     }
 
     const QPointF selected_px = to_px(line_value.pts_pct.at(
         static_cast<std::vector<QPointF>::size_type>(*selected_vertex)
     ));
-    QPen outline_pen(stream_cell_support::contrasting_text_color(effective_color));
+    QPen outline_pen(
+        stream_cell_support::contrasting_text_color(effective_color)
+    );
     outline_pen.setWidthF(2.0);
     p.setPen(outline_pen);
     p.setBrush(stream_cell_support::color_with_alpha(effective_color, 224));
@@ -1411,20 +1542,18 @@ void stream_cell::draw_hover_point(QPainter& p) const {
         return;
     }
 
-    QColor effective_color = QColor(Qt::white);
+    auto effective_color = QColor(Qt::white);
     if (line_edit_preview_.has_value()) {
-        const int enabled_line_count = stream_cell_support::enabled_line_count(
-            persistent_lines
-        );
+        const int enabled_line_count
+            = stream_cell_support::enabled_line_count(persistent_lines);
         effective_color = stream_cell_support::effective_draft_line_color(
             line_edit_preview_->color_mode_id, line_edit_preview_->color,
             line_edit_preview_->pts_pct, last_frame, enabled_line_count,
             enabled_line_count + 1
         );
     } else {
-        const int enabled_line_count = stream_cell_support::enabled_line_count(
-            persistent_lines
-        );
+        const int enabled_line_count
+            = stream_cell_support::enabled_line_count(persistent_lines);
         effective_color = stream_cell_support::effective_draft_line_color(
             draft_line_color_mode_id, draft_line_color, draft_line_points_pct,
             last_frame, enabled_line_count, enabled_line_count + 1
@@ -1447,30 +1576,31 @@ void stream_cell::draw_hover_coords(QPainter& p) const {
 
     const auto& hp = *hover_point_pct;
     const int pixel_width = !last_frame.isNull() ? last_frame.width() : width();
-    const int pixel_height = !last_frame.isNull() ? last_frame.height() : height();
+    const int pixel_height
+        = !last_frame.isNull() ? last_frame.height() : height();
     const int x_px = std::clamp(
-        static_cast<int>(std::lround(
-            hp.x() / 100.0 * std::max(0, pixel_width - 1)
-        )),
+        static_cast<int>(
+            std::lround(hp.x() / 100.0 * std::max(0, pixel_width - 1))
+        ),
         0, std::max(0, pixel_width - 1)
     );
     const int y_px = std::clamp(
-        static_cast<int>(std::lround(
-            hp.y() / 100.0 * std::max(0, pixel_height - 1)
-        )),
+        static_cast<int>(
+            std::lround(hp.y() / 100.0 * std::max(0, pixel_height - 1))
+        ),
         0, std::max(0, pixel_height - 1)
     );
 
     const QString txt = QStringLiteral(
                             "x %1%% | %2 px\n"
                             "y %3%% | %4 px"
-                        )
+    )
                             .arg(hp.x(), 0, 'f', 1)
                             .arg(x_px)
                             .arg(hp.y(), 0, 'f', 1)
                             .arg(y_px);
 
-    QColor line_color = QColor(Qt::white);
+    auto line_color = QColor(Qt::white);
     if (line_edit_preview_.has_value()) {
         line_color = stream_cell_support::effective_draft_line_color(
             line_edit_preview_->color_mode_id, line_edit_preview_->color,
@@ -1491,14 +1621,12 @@ void stream_cell::draw_hover_coords(QPainter& p) const {
     QColor bubble_fill = line_color;
     bubble_fill.setAlpha(220);
     const QColor bubble_border = line_color.darker(145);
-    const QColor text_color = stream_cell_support::contrasting_text_color(
-        bubble_fill
-    );
+    const QColor text_color
+        = stream_cell_support::contrasting_text_color(bubble_fill);
 
     QFont hover_font = p.font();
-    const double hover_point_size = hover_font.pointSizeF() > 0.0
-        ? hover_font.pointSizeF()
-        : 9.0;
+    const double hover_point_size
+        = hover_font.pointSizeF() > 0.0 ? hover_font.pointSizeF() : 9.0;
     hover_font.setPointSizeF(std::max(7.5, hover_point_size - 0.5));
     p.setFont(hover_font);
 
@@ -1530,12 +1658,13 @@ void stream_cell::draw_preview_segment(QPainter& p) const {
         return;
     }
 
-    const QColor effective_color = stream_cell_support::effective_draft_line_color(
-        draft_line_color_mode_id, draft_line_color, draft_line_points_pct,
-        last_frame,
-        stream_cell_support::enabled_line_count(persistent_lines),
-        stream_cell_support::enabled_line_count(persistent_lines) + 1
-    );
+    const QColor effective_color
+        = stream_cell_support::effective_draft_line_color(
+            draft_line_color_mode_id, draft_line_color, draft_line_points_pct,
+            last_frame,
+            stream_cell_support::enabled_line_count(persistent_lines),
+            stream_cell_support::enabled_line_count(persistent_lines) + 1
+        );
     QPen pen(effective_color);
     pen.setWidthF(
         std::max(1.5, line_width_visual_value(draft_line_width_text) * 0.75)
@@ -1568,20 +1697,16 @@ void stream_cell::draw_stream_name(QPainter& p) const {
         stream_settings_value.algorithm_preset,
         movement_display_enabled(stream_settings_value.movement_display_mode)
     );
-    const QColor badge_color = algorithm_badge_color(
-        stream_settings_value.algorithm_id
-    );
-    const QString log_badge_text = QStringLiteral("log %1").arg(
-        app_log_mode_name(log_mode_value)
-    );
-    const QColor log_badge_fill = stream_cell_support::log_mode_badge_color(
-        log_mode_value
-    );
+    const QColor badge_color
+        = algorithm_badge_color(stream_settings_value.algorithm_id);
+    const QString log_badge_text
+        = QStringLiteral("log %1").arg(app_log_mode_name(log_mode_value));
+    const QColor log_badge_fill
+        = stream_cell_support::log_mode_badge_color(log_mode_value);
 
     QFont badge_font = p.font();
-    const double badge_point_size = badge_font.pointSizeF() > 0.0
-        ? badge_font.pointSizeF()
-        : 9.0;
+    const double badge_point_size
+        = badge_font.pointSizeF() > 0.0 ? badge_font.pointSizeF() : 9.0;
     badge_font.setPointSizeF(std::max(8.0, badge_point_size - 0.5));
     p.setFont(badge_font);
 
@@ -1592,9 +1717,7 @@ void stream_cell::draw_stream_name(QPainter& p) const {
 
     QRect log_badge_rect = badge_metrics.boundingRect(log_badge_text);
     log_badge_rect.adjust(-8, -4, 8, 4);
-    log_badge_rect.moveBottomRight(
-        QPoint(r.right(), badge_rect.top() - 6)
-    );
+    log_badge_rect.moveBottomRight(QPoint(r.right(), badge_rect.top() - 6));
 
     QColor badge_fill = badge_color;
     badge_fill.setAlpha(active ? 208 : 176);
@@ -1620,9 +1743,8 @@ void stream_cell::draw_stream_name(QPainter& p) const {
     }
 
     QFont summary_font = p.font();
-    const double summary_point_size = summary_font.pointSizeF() > 0.0
-        ? summary_font.pointSizeF()
-        : 9.0;
+    const double summary_point_size
+        = summary_font.pointSizeF() > 0.0 ? summary_font.pointSizeF() : 9.0;
     summary_font.setPointSizeF(std::max(8.0, summary_point_size - 1.0));
     p.setFont(summary_font);
     p.setPen(palette().color(QPalette::Text));
@@ -1647,24 +1769,22 @@ void stream_cell::draw_runtime_metrics(QPainter& p) const {
         return;
     }
 
-    const QString metrics_text = stream_runtime_metrics_text(runtime_metrics_value);
+    const QString metrics_text
+        = stream_runtime_metrics_text(runtime_metrics_value);
     if (metrics_text.trimmed().isEmpty()) {
         return;
     }
 
     QFont metrics_font = p.font();
-    const double metrics_point_size = metrics_font.pointSizeF() > 0.0
-        ? metrics_font.pointSizeF()
-        : 9.0;
+    const double metrics_point_size
+        = metrics_font.pointSizeF() > 0.0 ? metrics_font.pointSizeF() : 9.0;
     metrics_font.setPointSizeF(std::max(7.5, metrics_point_size - 1.0));
     p.setFont(metrics_font);
 
     const QRect bounds = rect().adjusted(6, 6, -6, -6);
     const QFontMetrics metrics(metrics_font);
     const QString rendered_text = (!active && bounds.width() < 220)
-        ? QStringLiteral(
-              "v %1 | b %2"
-          )
+        ? QStringLiteral("v %1 | b %2")
               .arg(
                   runtime_metrics_value.input_fps > 0.0
                       ? QString::number(runtime_metrics_value.input_fps, 'f', 1)
@@ -1724,18 +1844,20 @@ QPointF stream_cell::to_px(const QPointF& pos_pct) const {
     return { pos_pct.x() / 100.0 * width(), pos_pct.y() / 100.0 * height() };
 }
 
-std::optional<int> stream_cell::line_edit_vertex_at(const QPointF& pos_px) const {
+std::optional<int>
+stream_cell::line_edit_vertex_at(const QPointF& pos_px) const {
     if (!line_edit_preview_.has_value()) {
         return std::nullopt;
     }
 
     double best_distance = std::max<double>(
-        stream_cell_support::line_edit_vertex_hit_radius_px,
+        stream_cell_support::edit_vertex_hit_radius_px,
         line_width_visual_value(line_edit_preview_->width_text) + 7.0
     );
     std::optional<int> best_index;
 
-    for (int index = 0; index < static_cast<int>(line_edit_preview_->pts_pct.size());
+    for (int index = 0;
+         index < static_cast<int>(line_edit_preview_->pts_pct.size());
          index += 1) {
         const QPointF point_px = to_px(line_edit_preview_->pts_pct.at(
             static_cast<std::vector<QPointF>::size_type>(index)
@@ -1761,16 +1883,14 @@ stream_cell::line_edit_segment_hit(const QPointF& pos_px) const {
 
     const auto& points = line_edit_preview_->pts_pct;
     double best_distance = std::max<double>(
-        stream_cell_support::line_edit_segment_hit_radius_px,
+        stream_cell_support::edit_segment_hit_radius_px,
         line_width_visual_value(line_edit_preview_->width_text) + 7.0
     );
     std::optional<line_edit_segment_hit_info> best_hit;
 
-    const auto consider_segment = [&](
-                                      const int visible_segment_index,
+    const auto consider_segment = [&](const int visible_segment_index,
                                       const QPointF& a_pct,
-                                      const QPointF& b_pct
-                                  ) {
+                                      const QPointF& b_pct) {
         const QPointF a_px = to_px(a_pct);
         const QPointF b_px = to_px(b_pct);
         const double distance = stream_cell_support::point_segment_distance_px(
@@ -1783,11 +1903,11 @@ stream_cell::line_edit_segment_hit(const QPointF& pos_px) const {
         best_distance = distance;
         best_hit = line_edit_segment_hit_info {
             .visible_segment_index = visible_segment_index,
-            .point_pct = stream_cell_support::clamped_pct(
-                to_pct(stream_cell_support::closest_point_on_segment_px(
+            .point_pct = stream_cell_support::clamped_pct(to_pct(
+                stream_cell_support::closest_point_on_segment_px(
                     pos_px, a_px, b_px
-                ))
-            ),
+                )
+            )),
         };
     };
 
@@ -1801,9 +1921,7 @@ stream_cell::line_edit_segment_hit(const QPointF& pos_px) const {
 
     if (line_edit_preview_->closed && points.size() >= 3) {
         consider_segment(
-            static_cast<int>(points.size()) - 1,
-            points.back(),
-            points.front()
+            static_cast<int>(points.size()) - 1, points.back(), points.front()
         );
     }
 
@@ -1830,9 +1948,7 @@ void stream_cell::sync_mouse_tracking() {
     if (line_edit_interaction_.press_active()) {
         return;
     }
-    if (line_edit_preview_.has_value()) {
-        setCursor(Qt::CrossCursor);
-    } else if (drawing_enabled) {
+    if (line_edit_preview_.has_value() || drawing_enabled) {
         setCursor(Qt::CrossCursor);
     } else {
         unsetCursor();
@@ -1846,13 +1962,18 @@ void stream_cell::draw_processing_overlays(QPainter& p) const {
 }
 
 void stream_cell::draw_events(QPainter& p) {
-    const QString selected_mode = processing_overlay_renderer::selected_movement_mode(
-        stream_settings_value
-    );
+    const QString selected_mode
+        = processing_overlay_renderer::selected_movement_mode(
+            stream_settings_value
+        );
     if (!processing_overlay_renderer::event_bubbles_visible(
             stream_settings_value, processing_overlays
         )) {
+        const bool had_events = !events.isEmpty();
         events.clear();
+        if (had_events) {
+            update_accessible_description();
+        }
         return;
     }
 
@@ -1860,8 +1981,8 @@ void stream_cell::draw_events(QPainter& p) {
     const int ttl_ms = 2000;
 
     const QRect r = rect();
-    const double w = static_cast<double>(r.width());
-    const double h = static_cast<double>(r.height());
+    const auto w = static_cast<double>(r.width());
+    const auto h = static_cast<double>(r.height());
     const double base = std::min(w, h);
     const double radius = base * 0.015;
 
@@ -1904,29 +2025,27 @@ void stream_cell::draw_events(QPainter& p) {
         p.setBrush(
             stream_cell_support::color_with_alpha(
                 c,
-                draw_symbolic_algorithm_overlay
-                    ? static_cast<int>(210.0 * k)
-                    : a
+                draw_symbolic_algorithm_overlay ? static_cast<int>(210.0 * k)
+                                                : a
             )
         );
         p.drawEllipse(
-            center,
-            draw_symbolic_algorithm_overlay
-                ? radius * 0.55
-                : radius,
-            draw_symbolic_algorithm_overlay
-                ? radius * 0.55
-                : radius
+            center, draw_symbolic_algorithm_overlay ? radius * 0.55 : radius,
+            draw_symbolic_algorithm_overlay ? radius * 0.55 : radius
         );
     }
 
+    const bool all_events_expired = !events.isEmpty() && alive.isEmpty();
     events = std::move(alive);
+    if (all_events_expired) {
+        update_accessible_description();
+    }
 }
 
 double stream_cell::segment_impact_k(
     const QPointF& a_pct, const QPointF& b_pct,
     const QVector<hit_info>& hit_points, double falloff_pct, double ktime
-) const {
+) {
     const double abx = b_pct.x() - a_pct.x();
     const double aby = b_pct.y() - a_pct.y();
     const double ab_len2 = abx * abx + aby * aby;
@@ -1938,7 +2057,7 @@ double stream_cell::segment_impact_k(
     double best_impact = 0.0;
 
     for (int j = 0; j < hit_points.size(); j += 1) {
-        const hit_info hp_info = hit_points[j];
+        const hit_info& hp_info = hit_points[j];
         const QPointF hp = hp_info.pos_pct;
 
         const double apx = hp.x() - a_pct.x();
@@ -2052,8 +2171,8 @@ void stream_cell::update_animation_timer() {
         return;
     }
 
-    const bool edit_pulse_active = line_edit_preview_.has_value()
-        && line_edit_source_line_.has_value();
+    const bool edit_pulse_active
+        = line_edit_preview_.has_value() && line_edit_source_line_.has_value();
     if (line_waves.isEmpty() && !edit_pulse_active) {
         if (animation_timer->isActive()) {
             animation_timer->stop();
@@ -2074,6 +2193,10 @@ void stream_cell::on_frame_changed(const QVideoFrame& frame) {
     if (!frame.isValid()) {
         return;
     }
+    if (repaint_timer.isValid()
+        && repaint_timer.elapsed() < repaint_interval_ms) {
+        return;
+    }
 
     QVideoFrame copy(frame);
     if (!copy.map(QVideoFrame::ReadOnly)) {
@@ -2082,20 +2205,15 @@ void stream_cell::on_frame_changed(const QVideoFrame& frame) {
 
     last_frame = copy.toImage();
     copy.unmap();
+    update_accessible_description();
 
     emit frame_ready(name, last_frame);
 
     if (!repaint_timer.isValid()) {
         repaint_timer.start();
-        update();
-        return;
+    } else {
+        repaint_timer.restart();
     }
-
-    if (repaint_timer.elapsed() < repaint_interval_ms) {
-        return;
-    }
-
-    repaint_timer.restart();
     update();
 }
 
@@ -2121,6 +2239,7 @@ void stream_cell::on_player_error(
 ) {
     Q_UNUSED(error);
     last_error = error_string;
+    update_accessible_description();
     update();
 }
 
@@ -2132,6 +2251,7 @@ void stream_cell::on_camera_error(const QCamera::Error error) {
     }
 
     last_error = camera->errorString();
+    update_accessible_description();
     update();
 }
 
@@ -2141,7 +2261,8 @@ void stream_cell::on_animation_tick() {
     update_animation_timer();
 
     if (!line_waves.isEmpty()
-        || (line_edit_preview_.has_value() && line_edit_source_line_.has_value())) {
+        || (line_edit_preview_.has_value()
+            && line_edit_source_line_.has_value())) {
         update();
     }
 }

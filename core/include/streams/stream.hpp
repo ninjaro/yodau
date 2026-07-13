@@ -2,6 +2,7 @@
 #define YODAU_CORE_STREAM_HPP
 #include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
+#include <atomic>
 #include <mutex>
 #include <optional>
 #include <unordered_map>
@@ -23,8 +24,8 @@ public:
     stream& operator=(stream&& other) noexcept;
 
     static stream_type identify(const std::string& path);
-    static std::string type_name(const stream_type type);
-    static std::string pipeline_name(const stream_pipeline pipeline);
+    static std::string type_name(stream_type type);
+    static std::string pipeline_name(stream_pipeline pipeline);
 
     std::string get_name() const;
     std::string get_path() const;
@@ -37,10 +38,13 @@ public:
     stream_pipeline pipeline() const;
     void deactivate();
 
-    void connect_line(line_ptr line, std::optional<line_profile> profile = std::nullopt);
+    void connect_line(
+        line_ptr line, const std::optional<line_profile>& profile = std::nullopt
+    );
     void disconnect_line(const std::string& line_name);
     void set_line_profile(line_profile profile_value);
-    std::optional<line_profile> find_line_profile(const std::string& line_name) const;
+    std::optional<line_profile>
+    find_line_profile(const std::string& line_name) const;
     std::vector<std::string> line_names() const;
     std::vector<line_ptr> lines_snapshot() const;
 
@@ -49,7 +53,7 @@ private:
     std::string path;
     stream_type type;
     bool loop { true };
-    stream_pipeline active { stream_pipeline::none };
+    std::atomic<stream_pipeline> active { stream_pipeline::none };
     std::unordered_map<std::string, line_ptr> lines;
     std::unordered_map<std::string, line_profile> line_profiles;
     mutable std::mutex lines_mtx;

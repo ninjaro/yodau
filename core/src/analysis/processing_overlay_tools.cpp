@@ -4,7 +4,8 @@
 
 namespace yodau::core {
 
-processing_overlay make_point_overlay(std::string label, const point anchor_pct) {
+processing_overlay
+make_point_overlay(std::string label, const point anchor_pct) {
     processing_overlay overlay;
     overlay.kind = processing_overlay_kind::point;
     overlay.label = std::move(label);
