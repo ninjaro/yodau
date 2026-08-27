@@ -14,6 +14,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QUrl>
 #include <QVBoxLayout>
 
 namespace stream_source_panel_support {
@@ -61,12 +62,35 @@ void stream_source_panel::remove_existing_name(const QString& name) {
 }
 
 void stream_source_panel::set_local_sources(const QStringList& sources) const {
+    QList<local_source_descriptor> descriptors;
+    descriptors.reserve(sources.size());
+    for (const QString& source : sources) {
+        descriptors.push_back(local_source_descriptor {
+            .id = source,
+            .display_name = source,
+        });
+    }
+    set_local_sources(descriptors);
+}
+
+void stream_source_panel::set_local_sources(
+    const QList<local_source_descriptor>& sources
+) const {
     if (local_sources_combo == nullptr) {
         return;
     }
 
     local_sources_combo->clear();
-    local_sources_combo->addItems(sources);
+    for (const local_source_descriptor& source : sources) {
+        const QString id = source.id.trimmed();
+        if (id.isEmpty()) {
+            continue;
+        }
+        const QString label = source.display_name.trimmed().isEmpty()
+            ? id
+            : source.display_name.trimmed();
+        local_sources_combo->addItem(label, id);
+    }
     if (!sources.isEmpty()) {
         local_sources_combo->setCurrentIndex(0);
     }
@@ -323,9 +347,10 @@ void stream_source_panel::refresh_summary() const {
         return;
     }
     case input_mode::local: {
-        const QString source = local_sources_combo != nullptr
+        const QString source = current_local_source_id();
+        const QString source_label = local_sources_combo != nullptr
             ? local_sources_combo->currentText().trimmed()
-            : QString();
+            : source;
         if (source.isEmpty()) {
             summary_label->setText(
                 QStringLiteral("Local mode waits for a detected camera source.")
@@ -335,7 +360,7 @@ void stream_source_panel::refresh_summary() const {
 
         summary_label->setText(QStringLiteral("%1 | local source %2 as %3")
                                    .arg(readiness)
-                                   .arg(source)
+                                   .arg(source_label)
                                    .arg(target_name));
         return;
     }
@@ -378,13 +403,21 @@ bool stream_source_panel::current_input_valid() const {
         return file_path_edit != nullptr
             && !file_path_edit->text().trimmed().isEmpty();
     case input_mode::local:
-        return local_sources_combo != nullptr
-            && !local_sources_combo->currentText().trimmed().isEmpty();
+        return !current_local_source_id().isEmpty();
     case input_mode::url:
         return url_edit != nullptr && !url_edit->text().trimmed().isEmpty();
     }
 
     return false;
+}
+
+QString stream_source_panel::current_local_source_id() const {
+    if (local_sources_combo == nullptr
+        || local_sources_combo->currentIndex() < 0) {
+        return {};
+    }
+    const QString id = local_sources_combo->currentData().toString().trimmed();
+    return id.isEmpty() ? local_sources_combo->currentText().trimmed() : id;
 }
 
 void stream_source_panel::set_name_error(const bool error) const {
@@ -417,9 +450,21 @@ void stream_source_panel::on_choose_file() {
     const QString filters = str_label(
         "Video files (*.mp4 *.mkv *.avi *.mov *.webm *.m4v);;All files (*)"
     );
-    const QString path = QFileDialog::getOpenFileName(
+    QString path;
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    const QUrl url = QFileDialog::getOpenFileUrl(
+        this, str_label("choose video"), QUrl(), filters
+    );
+    if (url.isLocalFile()) {
+        path = url.toLocalFile();
+    } else if (url.isValid()) {
+        path = url.toString(QUrl::FullyEncoded);
+    }
+#else
+    path = QFileDialog::getOpenFileName(
         this, str_label("choose video"), QString(), filters
     );
+#endif
     if (!path.isEmpty() && file_path_edit != nullptr) {
         file_path_edit->setText(path);
         emit log_requested(
@@ -479,9 +524,7 @@ void stream_source_panel::on_add_clicked() {
         break;
     }
     case input_mode::local: {
-        const QString source = local_sources_combo != nullptr
-            ? local_sources_combo->currentText().trimmed()
-            : QString();
+        const QString source = current_local_source_id();
         emit log_requested(
             stream_source_panel_support::make_log_entry(
                 app_log_severity::info,

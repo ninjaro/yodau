@@ -28,6 +28,7 @@ public:
     stream_cell* take_stream_cell(const QString& name);
     void put_stream_cell(stream_cell* cell);
     [[nodiscard]] stream_cell* peek_stream_cell(const QString& name) const;
+    void set_application_active(bool active);
 
 signals:
     void stream_closed(const QString& name);
@@ -47,6 +48,7 @@ private:
     QMap<QString, stream_cell*> tiles;
     int last_layout_rows { 0 };
     int last_layout_columns { 0 };
+    bool application_active_ { true };
 };
 
 #endif // YODAU_APP_WIDGETS_GRID_VIEW_HPP

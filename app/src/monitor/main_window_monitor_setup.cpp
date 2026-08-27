@@ -16,9 +16,17 @@ void main_window::setup_debug_monitor_ui() {
     );
 
 #if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+#if defined(KC_KDE)
+    toggle_debug_monitor_action = new QAction(str_label("monitor"), this);
+#else
     auto* debug_toolbar = addToolBar(str_label("debug"));
+    debug_toolbar->setObjectName(QStringLiteral("debug_toolbar"));
     toggle_debug_monitor_action
         = debug_toolbar->addAction(str_label("monitor"));
+#endif
+    toggle_debug_monitor_action->setObjectName(
+        QStringLiteral("debug_monitor_toggle")
+    );
     toggle_debug_monitor_action->setCheckable(true);
     toggle_debug_monitor_action->setToolTip(
         str_label("Enable debug-only standalone monitor broadcasting.")

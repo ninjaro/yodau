@@ -12,6 +12,8 @@ QIcon icon_loader::themed(
             return ico;
         }
     }
+#else
+    Q_UNUSED(names);
 #endif
     return QApplication::style()->standardIcon(fallback);
 }

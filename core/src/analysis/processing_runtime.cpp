@@ -3,6 +3,7 @@
 #include "analysis/default_processing_hooks.hpp"
 #include "analysis/processing_algorithm_catalog.hpp"
 #include "analysis/processing_frame_tools.hpp"
+#include "analysis/processing_motion_region_filter.hpp"
 #include "analysis/processing_preview_router.hpp"
 #include "streams/virtual_camera.hpp"
 
@@ -154,7 +155,7 @@ stream_manager::daemon_start_fn processing_runtime::daemon_start_hook() {
     return [weak_state](
                const stream& stream_value,
                const std::function<void(frame&&)>& on_frame,
-               const std::stop_token& stop_token
+               const stop_token& stop_token
            ) {
         std::shared_ptr<processing_algorithm> algorithm;
         {
@@ -432,7 +433,7 @@ processing_runtime::process_frame(const stream& s, const frame& f) {
 #endif
 
     processing_result result = algorithm->process_frame(s, *processing_frame);
-    result = motion_region_filter_value.apply(s, std::move(result));
+    result = processing_motion_region_filter::apply(s, std::move(result));
     session_store_.store_latest_processing_result(s.get_name(), result);
 
     processed_frame_observer_fn observer;

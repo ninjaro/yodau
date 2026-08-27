@@ -2,6 +2,7 @@
 #define YODAU_APP_SHELL_APP_SETTINGS_HPP
 
 #include <QColor>
+#include <QList>
 #include <QMetaType>
 #include <QPointF>
 #include <QString>
@@ -67,6 +68,11 @@ struct stream_runtime_metrics {
 };
 
 Q_DECLARE_METATYPE(stream_runtime_metrics)
+
+struct local_source_descriptor {
+    QString id;
+    QString display_name;
+};
 
 struct line_profile {
     QString name;

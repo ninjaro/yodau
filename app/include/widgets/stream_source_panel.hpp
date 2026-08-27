@@ -2,6 +2,7 @@
 #define YODAU_APP_WIDGETS_STREAM_SOURCE_PANEL_HPP
 
 #include "shell/app_log.hpp"
+#include "shell/app_settings.hpp"
 
 #include <QSet>
 #include <QStringList>
@@ -27,6 +28,9 @@ public:
     void remove_existing_name(const QString& name);
 
     void set_local_sources(const QStringList& sources) const;
+    void set_local_sources(
+        const QList<local_source_descriptor>& sources
+    ) const;
     void clear_inputs() const;
 
 signals:
@@ -48,6 +52,7 @@ private:
     [[nodiscard]] QString resolved_name_for_current_input() const;
     [[nodiscard]] bool name_is_unique(const QString& name) const;
     [[nodiscard]] bool current_input_valid() const;
+    [[nodiscard]] QString current_local_source_id() const;
     void set_name_error(bool error) const;
 
 private slots:

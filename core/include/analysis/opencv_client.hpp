@@ -5,6 +5,7 @@
 
 #include "analysis/processing_motion_tools.hpp"
 #include "analysis/tripwire_grid_stream_index.hpp"
+#include "concurrency/stoppable_thread.hpp"
 #include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
@@ -16,7 +17,6 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <stop_token>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -29,12 +29,12 @@ public:
 
     static void daemon_start(
         const stream& s, const std::function<void(frame&&)>& on_frame,
-        const std::stop_token& st
+        const stop_token& st
     );
 
     std::vector<event> motion_processor(const stream& s, const frame& f);
 
-    stream_manager::daemon_start_fn daemon_start_fn();
+    static stream_manager::daemon_start_fn daemon_start_fn();
     stream_manager::frame_processor_fn frame_processor_fn();
     static opencv_client& shared_instance();
 
@@ -61,7 +61,7 @@ private:
 
 void opencv_daemon_start(
     const stream& s, const std::function<void(frame&&)>& on_frame,
-    const std::stop_token& st
+    const stop_token& st
 );
 
 std::vector<event> opencv_motion_processor(const stream& s, const frame& f);

@@ -1,7 +1,9 @@
 #include "streams/stream_manager.hpp"
 #include "streams/linux_capture_device.hpp"
 
+#include <algorithm>
 #include <filesystem>
+#include <ostream>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>

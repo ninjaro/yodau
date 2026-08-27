@@ -10,6 +10,7 @@
 #include <QClipboard>
 #include <QFileDialog>
 #include <QLabel>
+#include <QMessageBox>
 #include <QTabWidget>
 #include <QVBoxLayout>
 
@@ -98,7 +99,7 @@ app_log_mode settings_panel::log_mode() const {
 
 void settings_panel::append_log(app_log_entry entry) const {
     if (log_toolbar_widget != nullptr) {
-        log_toolbar_widget->append_entry(std::move(entry));
+        static_cast<void>(log_toolbar_widget->append_entry(std::move(entry)));
     }
 }
 
@@ -207,6 +208,14 @@ void settings_panel::append_event(const QString& text) const {
 }
 
 void settings_panel::set_local_sources(const QStringList& sources) const {
+    if (source_panel != nullptr) {
+        source_panel->set_local_sources(sources);
+    }
+}
+
+void settings_panel::set_local_sources(
+    const QList<local_source_descriptor>& sources
+) const {
     if (source_panel != nullptr) {
         source_panel->set_local_sources(sources);
     }
@@ -669,5 +678,10 @@ void settings_panel::on_save_logs_clicked() {
         return;
     }
 
-    write_current_log_report(path);
+    if (!write_current_log_report(path)) {
+        QMessageBox::warning(
+            this, str_label("save log report"),
+            str_label("The log report could not be written to %1.").arg(path)
+        );
+    }
 }

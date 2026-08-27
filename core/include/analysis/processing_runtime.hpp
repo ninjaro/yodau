@@ -2,7 +2,6 @@
 #define YODAU_CORE_ANALYSIS_PROCESSING_RUNTIME_HPP
 
 #include "analysis/processing_algorithm.hpp"
-#include "analysis/processing_motion_region_filter.hpp"
 #include "analysis/processing_session_store.hpp"
 #include "core/namespace_alias.hpp"
 #include "streams/stream_manager.hpp"
@@ -134,7 +133,6 @@ private:
     active_algorithm_for_stream(const std::string& stream_name);
 
     processing_runtime_options runtime_options;
-    processing_motion_region_filter motion_region_filter_value;
     processing_session_store session_store_;
     std::unique_ptr<processing_preview_router> preview_router_value;
     std::shared_ptr<callback_state> callback_state_;

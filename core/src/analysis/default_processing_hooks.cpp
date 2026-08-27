@@ -38,10 +38,10 @@ namespace default_processing_hooks_support {
     const processing_algorithm_registry& registry_instance() {
         static const processing_algorithm_registry registry = [] {
             processing_algorithm_registry value;
-#ifdef YODAU_OPENCV
             value.register_algorithm(registry_entry(motion_baseline, [] {
                 return make_motion_baseline_algorithm();
             }));
+#ifdef YODAU_OPENCV
             value.register_algorithm(registry_entry(spot_grid, [] {
                 return make_spot_grid_algorithm();
             }));
@@ -77,7 +77,7 @@ stream_manager::daemon_start_fn default_daemon_start_hook() {
 
     return [](const stream& stream_value,
               const std::function<void(frame&&)>& on_frame,
-              const std::stop_token& stop_token) {
+              const stop_token& stop_token) {
         if (auto* algorithm = default_processing_hooks_support::
                 shared_default_algorithm_instance()) {
             algorithm->daemon_start(stream_value, on_frame, stop_token);

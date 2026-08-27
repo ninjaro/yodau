@@ -20,6 +20,7 @@
 #include <cmath>
 #include <functional>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "streams/event.hpp"
@@ -420,6 +421,40 @@ QString stream_controller::active_configuration_stream_name() const {
 bool stream_controller::export_line_configuration_to(
     const QString& path, QString* error_message
 ) const {
+    QByteArray contents;
+    if (!export_line_configuration_data(&contents, error_message)) {
+        return false;
+    }
+
+    try {
+        const auto document = yodau::core::parse_line_configuration(
+            std::string_view(
+                contents.constData(), static_cast<size_t>(contents.size())
+            )
+        );
+        yodau::core::save_line_configuration_atomic(
+            document, std::filesystem::path(path.toStdString())
+        );
+        return true;
+    } catch (const std::exception& error) {
+        if (error_message != nullptr) {
+            *error_message
+                = stream_controller_support::configuration_error_text(error);
+        }
+        return false;
+    }
+}
+
+bool stream_controller::export_line_configuration_data(
+    QByteArray* contents, QString* error_message
+) const {
+    if (contents == nullptr) {
+        if (error_message != nullptr) {
+            *error_message = tr("No configuration output was provided.");
+        }
+        return false;
+    }
+    contents->clear();
     const QString stream_name = active_configuration_stream_name();
     if (stream_mgr == nullptr || stream_name.isEmpty()) {
         if (error_message != nullptr) {
@@ -519,8 +554,10 @@ bool stream_controller::export_line_configuration_to(
             document.lines.push_back(std::move(configured));
         }
 
-        yodau::core::save_line_configuration_atomic(
-            document, std::filesystem::path(path.toStdString())
+        const std::string serialized
+            = yodau::core::serialize_line_configuration(document);
+        *contents = QByteArray(
+            serialized.data(), static_cast<qsizetype>(serialized.size())
         );
         return true;
     } catch (const std::exception& error) {
@@ -535,6 +572,31 @@ bool stream_controller::export_line_configuration_to(
 bool stream_controller::import_line_configuration_from(
     const QString& path, QString* error_message
 ) {
+    try {
+        const auto document = yodau::core::load_line_configuration(
+            std::filesystem::path(path.toStdString())
+        );
+        const std::string serialized
+            = yodau::core::serialize_line_configuration(document);
+        return import_line_configuration_data(
+            QByteArray(
+                serialized.data(), static_cast<qsizetype>(serialized.size())
+            ),
+            error_message
+        );
+    } catch (const std::exception& error) {
+        if (error_message != nullptr) {
+            *error_message
+                = stream_controller_support::configuration_error_text(error);
+        }
+        return false;
+    }
+}
+
+bool stream_controller::import_line_configuration_data(
+    const QByteArray& contents, QString* error_message,
+    QString* imported_stream_name
+) {
     if (stream_mgr == nullptr) {
         if (error_message != nullptr) {
             *error_message = tr("The processing runtime is not available.");
@@ -543,8 +605,10 @@ bool stream_controller::import_line_configuration_from(
     }
 
     try {
-        const auto document = yodau::core::load_line_configuration(
-            std::filesystem::path(path.toStdString())
+        const auto document = yodau::core::parse_line_configuration(
+            std::string_view(
+                contents.constData(), static_cast<size_t>(contents.size())
+            )
         );
         const yodau::core::line_configuration_apply_options options;
         // File -> Import always honors the stream identity in the shared
@@ -558,6 +622,9 @@ bool stream_controller::import_line_configuration_from(
             document, *stream_mgr, core_runtime, options
         );
         const QString stream_name = QString::fromStdString(result.stream_name);
+        if (imported_stream_name != nullptr) {
+            *imported_stream_name = stream_name;
+        }
         virtual_camera_path_by_stream.insert(
             stream_name, QString::fromStdString(result.virtual_camera_path)
         );
@@ -647,9 +714,8 @@ bool stream_controller::import_line_configuration_from(
             app_log_area::active, app_log_severity::info,
             QStringLiteral("line_configuration"),
             QStringLiteral("line configuration imported"), stream_name,
-            QStringLiteral("%1 lines from %2")
+            QStringLiteral("%1 lines from shared configuration data")
                 .arg(document.lines.size())
-                .arg(path)
         );
         return true;
     } catch (const std::exception& error) {
@@ -660,6 +726,17 @@ bool stream_controller::import_line_configuration_from(
         return false;
     }
 }
+
+void stream_controller::focus_stream(const QString& stream_name) {
+    const QString normalized_name = stream_name.trimmed();
+    if (normalized_name.isEmpty()) {
+        return;
+    }
+    handle_show_stream_changed(normalized_name, true);
+    set_active_stream(normalized_name);
+}
+
+void stream_controller::return_to_stream_grid() { handle_back_to_grid(); }
 
 void stream_controller::handle_add_file(
     const QString& path, const QString& name, const bool loop
@@ -1199,6 +1276,18 @@ void stream_controller::apply_catalog_result(
         if (removed_active) {
             widget_bridge.sync_active_selection(QString(), stream_settings {});
         }
+    }
+
+    if (!result.added_stream.isEmpty()) {
+        if (settings != nullptr) {
+            settings->set_stream_checked(result.added_stream, true);
+        }
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+        // On a phone, opening the new stream immediately avoids a round trip
+        // through the compact Streams page. Desktop keeps its established
+        // multi-stream workflow and selection state.
+        focus_stream(result.added_stream);
+#endif
     }
 
     if (result.refresh_fps || !result.removed_streams.isEmpty()) {

@@ -58,7 +58,7 @@ namespace {
         void daemon_start(
             const stream& stream_value,
             const std::function<void(frame&&)>& on_frame,
-            const std::stop_token& stop_token
+            const stop_token& stop_token
         ) override {
             opencv_client::daemon_start(stream_value, on_frame, stop_token);
         }

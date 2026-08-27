@@ -68,3 +68,12 @@ yodau> clear-log
 
 `release` mode is concise. `debug` mode includes subsystem, stream, line,
 algorithm, event, and detail fields where available.
+
+## Benchmarks
+
+```bash
+cmake -S . -B /tmp/yodau-bench-build -DECOSYSTEM_BUILD_BENCHMARKS=ON
+cmake --build /tmp/yodau-bench-build --target core_benchmarks__bench app_benchmarks__bench
+/tmp/yodau-bench-build/yodau_core_bench --benchmark_filter='replay/.*/single_day_sparse'
+/tmp/yodau-bench-build/yodau_app_bench -functions
+```

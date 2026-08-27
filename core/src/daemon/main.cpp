@@ -5,7 +5,6 @@
 #include <chrono>
 #include <csignal>
 #include <iostream>
-#include <stop_token>
 #include <thread>
 
 #ifndef YODAU_OPENCV
@@ -71,9 +70,9 @@ int main(int argc, char** argv) {
         std::signal(SIGINT, handle_stop_signal);
         std::signal(SIGTERM, handle_stop_signal);
 
-        std::stop_source stop_source;
-        std::jthread signal_watcher(
-            [&stop_source](const std::stop_token& watcher_stop) {
+        yodau::core::stop_source stop_source;
+        yodau::core::stoppable_thread signal_watcher(
+            [&stop_source](const yodau::core::stop_token& watcher_stop) {
                 while (!watcher_stop.stop_requested()
                        && stop_signal_received == 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));

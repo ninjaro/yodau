@@ -11,6 +11,7 @@
 
 #include <QCameraDevice>
 #include <QMediaDevices>
+#include <QSet>
 #include <utility>
 
 stream_catalog_workflow::stream_catalog_workflow(
@@ -60,11 +61,43 @@ stream_catalog_workflow::detect_local_sources() const {
         widget_bridge_.unregister_stream_entry(previous_name);
         transition.removed_streams.push_back(previous_name);
     }
-    if (settings_ != nullptr) {
-        settings_->set_local_sources(locals);
-    }
-
     const auto cameras = QMediaDevices::videoInputs();
+    QList<local_source_descriptor> source_descriptors;
+    QSet<QString> source_ids;
+    for (const QString& local_name : locals) {
+        const auto local_stream
+            = stream_mgr_->find_stream(local_name.toStdString());
+        const QString source_id = local_stream
+            ? QString::fromStdString(local_stream->get_path())
+            : local_name;
+        if (source_id.isEmpty() || source_ids.contains(source_id)) {
+            continue;
+        }
+        source_ids.insert(source_id);
+        source_descriptors.push_back(local_source_descriptor {
+            .id = source_id,
+            .display_name = local_name == source_id
+                ? local_name
+                : QStringLiteral("%1 — %2").arg(local_name, source_id),
+        });
+    }
+    for (const QCameraDevice& camera : cameras) {
+        const QString source_id = QString::fromUtf8(camera.id()).trimmed();
+        if (source_id.isEmpty() || source_ids.contains(source_id)) {
+            continue;
+        }
+        source_ids.insert(source_id);
+        const QString description = camera.description().trimmed();
+        source_descriptors.push_back(local_source_descriptor {
+            .id = source_id,
+            .display_name = description.isEmpty()
+                ? source_id
+                : QStringLiteral("%1 — %2").arg(description, source_id),
+        });
+    }
+    if (settings_ != nullptr) {
+        settings_->set_local_sources(source_descriptors);
+    }
     transition.entries.push_back(make_add_entry(
         app_log_severity::info, QStringLiteral("local_sources"),
         QStringLiteral("local source inventory refreshed"), QString(),
@@ -110,6 +143,7 @@ stream_catalog_workflow::transition_result stream_catalog_workflow::add_stream(
         ));
 
         register_stream_in_ui(final_name, source_desc);
+        transition.added_stream = final_name;
         transition.refresh_fps = true;
         transition.update_monitor_inventory = true;
         transition.monitor_marker = QStringLiteral("stream_added");

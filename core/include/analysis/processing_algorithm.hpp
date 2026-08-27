@@ -1,6 +1,7 @@
 #ifndef YODAU_CORE_ANALYSIS_PROCESSING_ALGORITHM_HPP
 #define YODAU_CORE_ANALYSIS_PROCESSING_ALGORITHM_HPP
 
+#include "concurrency/stoppable_thread.hpp"
 #include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
@@ -11,7 +12,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <stop_token>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -79,7 +79,7 @@ public:
     virtual void daemon_start(
         const stream& stream_value,
         const std::function<void(frame&&)>& on_frame,
-        const std::stop_token& stop_token
+        const stop_token& stop_token
     ) = 0;
 
     virtual processing_result

@@ -921,7 +921,9 @@ line_configuration_apply_result apply_line_configuration(
     }
     validate_text(output_path, "resolved virtual camera path", 4096U, true);
 
-    if (!runtime.supports_algorithm_settings(document.stream.algorithm)) {
+    if (!processing_runtime::supports_algorithm_settings(
+            document.stream.algorithm
+        )) {
         fail("configured processing algorithm is unavailable in this build");
     }
 

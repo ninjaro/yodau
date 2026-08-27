@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <ostream>
 #include <ranges>
 #include <string_view>
 #include <unordered_set>
@@ -702,37 +703,35 @@ virtual_camera::ensure_binding_locked(const std::string& stream_name) {
         = "Linux virtual camera output is unavailable on this platform";
 #endif
 
-    binding->worker = std::jthread(
-        [binding](const std::stop_token& stop_token) {
-            try {
-                run_sink(binding, stop_token);
-            } catch (const std::exception& error) {
-                std::scoped_lock lock(binding->mtx);
-                binding->device_ready = false;
-                binding->last_error = "virtual camera worker failed: "
-                    + std::string(error.what());
-            } catch (...) {
-                std::scoped_lock lock(binding->mtx);
-                binding->device_ready = false;
-                binding->last_error
-                    = "virtual camera worker failed with an unknown exception";
-            }
+    binding->worker = stoppable_thread([binding](const stop_token& stop_token) {
+        try {
+            run_sink(binding, stop_token);
+        } catch (const std::exception& error) {
+            std::scoped_lock lock(binding->mtx);
+            binding->device_ready = false;
+            binding->last_error
+                = "virtual camera worker failed: " + std::string(error.what());
+        } catch (...) {
+            std::scoped_lock lock(binding->mtx);
+            binding->device_ready = false;
+            binding->last_error
+                = "virtual camera worker failed with an unknown exception";
         }
-    );
+    });
     sink_by_stream.emplace(stream_name, binding);
     return binding;
 }
 
 void virtual_camera::run_sink(
-    const std::shared_ptr<sink_binding>& binding,
-    const std::stop_token& stop_token
+    const std::shared_ptr<sink_binding>& binding, const stop_token& stop_token
 ) {
     while (!stop_token.stop_requested()) {
         std::shared_ptr<const frame> next_frame;
         {
             std::unique_lock lock(binding->mtx);
-            binding->wake.wait(lock, stop_token, [&binding] {
-                return static_cast<bool>(binding->pending_frame);
+            binding->wake.wait(lock, [&] {
+                return stop_token.stop_requested()
+                    || static_cast<bool>(binding->pending_frame);
             });
             if (stop_token.stop_requested()) {
                 break;

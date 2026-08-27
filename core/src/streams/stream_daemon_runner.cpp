@@ -17,7 +17,7 @@ bool stream_daemon_runner::start(
     }
 
     while (true) {
-        std::jthread completed_thread;
+        stoppable_thread completed_thread;
         {
             std::scoped_lock lock(mtx_);
             if (const auto it = daemons_.find(name); it != daemons_.end()) {
@@ -28,15 +28,16 @@ bool stream_daemon_runner::start(
                 daemons_.erase(it);
             } else {
                 auto state = std::make_shared<daemon_state>();
-                std::jthread thread([stream_name = name,
-                                     stream_ptr = std::move(stream_ptr),
-                                     daemon_fn = std::move(daemon_fn),
-                                     push_fn = std::move(push_fn),
-                                     completion_fn = std::move(completion_fn),
-                                     state](const std::stop_token& st) mutable {
-                    run(stream_name, stream_ptr, daemon_fn, std::move(push_fn),
-                        completion_fn, state, st);
-                });
+                stoppable_thread thread(
+                    [stream_name = name, stream_ptr = std::move(stream_ptr),
+                     daemon_fn = std::move(daemon_fn),
+                     push_fn = std::move(push_fn),
+                     completion_fn = std::move(completion_fn),
+                     state](const stop_token& st) mutable {
+                        run(stream_name, stream_ptr, daemon_fn,
+                            std::move(push_fn), completion_fn, state, st);
+                    }
+                );
                 daemons_.emplace(
                     name, daemon_entry { std::move(thread), std::move(state) }
                 );
@@ -53,7 +54,7 @@ bool stream_daemon_runner::start(
 }
 
 bool stream_daemon_runner::stop(const std::string& name) {
-    std::jthread thread;
+    stoppable_thread thread;
 
     {
         std::scoped_lock lock(mtx_);
@@ -110,7 +111,7 @@ void stream_daemon_runner::run(
     const std::string& stream_name, const std::shared_ptr<stream>& stream_ptr,
     const stream_daemon_start_fn& daemon_fn, stream_daemon_push_fn push_fn,
     const stream_daemon_completion_fn& completion_fn,
-    const std::shared_ptr<daemon_state>& state, const std::stop_token& st
+    const std::shared_ptr<daemon_state>& state, const stop_token& st
 ) {
     stream_daemon_status final_status;
     try {

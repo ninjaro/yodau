@@ -334,7 +334,7 @@ bool open_video_capture_for_stream(
 
 video_capture_read_status read_video_capture_frame(
     const stream& stream_value, cv::VideoCapture& capture, cv::Mat& image,
-    const std::stop_token& stop_token
+    const stop_token& stop_token
 ) {
     if (!capture.isOpened()) {
         return video_capture_read_status::finished;

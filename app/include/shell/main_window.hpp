@@ -12,6 +12,7 @@ using base_main_window = QMainWindow;
 #endif
 
 #include <QString>
+#include <Qt>
 #include <memory>
 
 namespace yodau::core {
@@ -26,9 +27,12 @@ class stream_board;
 class stream_controller;
 class settings_panel;
 class QAction;
+class QActionGroup;
 class QDockWidget;
+class QKeyEvent;
 class QLabel;
 class QStackedWidget;
+class QToolBar;
 
 class main_window final : public base_main_window {
     Q_OBJECT
@@ -43,13 +47,25 @@ public:
 private slots:
     void on_import_line_configuration_triggered();
     void on_export_line_configuration_triggered();
+    void show_settings_panel();
     void on_toggle_debug_monitor_triggered(bool checked);
     void refresh_debug_monitor_ui();
+    void on_application_state_changed(Qt::ApplicationState state);
 
 private:
     void setup_platform_layout();
     void setup_configuration_actions();
+    void setup_desktop_shell();
     void setup_debug_monitor_ui();
+    void show_mobile_page(int page_index);
+    void restore_mobile_session();
+    void persist_mobile_session();
+    void import_mobile_configuration(
+        const QByteArray& contents, bool activate_stream
+    );
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
 
     stream_board* main_zone;
     settings_panel* settings;
@@ -65,6 +81,10 @@ private:
     QDockWidget* settings_dock { nullptr };
     QDockWidget* line_dock { nullptr };
     QDockWidget* log_dock { nullptr };
+    QToolBar* mobile_document_toolbar { nullptr };
+    QToolBar* mobile_navigation_toolbar { nullptr };
+    QActionGroup* mobile_navigation_actions { nullptr };
+    QLabel* mobile_status_label { nullptr };
 };
 
 #endif // YODAU_APP_SHELL_MAIN_WINDOW_HPP

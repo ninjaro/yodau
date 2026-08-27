@@ -1,6 +1,8 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QIcon>
 #include <memory>
 
 #include "shell/main_window.hpp"
@@ -10,8 +12,25 @@
 #include <KAboutData>
 #include <KLocalizedString>
 #endif
+
+#ifndef ECOSYSTEM_PROJECT_VERSION
+#define ECOSYSTEM_PROJECT_VERSION "1.0.0"
+#endif
+
 int main(int argc, char* argv[]) {
-    const QApplication app(argc, argv);
+    QApplication app(argc, argv);
+    QCoreApplication::setApplicationName(QStringLiteral("yodau"));
+    QCoreApplication::setOrganizationName(QStringLiteral("yodau"));
+    QCoreApplication::setApplicationVersion(
+        QString::fromLatin1(ECOSYSTEM_PROJECT_VERSION)
+    );
+    QGuiApplication::setApplicationDisplayName(str_label("yodau"));
+    app.setWindowIcon(
+        QIcon::fromTheme(
+            QStringLiteral("org.ninjaro.yodau"),
+            QIcon(QStringLiteral(":/yodau/bug.svg"))
+        )
+    );
     QCommandLineParser parser;
     const QCommandLineOption monitor_option(
         QStringList() << QStringLiteral("m") << QStringLiteral("monitor"),
@@ -27,9 +46,11 @@ int main(int argc, char* argv[]) {
 
 #ifdef KC_KDE
     KLocalizedString::setApplicationDomain("yodau");
+    QGuiApplication::setDesktopFileName(QStringLiteral("org.ninjaro.yodau"));
 
     KAboutData about_data(
-        str_label("yodau"), str_label("yodau"), str_label("1.0"),
+        str_label("yodau"), str_label("yodau"),
+        QString::fromLatin1(ECOSYSTEM_PROJECT_VERSION),
         str_label("YEAR OF THE DEPEND ADULT UNDERGARMENT"), KAboutLicense::MIT,
         str_label("(c) 2025, Yaroslav Riabtsev"), QString(),
         str_label("https://github.com/ninjaro/yodau"),
@@ -50,10 +71,6 @@ int main(int argc, char* argv[]) {
     parser.process(app);
     about_data.processCommandLine(&parser);
 #else
-    QCoreApplication::setApplicationName(str_label("yodau"));
-    QCoreApplication::setOrganizationName(str_label("yodau"));
-    QCoreApplication::setApplicationVersion(str_label("1.0"));
-
     parser.setApplicationDescription(
         str_label("YEAR OF THE DEPEND ADULT UNDERGARMENT")
     );

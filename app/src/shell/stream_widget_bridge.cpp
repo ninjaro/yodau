@@ -29,7 +29,20 @@ void apply_grid_stream_binding(
     }
 
     if (binding.type == QStringLiteral("file")) {
-        cell->set_source(QUrl::fromLocalFile(binding.path));
+        const QUrl candidate(binding.path);
+        if (candidate.isLocalFile()) {
+            cell->set_source(QUrl::fromLocalFile(candidate.toLocalFile()));
+        } else if (
+            candidate.isValid()
+            && candidate.scheme().compare(
+                   QStringLiteral("content"), Qt::CaseInsensitive
+               )
+                == 0
+        ) {
+            cell->set_source(candidate);
+        } else {
+            cell->set_source(QUrl::fromLocalFile(binding.path));
+        }
         return;
     }
 

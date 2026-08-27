@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <ostream>
 #include <stdexcept>
 #include <system_error>
 #include <thread>
@@ -260,7 +261,7 @@ std::string redact_capture_source_for_log(const std::string_view source) {
 }
 
 int run_headless_daemon(
-    const headless_daemon_options& options, const std::stop_token& stop_token,
+    const headless_daemon_options& options, const stop_token& stop_token,
     std::ostream& output, std::ostream& errors
 ) {
     if (options.configuration_path.empty()) {

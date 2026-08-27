@@ -1,5 +1,6 @@
 #include "streams/stream.hpp"
 
+#include <ostream>
 #include <ranges>
 
 yodau::core::stream::stream(

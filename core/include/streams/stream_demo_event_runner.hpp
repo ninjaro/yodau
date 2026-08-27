@@ -1,6 +1,7 @@
 #ifndef YODAU_CORE_STREAM_DEMO_EVENT_RUNNER_HPP
 #define YODAU_CORE_STREAM_DEMO_EVENT_RUNNER_HPP
 
+#include "concurrency/stoppable_thread.hpp"
 #include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
@@ -13,7 +14,6 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <stop_token>
 #include <string>
 #include <thread>
 #include <utility>
@@ -60,10 +60,10 @@ public:
             enabled_ = true;
         }
 
-        std::jthread thread(
+        stoppable_thread thread(
             [this, snapshot_streams = std::move(snapshot_streams),
              snapshot_hooks
-             = std::move(snapshot_hooks)](const std::stop_token& stop_token) {
+             = std::move(snapshot_hooks)](const stop_token& stop_token) {
                 run(stop_token, snapshot_streams, snapshot_hooks);
             }
         );
@@ -79,7 +79,7 @@ public:
     }
 
     void stop() {
-        std::jthread thread;
+        stoppable_thread thread;
 
         {
             std::scoped_lock lock(mtx_);
@@ -90,7 +90,7 @@ public:
 
             enabled_ = false;
             thread = std::move(thread_);
-            thread_ = std::jthread();
+            thread_ = stoppable_thread();
         }
 
         if (thread.joinable()) {
@@ -101,7 +101,7 @@ public:
 
 private:
     void
-    run(const std::stop_token& stop_token,
+    run(const stop_token& stop_token,
         const stream_demo_snapshot_fn& snapshot_streams,
         const stream_demo_hooks_snapshot_fn& snapshot_hooks) noexcept {
         frame dummy;
@@ -137,16 +137,15 @@ private:
             }
 
             std::unique_lock lock(mtx_);
-            wake_.wait_for(
-                lock, stop_token, std::chrono::milliseconds(interval_ms_),
-                [] { return false; }
-            );
+            wake_.wait_for(lock, std::chrono::milliseconds(interval_ms_), [&] {
+                return stop_token.stop_requested();
+            });
         }
     }
 
     mutable std::mutex mtx_;
     mutable std::condition_variable_any wake_;
-    std::jthread thread_;
+    stoppable_thread thread_;
     int interval_ms_ { 700 };
     bool enabled_ { false };
 };

@@ -20,6 +20,7 @@ public:
     void set_active_stream(const QString& name);
     void clear_active();
     stream_cell* take_active_cell();
+    void set_application_active(bool active);
 
 private:
     grid_view* grid;
@@ -27,6 +28,7 @@ private:
     QWidget* active_container;
     QVBoxLayout* active_layout;
     stream_cell* active_tile;
+    bool application_active_ { true };
 };
 
 #endif // YODAU_APP_WIDGETS_STREAM_BOARD_HPP

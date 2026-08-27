@@ -2,6 +2,8 @@
 
 #include <QAccessible>
 #include <QBrush>
+#include <QPermissions>
+#include <QCoreApplication>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -26,9 +28,15 @@
 
 namespace stream_cell_support {
 
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+constexpr qreal edit_vertex_hit_radius_px = 24.0;
+constexpr qreal edit_segment_hit_radius_px = 18.0;
+constexpr int line_edit_drag_threshold_px = 8;
+#else
 constexpr qreal edit_vertex_hit_radius_px = 11.0;
 constexpr qreal edit_segment_hit_radius_px = 8.0;
 constexpr int line_edit_drag_threshold_px = 4;
+#endif
 constexpr double line_edit_key_nudge_px = 1.0;
 constexpr double edit_key_nudge_fast_px = 5.0;
 constexpr double edit_wheel_degrees_per_step = 5.0;
@@ -342,6 +350,8 @@ bool stream_cell::has_line_edit_preview() const {
     return line_edit_preview_.has_value();
 }
 
+bool stream_cell::application_active() const { return application_active_; }
+
 QString stream_cell::line_edit_preview_name() const {
     return line_edit_preview_.has_value() ? line_edit_preview_->template_name
                                           : QString();
@@ -536,7 +546,10 @@ void stream_cell::set_source(const QUrl& source) {
     update_accessible_description();
 
     player->setSource(source);
-    player->play();
+    resume_player_on_activation_ = true;
+    if (application_active_) {
+        player->play();
+    }
 }
 
 void stream_cell::set_loop(const bool on) { loop_enabled = on; }
@@ -558,6 +571,88 @@ void stream_cell::set_camera_id(const QByteArray& id) {
         camera = nullptr;
     }
 
+    resume_camera_on_activation_ = !camera_id.isEmpty();
+    if (!application_active_ || camera_id.isEmpty()) {
+        return;
+    }
+    start_camera_if_permitted();
+}
+
+void stream_cell::set_application_active(const bool active_value) {
+    if (application_active_ == active_value) {
+        return;
+    }
+    application_active_ = active_value;
+
+    if (!application_active_) {
+        resume_player_on_activation_ = player != nullptr
+            && player->playbackState() == QMediaPlayer::PlayingState;
+        if (player != nullptr && resume_player_on_activation_) {
+            player->pause();
+        }
+        resume_camera_on_activation_ = camera != nullptr && camera->isActive();
+        if (camera != nullptr && camera->isActive()) {
+            camera->stop();
+        }
+        return;
+    }
+
+    if (player != nullptr && resume_player_on_activation_
+        && !player->source().isEmpty()) {
+        player->play();
+    }
+    if (!camera_id.isEmpty() && (resume_camera_on_activation_ || !camera)) {
+        start_camera_if_permitted();
+    }
+}
+
+void stream_cell::start_camera_if_permitted() {
+#if defined(Q_OS_ANDROID)
+    auto* application = QCoreApplication::instance();
+    if (application == nullptr) {
+        last_error = tr("camera permission is unavailable");
+        update_accessible_description();
+        update();
+        return;
+    }
+    const QCameraPermission camera_permission;
+    const Qt::PermissionStatus permission_status
+        = application->checkPermission(camera_permission);
+    if (permission_status == Qt::PermissionStatus::Undetermined) {
+        application->requestPermission(
+            camera_permission, this, [this](const QPermission& permission) {
+                if (permission.status() == Qt::PermissionStatus::Granted
+                    && application_active_) {
+                    start_camera();
+                    return;
+                }
+                last_error = tr("camera permission denied");
+                update_accessible_description();
+                update();
+            }
+        );
+        return;
+    }
+    if (permission_status != Qt::PermissionStatus::Granted) {
+        last_error = tr("camera permission denied");
+        update_accessible_description();
+        update();
+        return;
+    }
+#endif
+    start_camera();
+}
+
+void stream_cell::start_camera() {
+    if (!application_active_ || camera_id.isEmpty()) {
+        return;
+    }
+    if (camera != nullptr) {
+        camera->start();
+        resume_camera_on_activation_ = true;
+        return;
+    }
+
     if (!session) {
         session = new QMediaCaptureSession(this);
         session->setVideoSink(sink);
@@ -566,7 +661,7 @@ void stream_cell::set_camera_id(const QByteArray& id) {
     QCameraDevice device;
     const auto cams = QMediaDevices::videoInputs();
     for (const auto& c : cams) {
-        if (c.id() == id) {
+        if (c.id() == camera_id) {
             device = c;
             break;
         }
@@ -587,6 +682,7 @@ void stream_cell::set_camera_id(const QByteArray& id) {
     );
 
     camera->start();
+    resume_camera_on_activation_ = true;
 }
 
 void stream_cell::add_event(const QPointF& pos_pct, const QColor& color) {
@@ -1135,7 +1231,11 @@ void stream_cell::build_ui() {
 
     focus_btn = new QPushButton(this);
     focus_btn->setObjectName(QStringLiteral("stream_cell_focus_button"));
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    focus_btn->setFixedSize(48, 48);
+#else
     focus_btn->setFixedSize(32, 32);
+#endif
     focus_btn->setIconSize(QSize(20, 20));
     focus_btn->setFlat(true);
     focus_btn->setFocusPolicy(Qt::StrongFocus);
@@ -1144,7 +1244,11 @@ void stream_cell::build_ui() {
 
     close_btn = new QPushButton(this);
     close_btn->setObjectName(QStringLiteral("stream_cell_close_button"));
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    close_btn->setFixedSize(48, 48);
+#else
     close_btn->setFixedSize(32, 32);
+#endif
     close_btn->setIconSize(QSize(20, 20));
     close_btn->setToolTip(tr("close"));
     close_btn->setAccessibleName(tr("Close stream %1").arg(name));

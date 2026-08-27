@@ -23,6 +23,7 @@ public:
     struct transition_result {
         QVector<app_log_entry> entries;
         QStringList removed_streams;
+        QString added_stream;
         bool refresh_fps { false };
         bool update_monitor_inventory { false };
         QString monitor_marker;

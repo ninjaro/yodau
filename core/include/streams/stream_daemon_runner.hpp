@@ -1,6 +1,7 @@
 #ifndef YODAU_CORE_STREAM_DAEMON_RUNNER_HPP
 #define YODAU_CORE_STREAM_DAEMON_RUNNER_HPP
 
+#include "concurrency/stoppable_thread.hpp"
 #include "core/namespace_alias.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
@@ -9,7 +10,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <stop_token>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -17,7 +17,7 @@
 namespace yodau::core {
 
 using stream_daemon_start_fn = std::function<void(
-    const stream& s, std::function<void(frame&&)> on_frame, std::stop_token st
+    const stream& s, std::function<void(frame&&)> on_frame, stop_token st
 )>;
 using stream_daemon_push_fn
     = std::function<void(const std::string& stream_name, frame&& f)>;
@@ -61,7 +61,7 @@ private:
     };
 
     struct daemon_entry {
-        std::jthread thread;
+        stoppable_thread thread;
         std::shared_ptr<daemon_state> state;
     };
 
@@ -70,7 +70,7 @@ private:
         const std::shared_ptr<stream>& stream_ptr,
         const stream_daemon_start_fn& daemon_fn, stream_daemon_push_fn push_fn,
         const stream_daemon_completion_fn& completion_fn,
-        const std::shared_ptr<daemon_state>& state, const std::stop_token& st);
+        const std::shared_ptr<daemon_state>& state, const stop_token& st);
 
     static stream_daemon_status snapshot(const daemon_state& state);
     static void set_status(

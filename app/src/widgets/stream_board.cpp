@@ -53,6 +53,7 @@ void stream_board::set_active_stream(const QString& name) {
     active_container->show();
 
     cell->setParent(active_container);
+    cell->set_application_active(application_active_);
     cell->set_active(true);
 
     cell->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -91,4 +92,14 @@ stream_cell* stream_board::take_active_cell() {
     stream_cell* out = active_tile;
     active_tile = nullptr;
     return out;
+}
+
+void stream_board::set_application_active(const bool active) {
+    application_active_ = active;
+    if (active_tile != nullptr) {
+        active_tile->set_application_active(active);
+    }
+    if (grid != nullptr) {
+        grid->set_application_active(active);
+    }
 }

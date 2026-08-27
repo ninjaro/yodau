@@ -71,6 +71,7 @@ public:
     [[nodiscard]] QColor draft_color() const;
     [[nodiscard]] bool is_drawing_enabled() const;
     [[nodiscard]] bool has_line_edit_preview() const;
+    [[nodiscard]] bool application_active() const;
     [[nodiscard]] QString line_edit_preview_name() const;
 
     [[nodiscard]] bool is_draft_preview() const;
@@ -107,6 +108,7 @@ public:
     void set_source(const QUrl& source);
     void set_loop(bool on);
     void set_camera_id(const QByteArray& id);
+    void set_application_active(bool active);
 
     struct event_instance {
         QPointF pos_pct;
@@ -211,6 +213,8 @@ private:
     );
     void prune_line_waves(qint64 now_ms);
     void update_animation_timer();
+    void start_camera_if_permitted();
+    void start_camera();
 
 private slots:
     void on_close_clicked();
@@ -261,6 +265,9 @@ private:
     QCamera* camera { nullptr };
     QMediaCaptureSession* session { nullptr };
     QByteArray camera_id;
+    bool application_active_ { true };
+    bool resume_player_on_activation_ { false };
+    bool resume_camera_on_activation_ { false };
     QVector<event_instance> events;
     std::vector<processing_overlay_instance> processing_overlays;
     QElapsedTimer repaint_timer;

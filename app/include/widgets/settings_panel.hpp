@@ -49,6 +49,9 @@ public:
 
     // add tab
     void set_local_sources(const QStringList& sources) const;
+    void set_local_sources(
+        const QList<local_source_descriptor>& sources
+    ) const;
     void clear_add_inputs() const;
     void append_add_log(const QString& text) const;
 

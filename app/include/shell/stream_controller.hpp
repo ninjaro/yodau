@@ -3,6 +3,7 @@
 
 #include "core/namespace_alias.hpp"
 #include <QColor>
+#include <QByteArray>
 #include <QHash>
 #include <QImage>
 #include <QMap>
@@ -62,9 +63,18 @@ public:
     [[nodiscard]] bool export_line_configuration_to(
         const QString& path, QString* error_message = nullptr
     ) const;
+    [[nodiscard]] bool export_line_configuration_data(
+        QByteArray* contents, QString* error_message = nullptr
+    ) const;
     [[nodiscard]] bool import_line_configuration_from(
         const QString& path, QString* error_message = nullptr
     );
+    [[nodiscard]] bool import_line_configuration_data(
+        const QByteArray& contents, QString* error_message = nullptr,
+        QString* imported_stream_name = nullptr
+    );
+    void focus_stream(const QString& stream_name);
+    void return_to_stream_grid();
 
 public slots:
     // add tab

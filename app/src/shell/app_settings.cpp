@@ -2,6 +2,7 @@
 
 #include "analysis/processing_algorithm_catalog.hpp"
 #include "analysis/processing_algorithm_ids.hpp"
+#include "analysis/processing_runtime.hpp"
 
 #include <QRandomGenerator>
 #include <algorithm>
@@ -165,7 +166,7 @@ bool movement_display_enabled(const QString& mode_id) {
 
 QStringList app_algorithm_ids() {
     return app_settings_support::qstring_list_from_std(
-        yodau::core::processing_algorithm_catalog_ids()
+        yodau::core::processing_runtime::available_algorithm_ids()
     );
 }
 

@@ -112,7 +112,7 @@ void opencv_client::normalize_lines_snapshot(std::vector<line_ptr>& lines) {
 
 void opencv_client::daemon_start(
     const stream& s, const std::function<void(frame&&)>& on_frame,
-    const std::stop_token& st
+    const stop_token& st
 ) {
     cv::VideoCapture cap;
     if (!open_video_capture_for_stream(s, cap)) {
@@ -618,7 +618,7 @@ opencv_client& opencv_client::shared_instance() {
 
 void opencv_daemon_start(
     const stream& s, const std::function<void(frame&&)>& on_frame,
-    const std::stop_token& st
+    const stop_token& st
 ) {
     opencv_client::daemon_start(s, on_frame, st);
 }

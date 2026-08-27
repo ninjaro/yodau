@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <cctype>
-#include <charconv>
 #include <cmath>
+#include <iomanip>
+#include <locale>
+#include <ostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -403,11 +406,15 @@ std::string yodau::core::normalize_str(const std::string_view str) {
 }
 
 float yodau::core::parse_float(const std::string_view num_str) {
+    if (num_str.empty()) {
+        throw std::runtime_error("Invalid float value: ");
+    }
+
+    std::istringstream input { std::string(num_str) };
+    input.imbue(std::locale::classic());
     float value {};
-    const char* first = num_str.data();
-    const char* last = num_str.data() + num_str.size();
-    auto [ptr, ec] = std::from_chars(first, last, value);
-    if (ec != std::errc() || ptr != last) {
+    if (!(input >> std::noskipws >> value)
+        || input.peek() != std::char_traits<char>::eof()) {
         throw std::runtime_error(
             "Invalid float value: " + std::string(num_str)
         );

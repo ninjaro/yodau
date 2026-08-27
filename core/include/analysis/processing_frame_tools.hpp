@@ -4,13 +4,13 @@
 #ifdef YODAU_OPENCV
 
 #include "analysis/processing_algorithm.hpp"
+#include "concurrency/stoppable_thread.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
 
 #include <opencv2/core/mat.hpp>
 
 #include <chrono>
-#include <stop_token>
 #include <string>
 
 namespace cv {
@@ -56,7 +56,7 @@ bool open_video_capture_for_stream(
 
 video_capture_read_status read_video_capture_frame(
     const stream& stream_value, cv::VideoCapture& capture, cv::Mat& image,
-    const std::stop_token& stop_token = {}
+    const stop_token& stop_token = {}
 );
 
 point grid_cell_center_pct(int col, int row, int cols, int rows);

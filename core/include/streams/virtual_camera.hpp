@@ -1,6 +1,7 @@
 #ifndef YODAU_CORE_STREAMS_VIRTUAL_CAMERA_HPP
 #define YODAU_CORE_STREAMS_VIRTUAL_CAMERA_HPP
 
+#include "concurrency/stoppable_thread.hpp"
 #include "core/namespace_alias.hpp"
 #include "streams/frame.hpp"
 
@@ -51,7 +52,7 @@ private:
         mutable std::mutex mtx;
         std::condition_variable_any wake;
         std::shared_ptr<const frame> pending_frame;
-        std::jthread worker;
+        stoppable_thread worker;
         std::string device_path;
         bool device_ready { false };
         std::string last_error;
@@ -70,7 +71,7 @@ private:
     ensure_binding_locked(const std::string& stream_name);
     static void run_sink(
         const std::shared_ptr<sink_binding>& binding,
-        const std::stop_token& stop_token
+        const stop_token& stop_token
     );
     static void stop_sink(const std::shared_ptr<sink_binding>& binding);
     static void close_sink(sink_binding& binding);

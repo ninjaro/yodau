@@ -51,6 +51,7 @@ void grid_view::add_stream(const QString& name) {
     }
 
     auto* tile = new stream_cell(name, grid_container);
+    tile->set_application_active(application_active_);
     tile->setMinimumSize(minimum_tile_width, minimum_tile_height);
     tile->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
@@ -107,10 +108,20 @@ void grid_view::put_stream_cell(stream_cell* cell) {
     }
 
     cell->setParent(grid_container);
+    cell->set_application_active(application_active_);
     tiles.insert(name, cell);
     cell->show();
 
     rebuild_layout();
+}
+
+void grid_view::set_application_active(const bool active) {
+    application_active_ = active;
+    for (stream_cell* tile : tiles) {
+        if (tile != nullptr) {
+            tile->set_application_active(active);
+        }
+    }
 }
 
 stream_cell* grid_view::peek_stream_cell(const QString& name) const {

@@ -84,7 +84,14 @@ bool runtime_bridge::set_enabled(
         sample_timer->stop();
     }
 
-    const bool changed = broadcaster->set_enabled(enabled, requested_endpoint);
+    const QString effective_endpoint = requested_endpoint.isEmpty()
+        ? options.requested_endpoint
+        : requested_endpoint;
+    if (enabled && !effective_endpoint.isEmpty()) {
+        options.requested_endpoint = effective_endpoint;
+    }
+
+    const bool changed = broadcaster->set_enabled(enabled, effective_endpoint);
     if (!enabled || !broadcaster->is_enabled()) {
         emit state_changed();
         return changed;
@@ -260,9 +267,9 @@ runtime_bridge::event_timestamp_ms(const yodau::core::event& event) const {
 
 debug_probe::protocol_identity runtime_bridge::identity() const {
     debug_probe::protocol_identity info;
-    info.app_name = QCoreApplication::applicationName().trimmed().isEmpty()
-        ? QStringLiteral("yodau")
-        : QCoreApplication::applicationName().trimmed();
+    // The protocol identifies the product, not the current executable name
+    // (which differs for tests, helper binaries, and packaged launchers).
+    info.app_name = QStringLiteral("yodau");
     info.process_id = QCoreApplication::applicationPid();
     info.session_id = session_id;
     info.build_id = runtime_build_id();
