@@ -141,6 +141,18 @@ void yodau::core::stream_manager::refresh_local_streams() {
     }
 }
 
+std::vector<std::string>
+yodau::core::stream_manager::detected_local_stream_names() const {
+    std::scoped_lock lock(mtx);
+    std::vector<std::string> names;
+    names.reserve(auto_capture_paths.size());
+    for (const auto& entry : auto_capture_paths) {
+        names.push_back(entry.first);
+    }
+    std::ranges::sort(names);
+    return names;
+}
+
 yodau::core::stream& yodau::core::stream_manager::add_stream(
     const std::string& path, const std::string& name, const std::string& type,
     bool loop
@@ -152,15 +164,27 @@ yodau::core::stream& yodau::core::stream_manager::add_stream(
 yodau::core::line_ptr yodau::core::stream_manager::add_line(
     const std::string& points, const bool closed, const std::string& name
 ) {
+    return add_line(parse_points(points), closed, name);
+}
+
+yodau::core::line_ptr yodau::core::stream_manager::add_line(
+    std::vector<point> points, const bool closed, const std::string& name
+) {
     std::scoped_lock lock(mtx);
-    return lines.add(points, closed, name);
+    return lines.add(std::move(points), closed, name);
 }
 
 yodau::core::line_ptr yodau::core::stream_manager::upsert_line(
     const std::string& points, const bool closed, const std::string& name
 ) {
+    return upsert_line(parse_points(points), closed, name);
+}
+
+yodau::core::line_ptr yodau::core::stream_manager::upsert_line(
+    std::vector<point> points, const bool closed, const std::string& name
+) {
     std::scoped_lock lock(mtx);
-    const line_ptr replacement = lines.upsert(points, closed, name);
+    const line_ptr replacement = lines.upsert(std::move(points), closed, name);
     for (const auto& stream_ptr : streams.snapshot()) {
         if (!stream_ptr) {
             continue;

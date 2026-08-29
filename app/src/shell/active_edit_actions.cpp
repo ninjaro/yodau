@@ -123,6 +123,19 @@ core_profile_from_line_instance(const stream_cell::line_instance& line_value) {
     );
 }
 
+std::vector<yodau::core::point>
+core_points_from_pct(const std::vector<QPointF>& points) {
+    std::vector<yodau::core::point> converted;
+    converted.reserve(points.size());
+    for (const QPointF& point_value : points) {
+        converted.push_back(yodau::core::point {
+            .x = static_cast<float>(point_value.x()),
+            .y = static_cast<float>(point_value.y()),
+        });
+    }
+    return converted;
+}
+
 } // namespace active_edit_actions_support
 
 active_edit_actions::active_edit_actions(
@@ -160,7 +173,8 @@ active_edit_actions::line_save_result active_edit_actions::save_active_line(
 
     try {
         const auto line_ptr = stream_mgr_->add_line(
-            result.points_text.toStdString(), result.profile.closed,
+            active_edit_actions_support::core_points_from_pct(pts),
+            result.profile.closed,
             result.profile.name.toStdString()
         );
 
@@ -395,7 +409,8 @@ active_edit_actions::save_active_line_edit(
 
     try {
         const auto line_ptr = stream_mgr_->add_line(
-            result.points_text.toStdString(), result.request.profile.closed,
+            active_edit_actions_support::core_points_from_pct(points),
+            result.request.profile.closed,
             result.request.profile.name.toStdString()
         );
 

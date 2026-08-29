@@ -1,9 +1,7 @@
 #ifndef YODAU_APP_MONITOR_RUNTIME_BRIDGE_HPP
 #define YODAU_APP_MONITOR_RUNTIME_BRIDGE_HPP
 
-#include "core/namespace_alias.hpp"
-#include "monitor/debug_probe.hpp"
-#include "streams/event.hpp"
+#include "observability/telemetry_contract.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -11,7 +9,8 @@
 #include <QString>
 
 #include <chrono>
-#include <vector>
+#include <span>
+#include <string_view>
 
 class QTimer;
 
@@ -21,7 +20,12 @@ class debug_broadcaster;
 
 namespace yodau::monitor {
 
-class runtime_bridge final : public QObject {
+// Qt-thread adapter for the portable runtime_observer contract. Update methods
+// only replace bounded scalar state. JSON construction and socket publication
+// happen at the one-second cadence and only while a listener is connected.
+class runtime_bridge final
+    : public QObject
+    , public yodau::observability::runtime_observer {
     Q_OBJECT
 
 public:
@@ -36,15 +40,30 @@ public:
 
     bool
     set_enabled(bool enabled, const QString& requested_endpoint = QString());
+
+    void update_inventory(
+        const yodau::observability::inventory_statistics& value
+    ) noexcept override;
+    void update_processing(
+        const yodau::observability::processing_statistics& value
+    ) noexcept override;
+    [[nodiscard]] bool wants_event_details() const noexcept override;
+    void record_events(
+        std::span<const yodau::observability::runtime_event_view> events
+    ) override;
+    void add_marker(std::string_view label) override;
+
+    // Compatibility convenience for existing tests and small UI call sites.
     void set_inventory(
         int configured_streams, int visible_streams, int active_streams,
         int configured_lines, int detected_local_sources
-    );
-    void record_event_batch(const std::vector<yodau::core::event>& events);
-    void add_marker(const QString& label);
+    ) noexcept;
 
     [[nodiscard]] bool is_enabled() const;
+    [[nodiscard]] bool is_connected() const;
     [[nodiscard]] QString endpoint_path() const;
+    [[nodiscard]] qint64 queued_bytes() const;
+    [[nodiscard]] qint64 published_message_count() const;
 
 signals:
     void state_changed();
@@ -57,12 +76,15 @@ private slots:
     );
 
 private:
+    enum class publish_priority {
+        high,
+        medium,
+        low,
+    };
+
     struct sampled_state {
-        int configured_stream_count = 0;
-        int visible_stream_count = 0;
-        int active_stream_count = 0;
-        int configured_line_count = 0;
-        int detected_local_source_count = 0;
+        yodau::observability::inventory_statistics inventory;
+        yodau::observability::processing_statistics processing;
         qint64 tripwire_event_count = 0;
         qint64 motion_event_count = 0;
         qint64 process_memory_rss_bytes = -1;
@@ -76,17 +98,29 @@ private:
     QString session_id;
     qint64 event_sequence;
     qint64 sample_tick_count;
+    bool goodbye_published;
 
-    static QString event_kind_to_string(yodau::core::event_kind kind);
+    static QString event_kind_to_string(
+        yodau::observability::runtime_event_kind kind
+    );
     [[nodiscard]] qint64 monotonic_timestamp_ms() const;
-    [[nodiscard]] qint64
-    event_timestamp_ms(const yodau::core::event& event) const;
-    [[nodiscard]] debug_probe::protocol_identity identity() const;
-    static void
-    append_sample(QJsonArray& samples, const QString& metric_id, qint64 value);
+    [[nodiscard]] qint64 event_timestamp_ms(
+        const yodau::observability::runtime_event_view& event
+    ) const;
+    [[nodiscard]] yodau::observability::producer_identity identity() const;
+    static void append_sample(
+        QJsonArray& samples, const QString& metric_id, double value
+    );
+    static void append_sample(
+        QJsonArray& samples, const QString& metric_id, qint64 value
+    );
     [[nodiscard]] QJsonArray build_sample_array() const;
     [[nodiscard]] QJsonObject
     build_snapshot_payload(const QString& reason) const;
+    [[nodiscard]] bool can_publish() const;
+    void publish_message(
+        const QJsonObject& message, publish_priority priority, bool droppable
+    );
     void publish_hello();
     void publish_capabilities();
     void publish_sample_batch();

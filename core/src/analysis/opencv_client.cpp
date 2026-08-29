@@ -19,13 +19,7 @@
 #include <opencv2/videoio.hpp>
 #include <stdexcept>
 
-// #define YODAU_DUMP_DEBUG_FRAMES
-// #define YODAU_DEBUG_GRID
 #define YODAU_GRID_PREFILTER
-
-#ifdef YODAU_DUMP_DEBUG_FRAMES
-#include <opencv2/imgcodecs.hpp>
-#endif
 
 namespace yodau::core {
 
@@ -211,13 +205,6 @@ std::shared_ptr<const grid_stream_index> opencv_client::get_grid_index_cached(
         e.reuse_count = 0;
         e.generation = observed_generation + 1;
 
-#ifdef YODAU_DEBUG_GRID
-        std::cerr << "grid_index_rebuild stream=" << s.get_name()
-                  << " lines=" << lines.size() << " dims=" << e.index->dims.nx
-                  << "x" << e.index->dims.ny
-                  << " segments=" << e.index->segments.size() << std::endl;
-#endif
-
         return e.index;
     }
 }
@@ -238,40 +225,6 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 
     cv::GaussianBlur(gray, gray, cv::Size(5, 5), 0.0);
 
-#ifdef YODAU_DUMP_DEBUG_FRAMES
-    static bool dumped_once = false;
-    static std::optional<std::chrono::steady_clock::time_point> first_ts;
-
-    bool do_dump = false;
-    std::string base_name;
-
-    {
-        static std::mutex debug_dump_mtx;
-        std::scoped_lock lock(debug_dump_mtx);
-
-        if (!first_ts.has_value()) {
-            first_ts = f.ts;
-        }
-
-        if (!dumped_once) {
-            using namespace std::chrono;
-            const auto elapsed = duration_cast<seconds>(f.ts - *first_ts);
-
-            if (elapsed.count() >= 60) {
-                do_dump = true;
-                dumped_once = true;
-
-                base_name = "debug_" + s.get_name() + "_t"
-                    + std::to_string(elapsed.count());
-
-                cv::imwrite(base_name + "_step0_bgr.png", bgr);
-
-                cv::imwrite(base_name + "_step1_gray.png", gray);
-            }
-        }
-    }
-#endif
-
     cv::Mat prev_gray;
     if (!motion_state_.update_previous_gray(s.get_name(), gray, prev_gray)) {
         return out;
@@ -279,12 +232,6 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
 
     const cv::Mat diff
         = legacy_frame_delta_motion_mask(prev_gray, gray, 25, 1, 2);
-
-#ifdef YODAU_DUMP_DEBUG_FRAMES
-    if (do_dump && !base_name.empty()) {
-        cv::imwrite(base_name + "_step2_mask.png", diff);
-    }
-#endif
 
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(
@@ -313,21 +260,6 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
         const double eps = 3.0;
         cv::approxPolyDP(contours[max_i], approx, eps, true);
     }
-
-#ifdef YODAU_DUMP_DEBUG_FRAMES
-    if (do_dump && !base_name.empty()) {
-        cv::Mat contour_vis = bgr.clone();
-
-        std::vector<std::vector<cv::Point>> approx_contours(1);
-        approx_contours[0] = approx;
-
-        cv::drawContours(
-            contour_vis, approx_contours, 0, cv::Scalar(0, 255, 0), 2
-        );
-
-        cv::imwrite(base_name + "_step3_contours.png", contour_vis);
-    }
-#endif
 
     std::vector<point> contour_pct;
     contour_pct.reserve(approx.size());
@@ -574,27 +506,6 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
     out.push_back(make_motion_event(s.get_name(), now, cur_pos_pct));
 
     const int max_bubbles = 40;
-
-#ifdef YODAU_DEBUG_GRID
-    if (!active_cell_indices.empty()) {
-        if (!lines.empty()) {
-            const auto idx = get_grid_index_cached(s, lines);
-
-            grid_candidate_tracker tracker;
-            std::vector<size_t> candidate_segment_ids;
-
-            collect_grid_candidates(
-                *idx, active_cell_indices, tracker, candidate_segment_ids
-            );
-
-            std::cerr << "grid_candidates stream=" << s.get_name()
-                      << " active_cells=" << active_cell_indices.size()
-                      << " segments=" << idx->segments.size()
-                      << " candidates=" << candidate_segment_ids.size()
-                      << std::endl;
-        }
-    }
-#endif
 
     append_motion_grid_cell_events(
         out, s.get_name(), now, active_cell_indices, g, max_bubbles

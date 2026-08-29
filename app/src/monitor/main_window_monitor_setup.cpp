@@ -1,5 +1,7 @@
 #include "shell/main_window.hpp"
 
+#if YODAU_DEBUG_OBSERVABILITY
+
 #include "monitor/runtime_bridge.hpp"
 #include "shell/str_label.hpp"
 
@@ -42,3 +44,5 @@ void main_window::setup_debug_monitor_ui() {
 
     refresh_debug_monitor_ui();
 }
+
+#endif // YODAU_DEBUG_OBSERVABILITY

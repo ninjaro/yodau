@@ -321,6 +321,7 @@ void main_window::setup_desktop_shell() {
     register_dock_action(line_dock, QStringLiteral("view_lines_dock"));
     register_dock_action(log_dock, QStringLiteral("view_logs_dock"));
 
+#if YODAU_DEBUG_OBSERVABILITY
     if (toggle_debug_monitor_action != nullptr) {
         toggle_debug_monitor_action->setObjectName(
             QStringLiteral("debug_monitor_toggle")
@@ -329,6 +330,7 @@ void main_window::setup_desktop_shell() {
             QStringLiteral("debug_monitor_toggle"), toggle_debug_monitor_action
         );
     }
+#endif
 
     KStandardAction::quit(this, &QWidget::close, actions);
     KStandardAction::preferences(

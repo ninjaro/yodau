@@ -22,6 +22,8 @@
 
 #include "analysis/fps_policy.hpp"
 #include "analysis/processing_runtime.hpp"
+#include "configuration/line_configuration_model.hpp"
+#include "observability/telemetry_contract.hpp"
 #include "shell/active_edit_actions.hpp"
 #include "shell/active_edit_controller.hpp"
 #include "shell/active_edit_session.hpp"
@@ -42,17 +44,14 @@ class grid_view;
 class settings_panel;
 class stream_cell;
 
-namespace yodau::monitor {
-class runtime_bridge;
-}
-
 class stream_controller final : public QObject {
     Q_OBJECT
 
 public:
     explicit stream_controller(
         yodau::core::stream_manager* mgr, settings_panel* panel,
-        stream_board* zone, yodau::monitor::runtime_bridge* monitor = nullptr,
+        stream_board* zone,
+        yodau::observability::runtime_observer* monitor = nullptr,
         QObject* parent = nullptr
     );
     ~stream_controller() override;
@@ -91,14 +90,6 @@ public slots:
 
     void on_gui_frame(const QString& stream_name, const QImage& image);
 
-signals:
-    void monitor_gui_frame_observed(
-        const QString& stream_name, qint64 estimated_bytes
-    );
-    void
-    monitor_stream_visibility_changed(const QString& stream_name, bool visible);
-    void monitor_core_event_observed(const QString& kind);
-
 private slots:
     // stream settings tab
     void on_stream_settings_selection_changed(const QString& name);
@@ -127,6 +118,14 @@ private slots:
 
 private:
     // setup
+    [[nodiscard]] bool build_line_configuration_document(
+        yodau::core::line_configuration_document* document,
+        QString* error_message
+    ) const;
+    [[nodiscard]] bool apply_line_configuration_document(
+        const yodau::core::line_configuration_document& document,
+        QString* error_message, QString* imported_stream_name
+    );
     void setup_settings_connections();
     void setup_grid_connections();
     void on_grid_stream_closed(const QString& name);
@@ -198,6 +197,7 @@ private:
     void schedule_gui_frame_worker(const QString& stream_name, int delay_ms);
     void drain_latest_gui_frames(const QString& stream_name);
     void update_monitor_inventory();
+    void update_monitor_processing_statistics(bool force = false);
 
     void on_core_event(const yodau::core::event& e);
     void on_core_events(const std::vector<yodau::core::event>& evs);
@@ -209,7 +209,7 @@ private:
 
     // external
     yodau::core::stream_manager* stream_mgr { nullptr };
-    yodau::monitor::runtime_bridge* monitor_bridge { nullptr };
+    yodau::observability::runtime_observer* monitor_bridge { nullptr };
     settings_panel* settings { nullptr };
     stream_board* main_zone { nullptr };
     grid_view* grid { nullptr };
@@ -243,6 +243,7 @@ private:
     QHash<QString, stream_rate_tracker> rate_trackers_by_stream;
     double processing_cost_ema_ms { 0.0 };
     std::chrono::steady_clock::time_point last_fps_policy_refresh {};
+    std::chrono::steady_clock::time_point last_monitor_statistics_update {};
 
     struct pending_gui_frame {
         QImage latest_image;

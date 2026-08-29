@@ -5,12 +5,10 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
-#include <QJsonDocument>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QLockFile>
 #include <QRegularExpression>
-#include <QStandardPaths>
 #include <QUuid>
 
 #include <algorithm>
@@ -33,6 +31,8 @@ debug_broadcaster::debug_broadcaster(
     , pending_packets()
     , pending_packet_bytes(0)
     , sent_messages(0)
+    , published_messages(0)
+    , published_bytes(0)
     , dropped_low_priority_messages(0)
     , dropped_medium_priority_messages(0)
     , dropped_high_priority_messages(0)
@@ -65,15 +65,11 @@ bool debug_broadcaster::set_enabled(
         return true;
     }
 
-    const QString effective_endpoint = sanitize_endpoint_name(
+    const QString endpoint_path = resolve_endpoint_path(
         requested_endpoint_name.isEmpty() ? build_default_endpoint_name()
                                           : requested_endpoint_name
     );
-    const QString runtime_directory = runtime_directory_path();
-    const QString endpoint_path
-        = QDir(runtime_directory)
-              .filePath(QStringLiteral("%1.sock").arg(effective_endpoint));
-    if (effective_endpoint.isEmpty() || runtime_directory.isEmpty()) {
+    if (endpoint_path.isEmpty()) {
         emit warning_raised(
             QStringLiteral("broadcaster_invalid_endpoint"),
             QStringLiteral("unable to determine local IPC endpoint")
@@ -115,6 +111,21 @@ bool debug_broadcaster::set_enabled(
         server->deleteLater();
         return false;
     }
+    const QFile::Permissions owner_only
+        = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
+    if (QFile::exists(endpoint_path)
+        && !QFile::setPermissions(endpoint_path, owner_only)) {
+        server->close();
+        QLocalServer::removeServer(endpoint_path);
+        lock->unlock();
+        server->deleteLater();
+        emit warning_raised(
+            QStringLiteral("broadcaster_permissions_failed"),
+            QStringLiteral("unable to restrict local IPC endpoint: %1")
+                .arg(endpoint_path)
+        );
+        return false;
+    }
 
     local_server = server;
     endpoint_lock = std::move(lock);
@@ -125,16 +136,22 @@ bool debug_broadcaster::set_enabled(
 
 bool debug_broadcaster::is_enabled() const { return runtime_enabled; }
 
+bool debug_broadcaster::has_listener() const {
+    return listener_socket != nullptr
+        && listener_socket->state() == QLocalSocket::ConnectedState;
+}
+
 debug_broadcaster::runtime_state debug_broadcaster::state() const {
     return runtime_state {
         .compile_time_enabled = debug_monitor_compile_time_enabled(),
         .runtime_enabled = runtime_enabled,
-        .listener_connected = listener_socket != nullptr
-            && listener_socket->state() == QLocalSocket::ConnectedState,
+        .listener_connected = has_listener(),
         .endpoint_name = endpoint_name,
         .queued_messages = static_cast<qint64>(pending_packets.size()),
         .queued_bytes = pending_packet_bytes,
         .sent_messages = sent_messages,
+        .published_messages = published_messages,
+        .published_bytes = published_bytes,
         .dropped_low_priority_messages = dropped_low_priority_messages,
         .dropped_medium_priority_messages = dropped_medium_priority_messages,
         .dropped_high_priority_messages = dropped_high_priority_messages,
@@ -142,18 +159,22 @@ debug_broadcaster::runtime_state debug_broadcaster::state() const {
     };
 }
 
-bool debug_broadcaster::publish_json(
-    const QJsonObject& message, message_priority priority, bool droppable
+bool debug_broadcaster::publish_packet(
+    QByteArray payload, message_priority priority, bool droppable
 ) {
-    if (!runtime_enabled) {
+    if (!runtime_enabled || !has_listener()) {
         return false;
     }
-
-    QJsonDocument document(message);
-    QByteArray payload = document.toJson(QJsonDocument::Compact);
-    payload.append('\n');
+    if (payload.isEmpty()) {
+        return false;
+    }
+    if (!payload.endsWith('\n')) {
+        payload.append('\n');
+    }
 
     const auto payload_bytes = static_cast<qint64>(payload.size());
+    ++published_messages;
+    published_bytes += payload_bytes;
     if (!make_room_for_packet(payload_bytes, priority, droppable)) {
         mark_dropped(priority);
         return false;
@@ -236,31 +257,21 @@ QString debug_broadcaster::sanitize_endpoint_name(const QString& raw_name) {
     return endpoint;
 }
 
-QString debug_broadcaster::runtime_directory_path() {
-    QString runtime_directory
-        = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
-    if (runtime_directory.isEmpty()) {
-        const QString app_data = QStandardPaths::writableLocation(
-            QStandardPaths::AppLocalDataLocation
-        );
-        if (app_data.isEmpty()) {
-            return {};
-        }
-        runtime_directory = QDir(app_data).filePath(QStringLiteral("runtime"));
-    } else {
-        runtime_directory
-            = QDir(runtime_directory).filePath(QStringLiteral("yodau"));
-    }
-
-    if (!QDir().mkpath(runtime_directory)) {
+QString debug_broadcaster::resolve_endpoint_path(
+    const QString& requested_name
+) {
+    const QString trimmed = requested_name.trimmed();
+    if (trimmed.isEmpty()) {
         return {};
     }
-    const QFile::Permissions owner_only = QFileDevice::ReadOwner
-        | QFileDevice::WriteOwner | QFileDevice::ExeOwner;
-    if (!QFile::setPermissions(runtime_directory, owner_only)) {
+    if (QDir::isAbsolutePath(trimmed)) {
+        return QDir::cleanPath(trimmed);
+    }
+    const QString sanitized = sanitize_endpoint_name(trimmed);
+    if (sanitized.isEmpty()) {
         return {};
     }
-    return runtime_directory;
+    return QDir::temp().filePath(QStringLiteral("%1.sock").arg(sanitized));
 }
 
 void debug_broadcaster::close_transport() {
@@ -388,17 +399,33 @@ void debug_broadcaster::try_flush() {
             return;
         }
 
-        const queued_packet packet = pending_packets.takeFirst();
-        pending_packet_bytes -= static_cast<qint64>(packet.payload.size());
+        queued_packet& packet = pending_packets.first();
         const qint64 written = listener_socket->write(packet.payload);
         if (written < 0) {
             ++write_error_count;
+            emit warning_raised(
+                QStringLiteral("broadcaster_write_failed"),
+                listener_socket->errorString()
+            );
             clear_socket();
             emit listener_connection_changed(false);
             return;
         }
+        if (written == 0) {
+            return;
+        }
 
-        ++sent_messages;
+        const qint64 packet_bytes = static_cast<qint64>(packet.payload.size());
+        if (written >= packet_bytes) {
+            pending_packet_bytes -= packet_bytes;
+            pending_packets.removeFirst();
+            ++sent_messages;
+            continue;
+        }
+
+        packet.payload.remove(0, static_cast<qsizetype>(written));
+        pending_packet_bytes -= written;
+        return;
     }
 }
 
@@ -419,14 +446,14 @@ void debug_broadcaster::attach_socket(QLocalSocket* socket) {
 }
 
 void debug_broadcaster::clear_socket() {
-    if (listener_socket == nullptr) {
-        return;
+    pending_packets.clear();
+    pending_packet_bytes = 0;
+    if (listener_socket != nullptr) {
+        listener_socket->disconnect(this);
+        listener_socket->close();
+        listener_socket->deleteLater();
+        listener_socket = nullptr;
     }
-
-    listener_socket->disconnect(this);
-    listener_socket->close();
-    listener_socket->deleteLater();
-    listener_socket = nullptr;
 }
 
 } // namespace yodau::monitoring

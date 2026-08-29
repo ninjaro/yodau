@@ -11,14 +11,19 @@ namespace yodau::core {
 line_ptr stream_line_store::add(
     const std::string& points, const bool closed, const std::string& name
 ) {
-    std::vector<point> parsed_points = parse_points(points);
+    return add(parse_points(points), closed, name);
+}
+
+line_ptr stream_line_store::add(
+    std::vector<point> points, const bool closed, const std::string& name
+) {
     std::string line_name = name;
     while (line_name.empty() || lines_.contains(line_name)) {
         line_name = "line_" + std::to_string(line_idx_++);
     }
 
-    validate_line_geometry(parsed_points, line_name, closed);
-    auto new_line = make_line(std::move(parsed_points), line_name, closed);
+    validate_line_geometry(points, line_name, closed);
+    auto new_line = make_line(std::move(points), line_name, closed);
     lines_.emplace(line_name, new_line);
     line_profiles_.emplace(line_name, make_line_profile(line_name));
     return new_line;
@@ -27,12 +32,17 @@ line_ptr stream_line_store::add(
 line_ptr stream_line_store::upsert(
     const std::string& points, const bool closed, const std::string& name
 ) {
+    return upsert(parse_points(points), closed, name);
+}
+
+line_ptr stream_line_store::upsert(
+    std::vector<point> points, const bool closed, const std::string& name
+) {
     if (name.empty()) {
         throw std::invalid_argument("line name is required for upsert");
     }
-    std::vector<point> parsed_points = parse_points(points);
-    validate_line_geometry(parsed_points, name, closed);
-    auto replacement = make_line(std::move(parsed_points), name, closed);
+    validate_line_geometry(points, name, closed);
+    auto replacement = make_line(std::move(points), name, closed);
 
     if (const auto existing = lines_.find(name);
         existing != lines_.end() && existing->second) {

@@ -42,14 +42,22 @@ public:
 
     void set_local_stream_detector(local_stream_detector_fn detector);
     void refresh_local_streams();
+    [[nodiscard]] std::vector<std::string> detected_local_stream_names() const;
 
     stream& add_stream(
         const std::string& path, const std::string& name = {},
         const std::string& type = {}, bool loop = true
     );
     line_ptr add_line(
+        std::vector<point> points, bool closed = false,
+        const std::string& name = {}
+    );
+    line_ptr add_line(
         const std::string& points, bool closed = false,
         const std::string& name = {}
+    );
+    line_ptr upsert_line(
+        std::vector<point> points, bool closed, const std::string& name
     );
     line_ptr upsert_line(
         const std::string& points, bool closed, const std::string& name

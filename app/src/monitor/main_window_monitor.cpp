@@ -1,5 +1,7 @@
 #include "shell/main_window.hpp"
 
+#if YODAU_DEBUG_OBSERVABILITY
+
 #include "monitor/runtime_bridge.hpp"
 
 #include <QAction>
@@ -41,3 +43,5 @@ void main_window::refresh_debug_monitor_ui() {
         "enabled."
     ));
 }
+
+#endif // YODAU_DEBUG_OBSERVABILITY

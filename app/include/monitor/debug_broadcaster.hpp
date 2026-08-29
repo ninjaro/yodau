@@ -1,7 +1,7 @@
 #ifndef YODAU_APP_MONITOR_DEBUG_BROADCASTER_HPP
 #define YODAU_APP_MONITOR_DEBUG_BROADCASTER_HPP
 
-#include <QJsonObject>
+#include <QByteArray>
 #include <QObject>
 #include <QString>
 #include <QVector>
@@ -32,6 +32,8 @@ public:
         qint64 queued_messages = 0;
         qint64 queued_bytes = 0;
         qint64 sent_messages = 0;
+        qint64 published_messages = 0;
+        qint64 published_bytes = 0;
         qint64 dropped_low_priority_messages = 0;
         qint64 dropped_medium_priority_messages = 0;
         qint64 dropped_high_priority_messages = 0;
@@ -48,10 +50,11 @@ public:
         bool enabled, const QString& requested_endpoint_name = QString()
     );
     [[nodiscard]] bool is_enabled() const;
+    [[nodiscard]] bool has_listener() const;
     [[nodiscard]] runtime_state state() const;
 
-    bool publish_json(
-        const QJsonObject& message, message_priority priority, bool droppable
+    bool publish_packet(
+        QByteArray payload, message_priority priority, bool droppable
     );
 
 signals:
@@ -72,7 +75,7 @@ private:
 
     [[nodiscard]] static QString build_default_endpoint_name();
     static QString sanitize_endpoint_name(const QString& raw_name);
-    static QString runtime_directory_path();
+    static QString resolve_endpoint_path(const QString& requested_name);
     void close_transport();
     void mark_dropped(message_priority priority);
     void enqueue_packet(queued_packet&& packet);
@@ -95,6 +98,8 @@ private:
     QVector<queued_packet> pending_packets;
     qint64 pending_packet_bytes;
     qint64 sent_messages;
+    qint64 published_messages;
+    qint64 published_bytes;
     qint64 dropped_low_priority_messages;
     qint64 dropped_medium_priority_messages;
     qint64 dropped_high_priority_messages;

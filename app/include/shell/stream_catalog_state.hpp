@@ -4,10 +4,6 @@
 #include "shell/app_settings.hpp"
 
 #include <QMap>
-#include <QStringList>
-
-#include <string>
-#include <vector>
 
 class stream_catalog_state final {
 public:
@@ -15,9 +11,6 @@ public:
     default_stream_settings(const QString& stream_name = QString());
     static stream_settings
     normalized_stream_settings(stream_settings settings_value);
-    static QStringList
-    detected_local_sources(const std::vector<std::string>& core_names);
-
     void ensure_stream(const QString& stream_name);
     void remove_stream(const QString& stream_name);
     void set_stream_settings(stream_settings settings_value);

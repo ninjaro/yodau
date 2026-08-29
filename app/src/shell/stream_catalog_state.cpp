@@ -62,22 +62,6 @@ stream_settings stream_catalog_state::normalized_stream_settings(
     return settings_value;
 }
 
-QStringList stream_catalog_state::detected_local_sources(
-    const std::vector<std::string>& core_names
-) {
-    QStringList locals;
-
-    for (const std::string& name : core_names) {
-        const QString qname
-            = normalized_stream_name(QString::fromStdString(name));
-        if (!qname.isEmpty() && qname.startsWith(QStringLiteral("video"))) {
-            locals.push_back(qname);
-        }
-    }
-
-    return locals;
-}
-
 void stream_catalog_state::ensure_stream(const QString& stream_name) {
     const QString normalized_name = normalized_stream_name(stream_name);
     if (normalized_name.isEmpty()

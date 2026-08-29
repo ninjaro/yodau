@@ -14,9 +14,7 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
-#include <limits>
 #include <ranges>
-#include <sstream>
 #include <system_error>
 #include <unordered_set>
 
@@ -457,18 +455,6 @@ namespace {
         };
     }
 
-    std::string points_text(const std::vector<point>& points) {
-        std::ostringstream output;
-        output.precision(std::numeric_limits<float>::max_digits10);
-        for (size_t index = 0; index < points.size(); ++index) {
-            if (index != 0U) {
-                output << ';';
-            }
-            output << points[index].x << ',' << points[index].y;
-        }
-        return output.str();
-    }
-
     bool
     same_geometry(const line& existing, const configured_line& configured) {
         if (existing.closed != configured.closed
@@ -567,6 +553,15 @@ namespace {
         }
     }
 #endif
+
+    class json_line_configuration_codec final
+        : public line_configuration_codec {
+    public:
+        [[nodiscard]] std::string
+        encode(const line_configuration_document& document) const override;
+        [[nodiscard]] line_configuration_document
+        decode(std::string_view contents) const override;
+    };
 
 } // namespace
 
@@ -745,8 +740,9 @@ void validate_line_configuration(const line_configuration_document& document) {
     }
 }
 
-std::string
-serialize_line_configuration(const line_configuration_document& document) {
+std::string json_line_configuration_codec::encode(
+    const line_configuration_document& document
+) const {
     validate_line_configuration(document);
     json lines = json::array();
     for (const configured_line& line_value : document.lines) {
@@ -766,7 +762,7 @@ serialize_line_configuration(const line_configuration_document& document) {
 }
 
 line_configuration_document
-parse_line_configuration(const std::string_view contents) {
+json_line_configuration_codec::decode(const std::string_view contents) const {
     if (contents.empty()) {
         fail("line configuration is empty");
     }
@@ -809,8 +805,44 @@ parse_line_configuration(const std::string_view contents) {
     }
 }
 
+const line_configuration_codec& line_configuration_json_codec() noexcept {
+    static const json_line_configuration_codec codec;
+    return codec;
+}
+
+std::string
+serialize_line_configuration(const line_configuration_document& document) {
+    return serialize_line_configuration(
+        document, line_configuration_json_codec()
+    );
+}
+
+std::string serialize_line_configuration(
+    const line_configuration_document& document,
+    const line_configuration_codec& codec
+) {
+    return codec.encode(document);
+}
+
+line_configuration_document
+parse_line_configuration(const std::string_view contents) {
+    return parse_line_configuration(contents, line_configuration_json_codec());
+}
+
+line_configuration_document parse_line_configuration(
+    const std::string_view contents, const line_configuration_codec& codec
+) {
+    return codec.decode(contents);
+}
+
 line_configuration_document
 load_line_configuration(const std::filesystem::path& path) {
+    return load_line_configuration(path, line_configuration_json_codec());
+}
+
+line_configuration_document load_line_configuration(
+    const std::filesystem::path& path, const line_configuration_codec& codec
+) {
     std::ifstream input(path, std::ios::binary);
     if (!input) {
         fail("cannot open line configuration '" + path.string() + "'");
@@ -834,17 +866,26 @@ load_line_configuration(const std::filesystem::path& path) {
     if (!input.eof()) {
         fail("cannot read line configuration '" + path.string() + "'");
     }
-    return parse_line_configuration(contents);
+    return codec.decode(contents);
 }
 
 void save_line_configuration_atomic(
     const line_configuration_document& document,
     const std::filesystem::path& path
 ) {
+    save_line_configuration_atomic(
+        document, path, line_configuration_json_codec()
+    );
+}
+
+void save_line_configuration_atomic(
+    const line_configuration_document& document,
+    const std::filesystem::path& path, const line_configuration_codec& codec
+) {
     if (path.empty() || path.filename().empty()) {
         fail("line configuration output path must name a file");
     }
-    const std::string contents = serialize_line_configuration(document);
+    const std::string contents = codec.encode(document);
     const std::filesystem::path temporary = temporary_path_for(path);
 
     try {
@@ -990,7 +1031,7 @@ line_configuration_apply_result apply_line_configuration(
     size_t connected = 0U;
     for (const configured_line& line_value : document.lines) {
         const line_ptr added = manager.upsert_line(
-            points_text(line_value.points), line_value.closed, line_value.name
+            line_value.points, line_value.closed, line_value.name
         );
         if (!added || added->name != line_value.name) {
             fail(

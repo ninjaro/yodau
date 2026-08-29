@@ -2,6 +2,7 @@
 #define YODAU_APP_SHELL_MAIN_WINDOW_HPP
 
 #include "core/namespace_alias.hpp"
+#include "observability/build_config.hpp"
 
 #ifdef KC_KDE
 #include <KXmlGuiWindow>
@@ -19,9 +20,11 @@ namespace yodau::core {
 class stream_manager;
 }
 
+#if YODAU_DEBUG_OBSERVABILITY
 namespace yodau::monitor {
 class runtime_bridge;
 }
+#endif
 
 class stream_board;
 class stream_controller;
@@ -48,15 +51,19 @@ private slots:
     void on_import_line_configuration_triggered();
     void on_export_line_configuration_triggered();
     void show_settings_panel();
+#if YODAU_DEBUG_OBSERVABILITY
     void on_toggle_debug_monitor_triggered(bool checked);
     void refresh_debug_monitor_ui();
+#endif
     void on_application_state_changed(Qt::ApplicationState state);
 
 private:
     void setup_platform_layout();
     void setup_configuration_actions();
     void setup_desktop_shell();
+#if YODAU_DEBUG_OBSERVABILITY
     void setup_debug_monitor_ui();
+#endif
     void show_mobile_page(int page_index);
     void restore_mobile_session();
     void persist_mobile_session();
@@ -73,9 +80,11 @@ protected:
     stream_controller* app_stream_controller;
     QAction* import_line_configuration_action;
     QAction* export_line_configuration_action;
+#if YODAU_DEBUG_OBSERVABILITY
     yodau::monitor::runtime_bridge* debug_monitor;
     QAction* toggle_debug_monitor_action;
     QLabel* debug_monitor_status_label;
+#endif
 
     QStackedWidget* zones_stack { nullptr };
     QDockWidget* settings_dock { nullptr };

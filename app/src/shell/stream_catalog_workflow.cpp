@@ -14,6 +14,18 @@
 #include <QSet>
 #include <utility>
 
+namespace {
+
+QStringList local_source_names(const yodau::core::stream_manager& manager) {
+    QStringList names;
+    for (const std::string& name : manager.detected_local_stream_names()) {
+        names.push_back(QString::fromStdString(name));
+    }
+    return names;
+}
+
+} // namespace
+
 stream_catalog_workflow::stream_catalog_workflow(
     yodau::core::stream_manager* stream_mgr, settings_panel* settings,
     stream_catalog_state& catalog_state, stream_widget_bridge& widget_bridge
@@ -44,15 +56,10 @@ stream_catalog_workflow::detect_local_sources() const {
         return transition;
     }
 
-    const QStringList previous_locals
-        = stream_catalog_state::detected_local_sources(
-            stream_mgr_->stream_names()
-        );
+    const QStringList previous_locals = local_source_names(*stream_mgr_);
     stream_mgr_->refresh_local_streams();
 
-    const QStringList locals = stream_catalog_state::detected_local_sources(
-        stream_mgr_->stream_names()
-    );
+    const QStringList locals = local_source_names(*stream_mgr_);
     for (const QString& previous_name : previous_locals) {
         if (locals.contains(previous_name)) {
             continue;
@@ -74,12 +81,14 @@ stream_catalog_workflow::detect_local_sources() const {
             continue;
         }
         source_ids.insert(source_id);
-        source_descriptors.push_back(local_source_descriptor {
-            .id = source_id,
-            .display_name = local_name == source_id
-                ? local_name
-                : QStringLiteral("%1 — %2").arg(local_name, source_id),
-        });
+        source_descriptors.push_back(
+            local_source_descriptor {
+                .id = source_id,
+                .display_name = local_name == source_id
+                    ? local_name
+                    : QStringLiteral("%1 — %2").arg(local_name, source_id),
+            }
+        );
     }
     for (const QCameraDevice& camera : cameras) {
         const QString source_id = QString::fromUtf8(camera.id()).trimmed();
@@ -88,12 +97,14 @@ stream_catalog_workflow::detect_local_sources() const {
         }
         source_ids.insert(source_id);
         const QString description = camera.description().trimmed();
-        source_descriptors.push_back(local_source_descriptor {
-            .id = source_id,
-            .display_name = description.isEmpty()
-                ? source_id
-                : QStringLiteral("%1 — %2").arg(description, source_id),
-        });
+        source_descriptors.push_back(
+            local_source_descriptor {
+                .id = source_id,
+                .display_name = description.isEmpty()
+                    ? source_id
+                    : QStringLiteral("%1 — %2").arg(description, source_id),
+            }
+        );
     }
     if (settings_ != nullptr) {
         settings_->set_local_sources(source_descriptors);

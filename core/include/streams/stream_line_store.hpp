@@ -21,9 +21,16 @@ struct stream_line_connection {
 
 class stream_line_store {
 public:
+    line_ptr add(
+        std::vector<point> points, bool closed = false,
+        const std::string& name = {}
+    );
     line_ptr
     add(const std::string& points, bool closed = false,
         const std::string& name = {});
+    line_ptr upsert(
+        std::vector<point> points, bool closed, const std::string& name
+    );
     line_ptr
     upsert(const std::string& points, bool closed, const std::string& name);
 

@@ -2,7 +2,6 @@
 #include "configuration/line_configuration.hpp"
 #include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
-#include "monitor/runtime_bridge.hpp"
 #include "streams/stream.hpp"
 #include "widgets/settings_panel.hpp"
 
@@ -252,7 +251,7 @@ QString configuration_error_text(const std::exception& error) {
 
 stream_controller::stream_controller(
     yodau::core::stream_manager* mgr, settings_panel* panel, stream_board* zone,
-    yodau::monitor::runtime_bridge* monitor, QObject* parent
+    yodau::observability::runtime_observer* monitor, QObject* parent
 )
     : QObject(parent)
     , core_runtime(
@@ -393,16 +392,86 @@ void stream_controller::update_monitor_inventory() {
     const int configured_lines
         = static_cast<int>(stream_mgr->line_names().size());
 
-    int detected_local_sources = 0;
-    for (const std::string& name : stream_mgr->stream_names()) {
-        if (QString::fromStdString(name).startsWith(QStringLiteral("video"))) {
-            ++detected_local_sources;
+    const int detected_local_sources
+        = static_cast<int>(stream_mgr->detected_local_stream_names().size());
+
+    monitor_bridge->update_inventory(
+        yodau::observability::inventory_statistics {
+            .configured_streams = configured_streams,
+            .visible_streams = visible_streams,
+            .active_streams = active_stream_count,
+            .configured_lines = configured_lines,
+            .detected_local_sources = detected_local_sources,
+        }
+    );
+}
+
+void stream_controller::update_monitor_processing_statistics(const bool force) {
+    if (monitor_bridge == nullptr || !monitor_bridge->wants_event_details()) {
+        return;
+    }
+
+    const auto now = stream_controller_support::steady_clock::now();
+    if (!force && last_monitor_statistics_update.time_since_epoch().count() != 0
+        && now - last_monitor_statistics_update
+            < stream_controller_support::fps_policy_refresh_interval) {
+        return;
+    }
+    last_monitor_statistics_update = now;
+
+    double input_fps_total = 0.0;
+    double core_fps_total = 0.0;
+    double configured_core_fps_total = 0.0;
+    double configured_display_fps_total = 0.0;
+    int input_fps_count = 0;
+    int core_fps_count = 0;
+    int configured_core_fps_count = 0;
+    int configured_display_fps_count = 0;
+    for (auto it = runtime_metrics_by_stream.cbegin();
+         it != runtime_metrics_by_stream.cend(); ++it) {
+        const stream_runtime_metrics& metrics = it.value();
+        if (metrics.input_fps > 0.0) {
+            input_fps_total += metrics.input_fps;
+            ++input_fps_count;
+        }
+        if (metrics.core_fps > 0.0) {
+            core_fps_total += metrics.core_fps;
+            ++core_fps_count;
+        }
+        if (metrics.effective_core_fps > 0) {
+            configured_core_fps_total += metrics.effective_core_fps;
+            ++configured_core_fps_count;
+        }
+        if (metrics.effective_display_fps > 0) {
+            configured_display_fps_total += metrics.effective_display_fps;
+            ++configured_display_fps_count;
         }
     }
 
-    monitor_bridge->set_inventory(
-        configured_streams, visible_streams, active_stream_count,
-        configured_lines, detected_local_sources
+    quint64 dropped_gui_frames = 0;
+    {
+        QMutexLocker lock(&pending_gui_frames_mutex);
+        for (auto it = pending_gui_frames.cbegin();
+             it != pending_gui_frames.cend(); ++it) {
+            dropped_gui_frames += it->dropped_frames;
+        }
+    }
+
+    const auto average = [](const double total, const int count) {
+        return count > 0 ? total / static_cast<double>(count) : 0.0;
+    };
+    monitor_bridge->update_processing(
+        yodau::observability::processing_statistics {
+            .frame_processing_time_ms = processing_cost_ema_ms,
+            .input_fps = average(input_fps_total, input_fps_count),
+            .processing_fps = average(core_fps_total, core_fps_count),
+            .configured_processing_fps
+            = average(configured_core_fps_total, configured_core_fps_count),
+            .configured_display_fps = average(
+                configured_display_fps_total, configured_display_fps_count
+            ),
+            .dropped_gui_frames = dropped_gui_frames,
+        }
     );
 }
 
@@ -418,43 +487,15 @@ QString stream_controller::active_configuration_stream_name() const {
         : QString();
 }
 
-bool stream_controller::export_line_configuration_to(
-    const QString& path, QString* error_message
+bool stream_controller::build_line_configuration_document(
+    yodau::core::line_configuration_document* document, QString* error_message
 ) const {
-    QByteArray contents;
-    if (!export_line_configuration_data(&contents, error_message)) {
-        return false;
-    }
-
-    try {
-        const auto document = yodau::core::parse_line_configuration(
-            std::string_view(
-                contents.constData(), static_cast<size_t>(contents.size())
-            )
-        );
-        yodau::core::save_line_configuration_atomic(
-            document, std::filesystem::path(path.toStdString())
-        );
-        return true;
-    } catch (const std::exception& error) {
+    if (document == nullptr) {
         if (error_message != nullptr) {
-            *error_message
-                = stream_controller_support::configuration_error_text(error);
+            *error_message = tr("No configuration document was provided.");
         }
         return false;
     }
-}
-
-bool stream_controller::export_line_configuration_data(
-    QByteArray* contents, QString* error_message
-) const {
-    if (contents == nullptr) {
-        if (error_message != nullptr) {
-            *error_message = tr("No configuration output was provided.");
-        }
-        return false;
-    }
-    contents->clear();
     const QString stream_name = active_configuration_stream_name();
     if (stream_mgr == nullptr || stream_name.isEmpty()) {
         if (error_message != nullptr) {
@@ -485,35 +526,34 @@ bool stream_controller::export_line_configuration_data(
                    ? runtime_metrics.effective_core_fps
                    : default_manual_core_fps());
 
-        yodau::core::line_configuration_document document;
-        document.stream.name = stream_name.toStdString();
-        document.stream.source = stream_value->get_path();
-        document.stream.type
+        yodau::core::line_configuration_document built;
+        built.stream.name = stream_name.toStdString();
+        built.stream.source = stream_value->get_path();
+        built.stream.type
             = yodau::core::stream::type_name(stream_value->get_type());
-        document.stream.loop = stream_value->is_looping();
-        document.stream.virtual_camera_path
+        built.stream.loop = stream_value->is_looping();
+        built.stream.virtual_camera_path
             = virtual_camera_path_by_stream
                   .value(stream_name, QStringLiteral("/dev/yodau0"))
                   .toStdString();
-        document.stream.analysis_interval_ms
+        built.stream.analysis_interval_ms
             = interval_ms_for_fps(configured_core_fps);
-        document.stream.algorithm
-            = core_runtime.algorithm_settings_for_stream(document.stream.name);
-        document.stream.labels_enabled = app_settings_value.labels_enabled;
-        document.stream.standard_labels_enabled
+        built.stream.algorithm
+            = core_runtime.algorithm_settings_for_stream(built.stream.name);
+        built.stream.labels_enabled = app_settings_value.labels_enabled;
+        built.stream.standard_labels_enabled
             = app_settings_value.standard_labels_enabled;
-        document.stream.movement_display_mode
+        built.stream.movement_display_mode
             = app_settings_value.movement_display_mode.toStdString();
-        document.stream.manual_processing_policy_enabled
+        built.stream.manual_processing_policy_enabled
             = app_settings_value.manual_processing_policy_enabled;
-        document.stream.manual_display_fps
-            = app_settings_value.manual_display_fps;
-        document.stream.manual_core_fps = app_settings_value.manual_core_fps;
-        document.stream.manual_processing_pixels
+        built.stream.manual_display_fps = app_settings_value.manual_display_fps;
+        built.stream.manual_core_fps = app_settings_value.manual_core_fps;
+        built.stream.manual_processing_pixels
             = app_settings_value.manual_processing_pixels;
 
         const auto& app_lines = edit_session.stream_lines(stream_name);
-        document.lines.reserve(app_lines.size());
+        built.lines.reserve(app_lines.size());
         for (const stream_cell::line_instance& app_line : app_lines) {
             const std::string line_name = app_line.template_name.toStdString();
             yodau::core::configured_line configured;
@@ -529,9 +569,7 @@ bool stream_controller::export_line_configuration_data(
             configured.enabled = app_line.enabled;
             configured.profile
                 = stream_mgr
-                      ->find_stream_line_profile(
-                          document.stream.name, line_name
-                      )
+                      ->find_stream_line_profile(built.stream.name, line_name)
                       .value_or(
                           stream_mgr->find_line_profile(line_name).value_or(
                               yodau::core::make_line_profile(line_name)
@@ -551,9 +589,58 @@ bool stream_controller::export_line_configuration_data(
             configured.appearance.response_text
                 = normalized_line_response_text(app_line.response_text)
                       .toStdString();
-            document.lines.push_back(std::move(configured));
+            built.lines.push_back(std::move(configured));
         }
+        yodau::core::validate_line_configuration(built);
+        *document = std::move(built);
+        return true;
+    } catch (const std::exception& error) {
+        if (error_message != nullptr) {
+            *error_message
+                = stream_controller_support::configuration_error_text(error);
+        }
+        return false;
+    }
+}
 
+bool stream_controller::export_line_configuration_to(
+    const QString& path, QString* error_message
+) const {
+    yodau::core::line_configuration_document document;
+    if (!build_line_configuration_document(&document, error_message)) {
+        return false;
+    }
+
+    try {
+        yodau::core::save_line_configuration_atomic(
+            document, std::filesystem::path(path.toStdString())
+        );
+        return true;
+    } catch (const std::exception& error) {
+        if (error_message != nullptr) {
+            *error_message
+                = stream_controller_support::configuration_error_text(error);
+        }
+        return false;
+    }
+}
+
+bool stream_controller::export_line_configuration_data(
+    QByteArray* contents, QString* error_message
+) const {
+    if (contents == nullptr) {
+        if (error_message != nullptr) {
+            *error_message = tr("No configuration output was provided.");
+        }
+        return false;
+    }
+    contents->clear();
+    yodau::core::line_configuration_document document;
+    if (!build_line_configuration_document(&document, error_message)) {
+        return false;
+    }
+
+    try {
         const std::string serialized
             = yodau::core::serialize_line_configuration(document);
         *contents = QByteArray(
@@ -576,13 +663,8 @@ bool stream_controller::import_line_configuration_from(
         const auto document = yodau::core::load_line_configuration(
             std::filesystem::path(path.toStdString())
         );
-        const std::string serialized
-            = yodau::core::serialize_line_configuration(document);
-        return import_line_configuration_data(
-            QByteArray(
-                serialized.data(), static_cast<qsizetype>(serialized.size())
-            ),
-            error_message
+        return apply_line_configuration_document(
+            document, error_message, nullptr
         );
     } catch (const std::exception& error) {
         if (error_message != nullptr) {
@@ -597,6 +679,28 @@ bool stream_controller::import_line_configuration_data(
     const QByteArray& contents, QString* error_message,
     QString* imported_stream_name
 ) {
+    try {
+        const auto document = yodau::core::parse_line_configuration(
+            std::string_view(
+                contents.constData(), static_cast<size_t>(contents.size())
+            )
+        );
+        return apply_line_configuration_document(
+            document, error_message, imported_stream_name
+        );
+    } catch (const std::exception& error) {
+        if (error_message != nullptr) {
+            *error_message
+                = stream_controller_support::configuration_error_text(error);
+        }
+        return false;
+    }
+}
+
+bool stream_controller::apply_line_configuration_document(
+    const yodau::core::line_configuration_document& document,
+    QString* error_message, QString* imported_stream_name
+) {
     if (stream_mgr == nullptr) {
         if (error_message != nullptr) {
             *error_message = tr("The processing runtime is not available.");
@@ -605,11 +709,6 @@ bool stream_controller::import_line_configuration_data(
     }
 
     try {
-        const auto document = yodau::core::parse_line_configuration(
-            std::string_view(
-                contents.constData(), static_cast<size_t>(contents.size())
-            )
-        );
         const yodau::core::line_configuration_apply_options options;
         // File -> Import always honors the stream identity in the shared
         // document, matching headless-daemon behavior. Applying a camera A
@@ -802,14 +901,11 @@ void stream_controller::handle_show_stream_changed(
         name
     );
 
-    emit monitor_stream_visibility_changed(name, show);
     refresh_fps_policy(true);
     update_monitor_inventory();
     if (monitor_bridge != nullptr) {
-        monitor_bridge->add_marker(
-            show ? QStringLiteral("stream_visible")
-                 : QStringLiteral("stream_hidden")
-        );
+        const std::string marker = show ? "stream_visible" : "stream_hidden";
+        monitor_bridge->add_marker(marker);
     }
 }
 
@@ -1235,7 +1331,8 @@ void stream_controller::apply_active_edit_result(
     }
 
     if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
-        monitor_bridge->add_marker(result.monitor_marker);
+        const std::string marker = result.monitor_marker.toStdString();
+        monitor_bridge->add_marker(marker);
     }
 }
 
@@ -1253,7 +1350,8 @@ void stream_controller::apply_active_stream_result(
     }
 
     if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
-        monitor_bridge->add_marker(result.monitor_marker);
+        const std::string marker = result.monitor_marker.toStdString();
+        monitor_bridge->add_marker(marker);
     }
 }
 
@@ -1299,7 +1397,8 @@ void stream_controller::apply_catalog_result(
     }
 
     if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
-        monitor_bridge->add_marker(result.monitor_marker);
+        const std::string marker = result.monitor_marker.toStdString();
+        monitor_bridge->add_marker(marker);
     }
 }
 
@@ -1558,6 +1657,7 @@ void stream_controller::note_input_frame_observed(
     metrics.input_height = height;
     runtime_metrics_by_stream.insert(stream_name, metrics);
     sync_runtime_metrics_for_stream(stream_name);
+    update_monitor_processing_statistics(false);
 }
 
 void stream_controller::note_core_frame_observed(
@@ -1584,6 +1684,7 @@ void stream_controller::note_core_frame_observed(
     }
     runtime_metrics_by_stream.insert(stream_name, metrics);
     sync_runtime_metrics_for_stream(stream_name);
+    update_monitor_processing_statistics(false);
 }
 
 void stream_controller::sync_runtime_metrics_for_stream(
@@ -1656,11 +1757,13 @@ void stream_controller::note_processing_cost_sample(const double elapsed_ms) {
 
     if (processing_cost_ema_ms <= 0.0) {
         processing_cost_ema_ms = elapsed_ms;
+        update_monitor_processing_statistics(false);
         return;
     }
 
     processing_cost_ema_ms
         = processing_cost_ema_ms * (1.0 - smoothing) + elapsed_ms * smoothing;
+    update_monitor_processing_statistics(false);
 }
 
 QSize stream_controller::processing_image_size(
@@ -1710,8 +1813,42 @@ QSize stream_controller::processing_image_size(
 void stream_controller::on_core_events(
     const std::vector<yodau::core::event>& evs
 ) {
-    if (monitor_bridge != nullptr) {
-        monitor_bridge->record_event_batch(evs);
+    if (monitor_bridge != nullptr && monitor_bridge->wants_event_details()) {
+        std::vector<yodau::observability::runtime_event_view> observed;
+        observed.reserve(evs.size());
+        for (const auto& event : evs) {
+            yodau::observability::runtime_event_kind kind
+                = yodau::observability::runtime_event_kind::info;
+            switch (event.kind) {
+            case yodau::core::event_kind::motion:
+                kind = yodau::observability::runtime_event_kind::motion;
+                break;
+            case yodau::core::event_kind::tripwire:
+                kind = yodau::observability::runtime_event_kind::tripwire;
+                break;
+            case yodau::core::event_kind::roi:
+                kind = yodau::observability::runtime_event_kind::roi;
+                break;
+            case yodau::core::event_kind::info:
+                break;
+            }
+            observed.push_back(
+                yodau::observability::runtime_event_view {
+                    .kind = kind,
+                    .timestamp = event.ts,
+                    .stream_name = event.stream_name,
+                    .line_name = event.line_name,
+                    .message = event.message,
+                    .position_x_pct = event.pos_pct.has_value()
+                        ? std::optional<double>(event.pos_pct->x)
+                        : std::nullopt,
+                    .position_y_pct = event.pos_pct.has_value()
+                        ? std::optional<double>(event.pos_pct->y)
+                        : std::nullopt,
+                }
+            );
+        }
+        monitor_bridge->record_events(observed);
     }
     for (const auto& e : evs) {
         on_core_event(e);
@@ -1748,9 +1885,6 @@ void stream_controller::on_gui_frame(
         return;
     }
 
-    emit monitor_gui_frame_observed(
-        stream_name, static_cast<qint64>(image.sizeInBytes())
-    );
     note_input_frame_observed(stream_name, image.width(), image.height());
 
     if (!core_runtime.processing_enabled()) {
@@ -1957,8 +2091,6 @@ void stream_controller::on_core_event_queued(
         feedback.line_name, feedback.kind_text,
         resolved_log_line_color(feedback.stream_name, feedback.line_name)
     );
-
-    emit monitor_core_event_observed(feedback.kind_text);
 
     if (feedback.motion_activity_changed) {
         refresh_fps_policy(false);

@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
         )
     );
     QCommandLineParser parser;
+#if YODAU_DEBUG_OBSERVABILITY
     const QCommandLineOption monitor_option(
         QStringList() << QStringLiteral("m") << QStringLiteral("monitor"),
         QStringLiteral("Enable debug-only standalone monitor broadcasting.")
@@ -43,6 +44,7 @@ int main(int argc, char* argv[]) {
         ),
         QStringLiteral("name")
     );
+#endif
 
 #ifdef KC_KDE
     KLocalizedString::setApplicationDomain("yodau");
@@ -66,8 +68,10 @@ int main(int argc, char* argv[]) {
     KAboutData::setApplicationData(about_data);
 
     about_data.setupCommandLine(&parser);
+#if YODAU_DEBUG_OBSERVABILITY
     parser.addOption(monitor_option);
     parser.addOption(monitor_endpoint_option);
+#endif
     parser.process(app);
     about_data.processCommandLine(&parser);
 #else
@@ -76,11 +80,14 @@ int main(int argc, char* argv[]) {
     );
     parser.addHelpOption();
     parser.addVersionOption();
+#if YODAU_DEBUG_OBSERVABILITY
     parser.addOption(monitor_option);
     parser.addOption(monitor_endpoint_option);
+#endif
     parser.process(app);
 #endif
 
+#if YODAU_DEBUG_OBSERVABILITY
     const QString env_monitor_endpoint
         = qEnvironmentVariable("YODAU_DEBUG_MONITOR_ENDPOINT");
     const QString monitor_endpoint
@@ -90,6 +97,10 @@ int main(int argc, char* argv[]) {
     const bool enable_monitor = parser.isSet(QStringLiteral("monitor"))
         || !monitor_endpoint.isEmpty()
         || qEnvironmentVariableIntValue("YODAU_DEBUG_MONITOR") > 0;
+#else
+    const QString monitor_endpoint;
+    constexpr bool enable_monitor = false;
+#endif
 
     auto window
         = std::make_unique<main_window>(enable_monitor, monitor_endpoint);

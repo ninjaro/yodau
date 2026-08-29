@@ -1,7 +1,9 @@
 #include "shell/main_window.hpp"
 
 #include "core/namespace_alias.hpp"
+#if YODAU_DEBUG_OBSERVABILITY
 #include "monitor/runtime_bridge.hpp"
+#endif
 #include "shell/mobile_session_store.hpp"
 #include "shell/str_label.hpp"
 #include "shell/stream_controller.hpp"
@@ -33,13 +35,17 @@ main_window::main_window(
     , app_stream_controller(nullptr)
     , import_line_configuration_action(nullptr)
     , export_line_configuration_action(nullptr)
+#if YODAU_DEBUG_OBSERVABILITY
     , debug_monitor(nullptr)
     , toggle_debug_monitor_action(nullptr)
-    , debug_monitor_status_label(nullptr) {
+    , debug_monitor_status_label(nullptr)
+#endif
+{
     setup_platform_layout();
     core_manager = std::make_unique<yodau::core::stream_manager>();
     auto* mgr = core_manager.get();
 
+#if YODAU_DEBUG_OBSERVABILITY
     debug_monitor = new yodau::monitor::runtime_bridge(
         yodau::monitor::runtime_bridge::runtime_options {
             .enabled = enable_debug_monitor,
@@ -47,9 +53,15 @@ main_window::main_window(
         },
         this
     );
+    yodau::observability::runtime_observer* runtime_observer = debug_monitor;
+#else
+    Q_UNUSED(enable_debug_monitor);
+    Q_UNUSED(debug_monitor_endpoint_name);
+    yodau::observability::runtime_observer* runtime_observer = nullptr;
+#endif
 
     auto* ctrl
-        = new stream_controller(mgr, settings, main_zone, debug_monitor, this);
+        = new stream_controller(mgr, settings, main_zone, runtime_observer, this);
     app_stream_controller = ctrl;
     setup_configuration_actions();
 
@@ -74,7 +86,9 @@ main_window::main_window(
         &stream_controller::handle_show_stream_changed
     );
     ctrl->handle_detect_local_sources();
+#if YODAU_DEBUG_OBSERVABILITY
     setup_debug_monitor_ui();
+#endif
     setup_desktop_shell();
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
     connect(
