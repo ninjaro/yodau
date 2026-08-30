@@ -8,7 +8,6 @@ class QSettings;
 
 namespace yodau::shell {
 
-inline constexpr int mobile_session_schema_version = 1;
 inline constexpr qsizetype maximum_mobile_configuration_bytes = 4 * 1024 * 1024;
 
 enum class mobile_page {

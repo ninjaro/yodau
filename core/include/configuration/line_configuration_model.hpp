@@ -17,8 +17,6 @@ namespace yodau::core {
 class processing_runtime;
 class stream_manager;
 
-inline constexpr int current_line_configuration_version { 1 };
-
 class line_configuration_error : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
@@ -69,7 +67,6 @@ struct line_configuration_stream {
 };
 
 struct line_configuration_document {
-    int version { current_line_configuration_version };
     line_configuration_stream stream;
     std::vector<configured_line> lines;
 

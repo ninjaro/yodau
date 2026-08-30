@@ -1,7 +1,7 @@
 #include "daemon/headless_daemon.hpp"
 
 #include "analysis/processing_runtime.hpp"
-#include "configuration/line_configuration.hpp"
+#include "configuration/line_configuration_file.hpp"
 #include "streams/linux_capture_device.hpp"
 #include "streams/stream_manager.hpp"
 #include "streams/virtual_camera.hpp"
@@ -271,7 +271,9 @@ int run_headless_daemon(
 
     try {
         const line_configuration_document document
-            = load_line_configuration(options.configuration_path);
+            = yodau::data::load_line_configuration_file(
+                options.configuration_path
+            );
         line_configuration_apply_options apply_options;
         apply_options.source_override = options.source_override;
         apply_options.virtual_camera_path_override

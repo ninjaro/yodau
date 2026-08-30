@@ -2,7 +2,7 @@
 #define YODAU_APP_SHELL_MAIN_WINDOW_HPP
 
 #include "core/namespace_alias.hpp"
-#include "observability/build_config.hpp"
+#include "debug/build_config.hpp"
 
 #ifdef KC_KDE
 #include <KXmlGuiWindow>

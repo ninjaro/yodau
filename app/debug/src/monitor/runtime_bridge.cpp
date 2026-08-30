@@ -1,13 +1,11 @@
 #include "monitor/runtime_bridge.hpp"
 
 #include "monitor/debug_broadcaster.hpp"
-#include "monitor/debug_probe.hpp"
+#include "monitor/telemetry_json.hpp"
 #include "monitor/process_memory_reader.hpp"
 #include "monitor/runtime_build_info.hpp"
 
 #include <QCoreApplication>
-#include <QJsonArray>
-#include <QJsonObject>
 #include <QTimer>
 #include <QUuid>
 
@@ -15,10 +13,24 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <string>
 #include <utility>
 
 namespace yodau::monitor {
+namespace {
+
+constexpr std::size_t maximum_events_per_batch = 4096U;
+constexpr std::size_t maximum_event_text_bytes = 4096U;
+constexpr std::size_t maximum_marker_bytes = 4096U;
+
+std::string bounded_text(
+    const std::string_view value, const std::size_t maximum_bytes
+) {
+    return std::string(value.substr(0U, maximum_bytes));
+}
+
+} // namespace
 
 runtime_bridge::runtime_bridge(QObject* parent)
     : runtime_bridge(runtime_options(), parent) { }
@@ -50,7 +62,6 @@ runtime_bridge::runtime_bridge(
             if (connected) {
                 goodbye_published = false;
                 publish_hello();
-                publish_capabilities();
                 publish_snapshot(QStringLiteral("listener_connected"));
                 publish_sample_batch();
                 sample_timer->start();
@@ -141,7 +152,10 @@ void runtime_bridge::update_processing(
         = std::max(0.0, value.configured_processing_fps);
     state.processing.configured_display_fps
         = std::max(0.0, value.configured_display_fps);
-    state.processing.dropped_gui_frames = value.dropped_gui_frames;
+    state.processing.dropped_gui_frames = std::min<std::uint64_t>(
+        value.dropped_gui_frames,
+        static_cast<std::uint64_t>(std::numeric_limits<qint64>::max())
+    );
 }
 
 bool runtime_bridge::wants_event_details() const noexcept {
@@ -155,8 +169,13 @@ void runtime_bridge::record_events(
         return;
     }
 
-    QJsonArray event_array;
-    for (const auto& event : events) {
+    yodau::observability::event_batch_record batch { .header = header(
+        yodau::observability::message_family::event_batch
+    ), .events = {} };
+    const std::size_t retained_count
+        = std::min(events.size(), maximum_events_per_batch);
+    batch.events.reserve(retained_count);
+    for (const auto& event : events.first(retained_count)) {
         if (event.kind == yodau::observability::runtime_event_kind::tripwire) {
             ++state.tripwire_event_count;
         } else if (
@@ -165,61 +184,21 @@ void runtime_bridge::record_events(
             ++state.motion_event_count;
         }
 
-        QJsonObject encoded_event;
-        encoded_event.insert(
-            QStringLiteral("collector_sequence"), ++event_sequence
-        );
-        encoded_event.insert(
-            QStringLiteral("kind"), event_kind_to_string(event.kind)
-        );
-        encoded_event.insert(
-            QStringLiteral("timestamp_ms"), event_timestamp_ms(event)
-        );
-        if (!event.stream_name.empty()) {
-            encoded_event.insert(
-                QStringLiteral("stream_name"),
-                QString::fromUtf8(
-                    event.stream_name.data(),
-                    static_cast<qsizetype>(event.stream_name.size())
-                )
-            );
-        }
-        if (!event.line_name.empty()) {
-            encoded_event.insert(
-                QStringLiteral("line_name"),
-                QString::fromUtf8(
-                    event.line_name.data(),
-                    static_cast<qsizetype>(event.line_name.size())
-                )
-            );
-        }
-        if (!event.message.empty()) {
-            encoded_event.insert(
-                QStringLiteral("message"),
-                QString::fromUtf8(
-                    event.message.data(),
-                    static_cast<qsizetype>(event.message.size())
-                )
-            );
-        }
-        if (event.position_x_pct.has_value()
-            && event.position_y_pct.has_value()) {
-            QJsonObject position;
-            position.insert(QStringLiteral("x"), *event.position_x_pct);
-            position.insert(QStringLiteral("y"), *event.position_y_pct);
-            encoded_event.insert(QStringLiteral("position_pct"), position);
-        }
-        event_array.push_back(encoded_event);
+        batch.events.push_back(yodau::observability::event_record {
+            .collector_sequence = ++event_sequence,
+            .kind = event.kind,
+            .timestamp_ms = event_timestamp_ms(event),
+            .stream_name
+            = bounded_text(event.stream_name, maximum_event_text_bytes),
+            .line_name
+            = bounded_text(event.line_name, maximum_event_text_bytes),
+            .message = bounded_text(event.message, maximum_event_text_bytes),
+            .position_x_pct = event.position_x_pct,
+            .position_y_pct = event.position_y_pct,
+        });
     }
-
-    QJsonObject payload;
-    payload.insert(QStringLiteral("event_count"), event_array.size());
-    payload.insert(QStringLiteral("events"), event_array);
     publish_message(
-        debug_probe::build_compact_protocol_message_v1(
-            QStringLiteral("event_batch"), session_id,
-            monotonic_timestamp_ms(), payload
-        ),
+        yodau::data::encode_telemetry_json(batch),
         publish_priority::medium, true
     );
 }
@@ -228,21 +207,19 @@ void runtime_bridge::add_marker(const std::string_view label) {
     if (label.empty() || !can_publish()) {
         return;
     }
-    const QString trimmed
-        = QString::fromUtf8(
-              label.data(), static_cast<qsizetype>(label.size())
-          )
-              .trimmed();
-    if (trimmed.isEmpty()) {
+    std::string trimmed = bounded_text(label, maximum_marker_bytes);
+    const auto first = trimmed.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) {
         return;
     }
-
-    QJsonObject payload;
-    payload.insert(QStringLiteral("label"), trimmed);
+    const auto last = trimmed.find_last_not_of(" \t\r\n");
+    trimmed = trimmed.substr(first, last - first + 1U);
     publish_message(
-        debug_probe::build_compact_protocol_message_v1(
-            QStringLiteral("marker"), session_id, monotonic_timestamp_ms(),
-            payload
+        yodau::data::encode_telemetry_json(
+            yodau::observability::marker_record {
+                .header = header(yodau::observability::message_family::marker),
+                .label = std::move(trimmed),
+            }
         ),
         publish_priority::medium, true
     );
@@ -309,22 +286,6 @@ void runtime_bridge::on_broadcaster_warning(
     emit state_changed();
 }
 
-QString runtime_bridge::event_kind_to_string(
-    const yodau::observability::runtime_event_kind kind
-) {
-    switch (kind) {
-    case yodau::observability::runtime_event_kind::motion:
-        return QStringLiteral("motion");
-    case yodau::observability::runtime_event_kind::tripwire:
-        return QStringLiteral("tripwire");
-    case yodau::observability::runtime_event_kind::roi:
-        return QStringLiteral("roi");
-    case yodau::observability::runtime_event_kind::info:
-    default:
-        return QStringLiteral("info");
-    }
-}
-
 qint64 runtime_bridge::monotonic_timestamp_ms() const {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::steady_clock::now() - session_start_steady
@@ -351,9 +312,7 @@ yodau::observability::producer_identity runtime_bridge::identity() const {
     yodau::observability::producer_identity info;
     info.app = "yodau";
     info.pid = QCoreApplication::applicationPid();
-    info.session = session_id.toStdString();
     info.build = runtime_build_id().toStdString();
-    info.protocol = std::string(yodau::observability::protocol_version);
     for (const QString& flag : runtime_debug_flags()) {
         info.debug_flags.push_back(flag.toStdString());
     }
@@ -361,123 +320,117 @@ yodau::observability::producer_identity runtime_bridge::identity() const {
     return info;
 }
 
+yodau::observability::record_header runtime_bridge::header(
+    const yodau::observability::message_family family
+) const {
+    return yodau::observability::record_header {
+        .family = family,
+        .session = session_id.toStdString(),
+        .monotonic_timestamp_ms = monotonic_timestamp_ms(),
+    };
+}
+
 void runtime_bridge::append_sample(
-    QJsonArray& samples, const QString& metric_id, const double value
+    std::vector<yodau::observability::numeric_sample>& samples,
+    const std::string_view metric_id, const double value
 ) {
     if (!std::isfinite(value)) {
         return;
     }
-    QJsonObject sample;
-    sample.insert(QStringLiteral("metric_id"), metric_id);
-    sample.insert(QStringLiteral("value"), value);
-    samples.push_back(sample);
+    samples.push_back(yodau::observability::numeric_sample {
+        .metric_id = std::string(metric_id),
+        .value = value,
+    });
 }
 
 void runtime_bridge::append_sample(
-    QJsonArray& samples, const QString& metric_id, const qint64 value
+    std::vector<yodau::observability::numeric_sample>& samples,
+    const std::string_view metric_id, const qint64 value
 ) {
-    QJsonObject sample;
-    sample.insert(QStringLiteral("metric_id"), metric_id);
-    sample.insert(QStringLiteral("value"), value);
-    samples.push_back(sample);
+    samples.push_back(yodau::observability::numeric_sample {
+        .metric_id = std::string(metric_id),
+        .value = static_cast<std::int64_t>(value),
+    });
 }
 
-QJsonArray runtime_bridge::build_sample_array() const {
-    QJsonArray samples;
+std::vector<yodau::observability::numeric_sample>
+runtime_bridge::build_samples() const {
+    std::vector<yodau::observability::numeric_sample> samples;
+    samples.reserve(17U);
     append_sample(
-        samples, QStringLiteral("configured_stream_count"),
+        samples, "configured_stream_count",
         static_cast<qint64>(state.inventory.configured_streams)
     );
     append_sample(
-        samples, QStringLiteral("visible_stream_count"),
+        samples, "visible_stream_count",
         static_cast<qint64>(state.inventory.visible_streams)
     );
     append_sample(
-        samples, QStringLiteral("active_stream_count"),
+        samples, "active_stream_count",
         static_cast<qint64>(state.inventory.active_streams)
     );
     append_sample(
-        samples, QStringLiteral("configured_line_count"),
+        samples, "configured_line_count",
         static_cast<qint64>(state.inventory.configured_lines)
     );
     append_sample(
-        samples, QStringLiteral("detected_local_source_count"),
+        samples, "detected_local_source_count",
         static_cast<qint64>(state.inventory.detected_local_sources)
     );
     append_sample(
-        samples, QStringLiteral("tripwire_event_count"),
+        samples, "tripwire_event_count",
         state.tripwire_event_count
     );
     append_sample(
-        samples, QStringLiteral("motion_event_count"), state.motion_event_count
+        samples, "motion_event_count", state.motion_event_count
     );
     if (state.process_memory_rss_bytes >= 0) {
         append_sample(
-            samples, QStringLiteral("process_memory_rss_bytes"),
+            samples, "process_memory_rss_bytes",
             state.process_memory_rss_bytes
         );
     }
     append_sample(
-        samples, QStringLiteral("frame_processing_time_ms"),
+        samples, "frame_processing_time_ms",
         state.processing.frame_processing_time_ms
     );
     append_sample(
-        samples, QStringLiteral("input_fps"), state.processing.input_fps
+        samples, "input_fps", state.processing.input_fps
     );
     append_sample(
-        samples, QStringLiteral("processing_fps"),
+        samples, "processing_fps",
         state.processing.processing_fps
     );
     append_sample(
-        samples, QStringLiteral("configured_processing_fps"),
+        samples, "configured_processing_fps",
         state.processing.configured_processing_fps
     );
     append_sample(
-        samples, QStringLiteral("configured_display_fps"),
+        samples, "configured_display_fps",
         state.processing.configured_display_fps
     );
     append_sample(
-        samples, QStringLiteral("dropped_gui_frame_count"),
-        static_cast<double>(state.processing.dropped_gui_frames)
+        samples, "dropped_gui_frame_count",
+        static_cast<qint64>(state.processing.dropped_gui_frames)
     );
     if (broadcaster != nullptr) {
         const auto transport = broadcaster->state();
         append_sample(
-            samples, QStringLiteral("monitor_queue_bytes"),
+            samples, "monitor_queue_bytes",
             transport.queued_bytes
         );
         append_sample(
-            samples, QStringLiteral("monitor_dropped_packet_count"),
+            samples, "monitor_dropped_packet_count",
             transport.dropped_low_priority_messages
                 + transport.dropped_medium_priority_messages
                 + transport.dropped_high_priority_messages
         );
         append_sample(
-            samples, QStringLiteral("monitor_write_error_count"),
+            samples, "monitor_write_error_count",
             transport.write_error_count
         );
     }
     return samples;
-}
-
-QJsonObject runtime_bridge::build_snapshot_payload(
-    const QString& reason
-) const {
-    QJsonObject snapshot;
-    for (const auto& value : build_sample_array()) {
-        const QJsonObject sample = value.toObject();
-        snapshot.insert(
-            sample.value(QStringLiteral("metric_id")).toString(),
-            sample.value(QStringLiteral("value"))
-        );
-    }
-    snapshot.insert(QStringLiteral("reason"), reason);
-    snapshot.insert(QStringLiteral("listener_connected"), is_connected());
-    snapshot.insert(QStringLiteral("endpoint_path"), endpoint_path());
-
-    QJsonObject payload;
-    payload.insert(QStringLiteral("snapshot"), snapshot);
-    return payload;
 }
 
 bool runtime_bridge::can_publish() const {
@@ -486,7 +439,7 @@ bool runtime_bridge::can_publish() const {
 }
 
 void runtime_bridge::publish_message(
-    const QJsonObject& message, const publish_priority priority,
+    const QByteArray& message, const publish_priority priority,
     const bool droppable
 ) {
     if (!can_publish()) {
@@ -506,38 +459,25 @@ void runtime_bridge::publish_message(
         mapped = broadcaster_priority::low;
         break;
     }
-    broadcaster->publish_packet(
-        debug_probe::serialize_protocol_message_v1(message), mapped, droppable
-    );
+    broadcaster->publish_packet(message, mapped, droppable);
 }
 
 void runtime_bridge::publish_hello() {
     if (!can_publish()) {
         return;
     }
-    const auto info = identity();
-    QJsonObject payload;
-    payload.insert(QStringLiteral("app"), QString::fromStdString(info.app));
+    const auto catalog = yodau::observability::metric_catalog();
     publish_message(
-        debug_probe::build_protocol_message_v1(
-            QStringLiteral("hello"), info, monotonic_timestamp_ms(), payload
-        ),
-        publish_priority::high, false
-    );
-}
-
-void runtime_bridge::publish_capabilities() {
-    if (!can_publish()) {
-        return;
-    }
-    QJsonObject payload;
-    payload.insert(
-        QStringLiteral("capabilities"), debug_probe::protocol_capabilities_v1()
-    );
-    publish_message(
-        debug_probe::build_protocol_message_v1(
-            QStringLiteral("capabilities"), identity(),
-            monotonic_timestamp_ms(), payload
+        yodau::data::encode_telemetry_json(
+            yodau::observability::hello_record {
+                .header
+                = header(yodau::observability::message_family::hello),
+                .identity = identity(),
+                .metrics = std::vector<yodau::observability::metric_descriptor>(
+                    catalog.begin(), catalog.end()
+                ),
+                .extensions = {},
+            }
         ),
         publish_priority::high, false
     );
@@ -549,14 +489,14 @@ void runtime_bridge::publish_sample_batch() {
     }
 
     state.process_memory_rss_bytes = read_process_rss_bytes();
-    const QJsonArray samples = build_sample_array();
-    QJsonObject payload;
-    payload.insert(QStringLiteral("sample_count"), samples.size());
-    payload.insert(QStringLiteral("samples"), samples);
     publish_message(
-        debug_probe::build_compact_protocol_message_v1(
-            QStringLiteral("sample_batch"), session_id,
-            monotonic_timestamp_ms(), payload
+        yodau::data::encode_telemetry_json(
+            yodau::observability::sample_batch_record {
+                .header = header(
+                    yodau::observability::message_family::sample_batch
+                ),
+                .samples = build_samples(),
+            }
         ),
         publish_priority::low, true
     );
@@ -574,9 +514,15 @@ void runtime_bridge::publish_snapshot(const QString& reason) {
     }
     state.process_memory_rss_bytes = read_process_rss_bytes();
     publish_message(
-        debug_probe::build_compact_protocol_message_v1(
-            QStringLiteral("snapshot"), session_id, monotonic_timestamp_ms(),
-            build_snapshot_payload(reason)
+        yodau::data::encode_telemetry_json(
+            yodau::observability::snapshot_record {
+                .header
+                = header(yodau::observability::message_family::snapshot),
+                .samples = build_samples(),
+                .reason = reason.toStdString(),
+                .listener_connected = is_connected(),
+                .endpoint_path = endpoint_path().toStdString(),
+            }
         ),
         publish_priority::medium, true
     );
@@ -588,13 +534,14 @@ void runtime_bridge::publish_warning(
     if (!can_publish()) {
         return;
     }
-    QJsonObject payload;
-    payload.insert(QStringLiteral("warning_code"), warning_code);
-    payload.insert(QStringLiteral("warning_message"), warning_message);
     publish_message(
-        debug_probe::build_compact_protocol_message_v1(
-            QStringLiteral("warning"), session_id, monotonic_timestamp_ms(),
-            payload
+        yodau::data::encode_telemetry_json(
+            yodau::observability::warning_record {
+                .header
+                = header(yodau::observability::message_family::warning),
+                .warning_code = warning_code.toStdString(),
+                .warning_message = warning_message.toStdString(),
+            }
         ),
         publish_priority::high, false
     );
@@ -604,12 +551,13 @@ void runtime_bridge::publish_goodbye() {
     if (!can_publish()) {
         return;
     }
-    QJsonObject payload;
-    payload.insert(QStringLiteral("final_endpoint_path"), endpoint_path());
     publish_message(
-        debug_probe::build_compact_protocol_message_v1(
-            QStringLiteral("goodbye"), session_id, monotonic_timestamp_ms(),
-            payload
+        yodau::data::encode_telemetry_json(
+            yodau::observability::goodbye_record {
+                .header
+                = header(yodau::observability::message_family::goodbye),
+                .final_endpoint_path = endpoint_path().toStdString(),
+            }
         ),
         publish_priority::high, false
     );

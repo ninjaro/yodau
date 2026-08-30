@@ -8,8 +8,6 @@ class QSettings;
 
 namespace yodau::shell {
 
-inline constexpr int main_window_state_schema_version = 1;
-
 [[nodiscard]] bool save_main_window_state(
     const QMainWindow& window, QSettings& settings,
     QString* error_message = nullptr

@@ -1,5 +1,6 @@
 #include "shell/stream_controller.hpp"
-#include "configuration/line_configuration.hpp"
+#include "configuration/line_configuration_file.hpp"
+#include "configuration/line_configuration_json.hpp"
 #include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
 #include "streams/stream.hpp"
@@ -612,7 +613,7 @@ bool stream_controller::export_line_configuration_to(
     }
 
     try {
-        yodau::core::save_line_configuration_atomic(
+        yodau::data::save_line_configuration_file_atomic(
             document, std::filesystem::path(path.toStdString())
         );
         return true;
@@ -642,7 +643,7 @@ bool stream_controller::export_line_configuration_data(
 
     try {
         const std::string serialized
-            = yodau::core::serialize_line_configuration(document);
+            = yodau::data::encode_line_configuration_json(document);
         *contents = QByteArray(
             serialized.data(), static_cast<qsizetype>(serialized.size())
         );
@@ -660,7 +661,7 @@ bool stream_controller::import_line_configuration_from(
     const QString& path, QString* error_message
 ) {
     try {
-        const auto document = yodau::core::load_line_configuration(
+        const auto document = yodau::data::load_line_configuration_file(
             std::filesystem::path(path.toStdString())
         );
         return apply_line_configuration_document(
@@ -680,7 +681,7 @@ bool stream_controller::import_line_configuration_data(
     QString* imported_stream_name
 ) {
     try {
-        const auto document = yodau::core::parse_line_configuration(
+        const auto document = yodau::data::decode_line_configuration_json(
             std::string_view(
                 contents.constData(), static_cast<size_t>(contents.size())
             )

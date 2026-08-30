@@ -1,6 +1,6 @@
-#include "shell/mobile_session_store.hpp"
+#include "../../../include/shell/mobile_session_store.hpp"
 
-#include "configuration/line_configuration.hpp"
+#include "configuration/line_configuration_json.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -14,7 +14,6 @@
 
 namespace {
 
-constexpr auto schema_key = "mobile/session/schema_version";
 constexpr auto page_key = "mobile/session/page";
 constexpr auto has_configuration_key = "mobile/session/has_configuration";
 
@@ -40,23 +39,6 @@ QString configuration_error_text(const std::exception& error) {
     return QString::fromUtf8(error.what());
 }
 
-struct stored_schema {
-    int version { 0 };
-    bool valid { true };
-};
-
-stored_schema read_stored_schema(const QSettings& settings) {
-    if (!settings.contains(schema_key)) {
-        return {};
-    }
-    bool converted = false;
-    const int version = settings.value(schema_key).toInt(&converted);
-    return stored_schema {
-        .version = version,
-        .valid = converted && version >= 0,
-    };
-}
-
 bool configuration_is_valid(
     const QByteArray& configuration, QString* error_message
 ) {
@@ -74,7 +56,7 @@ bool configuration_is_valid(
     }
 
     try {
-        static_cast<void>(yodau::core::parse_line_configuration(
+        static_cast<void>(yodau::data::decode_line_configuration_json(
             std::string_view(
                 configuration.constData(),
                 static_cast<size_t>(configuration.size())
@@ -110,28 +92,6 @@ bool save_mobile_navigation(
     QSettings& settings, const mobile_page page, QString* error_message
 ) {
     set_error(error_message, {});
-    const stored_schema schema = read_stored_schema(settings);
-    if (!schema.valid) {
-        set_error(
-            error_message,
-            QStringLiteral("The mobile session schema is malformed.")
-        );
-        return false;
-    }
-    const int existing_schema = schema.version;
-    if (existing_schema > mobile_session_schema_version) {
-        set_error(
-            error_message,
-            QStringLiteral(
-                "A newer mobile session schema is present and was not "
-                "overwritten: %1"
-            )
-                .arg(existing_schema)
-        );
-        return false;
-    }
-
-    settings.setValue(schema_key, mobile_session_schema_version);
     settings.setValue(page_key, static_cast<int>(page));
     settings.sync();
     const QString error = settings_error_text(settings.status());
@@ -145,27 +105,6 @@ bool save_mobile_session(
     QString* error_message
 ) {
     set_error(error_message, {});
-    const stored_schema schema = read_stored_schema(settings);
-    if (!schema.valid) {
-        set_error(
-            error_message,
-            QStringLiteral("The mobile session schema is malformed.")
-        );
-        return false;
-    }
-    const int existing_schema = schema.version;
-    if (existing_schema > mobile_session_schema_version) {
-        set_error(
-            error_message,
-            QStringLiteral(
-                "A newer mobile session schema is present and was not "
-                "overwritten: %1"
-            )
-                .arg(existing_schema)
-        );
-        return false;
-    }
-
     QString validation_error;
     if (!configuration_is_valid(line_configuration, &validation_error)) {
         set_error(error_message, validation_error);
@@ -209,27 +148,6 @@ bool clear_mobile_configuration(
     const mobile_page page, QString* error_message
 ) {
     set_error(error_message, {});
-    const stored_schema schema = read_stored_schema(settings);
-    if (!schema.valid) {
-        set_error(
-            error_message,
-            QStringLiteral("The mobile session schema is malformed.")
-        );
-        return false;
-    }
-    const int existing_schema = schema.version;
-    if (existing_schema > mobile_session_schema_version) {
-        set_error(
-            error_message,
-            QStringLiteral(
-                "A newer mobile session schema is present and was not "
-                "overwritten: %1"
-            )
-                .arg(existing_schema)
-        );
-        return false;
-    }
-
     const QFileInfo configuration_file(configuration_path);
     if (configuration_file.exists() && !QFile::remove(configuration_path)) {
         set_error(
@@ -255,22 +173,6 @@ load_mobile_session(QSettings& settings, const QString& configuration_path) {
     mobile_session_state state;
     if (settings.status() != QSettings::NoError) {
         state.warning = settings_error_text(settings.status());
-        return state;
-    }
-
-    const stored_schema schema = read_stored_schema(settings);
-    if (!schema.valid) {
-        state.warning
-            = QStringLiteral("The mobile session schema is malformed.");
-        return state;
-    }
-    if (schema.version == 0) {
-        return state;
-    }
-    if (schema.version != mobile_session_schema_version) {
-        state.warning
-            = QStringLiteral("Unsupported mobile session schema version: %1")
-                  .arg(schema.version);
         return state;
     }
 

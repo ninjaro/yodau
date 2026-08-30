@@ -23,7 +23,7 @@
 #include "analysis/fps_policy.hpp"
 #include "analysis/processing_runtime.hpp"
 #include "configuration/line_configuration_model.hpp"
-#include "observability/telemetry_contract.hpp"
+#include "debug/runtime_observer.hpp"
 #include "shell/active_edit_actions.hpp"
 #include "shell/active_edit_controller.hpp"
 #include "shell/active_edit_session.hpp"

@@ -1,16 +1,18 @@
 #ifndef YODAU_APP_MONITOR_RUNTIME_BRIDGE_HPP
 #define YODAU_APP_MONITOR_RUNTIME_BRIDGE_HPP
 
-#include "observability/telemetry_contract.hpp"
+#include "debug/runtime_observer.hpp"
+#include "debug/telemetry_records.hpp"
 
-#include <QJsonArray>
-#include <QJsonObject>
+#include <QByteArray>
 #include <QObject>
 #include <QString>
 
 #include <chrono>
 #include <span>
+#include <string>
 #include <string_view>
+#include <vector>
 
 class QTimer;
 
@@ -53,7 +55,7 @@ public:
     ) override;
     void add_marker(std::string_view label) override;
 
-    // Compatibility convenience for existing tests and small UI call sites.
+    // Convenience for the small UI inventory call sites.
     void set_inventory(
         int configured_streams, int visible_streams, int active_streams,
         int configured_lines, int detected_local_sources
@@ -100,29 +102,29 @@ private:
     qint64 sample_tick_count;
     bool goodbye_published;
 
-    static QString event_kind_to_string(
-        yodau::observability::runtime_event_kind kind
-    );
     [[nodiscard]] qint64 monotonic_timestamp_ms() const;
     [[nodiscard]] qint64 event_timestamp_ms(
         const yodau::observability::runtime_event_view& event
     ) const;
     [[nodiscard]] yodau::observability::producer_identity identity() const;
+    [[nodiscard]] yodau::observability::record_header header(
+        yodau::observability::message_family family
+    ) const;
     static void append_sample(
-        QJsonArray& samples, const QString& metric_id, double value
+        std::vector<yodau::observability::numeric_sample>& samples,
+        std::string_view metric_id, double value
     );
     static void append_sample(
-        QJsonArray& samples, const QString& metric_id, qint64 value
+        std::vector<yodau::observability::numeric_sample>& samples,
+        std::string_view metric_id, qint64 value
     );
-    [[nodiscard]] QJsonArray build_sample_array() const;
-    [[nodiscard]] QJsonObject
-    build_snapshot_payload(const QString& reason) const;
+    [[nodiscard]] std::vector<yodau::observability::numeric_sample>
+    build_samples() const;
     [[nodiscard]] bool can_publish() const;
     void publish_message(
-        const QJsonObject& message, publish_priority priority, bool droppable
+        const QByteArray& message, publish_priority priority, bool droppable
     );
     void publish_hello();
-    void publish_capabilities();
     void publish_sample_batch();
     void publish_snapshot(const QString& reason);
     void publish_warning(
