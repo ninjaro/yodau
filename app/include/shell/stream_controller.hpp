@@ -23,7 +23,6 @@
 #include "analysis/fps_policy.hpp"
 #include "analysis/processing_runtime.hpp"
 #include "configuration/line_configuration_model.hpp"
-#include "debug/runtime_observer.hpp"
 #include "shell/active_edit_actions.hpp"
 #include "shell/active_edit_controller.hpp"
 #include "shell/active_edit_session.hpp"
@@ -50,9 +49,7 @@ class stream_controller final : public QObject {
 public:
     explicit stream_controller(
         yodau::core::stream_manager* mgr, settings_panel* panel,
-        stream_board* zone,
-        yodau::observability::runtime_observer* monitor = nullptr,
-        QObject* parent = nullptr
+        stream_board* zone, QObject* parent = nullptr
     );
     ~stream_controller() override;
 
@@ -196,8 +193,6 @@ private:
     ) const;
     void schedule_gui_frame_worker(const QString& stream_name, int delay_ms);
     void drain_latest_gui_frames(const QString& stream_name);
-    void update_monitor_inventory();
-    void update_monitor_processing_statistics(bool force = false);
 
     void on_core_event(const yodau::core::event& e);
     void on_core_events(const std::vector<yodau::core::event>& evs);
@@ -209,7 +204,6 @@ private:
 
     // external
     yodau::core::stream_manager* stream_mgr { nullptr };
-    yodau::observability::runtime_observer* monitor_bridge { nullptr };
     settings_panel* settings { nullptr };
     stream_board* main_zone { nullptr };
     grid_view* grid { nullptr };
@@ -243,13 +237,11 @@ private:
     QHash<QString, stream_rate_tracker> rate_trackers_by_stream;
     double processing_cost_ema_ms { 0.0 };
     std::chrono::steady_clock::time_point last_fps_policy_refresh {};
-    std::chrono::steady_clock::time_point last_monitor_statistics_update {};
 
     struct pending_gui_frame {
         QImage latest_image;
         QSize processing_size;
         bool worker_scheduled { false };
-        quint64 dropped_frames { 0 };
         int minimum_interval_ms { 1 };
         std::chrono::steady_clock::time_point last_scheduled {};
     };

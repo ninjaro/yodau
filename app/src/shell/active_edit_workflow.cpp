@@ -196,8 +196,6 @@ active_edit_workflow::save_active_line(line_profile profile_value) const {
         active_edit_workflow_support::line_added_detail(action_result)
     ));
     result.refresh_fps = true;
-    result.update_monitor_inventory = true;
-    result.monitor_marker = QStringLiteral("line_added");
 
     return result;
 }
@@ -314,8 +312,6 @@ active_edit_workflow::set_active_line_enabled(
         active_edit_workflow_support::line_toggle_detail(line_name, enabled)
     ));
     result.refresh_fps = true;
-    result.monitor_marker = enabled ? QStringLiteral("line_enabled")
-                                    : QStringLiteral("line_disabled");
     return result;
 }
 
@@ -354,7 +350,6 @@ active_edit_workflow::detach_active_line(const QString& line_name) const {
         active_edit_workflow_support::line_detach_detail(line_name)
     ));
     result.refresh_fps = true;
-    result.monitor_marker = QStringLiteral("line_detached");
     return result;
 }
 
@@ -454,8 +449,6 @@ active_edit_workflow::save_active_line_edit(line_edit_request request) const {
         active_edit_workflow_support::line_edit_saved_detail(action_result)
     ));
     result.refresh_fps = true;
-    result.update_monitor_inventory = true;
-    result.monitor_marker = QStringLiteral("line_edited");
     return result;
 }
 

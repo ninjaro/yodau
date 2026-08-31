@@ -133,10 +133,6 @@ active_stream_workflow::selection_result_entry(
 ) {
     transition_result transition;
     transition.refresh_fps = true;
-    transition.update_monitor_inventory = true;
-    transition.monitor_marker = selection.active_name.isEmpty()
-        ? QStringLiteral("active_stream_cleared")
-        : QStringLiteral("active_stream_selected");
 
     transition.entries.push_back(make_entry(
         app_log_severity::info, QStringLiteral("active_stream"),

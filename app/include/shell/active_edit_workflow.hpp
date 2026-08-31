@@ -19,8 +19,6 @@ public:
     struct transition_result {
         QVector<app_log_entry> entries;
         bool refresh_fps { false };
-        bool update_monitor_inventory { false };
-        QString monitor_marker;
     };
 
     active_edit_workflow(

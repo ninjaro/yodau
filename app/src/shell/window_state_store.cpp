@@ -1,4 +1,4 @@
-#include "../../../include/shell/window_state_store.hpp"
+#include "shell/window_state_store.hpp"
 
 #include <QByteArray>
 #include <QMainWindow>

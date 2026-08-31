@@ -25,8 +25,6 @@ public:
         QStringList removed_streams;
         QString added_stream;
         bool refresh_fps { false };
-        bool update_monitor_inventory { false };
-        QString monitor_marker;
     };
 
     stream_catalog_workflow(

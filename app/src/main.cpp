@@ -8,6 +8,11 @@
 #include "shell/main_window.hpp"
 #include "shell/str_label.hpp"
 
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+#include "monitor/client.hpp"
+#include "monitor/qt/gui_heartbeat.hpp"
+#endif
+
 #ifdef KC_KDE
 #include <KAboutData>
 #include <KLocalizedString>
@@ -32,19 +37,6 @@ int main(int argc, char* argv[]) {
         )
     );
     QCommandLineParser parser;
-#if YODAU_DEBUG_OBSERVABILITY
-    const QCommandLineOption monitor_option(
-        QStringList() << QStringLiteral("m") << QStringLiteral("monitor"),
-        QStringLiteral("Enable debug-only standalone monitor broadcasting.")
-    );
-    const QCommandLineOption monitor_endpoint_option(
-        QStringList() << QStringLiteral("monitor-endpoint"),
-        QStringLiteral(
-            "Preferred local IPC endpoint name for debug monitor broadcasting."
-        ),
-        QStringLiteral("name")
-    );
-#endif
 
 #ifdef KC_KDE
     KLocalizedString::setApplicationDomain("yodau");
@@ -68,10 +60,6 @@ int main(int argc, char* argv[]) {
     KAboutData::setApplicationData(about_data);
 
     about_data.setupCommandLine(&parser);
-#if YODAU_DEBUG_OBSERVABILITY
-    parser.addOption(monitor_option);
-    parser.addOption(monitor_endpoint_option);
-#endif
     parser.process(app);
     about_data.processCommandLine(&parser);
 #else
@@ -80,33 +68,30 @@ int main(int argc, char* argv[]) {
     );
     parser.addHelpOption();
     parser.addVersionOption();
-#if YODAU_DEBUG_OBSERVABILITY
-    parser.addOption(monitor_option);
-    parser.addOption(monitor_endpoint_option);
-#endif
     parser.process(app);
 #endif
 
-#if YODAU_DEBUG_OBSERVABILITY
-    const QString env_monitor_endpoint
-        = qEnvironmentVariable("YODAU_DEBUG_MONITOR_ENDPOINT");
-    const QString monitor_endpoint
-        = parser.isSet(QStringLiteral("monitor-endpoint"))
-        ? parser.value(QStringLiteral("monitor-endpoint")).trimmed()
-        : env_monitor_endpoint.trimmed();
-    const bool enable_monitor = parser.isSet(QStringLiteral("monitor"))
-        || !monitor_endpoint.isEmpty()
-        || qEnvironmentVariableIntValue("YODAU_DEBUG_MONITOR") > 0;
-#else
-    const QString monitor_endpoint;
-    constexpr bool enable_monitor = false;
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+    auto& watchdog = monitor::client::process();
+    std::unique_ptr<monitor::qt::gui_heartbeat> gui_watchdog;
+    if (watchdog.start("yodau")) {
+        watchdog.breadcrumb(monitor::event::process_started);
+        gui_watchdog
+            = std::make_unique<monitor::qt::gui_heartbeat>(watchdog, &app);
+    }
 #endif
 
-    auto window
-        = std::make_unique<main_window>(enable_monitor, monitor_endpoint);
+    auto window = std::make_unique<main_window>();
     window->show();
 
     const int result = QApplication::exec();
     window.reset();
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+    gui_watchdog.reset();
+    if (watchdog.available()) {
+        watchdog.breadcrumb(monitor::event::process_stopping);
+        watchdog.stop();
+    }
+#endif
     return result;
 }

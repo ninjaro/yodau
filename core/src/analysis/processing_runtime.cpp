@@ -7,6 +7,10 @@
 #include "analysis/processing_preview_router.hpp"
 #include "streams/virtual_camera.hpp"
 
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+#include "monitor/client.hpp"
+#endif
+
 #include <cstdint>
 
 namespace yodau::core {
@@ -416,6 +420,10 @@ processing_runtime::process_frame(const stream& s, const frame& f) {
         return {};
     }
 
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+    monitor::client::process().breadcrumb(monitor::event::processing_begin);
+#endif
+
     const frame* processing_frame = &f;
 #ifdef YODAU_OPENCV
     std::optional<frame> scaled_frame;
@@ -435,6 +443,11 @@ processing_runtime::process_frame(const stream& s, const frame& f) {
     processing_result result = algorithm->process_frame(s, *processing_frame);
     result = processing_motion_region_filter::apply(s, std::move(result));
     session_store_.store_latest_processing_result(s.get_name(), result);
+
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+    monitor::client::process().breadcrumb(monitor::event::processing_end);
+    monitor::client::process().heartbeat(monitor::channel::core);
+#endif
 
     processed_frame_observer_fn observer;
     {

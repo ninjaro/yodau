@@ -6,6 +6,10 @@
 #include "streams/stream_manager.hpp"
 #include "streams/virtual_camera.hpp"
 
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+#include "monitor/client.hpp"
+#endif
+
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
@@ -28,6 +32,12 @@
 
 namespace yodau::core {
 namespace {
+
+    void watchdog_main_heartbeat() noexcept {
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+        monitor::client::process().heartbeat(monitor::channel::main);
+#endif
+    }
 
     class source_camera_lease {
     public:
@@ -274,6 +284,11 @@ int run_headless_daemon(
             = yodau::data::load_line_configuration_file(
                 options.configuration_path
             );
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+        monitor::client::process().breadcrumb(
+            monitor::event::configuration_loaded
+        );
+#endif
         line_configuration_apply_options apply_options;
         apply_options.source_override = options.source_override;
         apply_options.virtual_camera_path_override
@@ -328,6 +343,9 @@ int run_headless_daemon(
             == "local";
         auto source_lease = source_camera_lease::acquire(source, local_source);
         static_cast<void>(source_lease);
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+        monitor::client::process().breadcrumb(monitor::event::camera_opened);
+#endif
 
         processing_runtime runtime(
             processing_runtime_options {
@@ -362,6 +380,9 @@ int run_headless_daemon(
                << " -> " << applied.virtual_camera_path << " with "
                << applied.connected_line_count << " configured lines\n";
         manager.start_stream(applied.stream_name);
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+        monitor::client::process().breadcrumb(monitor::event::stream_started);
+#endif
 
         const auto initial_status = manager.stream_status(applied.stream_name);
         if (!initial_status.has_value()) {
@@ -378,6 +399,7 @@ int run_headless_daemon(
         while (!stop_token.stop_requested()
                && manager.is_stream_running(applied.stream_name)
                && std::chrono::steady_clock::now() < output_deadline) {
+            watchdog_main_heartbeat();
             if (const virtual_camera* camera = runtime.preview_camera()) {
                 const auto cameras = camera->frames();
                 const auto info = std::ranges::find(
@@ -411,6 +433,9 @@ int run_headless_daemon(
                 + (output_error.empty() ? std::string {} : ": " + output_error)
             );
         }
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+        monitor::client::process().breadcrumb(monitor::event::output_ready);
+#endif
 
         if (!stop_token.stop_requested() && source_lease.is_capture_device()) {
             const linux_capture_exclusivity_result exclusivity
@@ -431,6 +456,7 @@ int run_headless_daemon(
         std::string runtime_output_error;
         while (!stop_token.stop_requested()
                && manager.is_stream_running(applied.stream_name)) {
+            watchdog_main_heartbeat();
             bool runtime_output_ready = false;
             if (const virtual_camera* camera = runtime.preview_camera()) {
                 const auto cameras = camera->frames();
@@ -469,6 +495,9 @@ int run_headless_daemon(
             && std::chrono::steady_clock::now() - *output_unhealthy_since
                 >= std::chrono::seconds(2);
         manager.stop_stream(applied.stream_name);
+#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
+        monitor::client::process().breadcrumb(monitor::event::stream_stopped);
+#endif
         if (virtual_camera* camera = runtime.preview_camera()) {
             camera->release(applied.stream_name);
         }

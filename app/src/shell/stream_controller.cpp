@@ -252,7 +252,7 @@ QString configuration_error_text(const std::exception& error) {
 
 stream_controller::stream_controller(
     yodau::core::stream_manager* mgr, settings_panel* panel, stream_board* zone,
-    yodau::observability::runtime_observer* monitor, QObject* parent
+    QObject* parent
 )
     : QObject(parent)
     , core_runtime(
@@ -262,9 +262,8 @@ stream_controller::stream_controller(
               .virtual_camera_device = {},
               .algorithm_id = default_app_algorithm_id().toStdString(),
           }
-      )
+    )
     , stream_mgr(mgr)
-    , monitor_bridge(monitor)
     , settings(panel)
     , main_zone(zone)
     , grid(zone ? zone->grid_mode() : nullptr)
@@ -366,7 +365,6 @@ stream_controller::stream_controller(
     }
     setup_grid_connections();
     refresh_fps_policy(true);
-    update_monitor_inventory();
 }
 
 stream_controller::~stream_controller() {
@@ -378,102 +376,6 @@ stream_controller::~stream_controller() {
     processing_pool.clear();
     processing_pool.waitForDone();
     core_runtime.detach();
-}
-
-void stream_controller::update_monitor_inventory() {
-    if (!stream_mgr || monitor_bridge == nullptr) {
-        return;
-    }
-
-    const int configured_streams
-        = static_cast<int>(stream_mgr->stream_names().size());
-    const int visible_streams
-        = grid != nullptr ? static_cast<int>(grid->stream_names().size()) : 0;
-    const int active_stream_count = route_state.has_active_stream() ? 1 : 0;
-    const int configured_lines
-        = static_cast<int>(stream_mgr->line_names().size());
-
-    const int detected_local_sources
-        = static_cast<int>(stream_mgr->detected_local_stream_names().size());
-
-    monitor_bridge->update_inventory(
-        yodau::observability::inventory_statistics {
-            .configured_streams = configured_streams,
-            .visible_streams = visible_streams,
-            .active_streams = active_stream_count,
-            .configured_lines = configured_lines,
-            .detected_local_sources = detected_local_sources,
-        }
-    );
-}
-
-void stream_controller::update_monitor_processing_statistics(const bool force) {
-    if (monitor_bridge == nullptr || !monitor_bridge->wants_event_details()) {
-        return;
-    }
-
-    const auto now = stream_controller_support::steady_clock::now();
-    if (!force && last_monitor_statistics_update.time_since_epoch().count() != 0
-        && now - last_monitor_statistics_update
-            < stream_controller_support::fps_policy_refresh_interval) {
-        return;
-    }
-    last_monitor_statistics_update = now;
-
-    double input_fps_total = 0.0;
-    double core_fps_total = 0.0;
-    double configured_core_fps_total = 0.0;
-    double configured_display_fps_total = 0.0;
-    int input_fps_count = 0;
-    int core_fps_count = 0;
-    int configured_core_fps_count = 0;
-    int configured_display_fps_count = 0;
-    for (auto it = runtime_metrics_by_stream.cbegin();
-         it != runtime_metrics_by_stream.cend(); ++it) {
-        const stream_runtime_metrics& metrics = it.value();
-        if (metrics.input_fps > 0.0) {
-            input_fps_total += metrics.input_fps;
-            ++input_fps_count;
-        }
-        if (metrics.core_fps > 0.0) {
-            core_fps_total += metrics.core_fps;
-            ++core_fps_count;
-        }
-        if (metrics.effective_core_fps > 0) {
-            configured_core_fps_total += metrics.effective_core_fps;
-            ++configured_core_fps_count;
-        }
-        if (metrics.effective_display_fps > 0) {
-            configured_display_fps_total += metrics.effective_display_fps;
-            ++configured_display_fps_count;
-        }
-    }
-
-    quint64 dropped_gui_frames = 0;
-    {
-        QMutexLocker lock(&pending_gui_frames_mutex);
-        for (auto it = pending_gui_frames.cbegin();
-             it != pending_gui_frames.cend(); ++it) {
-            dropped_gui_frames += it->dropped_frames;
-        }
-    }
-
-    const auto average = [](const double total, const int count) {
-        return count > 0 ? total / static_cast<double>(count) : 0.0;
-    };
-    monitor_bridge->update_processing(
-        yodau::observability::processing_statistics {
-            .frame_processing_time_ms = processing_cost_ema_ms,
-            .input_fps = average(input_fps_total, input_fps_count),
-            .processing_fps = average(core_fps_total, core_fps_count),
-            .configured_processing_fps
-            = average(configured_core_fps_total, configured_core_fps_count),
-            .configured_display_fps = average(
-                configured_display_fps_total, configured_display_fps_count
-            ),
-            .dropped_gui_frames = dropped_gui_frames,
-        }
-    );
 }
 
 void stream_controller::init_from_core() { catalog_workflow.seed_from_core(); }
@@ -809,7 +711,6 @@ bool stream_controller::apply_line_configuration_document(
         }
         widget_bridge.sync_active_candidates();
         refresh_fps_policy(true);
-        update_monitor_inventory();
         append_log(
             app_log_area::active, app_log_severity::info,
             QStringLiteral("line_configuration"),
@@ -903,11 +804,6 @@ void stream_controller::handle_show_stream_changed(
     );
 
     refresh_fps_policy(true);
-    update_monitor_inventory();
-    if (monitor_bridge != nullptr) {
-        const std::string marker = show ? "stream_visible" : "stream_hidden";
-        monitor_bridge->add_marker(marker);
-    }
 }
 
 void stream_controller::handle_core_event(const QString& text) {
@@ -1327,14 +1223,6 @@ void stream_controller::apply_active_edit_result(
         refresh_fps_policy(true);
     }
 
-    if (result.update_monitor_inventory) {
-        update_monitor_inventory();
-    }
-
-    if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
-        const std::string marker = result.monitor_marker.toStdString();
-        monitor_bridge->add_marker(marker);
-    }
 }
 
 void stream_controller::apply_active_stream_result(
@@ -1346,14 +1234,6 @@ void stream_controller::apply_active_stream_result(
         refresh_fps_policy(true);
     }
 
-    if (result.update_monitor_inventory) {
-        update_monitor_inventory();
-    }
-
-    if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
-        const std::string marker = result.monitor_marker.toStdString();
-        monitor_bridge->add_marker(marker);
-    }
 }
 
 void stream_controller::apply_catalog_result(
@@ -1393,14 +1273,6 @@ void stream_controller::apply_catalog_result(
         refresh_fps_policy(true);
     }
 
-    if (result.update_monitor_inventory) {
-        update_monitor_inventory();
-    }
-
-    if (monitor_bridge != nullptr && !result.monitor_marker.isEmpty()) {
-        const std::string marker = result.monitor_marker.toStdString();
-        monitor_bridge->add_marker(marker);
-    }
 }
 
 void stream_controller::refresh_fps_policy(const bool force) {
@@ -1658,7 +1530,6 @@ void stream_controller::note_input_frame_observed(
     metrics.input_height = height;
     runtime_metrics_by_stream.insert(stream_name, metrics);
     sync_runtime_metrics_for_stream(stream_name);
-    update_monitor_processing_statistics(false);
 }
 
 void stream_controller::note_core_frame_observed(
@@ -1685,7 +1556,6 @@ void stream_controller::note_core_frame_observed(
     }
     runtime_metrics_by_stream.insert(stream_name, metrics);
     sync_runtime_metrics_for_stream(stream_name);
-    update_monitor_processing_statistics(false);
 }
 
 void stream_controller::sync_runtime_metrics_for_stream(
@@ -1758,13 +1628,11 @@ void stream_controller::note_processing_cost_sample(const double elapsed_ms) {
 
     if (processing_cost_ema_ms <= 0.0) {
         processing_cost_ema_ms = elapsed_ms;
-        update_monitor_processing_statistics(false);
         return;
     }
 
     processing_cost_ema_ms
         = processing_cost_ema_ms * (1.0 - smoothing) + elapsed_ms * smoothing;
-    update_monitor_processing_statistics(false);
 }
 
 QSize stream_controller::processing_image_size(
@@ -1814,43 +1682,6 @@ QSize stream_controller::processing_image_size(
 void stream_controller::on_core_events(
     const std::vector<yodau::core::event>& evs
 ) {
-    if (monitor_bridge != nullptr && monitor_bridge->wants_event_details()) {
-        std::vector<yodau::observability::runtime_event_view> observed;
-        observed.reserve(evs.size());
-        for (const auto& event : evs) {
-            yodau::observability::runtime_event_kind kind
-                = yodau::observability::runtime_event_kind::info;
-            switch (event.kind) {
-            case yodau::core::event_kind::motion:
-                kind = yodau::observability::runtime_event_kind::motion;
-                break;
-            case yodau::core::event_kind::tripwire:
-                kind = yodau::observability::runtime_event_kind::tripwire;
-                break;
-            case yodau::core::event_kind::roi:
-                kind = yodau::observability::runtime_event_kind::roi;
-                break;
-            case yodau::core::event_kind::info:
-                break;
-            }
-            observed.push_back(
-                yodau::observability::runtime_event_view {
-                    .kind = kind,
-                    .timestamp = event.ts,
-                    .stream_name = event.stream_name,
-                    .line_name = event.line_name,
-                    .message = event.message,
-                    .position_x_pct = event.pos_pct.has_value()
-                        ? std::optional<double>(event.pos_pct->x)
-                        : std::nullopt,
-                    .position_y_pct = event.pos_pct.has_value()
-                        ? std::optional<double>(event.pos_pct->y)
-                        : std::nullopt,
-                }
-            );
-        }
-        monitor_bridge->record_events(observed);
-    }
     for (const auto& e : evs) {
         on_core_event(e);
     }
@@ -1911,9 +1742,6 @@ void stream_controller::on_gui_frame(
     {
         QMutexLocker lock(&pending_gui_frames_mutex);
         pending_gui_frame& pending = pending_gui_frames[stream_name];
-        if (!pending.latest_image.isNull()) {
-            ++pending.dropped_frames;
-        }
         pending.latest_image = image;
         pending.processing_size = target_size;
         pending.minimum_interval_ms = interval_ms_for_fps(

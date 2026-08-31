@@ -12,8 +12,6 @@ public:
     struct transition_result {
         QVector<app_log_entry> entries;
         bool refresh_fps { false };
-        bool update_monitor_inventory { false };
-        QString monitor_marker;
     };
 
     explicit active_stream_workflow(active_stream_state& active_streams);

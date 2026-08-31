@@ -114,8 +114,6 @@ stream_catalog_workflow::detect_local_sources() const {
         QStringLiteral("local source inventory refreshed"), QString(),
         QStringLiteral("core=%1 qt=%2").arg(locals.size()).arg(cameras.size())
     ));
-    transition.update_monitor_inventory = true;
-    transition.monitor_marker = QStringLiteral("local_sources_refreshed");
 
     return transition;
 }
@@ -156,8 +154,6 @@ stream_catalog_workflow::transition_result stream_catalog_workflow::add_stream(
         register_stream_in_ui(final_name, source_desc);
         transition.added_stream = final_name;
         transition.refresh_fps = true;
-        transition.update_monitor_inventory = true;
-        transition.monitor_marker = QStringLiteral("stream_added");
         return transition;
     } catch (const std::exception& error) {
         transition.entries.push_back(make_add_entry(

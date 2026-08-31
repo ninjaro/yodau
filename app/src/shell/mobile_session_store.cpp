@@ -1,4 +1,4 @@
-#include "../../../include/shell/mobile_session_store.hpp"
+#include "shell/mobile_session_store.hpp"
 
 #include "configuration/line_configuration_json.hpp"
 
