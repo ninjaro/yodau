@@ -2,7 +2,6 @@
 #define YODAU_CORE_CONFIGURATION_LINE_CONFIGURATION_MODEL_HPP
 
 #include "analysis/processing_algorithm_catalog.hpp"
-#include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
 
 #include <cstddef>

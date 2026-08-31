@@ -1,5 +1,4 @@
 #include "shell/processing_feedback_state.hpp"
-#include "core/namespace_alias.hpp"
 
 namespace processing_feedback_state_support {
 

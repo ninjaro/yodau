@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_ANALYSIS_SCHEDULER_HPP
 #define YODAU_CORE_ANALYSIS_SCHEDULER_HPP
 
-#include "core/namespace_alias.hpp"
 #include <chrono>
 #include <mutex>
 #include <string>

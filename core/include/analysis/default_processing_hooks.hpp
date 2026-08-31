@@ -2,7 +2,6 @@
 #define YODAU_CORE_DEFAULT_PROCESSING_HOOKS_HPP
 
 #include "analysis/processing_algorithm.hpp"
-#include "core/namespace_alias.hpp"
 #include "streams/stream_manager.hpp"
 
 #include <memory>

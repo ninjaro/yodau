@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_CONCURRENCY_STOPPABLE_THREAD_HPP
 #define YODAU_CORE_CONCURRENCY_STOPPABLE_THREAD_HPP
 
-#include "core/namespace_alias.hpp"
 
 #if defined(__ANDROID__)
 

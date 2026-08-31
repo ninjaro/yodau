@@ -2,7 +2,6 @@
 #define YODAU_CORE_STREAM_DAEMON_RUNNER_HPP
 
 #include "concurrency/stoppable_thread.hpp"
-#include "core/namespace_alias.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
 

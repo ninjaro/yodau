@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_STREAM_EVENT_DISPATCHER_HPP
 #define YODAU_CORE_STREAM_EVENT_DISPATCHER_HPP
 
-#include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 
 #include <functional>

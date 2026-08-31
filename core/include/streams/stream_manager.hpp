@@ -1,6 +1,5 @@
 #ifndef YODAU_CORE_STREAM_MANAGER_HPP
 #define YODAU_CORE_STREAM_MANAGER_HPP
-#include "core/namespace_alias.hpp"
 #include "streams/analysis_scheduler.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"

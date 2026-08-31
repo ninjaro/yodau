@@ -3,7 +3,6 @@
 
 #include "analysis/processing_algorithm.hpp"
 #include "analysis/processing_algorithm_catalog.hpp"
-#include "core/namespace_alias.hpp"
 
 #include <functional>
 #include <memory>

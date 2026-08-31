@@ -1,6 +1,5 @@
 #ifndef YODAU_CORE_GEOMETRY_HPP
 #define YODAU_CORE_GEOMETRY_HPP
-#include "core/namespace_alias.hpp"
 #include <memory>
 #include <optional>
 #include <span>

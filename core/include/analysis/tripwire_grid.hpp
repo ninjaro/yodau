@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_TRIPWIRE_GRID_HPP
 #define YODAU_CORE_TRIPWIRE_GRID_HPP
 
-#include "core/namespace_alias.hpp"
 #include "geometry/coords.hpp"
 #include "geometry/geometry.hpp"
 

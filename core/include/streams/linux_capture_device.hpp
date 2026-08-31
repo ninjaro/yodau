@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_LINUX_CAPTURE_DEVICE_HPP
 #define YODAU_CORE_LINUX_CAPTURE_DEVICE_HPP
 
-#include "core/namespace_alias.hpp"
 #include <filesystem>
 #include <string>
 #include <vector>

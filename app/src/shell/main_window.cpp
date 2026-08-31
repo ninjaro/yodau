@@ -1,6 +1,5 @@
 #include "shell/main_window.hpp"
 
-#include "core/namespace_alias.hpp"
 #include "shell/mobile_session_store.hpp"
 #include "shell/str_label.hpp"
 #include "shell/stream_controller.hpp"

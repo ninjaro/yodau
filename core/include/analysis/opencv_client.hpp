@@ -6,7 +6,6 @@
 #include "analysis/processing_motion_tools.hpp"
 #include "analysis/tripwire_grid_stream_index.hpp"
 #include "concurrency/stoppable_thread.hpp"
-#include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"

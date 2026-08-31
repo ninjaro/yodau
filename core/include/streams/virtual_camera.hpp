@@ -2,7 +2,6 @@
 #define YODAU_CORE_STREAMS_VIRTUAL_CAMERA_HPP
 
 #include "concurrency/stoppable_thread.hpp"
-#include "core/namespace_alias.hpp"
 #include "streams/frame.hpp"
 
 #include <condition_variable>

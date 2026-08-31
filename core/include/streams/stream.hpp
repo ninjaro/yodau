@@ -1,6 +1,5 @@
 #ifndef YODAU_CORE_STREAM_HPP
 #define YODAU_CORE_STREAM_HPP
-#include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
 #include <atomic>
 #include <mutex>

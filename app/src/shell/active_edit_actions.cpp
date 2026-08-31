@@ -1,6 +1,5 @@
 #include "shell/active_edit_actions.hpp"
 
-#include "core/namespace_alias.hpp"
 #include "shell/active_edit_controller.hpp"
 #include "shell/active_edit_session.hpp"
 #include "shell/stream_widget_bridge.hpp"

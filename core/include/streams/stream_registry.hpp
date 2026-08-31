@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_STREAM_REGISTRY_HPP
 #define YODAU_CORE_STREAM_REGISTRY_HPP
 
-#include "core/namespace_alias.hpp"
 #include "streams/stream.hpp"
 
 #include <cstddef>

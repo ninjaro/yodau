@@ -3,7 +3,6 @@
 
 #include "analysis/processing_runtime.hpp"
 #include "cli/cli_log.hpp"
-#include "core/namespace_alias.hpp"
 
 #include <cxxopts.hpp>
 #include <mutex>

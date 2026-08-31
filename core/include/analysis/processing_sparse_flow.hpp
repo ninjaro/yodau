@@ -4,7 +4,6 @@
 #ifdef YODAU_OPENCV
 
 #include "analysis/processing_algorithm.hpp"
-#include "core/namespace_alias.hpp"
 
 #include <opencv2/core/mat.hpp>
 

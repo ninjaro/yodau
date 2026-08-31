@@ -2,7 +2,6 @@
 #define YODAU_CORE_ANALYSIS_PROCESSING_PREVIEW_ROUTER_HPP
 
 #include "analysis/processing_algorithm.hpp"
-#include "core/namespace_alias.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"
 

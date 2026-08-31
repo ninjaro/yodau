@@ -17,11 +17,11 @@
 #include <unistd.h>
 #endif
 
-namespace yodau::data {
+namespace yodau::core {
 namespace {
 
 [[noreturn]] void fail(const std::string& message) {
-    throw yodau::core::line_configuration_error(message);
+    throw line_configuration_error(message);
 }
 
     std::filesystem::path
@@ -111,7 +111,7 @@ namespace {
 
 } // namespace
 
-yodau::core::line_configuration_document
+line_configuration_document
 load_line_configuration_file(const std::filesystem::path& path) {
     std::ifstream input(path, std::ios::binary);
     if (!input) {
@@ -140,7 +140,7 @@ load_line_configuration_file(const std::filesystem::path& path) {
 }
 
 void save_line_configuration_file_atomic(
-    const yodau::core::line_configuration_document& document,
+    const line_configuration_document& document,
     const std::filesystem::path& path
 ) {
     if (path.empty() || path.filename().empty()) {
@@ -181,7 +181,7 @@ void save_line_configuration_file_atomic(
         }
         std::filesystem::rename(temporary, path);
 #endif
-    } catch (const yodau::core::line_configuration_error&) {
+    } catch (const line_configuration_error&) {
         std::error_code ignored;
         std::filesystem::remove(temporary, ignored);
         throw;
@@ -195,4 +195,4 @@ void save_line_configuration_file_atomic(
     }
 }
 
-} // namespace yodau::data
+} // namespace yodau::core

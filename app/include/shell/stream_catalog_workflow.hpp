@@ -1,7 +1,6 @@
 #ifndef YODAU_APP_SHELL_STREAM_CATALOG_WORKFLOW_HPP
 #define YODAU_APP_SHELL_STREAM_CATALOG_WORKFLOW_HPP
 
-#include "core/namespace_alias.hpp"
 #include "shell/app_log.hpp"
 
 #include <QString>

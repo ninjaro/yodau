@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_ANALYSIS_FPS_POLICY_HPP
 #define YODAU_CORE_ANALYSIS_FPS_POLICY_HPP
 
-#include "core/namespace_alias.hpp"
 #include <string>
 
 namespace yodau::core {

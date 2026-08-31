@@ -1,7 +1,6 @@
 #ifndef YODAU_APP_SHELL_PROCESSING_FEEDBACK_STATE_HPP
 #define YODAU_APP_SHELL_PROCESSING_FEEDBACK_STATE_HPP
 
-#include "core/namespace_alias.hpp"
 #include "shell/app_log.hpp"
 #include "streams/event.hpp"
 

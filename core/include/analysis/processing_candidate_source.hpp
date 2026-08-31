@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_ANALYSIS_PROCESSING_CANDIDATE_SOURCE_HPP
 #define YODAU_CORE_ANALYSIS_PROCESSING_CANDIDATE_SOURCE_HPP
 
-#include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"

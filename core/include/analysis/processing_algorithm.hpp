@@ -2,7 +2,6 @@
 #define YODAU_CORE_ANALYSIS_PROCESSING_ALGORITHM_HPP
 
 #include "concurrency/stoppable_thread.hpp"
-#include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"

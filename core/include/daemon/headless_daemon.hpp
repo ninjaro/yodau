@@ -2,7 +2,6 @@
 #define YODAU_CORE_DAEMON_HEADLESS_DAEMON_HPP
 
 #include "concurrency/stoppable_thread.hpp"
-#include "core/namespace_alias.hpp"
 
 #include <filesystem>
 #include <iosfwd>

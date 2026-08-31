@@ -3,7 +3,6 @@
 
 #ifdef YODAU_OPENCV
 
-#include "core/namespace_alias.hpp"
 #include "streams/stream.hpp"
 
 #include <opencv2/core/mat.hpp>

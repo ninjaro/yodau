@@ -56,7 +56,7 @@ bool configuration_is_valid(
     }
 
     try {
-        static_cast<void>(yodau::data::decode_line_configuration_json(
+        static_cast<void>(yodau::core::decode_line_configuration_json(
             std::string_view(
                 configuration.constData(),
                 static_cast<size_t>(configuration.size())

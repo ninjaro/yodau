@@ -3,7 +3,6 @@
 
 #ifdef YODAU_OPENCV
 
-#include "core/namespace_alias.hpp"
 
 #include <opencv2/core/mat.hpp>
 #include <opencv2/video/background_segm.hpp>

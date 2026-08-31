@@ -2,7 +2,6 @@
 #define YODAU_CORE_ANALYSIS_PROCESSING_MOTION_REGION_FILTER_HPP
 
 #include "analysis/processing_algorithm.hpp"
-#include "core/namespace_alias.hpp"
 #include "streams/stream.hpp"
 
 namespace yodau::core {

@@ -1,7 +1,6 @@
 #ifndef YODAU_APP_SHELL_STREAM_CONTROLLER_HPP
 #define YODAU_APP_SHELL_STREAM_CONTROLLER_HPP
 
-#include "core/namespace_alias.hpp"
 #include <QColor>
 #include <QByteArray>
 #include <QHash>

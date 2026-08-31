@@ -6,8 +6,7 @@
 #include <ranges>
 #include <utility>
 
-namespace yodau::data {
-using namespace yodau::core;
+namespace yodau::core {
 namespace {
 
     using json = nlohmann::json;
@@ -400,4 +399,4 @@ decode_line_configuration_json(const std::string_view contents) {
     }
 }
 
-} // namespace yodau::data
+} // namespace yodau::core

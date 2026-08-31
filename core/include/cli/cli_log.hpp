@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_CLI_CLI_LOG_HPP
 #define YODAU_CORE_CLI_CLI_LOG_HPP
 
-#include "core/namespace_alias.hpp"
 #include <algorithm>
 #include <cctype>
 #include <chrono>

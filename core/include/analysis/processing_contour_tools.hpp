@@ -5,7 +5,6 @@
 
 #include "analysis/processing_algorithm.hpp"
 #include "analysis/processing_candidate_source.hpp"
-#include "core/namespace_alias.hpp"
 
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>

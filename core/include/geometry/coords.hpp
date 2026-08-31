@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_COORDS_HPP
 #define YODAU_CORE_COORDS_HPP
 
-#include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
 
 namespace yodau::core {

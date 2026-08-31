@@ -1,6 +1,5 @@
 #include "shell/stream_catalog_workflow.hpp"
 
-#include "core/namespace_alias.hpp"
 #include "shell/str_label.hpp"
 #include "shell/stream_catalog_state.hpp"
 #include "shell/stream_route_state.hpp"

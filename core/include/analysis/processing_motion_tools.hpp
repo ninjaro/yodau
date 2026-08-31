@@ -3,7 +3,6 @@
 
 #ifdef YODAU_OPENCV
 
-#include "core/namespace_alias.hpp"
 #include "geometry/coords.hpp"
 #include "streams/event.hpp"
 

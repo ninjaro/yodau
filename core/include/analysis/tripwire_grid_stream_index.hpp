@@ -2,7 +2,6 @@
 #define YODAU_CORE_TRIPWIRE_GRID_STREAM_INDEX_HPP
 
 #include "analysis/tripwire_grid_index.hpp"
-#include "core/namespace_alias.hpp"
 
 #include <cstdint>
 #include <string>

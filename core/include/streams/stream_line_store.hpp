@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_STREAM_LINE_STORE_HPP
 #define YODAU_CORE_STREAM_LINE_STORE_HPP
 
-#include "core/namespace_alias.hpp"
 #include "geometry/geometry.hpp"
 #include "streams/stream.hpp"
 

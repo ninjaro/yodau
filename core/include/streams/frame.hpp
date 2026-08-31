@@ -1,6 +1,5 @@
 #ifndef YODAU_CORE_FRAME_HPP
 #define YODAU_CORE_FRAME_HPP
-#include "core/namespace_alias.hpp"
 #include <chrono>
 #include <cstdint>
 #include <limits>

@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_STREAM_PROCESSED_FRAME_ROUTER_HPP
 #define YODAU_CORE_STREAM_PROCESSED_FRAME_ROUTER_HPP
 
-#include "core/namespace_alias.hpp"
 #include "streams/event.hpp"
 #include "streams/frame.hpp"
 #include "streams/stream.hpp"

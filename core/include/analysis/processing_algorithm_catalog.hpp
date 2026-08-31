@@ -2,7 +2,6 @@
 #define YODAU_CORE_ANALYSIS_PROCESSING_ALGORITHM_CATALOG_HPP
 
 #include "analysis/processing_algorithm.hpp"
-#include "core/namespace_alias.hpp"
 
 #include <cstdint>
 #include <optional>

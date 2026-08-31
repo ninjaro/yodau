@@ -1,6 +1,5 @@
 #ifndef YODAU_CORE_EVENT_HPP
 #define YODAU_CORE_EVENT_HPP
-#include "core/namespace_alias.hpp"
 #include <chrono>
 #include <optional>
 #include <string>

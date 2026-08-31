@@ -1,7 +1,6 @@
 #ifndef YODAU_APP_SHELL_MAIN_WINDOW_HPP
 #define YODAU_APP_SHELL_MAIN_WINDOW_HPP
 
-#include "core/namespace_alias.hpp"
 
 #ifdef KC_KDE
 #include <KXmlGuiWindow>

@@ -3,7 +3,6 @@
 
 #include "analysis/processing_algorithm.hpp"
 #include "analysis/processing_session_store.hpp"
-#include "core/namespace_alias.hpp"
 #include "streams/stream_manager.hpp"
 
 #include <condition_variable>

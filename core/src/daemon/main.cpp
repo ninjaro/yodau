@@ -7,9 +7,7 @@
 #include <iostream>
 #include <thread>
 
-#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
 #include "monitor/client.hpp"
-#endif
 
 #ifndef YODAU_OPENCV
 #error "yodau-daemon requires OpenCV capture and processing support"
@@ -57,14 +55,8 @@ int main(int argc, char** argv) {
             return 2;
         }
 
-#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
-        auto& watchdog = monitor::client::process();
-        const bool watchdog_started = watchdog.start("yodau-daemon");
-        if (watchdog_started) {
-            watchdog.set_channel_active(monitor::channel::main, true);
-            watchdog.breadcrumb(monitor::event::process_started);
-        }
-#endif
+        static_cast<void>(monitor::start_process("yodau-daemon"));
+        monitor::set_channel_active(monitor::channel::main, true);
 
         yodau::core::headless_daemon_options daemon_options;
         daemon_options.configuration_path = parsed["config"].as<std::string>();
@@ -100,13 +92,7 @@ int main(int argc, char** argv) {
             daemon_options, stop_source.get_token(), std::cout, std::cerr
         );
         signal_watcher.request_stop();
-#if !defined(NDEBUG) && defined(__linux__) && !defined(__ANDROID__)
-        if (watchdog_started) {
-            watchdog.breadcrumb(monitor::event::process_stopping);
-            watchdog.set_channel_active(monitor::channel::main, false);
-            watchdog.stop();
-        }
-#endif
+        monitor::set_channel_active(monitor::channel::main, false);
         return result;
     } catch (const cxxopts::exceptions::exception& error) {
         std::cerr << "invalid arguments: " << error.what() << '\n'

@@ -1,7 +1,6 @@
 #ifndef YODAU_APP_SHELL_ACTIVE_EDIT_ACTIONS_HPP
 #define YODAU_APP_SHELL_ACTIVE_EDIT_ACTIONS_HPP
 
-#include "core/namespace_alias.hpp"
 #include "shell/app_settings.hpp"
 #include "widgets/stream_cell.hpp"
 
