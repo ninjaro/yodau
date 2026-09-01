@@ -1,7 +1,6 @@
 #ifndef YODAU_APP_SHELL_MAIN_WINDOW_HPP
 #define YODAU_APP_SHELL_MAIN_WINDOW_HPP
 
-
 #ifdef KC_KDE
 #include <KXmlGuiWindow>
 using base_main_window = KXmlGuiWindow;
@@ -44,6 +43,7 @@ private slots:
 private:
     void setup_platform_layout();
     void setup_configuration_actions();
+    void setup_grid_layout_preferences();
     void setup_desktop_shell();
     void show_mobile_page(int page_index);
     void restore_mobile_session();

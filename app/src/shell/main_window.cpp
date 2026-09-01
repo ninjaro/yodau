@@ -5,6 +5,7 @@
 #include "shell/stream_controller.hpp"
 #include "shell/window_state_store.hpp"
 #include "streams/stream_manager.hpp"
+#include "widgets/grid_view.hpp"
 #include "widgets/settings_panel.hpp"
 #include "widgets/stream_board.hpp"
 
@@ -21,14 +22,24 @@
 #include <QStackedWidget>
 #include <QStandardPaths>
 
+namespace {
+
+const QString grid_scroll_direction_key
+    = QStringLiteral("layout/stream_grid/scroll_direction");
+const QString grid_preserve_order_key
+    = QStringLiteral("layout/stream_grid/preserve_order");
+const QString grid_sizing_mode_key
+    = QStringLiteral("layout/stream_grid/sizing_mode");
+
+} // namespace
+
 main_window::main_window(QWidget* parent)
     : base_main_window(parent)
     , main_zone(new stream_board(this))
     , settings(new settings_panel(this))
     , app_stream_controller(nullptr)
     , import_line_configuration_action(nullptr)
-    , export_line_configuration_action(nullptr)
-{
+    , export_line_configuration_action(nullptr) {
     setup_platform_layout();
     core_manager = std::make_unique<yodau::core::stream_manager>();
     auto* mgr = core_manager.get();
@@ -36,6 +47,7 @@ main_window::main_window(QWidget* parent)
     auto* ctrl = new stream_controller(mgr, settings, main_zone, this);
     app_stream_controller = ctrl;
     setup_configuration_actions();
+    setup_grid_layout_preferences();
 
     connect(
         settings, &settings_panel::add_file_stream, ctrl,
@@ -68,6 +80,85 @@ main_window::main_window(QWidget* parent)
 #else
     (void)yodau::shell::restore_main_window_state(*this);
 #endif
+}
+
+void main_window::setup_grid_layout_preferences() {
+    if (settings == nullptr || main_zone == nullptr
+        || main_zone->grid_mode() == nullptr) {
+        return;
+    }
+
+    QSettings app_preferences;
+    const QString scroll_direction
+        = app_preferences
+                .value(grid_scroll_direction_key, QStringLiteral("horizontal"))
+                .toString()
+            == QStringLiteral("vertical")
+        ? QStringLiteral("vertical")
+        : QStringLiteral("horizontal");
+    const bool preserve_order
+        = app_preferences.value(grid_preserve_order_key, false).toBool();
+    const QString sizing_mode
+        = app_preferences
+                .value(grid_sizing_mode_key, QStringLiteral("adaptive"))
+                .toString()
+            == QStringLiteral("fixed")
+        ? QStringLiteral("fixed")
+        : QStringLiteral("adaptive");
+
+    settings->set_grid_scroll_direction_id(scroll_direction);
+    settings->set_grid_preserve_order(preserve_order);
+    settings->set_grid_sizing_mode_id(sizing_mode);
+
+    grid_view* grid = main_zone->grid_mode();
+    grid->set_scroll_direction(
+        scroll_direction == QStringLiteral("vertical")
+            ? grid_view::scroll_direction::vertical
+            : grid_view::scroll_direction::horizontal
+    );
+    grid->set_preserve_stream_order(preserve_order);
+    grid->set_sizing_mode(
+        sizing_mode == QStringLiteral("fixed")
+            ? grid_view::sizing_mode::fixed
+            : grid_view::sizing_mode::adaptive
+    );
+
+    connect(
+        settings, &settings_panel::grid_scroll_direction_changed, this,
+        [grid](const QString& direction_id) {
+            const bool vertical = direction_id == QStringLiteral("vertical");
+            grid->set_scroll_direction(
+                vertical ? grid_view::scroll_direction::vertical
+                         : grid_view::scroll_direction::horizontal
+            );
+            QSettings().setValue(
+                grid_scroll_direction_key,
+                vertical ? QStringLiteral("vertical")
+                         : QStringLiteral("horizontal")
+            );
+        }
+    );
+    connect(
+        settings, &settings_panel::grid_preserve_order_changed, this,
+        [grid](const bool preserve) {
+            grid->set_preserve_stream_order(preserve);
+            QSettings().setValue(grid_preserve_order_key, preserve);
+        }
+    );
+    connect(
+        settings, &settings_panel::grid_sizing_mode_changed, this,
+        [grid](const QString& mode_id) {
+            const bool fixed = mode_id == QStringLiteral("fixed");
+            grid->set_sizing_mode(
+                fixed ? grid_view::sizing_mode::fixed
+                      : grid_view::sizing_mode::adaptive
+            );
+            QSettings().setValue(
+                grid_sizing_mode_key,
+                fixed ? QStringLiteral("fixed") : QStringLiteral("adaptive")
+            );
+        }
+    );
 }
 
 main_window::~main_window() {

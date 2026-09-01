@@ -309,6 +309,11 @@ void active_editor_bridge::sync_active_persistent(
     }
 
     settings_->set_active_lines(edit_session.stream_lines(active_name));
+    // Intentionally keep one applied instance per template/line name on a
+    // stream. Core currently keys connected lines by that same name. Do not
+    // remove this restriction until template identity, line-instance identity,
+    // polyline/polygon geometry, direction semantics, profiles, and possible
+    // geometric uniqueness have been audited together.
     const QSet<QString> used
         = edit_session.used_template_names_for_stream(active_name);
     settings_->set_template_candidates(

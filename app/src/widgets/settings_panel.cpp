@@ -7,10 +7,15 @@
 #include "widgets/stream_source_panel.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
+#include <QComboBox>
 #include <QFileDialog>
+#include <QFormLayout>
+#include <QGroupBox>
 #include <QLabel>
 #include <QMessageBox>
+#include <QSignalBlocker>
 #include <QTabWidget>
 #include <QVBoxLayout>
 
@@ -205,6 +210,59 @@ void settings_panel::append_event(const QString& text) const {
             QStringLiteral("settings_panel"), text
         )
     );
+}
+
+void settings_panel::set_grid_scroll_direction_id(const QString& direction_id) {
+    if (grid_scroll_direction_combo_ == nullptr) {
+        return;
+    }
+    const QString normalized = direction_id == QStringLiteral("vertical")
+        ? QStringLiteral("vertical")
+        : QStringLiteral("horizontal");
+    const int index = grid_scroll_direction_combo_->findData(normalized);
+    if (index >= 0) {
+        const QSignalBlocker blocker(grid_scroll_direction_combo_);
+        grid_scroll_direction_combo_->setCurrentIndex(index);
+    }
+}
+
+QString settings_panel::current_grid_scroll_direction_id() const {
+    return grid_scroll_direction_combo_ != nullptr
+        ? grid_scroll_direction_combo_->currentData().toString()
+        : QStringLiteral("horizontal");
+}
+
+void settings_panel::set_grid_preserve_order(const bool preserve) {
+    if (grid_preserve_order_checkbox_ == nullptr) {
+        return;
+    }
+    const QSignalBlocker blocker(grid_preserve_order_checkbox_);
+    grid_preserve_order_checkbox_->setChecked(preserve);
+}
+
+bool settings_panel::grid_preserves_order() const {
+    return grid_preserve_order_checkbox_ != nullptr
+        && grid_preserve_order_checkbox_->isChecked();
+}
+
+void settings_panel::set_grid_sizing_mode_id(const QString& mode_id) {
+    if (grid_sizing_mode_combo_ == nullptr) {
+        return;
+    }
+    const QString normalized = mode_id == QStringLiteral("fixed")
+        ? QStringLiteral("fixed")
+        : QStringLiteral("adaptive");
+    const int index = grid_sizing_mode_combo_->findData(normalized);
+    if (index >= 0) {
+        const QSignalBlocker blocker(grid_sizing_mode_combo_);
+        grid_sizing_mode_combo_->setCurrentIndex(index);
+    }
+}
+
+QString settings_panel::current_grid_sizing_mode_id() const {
+    return grid_sizing_mode_combo_ != nullptr
+        ? grid_sizing_mode_combo_->currentData().toString()
+        : QStringLiteral("adaptive");
 }
 
 void settings_panel::set_local_sources(const QStringList& sources) const {
@@ -567,6 +625,59 @@ QWidget* settings_panel::build_streams_tab() {
     source_panel->set_existing_names(existing_names);
     layout->addWidget(source_panel);
 
+    auto* grid_preferences = new QGroupBox(tr("Grid layout"), tab);
+    grid_preferences->setObjectName(
+        QStringLiteral("settings_grid_layout_group")
+    );
+    auto* grid_preferences_layout = new QFormLayout(grid_preferences);
+
+    grid_scroll_direction_combo_ = new QComboBox(grid_preferences);
+    grid_scroll_direction_combo_->setObjectName(
+        QStringLiteral("settings_grid_scroll_direction_combo")
+    );
+    grid_scroll_direction_combo_->addItem(
+        tr("Horizontal"), QStringLiteral("horizontal")
+    );
+    grid_scroll_direction_combo_->addItem(
+        tr("Vertical"), QStringLiteral("vertical")
+    );
+    grid_scroll_direction_combo_->setToolTip(
+        tr("Choose the direction in which an overflowing stream grid scrolls")
+    );
+    grid_preferences_layout->addRow(
+        tr("Scroll direction"), grid_scroll_direction_combo_
+    );
+
+    grid_sizing_mode_combo_ = new QComboBox(grid_preferences);
+    grid_sizing_mode_combo_->setObjectName(
+        QStringLiteral("settings_grid_sizing_mode_combo")
+    );
+    grid_sizing_mode_combo_->addItem(
+        tr("Adaptive sizes"), QStringLiteral("adaptive")
+    );
+    grid_sizing_mode_combo_->addItem(
+        tr("Fixed sizes"), QStringLiteral("fixed")
+    );
+    grid_sizing_mode_combo_->setToolTip(tr(
+        "Let Packing adapt all stream sizes, or arrange session-local manual "
+        "sizes"
+    ));
+    grid_preferences_layout->addRow(
+        tr("Stream sizes"), grid_sizing_mode_combo_
+    );
+
+    grid_preserve_order_checkbox_
+        = new QCheckBox(tr("Preserve order"), grid_preferences);
+    grid_preserve_order_checkbox_->setObjectName(
+        QStringLiteral("settings_grid_preserve_order_checkbox")
+    );
+    grid_preserve_order_checkbox_->setToolTip(
+        tr("Keep the configured stream sequence instead of allowing Packing to "
+           "reorder cells")
+    );
+    grid_preferences_layout->addRow(QString(), grid_preserve_order_checkbox_);
+    layout->addWidget(grid_preferences);
+
     inventory_panel = new stream_inventory_panel(tab);
     layout->addWidget(inventory_panel, 1);
 
@@ -604,6 +715,22 @@ QWidget* settings_panel::build_streams_tab() {
                 )
             );
         }
+    );
+    connect(
+        grid_scroll_direction_combo_, &QComboBox::currentIndexChanged, this,
+        [this] {
+            emit grid_scroll_direction_changed(
+                current_grid_scroll_direction_id()
+            );
+        }
+    );
+    connect(
+        grid_sizing_mode_combo_, &QComboBox::currentIndexChanged, this,
+        [this] { emit grid_sizing_mode_changed(current_grid_sizing_mode_id()); }
+    );
+    connect(
+        grid_preserve_order_checkbox_, &QCheckBox::toggled, this,
+        &settings_panel::grid_preserve_order_changed
     );
     return tab;
 }

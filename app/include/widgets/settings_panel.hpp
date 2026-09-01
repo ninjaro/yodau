@@ -11,6 +11,8 @@
 #include <QWidget>
 
 class QTabWidget;
+class QCheckBox;
+class QComboBox;
 class active_editor_panel;
 class active_stream_panel;
 class log_toolbar_panel;
@@ -46,12 +48,16 @@ public:
     void clear_stream_entries();
 
     void append_event(const QString& text) const;
+    void set_grid_scroll_direction_id(const QString& direction_id);
+    [[nodiscard]] QString current_grid_scroll_direction_id() const;
+    void set_grid_preserve_order(bool preserve);
+    [[nodiscard]] bool grid_preserves_order() const;
+    void set_grid_sizing_mode_id(const QString& mode_id);
+    [[nodiscard]] QString current_grid_sizing_mode_id() const;
 
     // add tab
     void set_local_sources(const QStringList& sources) const;
-    void set_local_sources(
-        const QList<local_source_descriptor>& sources
-    ) const;
+    void set_local_sources(const QList<local_source_descriptor>& sources) const;
     void clear_add_inputs() const;
     void append_add_log(const QString& text) const;
 
@@ -111,6 +117,9 @@ signals:
 
     // streams tab
     void show_stream_changed(const QString& name, bool show);
+    void grid_scroll_direction_changed(const QString& direction_id);
+    void grid_preserve_order_changed(bool preserve);
+    void grid_sizing_mode_changed(const QString& mode_id);
 
     // stream settings tab
     void stream_settings_selection_changed(const QString& name);
@@ -156,6 +165,9 @@ private:
     stream_source_panel* source_panel { nullptr };
     QWidget* streams_tab;
     stream_inventory_panel* inventory_panel { nullptr };
+    QComboBox* grid_scroll_direction_combo_ { nullptr };
+    QCheckBox* grid_preserve_order_checkbox_ { nullptr };
+    QComboBox* grid_sizing_mode_combo_ { nullptr };
 
     // stream settings tab
     QWidget* stream_settings_tab { nullptr };

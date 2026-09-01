@@ -18,6 +18,7 @@
 #include <QMediaDevices>
 #include <QMediaPlayer>
 #include <QPointF>
+#include <QRectF>
 #include <QString>
 #include <QTimer>
 #include <QVector>
@@ -73,6 +74,12 @@ public:
     [[nodiscard]] bool has_line_edit_preview() const;
     [[nodiscard]] bool application_active() const;
     [[nodiscard]] QString line_edit_preview_name() const;
+    [[nodiscard]] double source_frame_aspect() const noexcept;
+    [[nodiscard]] double effective_display_aspect() const noexcept;
+    [[nodiscard]] int quarter_turns() const noexcept;
+    [[nodiscard]] bool keeps_frame_aspect_ratio() const noexcept;
+    [[nodiscard]] bool has_manual_short_side() const noexcept;
+    [[nodiscard]] double manual_short_side() const noexcept;
 
     [[nodiscard]] bool is_draft_preview() const;
     [[nodiscard]] stream_settings current_stream_settings() const;
@@ -109,6 +116,10 @@ public:
     void set_loop(bool on);
     void set_camera_id(const QByteArray& id);
     void set_application_active(bool active);
+    void set_quarter_turns(int turns);
+    void set_keep_frame_aspect_ratio(bool keep);
+    void set_fixed_size_controls_visible(bool visible);
+    void initialize_manual_short_side(double short_side);
 
     struct event_instance {
         QPointF pos_pct;
@@ -150,6 +161,8 @@ signals:
     void line_edit_undo_requested();
     void line_edit_redo_requested();
     void line_edit_revert_requested();
+    void source_frame_aspect_changed(double aspect);
+    void layout_geometry_changed();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -215,6 +228,13 @@ private:
     void update_animation_timer();
     void start_camera_if_permitted();
     void start_camera();
+    void update_display_controls();
+    [[nodiscard]] QRectF display_frame_rect() const noexcept;
+    [[nodiscard]] QPointF canonical_to_display(const QPointF& point_pct) const;
+    [[nodiscard]] QPointF display_to_canonical(const QPointF& point_px) const;
+    [[nodiscard]] std::vector<QPointF>
+    display_points_pct(const std::vector<QPointF>& canonical_points) const;
+    void draw_frame(QPainter& painter, const QImage& frame) const;
 
 private slots:
     void on_close_clicked();
@@ -225,12 +245,20 @@ private slots:
     on_player_error(QMediaPlayer::Error error, const QString& error_string);
     void on_camera_error(QCamera::Error error);
     void on_animation_tick();
+    void on_rotate_clicked();
+    void on_aspect_mode_clicked();
+    void on_manual_size_decrease_clicked();
+    void on_manual_size_increase_clicked();
 
 private:
     QString name;
 
     QPushButton* close_btn { nullptr };
     QPushButton* focus_btn { nullptr };
+    QPushButton* rotate_btn { nullptr };
+    QPushButton* aspect_mode_btn { nullptr };
+    QPushButton* manual_size_decrease_btn { nullptr };
+    QPushButton* manual_size_increase_btn { nullptr };
     QLabel* name_label { nullptr };
 
     bool active { false };
@@ -260,6 +288,11 @@ private:
     QMediaPlayer* player { nullptr };
     QVideoSink* sink { nullptr };
     QImage last_frame;
+    double source_frame_aspect_ { 1.5 };
+    int quarter_turns_ { 0 };
+    bool keep_frame_aspect_ratio_ { false };
+    bool fixed_size_controls_visible_ { false };
+    std::optional<double> manual_short_side_;
     bool loop_enabled { true };
     QString last_error;
     QCamera* camera { nullptr };

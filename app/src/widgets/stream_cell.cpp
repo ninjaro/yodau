@@ -2,7 +2,6 @@
 
 #include <QAccessible>
 #include <QBrush>
-#include <QPermissions>
 #include <QCoreApplication>
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -12,6 +11,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPen>
+#include <QPermissions>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QStyle>
@@ -41,6 +41,8 @@ constexpr double line_edit_key_nudge_px = 1.0;
 constexpr double edit_key_nudge_fast_px = 5.0;
 constexpr double edit_wheel_degrees_per_step = 5.0;
 constexpr double edit_wheel_fine_step_degrees = 1.0;
+constexpr double manual_short_side_minimum = 96.0;
+constexpr double manual_short_side_step = 16.0;
 
 QPointF clamped_pct(QPointF point_pct) {
     point_pct.setX(std::clamp(point_pct.x(), 0.0, 100.0));
@@ -357,6 +359,31 @@ QString stream_cell::line_edit_preview_name() const {
                                           : QString();
 }
 
+double stream_cell::source_frame_aspect() const noexcept {
+    return source_frame_aspect_;
+}
+
+double stream_cell::effective_display_aspect() const noexcept {
+    return quarter_turns_ % 2 == 0 ? source_frame_aspect_
+                                   : 1.0 / source_frame_aspect_;
+}
+
+int stream_cell::quarter_turns() const noexcept { return quarter_turns_; }
+
+bool stream_cell::keeps_frame_aspect_ratio() const noexcept {
+    return keep_frame_aspect_ratio_;
+}
+
+bool stream_cell::has_manual_short_side() const noexcept {
+    return manual_short_side_.has_value();
+}
+
+double stream_cell::manual_short_side() const noexcept {
+    return manual_short_side_.value_or(
+        stream_cell_support::manual_short_side_minimum
+    );
+}
+
 bool stream_cell::is_draft_preview() const { return draft_preview; }
 
 stream_settings stream_cell::current_stream_settings() const {
@@ -379,8 +406,47 @@ void stream_cell::set_active(const bool val) {
         clear_draft();
     }
     update_icon();
+    update_display_controls();
     update_accessible_description();
     update();
+}
+
+void stream_cell::set_quarter_turns(const int turns) {
+    const int normalized = ((turns % 4) + 4) % 4;
+    if (quarter_turns_ == normalized) {
+        return;
+    }
+    quarter_turns_ = normalized;
+    update_display_controls();
+    update_accessible_description();
+    update();
+    emit layout_geometry_changed();
+}
+
+void stream_cell::set_keep_frame_aspect_ratio(const bool keep) {
+    if (keep_frame_aspect_ratio_ == keep) {
+        return;
+    }
+    keep_frame_aspect_ratio_ = keep;
+    update_display_controls();
+    update();
+}
+
+void stream_cell::set_fixed_size_controls_visible(const bool visible) {
+    if (fixed_size_controls_visible_ == visible) {
+        return;
+    }
+    fixed_size_controls_visible_ = visible;
+    update_display_controls();
+}
+
+void stream_cell::initialize_manual_short_side(const double short_side) {
+    if (!std::isfinite(short_side)) {
+        return;
+    }
+    manual_short_side_
+        = std::max(stream_cell_support::manual_short_side_minimum, short_side);
+    update_display_controls();
 }
 
 void stream_cell::set_drawing_enabled(const bool on) {
@@ -543,6 +609,11 @@ void stream_cell::set_source(const QUrl& source) {
 
     last_error.clear();
     last_frame = QImage();
+    if (std::abs(source_frame_aspect_ - 1.5) > 1e-3) {
+        source_frame_aspect_ = 1.5;
+        emit source_frame_aspect_changed(source_frame_aspect_);
+        emit layout_geometry_changed();
+    }
     update_accessible_description();
 
     player->setSource(source);
@@ -559,6 +630,11 @@ void stream_cell::set_camera_id(const QByteArray& id) {
 
     last_error.clear();
     last_frame = QImage();
+    if (std::abs(source_frame_aspect_ - 1.5) > 1e-3) {
+        source_frame_aspect_ = 1.5;
+        emit source_frame_aspect_changed(source_frame_aspect_);
+        emit layout_geometry_changed();
+    }
     update_accessible_description();
 
     if (player) {
@@ -810,15 +886,15 @@ void stream_cell::paintEvent(QPaintEvent* event) {
                 }
 
                 stream_cell_support::apply_content_inversion_mask(
-                    composited_frame, size(), line_value.pts_pct,
-                    line_value.closed, Qt::SolidLine,
+                    composited_frame, display_frame_rect().size().toSize(),
+                    line_value.pts_pct, line_value.closed, Qt::SolidLine,
                     line_width_visual_value(line_value.width_text), true
                 );
             }
 
-            p.drawImage(rect(), composited_frame);
+            draw_frame(p, composited_frame);
         } else {
-            p.drawImage(rect(), last_frame);
+            draw_frame(p, last_frame);
         }
     } else {
         const QString txt = last_error.isEmpty() ? "no signal" : last_error;
@@ -847,7 +923,9 @@ void stream_cell::paintEvent(QPaintEvent* event) {
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
     auto* child = childAt(event->pos());
-    if (child == close_btn || child == focus_btn) {
+    if (child == close_btn || child == focus_btn || child == rotate_btn
+        || child == aspect_mode_btn || child == manual_size_decrease_btn
+        || child == manual_size_increase_btn) {
         QWidget::mousePressEvent(event);
         return;
     }
@@ -915,7 +993,9 @@ void stream_cell::mouseReleaseEvent(QMouseEvent* event) {
 
 void stream_cell::mouseDoubleClickEvent(QMouseEvent* event) {
     auto* child = childAt(event->pos());
-    if (child == close_btn || child == focus_btn) {
+    if (child == close_btn || child == focus_btn || child == rotate_btn
+        || child == aspect_mode_btn || child == manual_size_decrease_btn
+        || child == manual_size_increase_btn) {
         QWidget::mouseDoubleClickEvent(event);
         return;
     }
@@ -1067,25 +1147,21 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
         const double step_px = (event->modifiers() & Qt::ShiftModifier) != 0
             ? stream_cell_support::edit_key_nudge_fast_px
             : stream_cell_support::line_edit_key_nudge_px;
-        const QPointF delta_pct(
-            width() > 0 ? step_px / static_cast<double>(width()) * 100.0 : 0.0,
-            height() > 0 ? step_px / static_cast<double>(height()) * 100.0 : 0.0
-        );
-        QPointF target_delta_pct;
+        QPointF display_delta_px;
         bool handled = true;
 
         switch (event->key()) {
         case Qt::Key_Left:
-            target_delta_pct = QPointF(-delta_pct.x(), 0.0);
+            display_delta_px = QPointF(-step_px, 0.0);
             break;
         case Qt::Key_Right:
-            target_delta_pct = QPointF(delta_pct.x(), 0.0);
+            display_delta_px = QPointF(step_px, 0.0);
             break;
         case Qt::Key_Up:
-            target_delta_pct = QPointF(0.0, -delta_pct.y());
+            display_delta_px = QPointF(0.0, -step_px);
             break;
         case Qt::Key_Down:
-            target_delta_pct = QPointF(0.0, delta_pct.y());
+            display_delta_px = QPointF(0.0, step_px);
             break;
         default:
             handled = false;
@@ -1096,6 +1172,7 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
             setFocus();
             const auto selected_vertex
                 = line_edit_interaction_.selected_vertex();
+            QPointF target_delta_pct;
             if (selected_vertex.has_value() && *selected_vertex >= 0
                 && *selected_vertex
                     < static_cast<int>(line_edit_preview_->pts_pct.size())) {
@@ -1104,6 +1181,10 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
                         *selected_vertex
                     )
                 );
+                const QPointF target_point = display_to_canonical(
+                    canonical_to_display(current_point) + display_delta_px
+                );
+                target_delta_pct = target_point - current_point;
                 emit line_edit_point_move_requested(
                     *selected_vertex,
                     stream_cell_support::clamped_pct(
@@ -1111,6 +1192,10 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
                     )
                 );
             } else {
+                const QPointF display_center = display_frame_rect().center();
+                target_delta_pct
+                    = display_to_canonical(display_center + display_delta_px)
+                    - display_to_canonical(display_center);
                 emit line_edit_shape_drag_requested(target_delta_pct);
             }
             update();
@@ -1143,28 +1228,34 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    QPointF keyboard_delta;
+    QPointF display_keyboard_delta;
     const double keyboard_step
         = (event->modifiers() & Qt::ShiftModifier) != 0 ? 5.0 : 1.0;
     switch (event->key()) {
     case Qt::Key_Left:
-        keyboard_delta.setX(-keyboard_step);
+        display_keyboard_delta.setX(-keyboard_step);
         break;
     case Qt::Key_Right:
-        keyboard_delta.setX(keyboard_step);
+        display_keyboard_delta.setX(keyboard_step);
         break;
     case Qt::Key_Up:
-        keyboard_delta.setY(-keyboard_step);
+        display_keyboard_delta.setY(-keyboard_step);
         break;
     case Qt::Key_Down:
-        keyboard_delta.setY(keyboard_step);
+        display_keyboard_delta.setY(keyboard_step);
         break;
     default:
         break;
     }
-    if (!keyboard_delta.isNull()) {
-        hover_point_pct = stream_cell_support::clamped_pct(
-            hover_point_pct.value_or(QPointF(50.0, 50.0)) + keyboard_delta
+    if (!display_keyboard_delta.isNull()) {
+        const QPointF current = hover_point_pct.value_or(QPointF(50.0, 50.0));
+        const QRectF frame_rect = display_frame_rect();
+        const QPointF display_delta_px(
+            display_keyboard_delta.x() / 100.0 * frame_rect.width(),
+            display_keyboard_delta.y() / 100.0 * frame_rect.height()
+        );
+        hover_point_pct = display_to_canonical(
+            canonical_to_display(current) + display_delta_px
         );
         update();
         event->accept();
@@ -1229,6 +1320,57 @@ void stream_cell::build_ui() {
 
     top_row->addStretch();
 
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    constexpr int display_control_size = 48;
+#else
+    constexpr int display_control_size = 32;
+#endif
+
+    manual_size_decrease_btn = new QPushButton(QStringLiteral("-"), this);
+    manual_size_decrease_btn->setObjectName(
+        QStringLiteral("stream_cell_size_decrease_button")
+    );
+    manual_size_decrease_btn->setFixedSize(
+        display_control_size, display_control_size
+    );
+    manual_size_decrease_btn->setToolTip(tr("Make stream cell smaller"));
+    manual_size_decrease_btn->setAccessibleName(
+        tr("Make stream %1 smaller").arg(name)
+    );
+    manual_size_decrease_btn->setFlat(true);
+    top_row->addWidget(manual_size_decrease_btn);
+
+    manual_size_increase_btn = new QPushButton(QStringLiteral("+"), this);
+    manual_size_increase_btn->setObjectName(
+        QStringLiteral("stream_cell_size_increase_button")
+    );
+    manual_size_increase_btn->setFixedSize(
+        display_control_size, display_control_size
+    );
+    manual_size_increase_btn->setToolTip(tr("Make stream cell larger"));
+    manual_size_increase_btn->setAccessibleName(
+        tr("Make stream %1 larger").arg(name)
+    );
+    manual_size_increase_btn->setFlat(true);
+    top_row->addWidget(manual_size_increase_btn);
+
+    rotate_btn = new QPushButton(QStringLiteral("90\u00b0"), this);
+    rotate_btn->setObjectName(QStringLiteral("stream_cell_rotate_button"));
+    rotate_btn->setFixedSize(display_control_size, display_control_size);
+    rotate_btn->setToolTip(tr("Rotate stream clockwise by 90 degrees"));
+    rotate_btn->setAccessibleName(tr("Rotate stream %1 clockwise").arg(name));
+    rotate_btn->setFlat(true);
+    top_row->addWidget(rotate_btn);
+
+    aspect_mode_btn = new QPushButton(tr("Fit"), this);
+    aspect_mode_btn->setObjectName(
+        QStringLiteral("stream_cell_aspect_mode_button")
+    );
+    aspect_mode_btn->setFixedHeight(display_control_size);
+    aspect_mode_btn->setMinimumWidth(display_control_size + 12);
+    aspect_mode_btn->setFlat(true);
+    top_row->addWidget(aspect_mode_btn);
+
     focus_btn = new QPushButton(this);
     focus_btn->setObjectName(QStringLiteral("stream_cell_focus_button"));
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
@@ -1282,6 +1424,21 @@ void stream_cell::build_ui() {
         focus_btn, &QPushButton::clicked, this, &stream_cell::on_focus_clicked
     );
     connect(
+        rotate_btn, &QPushButton::clicked, this, &stream_cell::on_rotate_clicked
+    );
+    connect(
+        aspect_mode_btn, &QPushButton::clicked, this,
+        &stream_cell::on_aspect_mode_clicked
+    );
+    connect(
+        manual_size_decrease_btn, &QPushButton::clicked, this,
+        &stream_cell::on_manual_size_decrease_clicked
+    );
+    connect(
+        manual_size_increase_btn, &QPushButton::clicked, this,
+        &stream_cell::on_manual_size_increase_clicked
+    );
+    connect(
         player, &QMediaPlayer::mediaStatusChanged, this,
         &stream_cell::on_media_status_changed
     );
@@ -1292,6 +1449,7 @@ void stream_cell::build_ui() {
     connect(
         animation_timer, &QTimer::timeout, this, &stream_cell::on_animation_tick
     );
+    update_display_controls();
 }
 
 void stream_cell::update_icon() {
@@ -1315,6 +1473,185 @@ void stream_cell::update_icon() {
         );
         focus_btn->setIcon(icon_loader::title_bar_maximize_icon());
     }
+}
+
+void stream_cell::update_display_controls() {
+    if (rotate_btn != nullptr) {
+        rotate_btn->setText(
+            QStringLiteral("%1\u00b0").arg(quarter_turns_ * 90)
+        );
+        rotate_btn->setToolTip(
+            tr("Current rotation: %1 degrees. Rotate clockwise by 90 degrees.")
+                .arg(quarter_turns_ * 90)
+        );
+    }
+    if (aspect_mode_btn != nullptr) {
+        aspect_mode_btn->setVisible(active);
+        aspect_mode_btn->setText(
+            keep_frame_aspect_ratio_ ? tr("Stretch") : tr("Fit")
+        );
+        aspect_mode_btn->setToolTip(
+            keep_frame_aspect_ratio_
+                ? tr("Stretch the active frame to fill the cell")
+                : tr("Keep the active frame's aspect ratio")
+        );
+        aspect_mode_btn->setAccessibleName(aspect_mode_btn->toolTip());
+    }
+    const bool show_manual = fixed_size_controls_visible_ && !active;
+    if (manual_size_decrease_btn != nullptr) {
+        manual_size_decrease_btn->setVisible(show_manual);
+        manual_size_decrease_btn->setEnabled(
+            manual_short_side() > stream_cell_support::manual_short_side_minimum
+        );
+    }
+    if (manual_size_increase_btn != nullptr) {
+        manual_size_increase_btn->setVisible(show_manual);
+    }
+}
+
+QRectF stream_cell::display_frame_rect() const noexcept {
+    const QRectF bounds(0.0, 0.0, width(), height());
+    if (!active || !keep_frame_aspect_ratio_ || bounds.isEmpty()) {
+        return bounds;
+    }
+
+    const double aspect = effective_display_aspect();
+    if (!(aspect > 0.0) || !std::isfinite(aspect)) {
+        return bounds;
+    }
+
+    const double available_aspect = bounds.width() / bounds.height();
+    if (available_aspect > aspect) {
+        const double frame_width = bounds.height() * aspect;
+        return {
+            (bounds.width() - frame_width) * 0.5,
+            0.0,
+            frame_width,
+            bounds.height(),
+        };
+    }
+
+    const double frame_height = bounds.width() / aspect;
+    return {
+        0.0,
+        (bounds.height() - frame_height) * 0.5,
+        bounds.width(),
+        frame_height,
+    };
+}
+
+QPointF stream_cell::canonical_to_display(const QPointF& point_pct) const {
+    const QPointF canonical = stream_cell_support::clamped_pct(point_pct);
+    QPointF display_pct;
+    switch (quarter_turns_) {
+    case 1:
+        display_pct = { 100.0 - canonical.y(), canonical.x() };
+        break;
+    case 2:
+        display_pct = { 100.0 - canonical.x(), 100.0 - canonical.y() };
+        break;
+    case 3:
+        display_pct = { canonical.y(), 100.0 - canonical.x() };
+        break;
+    default:
+        display_pct = canonical;
+        break;
+    }
+
+    const QRectF frame_rect = display_frame_rect();
+    return {
+        frame_rect.left() + display_pct.x() / 100.0 * frame_rect.width(),
+        frame_rect.top() + display_pct.y() / 100.0 * frame_rect.height(),
+    };
+}
+
+QPointF stream_cell::display_to_canonical(const QPointF& point_px) const {
+    const QRectF frame_rect = display_frame_rect();
+    if (!(frame_rect.width() > 0.0) || !(frame_rect.height() > 0.0)) {
+        return {};
+    }
+
+    const QPointF display_pct = stream_cell_support::clamped_pct(
+        {
+            (point_px.x() - frame_rect.left()) / frame_rect.width() * 100.0,
+            (point_px.y() - frame_rect.top()) / frame_rect.height() * 100.0,
+        }
+    );
+
+    switch (quarter_turns_) {
+    case 1:
+        return { display_pct.y(), 100.0 - display_pct.x() };
+    case 2:
+        return { 100.0 - display_pct.x(), 100.0 - display_pct.y() };
+    case 3:
+        return { 100.0 - display_pct.y(), display_pct.x() };
+    default:
+        return display_pct;
+    }
+}
+
+std::vector<QPointF> stream_cell::display_points_pct(
+    const std::vector<QPointF>& canonical_points
+) const {
+    std::vector<QPointF> result;
+    result.reserve(canonical_points.size());
+    for (const QPointF& canonical : canonical_points) {
+        switch (quarter_turns_) {
+        case 1:
+            result.emplace_back(100.0 - canonical.y(), canonical.x());
+            break;
+        case 2:
+            result.emplace_back(100.0 - canonical.x(), 100.0 - canonical.y());
+            break;
+        case 3:
+            result.emplace_back(canonical.y(), 100.0 - canonical.x());
+            break;
+        default:
+            result.push_back(canonical);
+            break;
+        }
+    }
+    return result;
+}
+
+void stream_cell::draw_frame(QPainter& painter, const QImage& frame) const {
+    if (frame.isNull()) {
+        return;
+    }
+
+    const QRectF target = display_frame_rect();
+    painter.save();
+    painter.setClipRect(target);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+    switch (quarter_turns_) {
+    case 1:
+        painter.translate(target.right(), target.top());
+        painter.rotate(90.0);
+        painter.drawImage(
+            QRectF(0.0, 0.0, target.height(), target.width()), frame
+        );
+        break;
+    case 2:
+        painter.translate(target.right(), target.bottom());
+        painter.rotate(180.0);
+        painter.drawImage(
+            QRectF(0.0, 0.0, target.width(), target.height()), frame
+        );
+        break;
+    case 3:
+        painter.translate(target.left(), target.bottom());
+        painter.rotate(270.0);
+        painter.drawImage(
+            QRectF(0.0, 0.0, target.height(), target.width()), frame
+        );
+        break;
+    default:
+        painter.drawImage(target, frame);
+        break;
+    }
+
+    painter.restore();
 }
 
 void stream_cell::update_accessible_description() {
@@ -1929,23 +2266,11 @@ QPointF stream_cell::label_pos_px(const line_instance& l) const {
 }
 
 QPointF stream_cell::to_pct(const QPointF& pos_px) const {
-    if (width() <= 0 || height() <= 0) {
-        return {};
-    }
-
-    float x
-        = static_cast<float>(pos_px.x()) / static_cast<float>(width()) * 100.0f;
-    float y = static_cast<float>(pos_px.y()) / static_cast<float>(height())
-        * 100.0f;
-
-    x = std::clamp(x, 0.f, 100.f);
-    y = std::clamp(y, 0.f, 100.f);
-
-    return { x, y };
+    return display_to_canonical(pos_px);
 }
 
 QPointF stream_cell::to_px(const QPointF& pos_pct) const {
-    return { pos_pct.x() / 100.0 * width(), pos_pct.y() / 100.0 * height() };
+    return canonical_to_display(pos_pct);
 }
 
 std::optional<int>
@@ -2060,8 +2385,18 @@ void stream_cell::sync_mouse_tracking() {
 }
 
 void stream_cell::draw_processing_overlays(QPainter& p) const {
+    std::vector<processing_overlay_instance> display_overlays
+        = processing_overlays;
+    for (processing_overlay_instance& overlay : display_overlays) {
+        overlay.points_pct = display_points_pct(overlay.points_pct);
+        if (overlay.anchor_pct.has_value()) {
+            const std::vector<QPointF> transformed
+                = display_points_pct({ *overlay.anchor_pct });
+            overlay.anchor_pct = transformed.front();
+        }
+    }
     processing_overlay_renderer::draw(
-        p, QRectF(rect()), stream_settings_value, processing_overlays
+        p, display_frame_rect(), stream_settings_value, display_overlays
     );
 }
 
@@ -2084,7 +2419,7 @@ void stream_cell::draw_events(QPainter& p) {
     const auto now = QDateTime::currentDateTime();
     const int ttl_ms = 2000;
 
-    const QRect r = rect();
+    const QRect r = display_frame_rect().toAlignedRect();
     const auto w = static_cast<double>(r.width());
     const auto h = static_cast<double>(r.height());
     const double base = std::min(w, h);
@@ -2110,9 +2445,7 @@ void stream_cell::draw_events(QPainter& p) {
         QColor c = e.color;
         c.setAlpha(a);
 
-        const double x = r.left() + w * (e.pos_pct.x() / 100.0);
-        const double y = r.top() + h * (e.pos_pct.y() / 100.0);
-        const QPointF center(x, y);
+        const QPointF center = canonical_to_display(e.pos_pct);
 
         const bool draw_symbolic_algorithm_overlay
             = selected_mode == QStringLiteral("auto")
@@ -2211,15 +2544,19 @@ void stream_cell::draw_wave_overlay(
         return;
     }
 
+    const QRectF frame_rect = display_frame_rect();
+    const QSize target_size = frame_rect.size().toSize();
+    const auto display_geometry = line_wave_renderer::build_path_geometry(
+        display_points_pct(line_value.pts_pct), line_value.closed
+    );
+    p.save();
+    p.translate(frame_rect.topLeft());
     line_wave_renderer::draw(
-        p,
-        line_wave_renderer::build_path_geometry(
-            line_value.pts_pct, line_value.closed
-        ),
-        pulses, size(), line_color, line_value.width_text,
-        line_value.length_text, line_value.response_text,
+        p, display_geometry, pulses, target_size, line_color,
+        line_value.width_text, line_value.length_text, line_value.response_text,
         animation_clock.elapsed()
     );
+    p.restore();
 }
 
 void stream_cell::add_line_wave(
@@ -2293,6 +2630,33 @@ void stream_cell::on_close_clicked() { emit request_close(name); }
 
 void stream_cell::on_focus_clicked() { emit request_focus(name); }
 
+void stream_cell::on_rotate_clicked() { set_quarter_turns(quarter_turns_ + 1); }
+
+void stream_cell::on_aspect_mode_clicked() {
+    set_keep_frame_aspect_ratio(!keep_frame_aspect_ratio_);
+}
+
+void stream_cell::on_manual_size_decrease_clicked() {
+    const double next = std::max(
+        stream_cell_support::manual_short_side_minimum,
+        manual_short_side() - stream_cell_support::manual_short_side_step
+    );
+    if (std::abs(next - manual_short_side())
+        <= std::numeric_limits<double>::epsilon()) {
+        return;
+    }
+    manual_short_side_ = next;
+    update_display_controls();
+    emit layout_geometry_changed();
+}
+
+void stream_cell::on_manual_size_increase_clicked() {
+    manual_short_side_
+        = manual_short_side() + stream_cell_support::manual_short_side_step;
+    update_display_controls();
+    emit layout_geometry_changed();
+}
+
 void stream_cell::on_frame_changed(const QVideoFrame& frame) {
     if (!frame.isValid()) {
         return;
@@ -2309,6 +2673,18 @@ void stream_cell::on_frame_changed(const QVideoFrame& frame) {
 
     last_frame = copy.toImage();
     copy.unmap();
+    if (!last_frame.isNull() && last_frame.height() > 0) {
+        const double next_aspect = static_cast<double>(last_frame.width())
+            / static_cast<double>(last_frame.height());
+        const double tolerance
+            = std::max(1e-3, std::abs(source_frame_aspect_) * 1e-3);
+        if (std::isfinite(next_aspect) && next_aspect > 0.0
+            && std::abs(next_aspect - source_frame_aspect_) > tolerance) {
+            source_frame_aspect_ = next_aspect;
+            emit source_frame_aspect_changed(source_frame_aspect_);
+            emit layout_geometry_changed();
+        }
+    }
     update_accessible_description();
 
     emit frame_ready(name, last_frame);
