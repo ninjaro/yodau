@@ -1,11 +1,14 @@
 #include "widgets/grid_view.hpp"
+#include "packing/ordered_layout.hpp"
 #include "widgets/stream_cell.hpp"
 
 #include <QGridLayout>
 #include <QLayoutItem>
 #include <QScrollArea>
 #include <QVBoxLayout>
-#include <QtMath>
+
+#include <algorithm>
+#include <vector>
 
 static constexpr int minimum_tile_width = 240;
 static constexpr int minimum_tile_height = 160;
@@ -141,8 +144,6 @@ void grid_view::enlarge_requested(const QString& name) {
     emit stream_enlarge(name);
 }
 
-static int ceil_div(const int a, const int b) { return (a + b - 1) / b; }
-
 void grid_view::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     rebuild_layout();
@@ -190,54 +191,35 @@ void grid_view::rebuild_layout() {
         v_spacing = grid_layout->spacing();
     }
 
-    const int denom = minimum_tile_height + v_spacing;
-    int max_rows = 1;
-    if (denom > 0) {
-        max_rows = (available_height + v_spacing) / denom;
+    std::vector<packing::ordered_slot> ordered_items(
+        static_cast<std::size_t>(n)
+    );
+    for (packing::ordered_slot& slot : ordered_items) {
+        slot.aspect = static_cast<double>(minimum_tile_width)
+            / static_cast<double>(minimum_tile_height);
     }
-    if (max_rows < 1) {
-        max_rows = 1;
-    }
-    if (max_rows > n) {
-        max_rows = n;
-    }
+    const double spacing = static_cast<double>(std::max(h_spacing, v_spacing));
+    const packing::ordered_layout_result plan = packing::layout_ordered_slots(
+        {
+            .viewport = { static_cast<double>(available_width),
+                          static_cast<double>(available_height) },
+            .items = ordered_items,
+            .policy = packing::scroll_policy::horizontal,
+            .minimum_short_side = static_cast<double>(minimum_tile_height),
+            .spacing = spacing,
+        }
+    );
 
-    const qint64 overflow_weight = 1000000;
-    const qint64 slack_weight = 1;
-    const qint64 row_weight = minimum_tile_height;
-
-    int best_rows = 1;
-    int best_cols = n;
-    qint64 best_score = 0;
-    bool has_best = false;
-
-    for (int rows = 1; rows <= max_rows; ++rows) {
-        const int cols = ceil_div(n, rows);
-        const int cols_minus_one = cols > 0 ? cols - 1 : 0;
-        const int needed_width
-            = cols * minimum_tile_width + cols_minus_one * h_spacing;
-
-        const int overflow = needed_width > available_width
-            ? needed_width - available_width
-            : 0;
-        const int slack = available_width > needed_width
-            ? available_width - needed_width
-            : 0;
-
-        const qint64 score = static_cast<qint64>(overflow) * overflow_weight
-            + static_cast<qint64>(slack) * slack_weight
-            + static_cast<qint64>(rows) * row_weight;
-
-        if (!has_best || score < best_score) {
-            has_best = true;
-            best_score = score;
-            best_rows = rows;
-            best_cols = cols;
+    int rows = 1;
+    int cols = n;
+    if (plan.rectangles.size() == ordered_items.size() && !plan.groups.empty()
+        && plan.axis == packing::shelf_axis::columns) {
+        rows = 0;
+        cols = static_cast<int>(plan.groups.size());
+        for (const packing::ordered_group group : plan.groups) {
+            rows = std::max(rows, static_cast<int>(group.end - group.begin));
         }
     }
-
-    const int rows = best_rows;
-    const int cols = best_cols;
     last_layout_rows = rows;
     last_layout_columns = cols;
 
@@ -248,13 +230,33 @@ void grid_view::rebuild_layout() {
         grid_layout->setRowStretch(r, 1);
     }
 
-    int idx = 0;
-    for (auto it = tiles.cbegin(); it != tiles.cend(); ++it, ++idx) {
-        const int r = idx / cols;
-        const int c = idx % cols;
-        auto* tile = it.value();
-        tile->show();
-        grid_layout->addWidget(tile, r, c);
+    std::vector<stream_cell*> ordered_tiles;
+    ordered_tiles.reserve(static_cast<std::size_t>(n));
+    for (auto it = tiles.cbegin(); it != tiles.cend(); ++it) {
+        ordered_tiles.push_back(it.value());
+    }
+
+    if (plan.rectangles.size() == ordered_tiles.size() && !plan.groups.empty()
+        && plan.axis == packing::shelf_axis::columns) {
+        for (std::size_t column = 0; column < plan.groups.size(); ++column) {
+            const packing::ordered_group group = plan.groups[column];
+            for (std::size_t index = group.begin; index < group.end; ++index) {
+                stream_cell* tile = ordered_tiles[index];
+                tile->show();
+                grid_layout->addWidget(
+                    tile, static_cast<int>(index - group.begin),
+                    static_cast<int>(column)
+                );
+            }
+        }
+    } else {
+        // Valid widget dimensions should always produce a shared-library plan.
+        // Keep a deterministic one-row fallback for startup/transient geometry.
+        for (int index = 0; index < n; ++index) {
+            stream_cell* tile = ordered_tiles[static_cast<std::size_t>(index)];
+            tile->show();
+            grid_layout->addWidget(tile, 0, index);
+        }
     }
 
     grid_container->updateGeometry();
