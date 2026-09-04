@@ -4,8 +4,10 @@
 #include "packing/layout/ordered_layout.hpp"
 #include "widgets/stream_cell.hpp"
 
+#include <QEvent>
 #include <QMessageBox>
 #include <QScrollArea>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QtMath>
 
@@ -40,10 +42,11 @@ grid_view::grid_view(QWidget* parent)
     : QWidget(parent)
     , scroll(new QScrollArea(this))
     , grid_container(new QWidget(scroll)) {
+    scroll->setObjectName(QStringLiteral("stream_grid_scroll_area"));
     scroll->setWidgetResizable(false);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setWidget(grid_container);
+    scroll->viewport()->installEventFilter(this);
+    update_scrollbar_policies();
 
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
@@ -171,13 +174,7 @@ void grid_view::set_scroll_direction(const scroll_direction direction) {
         return;
     }
     scroll_direction_ = direction;
-    const bool horizontal = direction == scroll_direction::horizontal;
-    scroll->setHorizontalScrollBarPolicy(
-        horizontal ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff
-    );
-    scroll->setVerticalScrollBarPolicy(
-        horizontal ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded
-    );
+    update_scrollbar_policies();
     rebuild_layout();
 }
 
@@ -196,7 +193,7 @@ void grid_view::set_sizing_mode(const sizing_mode mode) {
 
     if (mode == sizing_mode::fixed) {
         bool reset_sizes = !has_remembered_manual_sizes_;
-        if (has_remembered_manual_sizes_ && isVisible()) {
+        if (has_remembered_manual_sizes_) {
             reset_sizes
                 = QMessageBox::question(
                       this, tr("Restore fixed stream sizes?"),
@@ -222,6 +219,7 @@ void grid_view::set_sizing_mode(const sizing_mode mode) {
     }
 
     sizing_mode_ = mode;
+    update_scrollbar_policies();
     for (stream_cell* tile : tiles) {
         tile->set_fixed_size_controls_visible(mode == sizing_mode::fixed);
     }
@@ -245,9 +243,40 @@ void grid_view::enlarge_requested(const QString& name) {
     emit stream_enlarge(name);
 }
 
+bool grid_view::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == scroll->viewport() && event->type() == QEvent::Resize) {
+        schedule_rebuild();
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
 void grid_view::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     rebuild_layout();
+}
+
+void grid_view::schedule_rebuild() {
+    if (layout_rebuild_pending_) {
+        return;
+    }
+    layout_rebuild_pending_ = true;
+    QTimer::singleShot(0, this, [this]() {
+        layout_rebuild_pending_ = false;
+        rebuild_layout();
+    });
+}
+
+void grid_view::update_scrollbar_policies() {
+    const bool horizontal = scroll_direction_ == scroll_direction::horizontal;
+    const Qt::ScrollBarPolicy cross_policy = sizing_mode_ == sizing_mode::fixed
+        ? Qt::ScrollBarAsNeeded
+        : Qt::ScrollBarAlwaysOff;
+    scroll->setHorizontalScrollBarPolicy(
+        horizontal ? Qt::ScrollBarAsNeeded : cross_policy
+    );
+    scroll->setVerticalScrollBarPolicy(
+        horizontal ? cross_policy : Qt::ScrollBarAsNeeded
+    );
 }
 
 void grid_view::rebuild_layout() {
@@ -325,6 +354,7 @@ void grid_view::rebuild_layout() {
     } else {
         std::vector<packing::fixed_size_item> items;
         items.reserve(static_cast<std::size_t>(n));
+        packing::extent fixed_viewport = viewport;
         for (stream_cell* tile : tiles) {
             if (!tile->has_manual_short_side()) {
                 tile->initialize_manual_short_side(adaptive_minimum_short_side);
@@ -338,11 +368,18 @@ void grid_view::rebuild_layout() {
                 ? packing::extent { short_side * aspect, short_side }
                 : packing::extent { short_side, short_side / aspect };
             items.push_back({ .size = size });
+            if (scroll_direction_ == scroll_direction::horizontal) {
+                fixed_viewport.height
+                    = std::max(fixed_viewport.height, size.height);
+            } else {
+                fixed_viewport.width
+                    = std::max(fixed_viewport.width, size.width);
+            }
         }
         packing::fixed_size_layout_result fixed
             = packing::layout_fixed_size_rectangles(
                 {
-                    .viewport = viewport,
+                    .viewport = fixed_viewport,
                     .items = items,
                     .policy = packing_policy(scroll_direction_),
                     .spacing = layout_spacing,

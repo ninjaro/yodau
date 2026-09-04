@@ -43,9 +43,12 @@ signals:
     void stream_enlarge(const QString& name);
 
 protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
 private:
+    void schedule_rebuild();
+    void update_scrollbar_policies();
     void rebuild_layout();
     void close_requested(const QString& name);
     void enlarge_requested(const QString& name);
@@ -60,6 +63,7 @@ private:
     bool preserve_stream_order_ { false };
     sizing_mode sizing_mode_ { sizing_mode::adaptive };
     bool has_remembered_manual_sizes_ { false };
+    bool layout_rebuild_pending_ { false };
 };
 
 #endif // YODAU_APP_WIDGETS_GRID_VIEW_HPP
