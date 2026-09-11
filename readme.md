@@ -25,7 +25,7 @@ come.<sup><a href="#ref-0">[0]</a></sup> Where is my muse.
 **Keywords:** cli, monitoring, surveillance, event-detection,
 multistream, cpp23, qt6, stream-viewer.
 
-Index Terms-...todo
+**Index Terms**--waiting, strings, bubbles, noise, motion, decay, resonance.
 
 ### INFORMATION ABOUT THE AUTHORS
 
@@ -160,7 +160,7 @@ Physicists are welcome too. I assume string theory finally has a practical appli
 ## ACKNOWLEDGMENT
 
 This work started as my personal deviation from the Qt;Athon 2025 Round 2 brief Option #1, curated with
-Extenly.<sup><a href="#ref-5">[11]</a></sup>
+Extenly.<sup><a href="#ref-11">[11]</a></sup>
 Thanks to the Qt;Athon organizers and Extenly for the prompt.
 I also thank the teammates who said "yes" to joining, but went unavailable/unreachable by the time I registered the
 team - the project ended up solo.
@@ -169,7 +169,7 @@ team - the project ended up solo.
 
 Conflict of Interest: the author declares no financial or institutional conflicts, except a fully disclosed personal
 interest in the Qt;Athon 2025 prizes - a Steam Deck (512GB OLED), a 100€ Xbox gift card, and up to 4 hours of mentoring
-from a Qt expert, with runner-up prizes being Qt Certification Test attempts.<sup><a href="#ref-6">[12]</a></sup>
+from a Qt expert, with runner-up prizes being Qt Certification Test attempts.<sup><a href="#ref-12">[12]</a></sup>
 This prize pool is the sole motivation for the project: I would rather win my Christmas shopping than do it myself.  
 Ethics Statement: development and testing used a mix of self-recorded and third-party video streams.
 All rights to third-party materials remain with their respective owners; no test media is redistributed with this
@@ -204,9 +204,9 @@ Nov. 2025. [Online]. Available:
 
 <a id="ref-10"></a>[10] Einstürzende Neubauten, “NNNAAAMMM,” Ende Neu, official lyrics. [Online]. Available: https://neubauten.org/en/ende-neu/
 
-<a id="ref-5"></a>[11] Qt Group, "Qt;Athon 2025 Round 2 Project Briefs - Option #1: Multi-Camera Surveillance (
+<a id="ref-11"></a>[11] Qt Group, "Qt;Athon 2025 Round 2 Project Briefs - Option #1: Multi-Camera Surveillance (
 Extenly)," competition instructions page, accessed Nov. 2025. [Online]. Available: 
 
-<a id="ref-6"></a>[12] Qt Group, "Qt;Athon 2025 Prizes," competition page / official announcement (grand prize: Steam
+<a id="ref-12"></a>[12] Qt Group, "Qt;Athon 2025 Prizes," competition page / official announcement (grand prize: Steam
 Deck 512GB OLED + 100€ Xbox gift card + Qt expert mentoring; runner-up prizes include Qt Certification Test attempts),
 accessed Nov. 2025. [Online]. Available: 
