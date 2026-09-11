@@ -190,7 +190,7 @@ silent.
 black-and-white and tinted, silent with music; DVD release, 2005.
 
 <a id="ref-4"></a>[4] IEEE, *IEEE Editorial Style Manual*, Sec. "Abstract and Footnotes," consulted and disregarded,
-Nov. 2025. [Online]. Available: 
+Nov. 2025. [Online]. Available: https://journals.ieeeauthorcenter.ieee.org/wp-content/uploads/sites/7/IEEE-Editorial-Style-Manual-for-Authors.pdf
 
 <a id="ref-5"></a>[5] ninjaro/yodau, "demos," GitHub Issue #23, opened Dec. 11, 2025, accessed Sep. 11, 2026. [Online]. Available: https://github.com/ninjaro/yodau/issues/23
 
@@ -200,13 +200,11 @@ Nov. 2025. [Online]. Available:
 
 <a id="ref-8"></a>[8] B. Bargeld, quoted in J. Ziemer, “Einstürzende Neubauten: Die zarteste Versuchung, seit es Lärm gibt,” Der Spiegel, Mar. 31, 2000; reproduced by Humboldt Forum, “4. November 2004.” [Online]. Available: https://pdr.humboldtforum.org/4-november-2004/
 
-<a id="ref-9"></a>[9] L. Reed, interview discussing the “Ostrich” tuning, in which all guitar strings are tuned to one note.
+<a id="ref-9"></a>[9] L. Reed and S. Sagmeister, interview, <i>Graphis</i>. [Online]. Available: https://www.loureed.com/features/sagmeister/loureed_sagmeister.pdf
 
 <a id="ref-10"></a>[10] Einstürzende Neubauten, “NNNAAAMMM,” Ende Neu, official lyrics. [Online]. Available: https://neubauten.org/en/ende-neu/
 
 <a id="ref-11"></a>[11] Qt Group, "Qt;Athon 2025 Round 2 Project Briefs - Option #1: Multi-Camera Surveillance (
-Extenly)," competition instructions page, accessed Nov. 2025. [Online]. Available: 
+Extenly)," competition instructions page, accessed Nov. 2025. [Online]. Available: https://www.qt.io/coding-comp-instructions-r2?_hsmi=121976738
 
-<a id="ref-12"></a>[12] Qt Group, "Qt;Athon 2025 Prizes," competition page / official announcement (grand prize: Steam
-Deck 512GB OLED + 100€ Xbox gift card + Qt expert mentoring; runner-up prizes include Qt Certification Test attempts),
-accessed Nov. 2025. [Online]. Available: 
+<a id="ref-12"></a>[12] Qt Group, "Qt;Athon 2025," competition page. [Online]. Available: https://www.qt.io/qt-coding-competition-qtathon25
