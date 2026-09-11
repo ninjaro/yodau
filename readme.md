@@ -205,6 +205,6 @@ Nov. 2025. [Online]. Available: https://journals.ieeeauthorcenter.ieee.org/wp-co
 <a id="ref-10"></a>[10] Einstürzende Neubauten, “NNNAAAMMM,” Ende Neu, official lyrics. [Online]. Available: https://neubauten.org/en/ende-neu/
 
 <a id="ref-11"></a>[11] Qt Group, "Qt;Athon 2025 Round 2 Project Briefs - Option #1: Multi-Camera Surveillance (
-Extenly)," competition instructions page, accessed Nov. 2025. [Online]. Available: https://www.qt.io/coding-comp-instructions-r2?_hsmi=121976738
+Extenly)," competition instructions page, accessed Nov. 2025. [Online]. Available: https://www.qt.io/coding-comp-instructions-r2
 
 <a id="ref-12"></a>[12] Qt Group, "Qt;Athon 2025," competition page. [Online]. Available: https://www.qt.io/qt-coding-competition-qtathon25
