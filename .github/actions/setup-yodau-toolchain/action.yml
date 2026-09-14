@@ -1,0 +1,145 @@
+name: Setup yodau toolchain
+description: Install the pinned yodau CI toolchain and build Manifesto.
+
+inputs:
+  manifesto-repository:
+    description: Repository containing the ecosystem tool.
+    required: true
+  manifesto-ref:
+    description: Immutable commit containing the ecosystem tool.
+    required: true
+  build-parallelism:
+    description: Parallelism used to build the ecosystem tool.
+    required: false
+    default: '2'
+  install-docs:
+    description: Install documentation packages from the signed OS repository.
+    required: false
+    default: 'false'
+  sphinx-theme-package:
+    description: Retained for compatibility with generated workflows.
+    required: false
+    default: 'sphinx-rtd-theme'
+
+outputs:
+  manifesto-source-root:
+    description: Checked-out ecosystem source tree.
+    value: ${{ steps.paths.outputs.manifesto-source-root }}
+  manifesto-build-root:
+    description: Ecosystem build tree.
+    value: ${{ steps.paths.outputs.manifesto-build-root }}
+  manifesto-binary:
+    description: Built manifesto executable.
+    value: ${{ steps.paths.outputs.manifesto-binary }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set toolchain paths
+      id: paths
+      shell: bash
+      run: |
+        echo "manifesto-source-root=.ecosystem/tooling/cppr/ecosystem" >> "$GITHUB_OUTPUT"
+        echo "manifesto-bootstrap-root=.ecosystem/tooling/build/debug" >> "$GITHUB_OUTPUT"
+        echo "manifesto-build-root=.ecosystem/tooling/build/debug" >> "$GITHUB_OUTPUT"
+        echo "manifesto-binary=.ecosystem/tooling/build/debug/manifesto" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout ecosystem tool at the workflow commit
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        repository: ${{ inputs.manifesto-repository }}
+        ref: ${{ inputs.manifesto-ref }}
+        path: .ecosystem/tooling/cppr
+        sparse-checkout: |
+          ecosystem
+        sparse-checkout-cone-mode: false
+
+    - name: Install Qt 6.8.3
+      uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+      with:
+        version: '6.8.3'
+        target: desktop
+        modules: qtmultimedia
+        install-deps: 'true'
+        cache: 'true'
+        aqtversion: '==3.1.21'
+        py7zrversion: '==0.22.0'
+
+    - name: Install native dependencies
+      shell: bash
+      run: |
+        packages=(
+          clang
+          clang-format
+          clang-tidy
+          cmake
+          ninja-build
+          pkg-config
+          libclang-dev
+          default-jdk
+          libopencv-dev
+          libcxxopts-dev
+          libgtest-dev
+          libbenchmark-dev
+        )
+        if [ "${{ inputs.install-docs }}" = "true" ]; then
+          packages+=(
+            graphviz
+            python3-sphinx
+            python3-myst-parser
+            python3-sphinx-rtd-theme
+          )
+        fi
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends "${packages[@]}"
+
+    - name: Install pinned nlohmann JSON
+      shell: bash
+      run: |
+        archive="$RUNNER_TEMP/nlohmann-json-v3.12.0.tar.gz"
+        source_root="$RUNNER_TEMP/nlohmann-json-3.12.0"
+        build_root="$RUNNER_TEMP/nlohmann-json-build"
+        prefix="$RUNNER_TEMP/yodau-dependencies"
+        curl --fail --location --silent --show-error \
+          https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz \
+          --output "$archive"
+        echo "4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187  $archive" \
+          | sha256sum --check --strict
+        mkdir -p "$source_root" "$build_root" "$prefix"
+        tar --extract --gzip --file "$archive" --strip-components=1 \
+          --directory "$source_root"
+        cmake -S "$source_root" -B "$build_root" \
+          -DJSON_BuildTests=OFF \
+          -DCMAKE_INSTALL_PREFIX="$prefix"
+        cmake --build "$build_root" --target install --parallel 2
+        echo "CMAKE_PREFIX_PATH=$prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}" \
+          >> "$GITHUB_ENV"
+
+    - name: Record resolved dependency versions
+      shell: bash
+      run: |
+        report_root=".ecosystem/github/reports/00-toolchain"
+        mkdir -p "$report_root"
+        {
+          cmake --version | head -n 1
+          clang++ --version | head -n 1
+          qmake -query QT_VERSION
+          pkg-config --modversion opencv4
+          printf '%s\n' 'nlohmann_json 3.12.0'
+          printf 'manifesto commit %s\n' '${{ inputs.manifesto-ref }}'
+        } > "$report_root/versions.txt"
+
+    - name: Build manifesto tool
+      shell: bash
+      env:
+        CC: clang
+        CXX: clang++
+      run: |
+        cmake \
+          -S "${{ steps.paths.outputs.manifesto-source-root }}" \
+          -B "${{ steps.paths.outputs.manifesto-bootstrap-root }}" \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DECOSYSTEM_BUILD_TESTS=OFF
+        cmake --build \
+          "${{ steps.paths.outputs.manifesto-bootstrap-root }}" \
+          --parallel "${{ inputs.build-parallelism }}"

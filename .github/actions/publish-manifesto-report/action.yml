@@ -1,0 +1,164 @@
+name: Publish Ecosystem Report
+description: Publish combined ecosystem CI reports to workflow summaries, pull request comments, and default-branch issues.
+
+inputs:
+  project-id:
+    description: Managed project identifier.
+    required: true
+  report-key:
+    description: Stable identifier used for sticky comments and issues.
+    required: true
+  report-title:
+    description: Human-readable title for the combined report.
+    required: true
+  report-directory:
+    description: Directory that contains stage summary files.
+    required: true
+
+outputs:
+  has-failures:
+    description: Whether any downloaded stage report marked a failure.
+    value: ${{ steps.combine.outputs.has-failures }}
+  summary-path:
+    description: Path to the combined report Markdown file.
+    value: ${{ steps.combine.outputs.summary-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Combine stage reports
+      id: combine
+      shell: bash
+      run: |
+        report_dir="${{ inputs.report-directory }}"
+        summary_path="$RUNNER_TEMP/ecosystem-${{ inputs.report-key }}-report.md"
+        marker="<!-- ecosystem-ci-report:${{ inputs.project-id }}:${{ inputs.report-key }} -->"
+        mkdir -p "$report_dir"
+
+        has_failures="false"
+        if grep -R 'status: `failed`' "$report_dir" > /dev/null 2>&1; then
+          has_failures="true"
+        fi
+
+        {
+          printf '%s\n' "$marker"
+          printf '# %s %s\n\n' "${{ inputs.project-id }}" "${{ inputs.report-title }}"
+          printf -- '- workflow: `%s`\n' "$GITHUB_WORKFLOW"
+          printf -- '- ref: `%s`\n' "$GITHUB_REF_NAME"
+          printf -- '- run: `https://github.com/%s/actions/runs/%s`\n\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+          if ! find "$report_dir" -name summary.md -print -quit | grep -q .; then
+            printf 'No stage reports were produced.\n'
+          else
+            while IFS= read -r file; do
+              cat "$file"
+              printf '\n\n'
+            done < <(find "$report_dir" -name summary.md | sort)
+          fi
+        } > "$summary_path"
+
+        cat "$summary_path" >> "$GITHUB_STEP_SUMMARY"
+        echo "has-failures=$has_failures" >> "$GITHUB_OUTPUT"
+        echo "summary-path=$summary_path" >> "$GITHUB_OUTPUT"
+        echo "marker=$marker" >> "$GITHUB_OUTPUT"
+
+    - name: Update pull request comment
+      if: ${{ github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      env:
+        ECOS_MARKER: ${{ steps.combine.outputs.marker }}
+        ECOS_SUMMARY_PATH: ${{ steps.combine.outputs.summary-path }}
+      with:
+        script: |
+          const fs = require('fs');
+          const core = require('@actions/core');
+          try {
+            const body = fs.readFileSync(process.env.ECOS_SUMMARY_PATH, 'utf8');
+            const marker = process.env.ECOS_MARKER;
+            const issueNumber = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              per_page: 100
+            });
+            const existing = comments.find((comment) => {
+              return comment.user.type === 'Bot'
+                && typeof comment.body === 'string'
+                && comment.body.includes(marker);
+            });
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body
+              });
+            }
+          } catch (error) {
+            core.warning(`unable to update the pull request report: ${error.message}`);
+          }
+
+    - name: Sync default-branch issue
+      if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+      uses: actions/github-script@v7
+      env:
+        ECOS_HAS_FAILURES: ${{ steps.combine.outputs.has-failures }}
+        ECOS_MARKER: ${{ steps.combine.outputs.marker }}
+        ECOS_SUMMARY_PATH: ${{ steps.combine.outputs.summary-path }}
+        ECOS_REPORT_TITLE: ${{ inputs.project-id }} ${{ inputs.report-title }} report
+      with:
+        script: |
+          const fs = require('fs');
+          const core = require('@actions/core');
+          try {
+            const body = fs.readFileSync(process.env.ECOS_SUMMARY_PATH, 'utf8');
+            const marker = process.env.ECOS_MARKER;
+            const title = process.env.ECOS_REPORT_TITLE;
+            const hasFailures = process.env.ECOS_HAS_FAILURES === 'true';
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+            const existing = issues.find((issue) => {
+              return !issue.pull_request
+                && typeof issue.body === 'string'
+                && issue.body.includes(marker);
+            });
+            if (hasFailures) {
+              if (existing) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existing.number,
+                  title,
+                  body,
+                  state: 'open'
+                });
+              } else {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title,
+                  body
+                });
+              }
+            } else if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'closed'
+              });
+            }
+          } catch (error) {
+            core.warning(`unable to sync the default-branch report issue: ${error.message}`);
+          }

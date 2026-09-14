@@ -1,0 +1,203 @@
+{
+  "id": "yodau",
+  "description": "Video processing application with desktop, CLI, and headless workflows.",
+  "version": "1.0.0",
+  "cpp_standard": 23,
+  "android_application_id": "org.ninjaro.yodau",
+  "install_assets": true,
+  "facade": "app:app",
+  "artifacts": [
+    {
+      "id": "watchdog_client:client",
+      "kind": "static_lib",
+      "owns": [],
+      "packages": {
+        "external_project": {
+          "repository": "https://github.com/ninjaro/peepbooth",
+          "revision": "master",
+          "package": "monitor",
+          "artifact": "watchdog_client:client"
+        }
+      },
+      "name": "monitor_watchdog_client"
+    },
+    {
+      "id": "watchdog_qt:qt",
+      "kind": "static_lib",
+      "owns": [],
+      "packages": {
+        "external_project": {
+          "repository": "https://github.com/ninjaro/peepbooth",
+          "revision": "master",
+          "package": "monitor",
+          "artifact": "watchdog_qt:qt"
+        }
+      },
+      "name": "monitor_watchdog_qt"
+    },
+    {
+      "id": "packing_library:core",
+      "kind": "static_lib",
+      "owns": [],
+      "packages": {
+        "external_project": {
+          "repository": "https://github.com/ninjaro/rothko",
+          "revision": "master",
+          "package": "packing",
+          "artifact": "library:core"
+        }
+      },
+      "name": "packing_core"
+    },
+    {
+      "id": "core:core",
+      "kind": "static_lib",
+      "name": "yodau_core",
+      "root": "core",
+      "owns": [
+        "analysis",
+        "geometry",
+        "streams",
+        "concurrency/stoppable_thread",
+        "configuration/line_configuration",
+        "configuration/line_configuration_model"
+      ],
+      "dependencies": [
+        "watchdog_client:client"
+      ],
+      "packages": {
+        "opencv": [
+          "optional"
+        ]
+      }
+    },
+    {
+      "id": "configuration_io:io",
+      "kind": "static_lib",
+      "name": "yodau_configuration_io",
+      "root": "core",
+      "owns": [
+        "configuration/line_configuration_file",
+        "configuration/line_configuration_json"
+      ],
+      "dependencies": [
+        "core:core"
+      ],
+      "packages": {
+        "json": [
+          "nlohmann_json"
+        ]
+      }
+    },
+    {
+      "id": "headless_runtime:runtime",
+      "kind": "static_lib",
+      "name": "yodau_daemon_runtime",
+      "root": "core",
+      "owns": [
+        "daemon/headless_daemon"
+      ],
+      "dependencies": [
+        "core:core",
+        "configuration_io:io"
+      ]
+    },
+    {
+      "id": "core_cli:cli",
+      "kind": "exe",
+      "name": "yodau_cli",
+      "root": "core",
+      "owns": [
+        "cli/cli_client",
+        "cli/cli_log",
+        "src/cli/main.cpp"
+      ],
+      "entry": "src/cli/main.cpp",
+      "dependencies": [
+        "core:core"
+      ],
+      "packages": {
+        "cxxopts": [
+          "cxxopts"
+        ]
+      }
+    },
+    {
+      "id": "daemon:daemon",
+      "kind": "exe",
+      "name": "yodau-daemon",
+      "root": "core",
+      "owns": [
+        "src/daemon/main.cpp"
+      ],
+      "entry": "src/daemon/main.cpp",
+      "dependencies": [
+        "headless_runtime:runtime"
+      ],
+      "packages": {
+        "cxxopts": [
+          "cxxopts"
+        ]
+      }
+    },
+    {
+      "id": "app:ui",
+      "kind": "static_lib",
+      "name": "yodau_app",
+      "root": "app",
+      "owns": [
+        "shell",
+        "widgets"
+      ],
+      "dependencies": [
+        "core:core",
+        "configuration_io:io",
+        "watchdog_qt:qt",
+        "packing_library:core"
+      ],
+      "packages": {
+        "qt": [
+          "Core",
+          "Widgets",
+          "Multimedia",
+          "MultimediaWidgets"
+        ],
+        "kde": [
+          "CoreAddons",
+          "I18n",
+          "XmlGui",
+          "ConfigWidgets",
+          "WidgetsAddons"
+        ]
+      }
+    },
+    {
+      "id": "app:app",
+      "kind": "qt_app",
+      "name": "yodau",
+      "root": "app",
+      "owns": [
+        "src/main.cpp"
+      ],
+      "entry": "src/main.cpp",
+      "dependencies": [
+        "app:ui"
+      ],
+      "packages": {
+        "qt": [
+          "Core",
+          "Widgets",
+          "Multimedia",
+          "MultimediaWidgets"
+        ],
+        "kde": [
+          "CoreAddons",
+          "I18n",
+          "XmlGui",
+          "ConfigWidgets",
+          "WidgetsAddons"
+        ]
+      }
+    }
+  ]
+}

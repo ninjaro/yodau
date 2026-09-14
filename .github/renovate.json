@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices"
+  ],
+  "timezone": "Europe/Berlin",
+  "labels": [
+    "deps",
+    "github-actions"
+  ],
+  "schedule": [
+    "every weekend"
+  ],
+  "dependencyDashboard": true,
+  "packageRules": [
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "digest"
+      ],
+      "automerge": true,
+      "automergeType": "branch",
+      "groupName": "GitHub Actions",
+      "minimumReleaseAge": "7 days"
+    }
+  ]
+}

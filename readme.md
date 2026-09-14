@@ -1,3 +1,5 @@
+![Demo](assets/showcase/demo.gif)
+
 ## Year of the Depend Adult Undergarment<sup><a href="#ref-0">[0]</a></sup>
 
 #### Y.I.Riabtsev<sup>1</sup>
@@ -46,9 +48,69 @@ Index Terms-...todo
 [![Deploy](https://github.com/ninjaro/yodau/actions/workflows/html.yml/badge.svg)](https://github.com/ninjaro/yodau/actions/workflows/html.yml)
 [![version](https://img.shields.io/github/v/release/ninjaro/yodau?include_prereleases)](https://github.com/ninjaro/yodau/releases/latest)
 
-## Screenshots
+## I. IN THE YODAU
 
-TODO: add screenshots of the GUI with multiple streams, lines, and event detections.
+**I / SHALL / KEEP WAITING** / if you don't mind
+**IN / THE / YO-DAU / I / SHALL**
+**KEEP WAITING** / if you decide / in the yodau.
+**I / SHALL / KEEP WAITING** / if you don't mind
+**I / SHALL / KEEP WAITING** / if you don't mind
+**I / SHALL / KEEP WAITING** / if you don't forget
+**IN / THE / YO-DAU / I / SHALL**
+**IN / THE / YO-DAU / I / SHALL**
+**KEEP WAITING** / if it's pouring down with rain / in the yodau.<sup><a href="#ref-6">[6]</a></sup>
+
+Das Zimmer liegt im Negativ.
+Ich bin in meinem Bild.
+In meinem weißen Garten,
+zwischen Farben eingeklemmt,
+in der Enklave meiner Wahl,
+in der ich mich versteck.
+Im Yodau. See Fig. 1.<sup><a href="#ref-7">[7]</a></sup>
+
+![Negative](assets/showcase/negative.png)
+
+**Fig. 1.** Negative. Made Feb. 11, 2026.
+
+**I / SHALL / KEEP WAITING** / if you don't mind
+**IN / THE / YO-DAU / I / SHALL**
+**KEEP WAITING** / if you decide / in the yodau.
+**I / SHALL / KEEP WAITING** / if you don't mind
+**I / SHALL / KEEP WAITING** / if you don't mind
+**I / SHALL / KEEP WAITING** / if you don't forget
+**IN / THE / YO-DAU / I / SHALL**
+**IN / THE / YO-DAU / I / SHALL**
+**KEEP WAITING** / if it's pouring down with rain / in the yodau.
+
+I will be waiting for you through bubbles; see Fig. 2.
+continue waiting for you waiting in the bubbles
+waiting, waiting for their fall
+I will continue waiting for the bubbles to be ripened
+waiting, waiting for their fall
+I will continue waiting in the spring of *Homo bulla*.
+
+![Bubbles](assets/showcase/bubbles.gif)
+
+**Fig. 2.** Motion through bubbles.<sup><a href="#ref-5">[5]</a></sup>
+
+I will continue waiting while the ash still holds its shape
+continue waiting until movement gives the shape away
+waiting, waiting for what is left to fall
+waiting for their fall
+waiting for their fall.
+
+**I / SHALL / KEEP WAITING** / if you don't mind
+**IN / THE / YO-DAU / I / SHALL**
+**KEEP WAITING** / if you decide / in the yodau.
+**I / SHALL / KEEP WAITING** / if you don't mind
+**I / SHALL / KEEP WAITING** / if you don't mind
+**I / SHALL / KEEP WAITING** / if you don't forget
+**IN / THE / YO-DAU / I / SHALL**
+**IN / THE / YO-DAU / I / SHALL**
+**KEEP WAITING** / if it's pouring down with rain / in the yodau.
+
+*Komm mich mal besuchen.*
+*Ich hab' unendlich Zeit.*<sup><a href="#ref-7">[7]</a></sup>
 
 ## ACKNOWLEDGMENT
 
@@ -84,6 +146,12 @@ black-and-white and tinted, silent with music; DVD release, 2005.
 
 <a id="ref-4"></a>[4] IEEE, *IEEE Editorial Style Manual*, Sec. "Abstract and Footnotes," consulted and disregarded,
 Nov. 2025. [Online]. Available: 
+
+<a id="ref-5"></a>[5] ninjaro/yodau, "demos," GitHub Issue #23, opened Dec. 11, 2025, accessed Sep. 11, 2026. [Online]. Available: https://github.com/ninjaro/yodau/issues/23
+
+<a id="ref-6"></a>[6] Einstürzende Neubauten, "The Garden," *Ende Neu*, official lyrics. [Online]. Available: https://neubauten.org/de/ende-neu-de/
+
+<a id="ref-7"></a>[7] Einstürzende Neubauten, "Nagorny Karabach," *Alles Wieder Offen*, official lyrics. [Online]. Available: https://neubauten.org/de/alles-wieder-offen-de/
 
 <a id="ref-5"></a>[5] Qt Group, "Qt;Athon 2025 Round 2 Project Briefs - Option #1: Multi-Camera Surveillance (
 Extenly)," competition instructions page, accessed Nov. 2025. [Online]. Available: 

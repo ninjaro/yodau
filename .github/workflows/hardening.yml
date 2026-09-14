@@ -1,0 +1,90 @@
+name: Hardening
+
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'core/**'
+      - 'manifest.json'
+      - 'manifesto.github.vars.json'
+      - 'CMakeLists.txt'
+      - '.github/actions/setup-yodau-toolchain/**'
+      - '.github/workflows/hardening.yml'
+  push:
+    paths:
+      - 'app/**'
+      - 'core/**'
+      - 'manifest.json'
+      - 'manifesto.github.vars.json'
+      - 'CMakeLists.txt'
+      - '.github/actions/setup-yodau-toolchain/**'
+      - '.github/workflows/hardening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hardening-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sanitizer-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup pinned toolchain
+        id: manifesto
+        uses: ./.github/actions/setup-yodau-toolchain
+        with:
+          manifesto-repository: ninjaro/cppr
+          manifesto-ref: b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914
+          build-parallelism: 2
+
+      - name: Generate and verify standalone build surface
+        shell: bash
+        run: |
+          "${{ steps.manifesto.outputs.manifesto-binary }}" sync
+          if grep -Fq '.ecosystem/source/CMakeLists.txt' CMakeLists.txt; then
+            echo 'Tracked CMake still depends on ignored generated files.' >&2
+            exit 1
+          fi
+          cmake -S . -B build-standalone -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build-standalone --parallel 2 --target app__app
+
+      - name: Configure sanitizer developer graph
+        shell: bash
+        run: |
+          cmake -S .ecosystem/source -B build-hardening -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DECOSYSTEM_BUILD_TESTS=ON \
+            -DECOSYSTEM_BUILD_BENCHMARKS=OFF \
+            -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
+            -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+
+      - name: Build sanitizer test targets
+        run: |
+          cmake --build build-hardening --parallel 2 \
+            --target core_tests__tests app_tests__tests
+
+      - name: Run ASan and UBSan tests
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build-hardening --output-on-failure
+
+      - name: Upload dependency and sanitizer evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: yodau-hardening-evidence
+          path: |
+            .ecosystem/github/reports/00-toolchain/versions.txt
+            build-hardening/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 14
