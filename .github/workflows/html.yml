@@ -1,0 +1,157 @@
+name: Deploy
+
+# Sphinx/Pages remains opt-in until the presentation stage is accepted.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pages: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - name: Setup manifesto tool
+        id: manifesto
+        uses: ./.github/actions/setup-yodau-toolchain
+        with:
+          bootstrap: "repository"
+          source-path: "."
+          manifesto-repository: "ninjaro/cppr"
+          manifesto-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
+          build-parallelism: 2
+          install-docs: 'true'
+          sphinx-theme-package: sphinx-rtd-theme
+
+      - name: Verify generated tracked surfaces
+        uses: ./.github/actions/run-manifesto-stage
+        with:
+          stage-id: 01-tracked-surface
+          stage-label: Tracked surface verification
+          shell-command: |
+            "${{ steps.manifesto.outputs.marx-binary }}" sync
+            git diff --exit-code -- CMakeLists.txt .gitignore .clang-format .clang-tidy .github
+
+      - name: Run coverage when supported
+        id: coverage
+        uses: ./.github/actions/run-manifesto-stage
+        with:
+          stage-id: 02-coverage-check
+          stage-label: Coverage check
+          shell-command: |
+            "${{ steps.manifesto.outputs.engels-binary }}" check coverage
+          skipped-exit-codes: 3
+
+      - name: Upload coverage artifact
+        if: ${{ steps.coverage.outputs.status == 'passed' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-yodau
+          path: .ecosystem/reports/coverage.json
+          if-no-files-found: warn
+
+      - name: Generate docs site when supported
+        uses: ./.github/actions/run-manifesto-stage
+        with:
+          stage-id: 03-docs-build
+          stage-label: Documentation build
+          shell-command: |
+            if [ -f docs/index.md ] || [ -f docs/index.rst ]; then
+              "${{ steps.manifesto.outputs.engels-binary }}" check sphinx --theme sphinx_rtd_theme
+              exit $?
+            fi
+            mkdir -p .ecosystem/sphinx/html
+            printf '%s\n' \
+              '<!DOCTYPE html>' \
+              '<html lang="en">' \
+              '<head><meta charset="utf-8"><title>yodau</title></head>' \
+              '<body><h1>yodau</h1><p>No docs/index.md or docs/index.rst surface is declared for this project yet.</p></body>' \
+              '</html>' \
+              > .ecosystem/sphinx/html/index.html
+            exit 3
+          skipped-exit-codes: 3
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .ecosystem/sphinx/html
+
+      - name: Upload Pages reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-reports-yodau-pages
+          path: .ecosystem/github/reports
+          if-no-files-found: warn
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch) }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  report:
+    runs-on: ubuntu-24.04
+    needs:
+      - build
+      - deploy
+    if: ${{ always() }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Pages report artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ci-reports-yodau-pages
+          path: .ecosystem/github/reports
+          merge-multiple: true
+
+      - name: Summarize Pages deployment
+        shell: bash
+        run: |
+          report_root=".ecosystem/github/reports/10-pages-deploy"
+          mkdir -p "$report_root"
+          status="skipped"
+          if [ "${{ needs.deploy.result }}" = "success" ]; then
+            status="passed"
+          elif [ "${{ needs.deploy.result }}" = "failure" ] || [ "${{ needs.deploy.result }}" = "cancelled" ]; then
+            status="failed"
+          fi
+          {
+            printf '## Pages deployment\n\n'
+            printf -- '- status: `%s`\n' "$status"
+            printf -- '- deploy job result: `%s`\n' "${{ needs.deploy.result }}"
+            if [ -n "${{ needs.deploy.outputs.page_url }}" ]; then
+              printf -- '- page url: `%s`\n' "${{ needs.deploy.outputs.page_url }}"
+            fi
+          } > "$report_root/summary.md"
+          cat "$report_root/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish Pages report
+        uses: ./.github/actions/publish-manifesto-report
+        with:
+          project-id: yodau
+          report-key: pages
+          report-title: Pages
+          report-directory: .ecosystem/github/reports
