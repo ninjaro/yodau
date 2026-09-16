@@ -50,68 +50,68 @@ multistream, cpp23, qt6, stream-viewer.
 
 ## I. IN THE YODAU
 
-**I / SHALL / KEEP WAITING** / if you don't mind
-**IN / THE / YO-DAU / I / SHALL**
-**KEEP WAITING** / if you decide / in the yodau.
-**I / SHALL / KEEP WAITING** / if you don't mind
-**I / SHALL / KEEP WAITING** / if you don't mind
-**I / SHALL / KEEP WAITING** / if you don't forget
-**IN / THE / YO-DAU / I / SHALL**
-**IN / THE / YO-DAU / I / SHALL**
-**KEEP WAITING** / if it's pouring down with rain / in the yodau.<sup><a href="#ref-6">[6]</a></sup>
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**IN / THE / YO-DAU / I / SHALL**  
+**KEEP WAITING** / if you decide / in the yodau.  
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**I / SHALL / KEEP WAITING** / if you don't forget  
+**IN / THE / YO-DAU / I / SHALL**  
+**IN / THE / YO-DAU / I / SHALL**  
+**KEEP WAITING** / if it's pouring down with rain / in the yodau.<sup><a href="#ref-6">[6]</a></sup>  
 
-Das Zimmer liegt im Negativ.
-Ich bin in meinem Bild.
-In meinem weißen Garten,
-zwischen Farben eingeklemmt,
-in der Enklave meiner Wahl,
-in der ich mich versteck.
-Im Yodau. See Fig. 1.<sup><a href="#ref-7">[7]</a></sup>
+Das Zimmer liegt im Negativ.  
+Ich bin in meinem Bild.  
+In meinem weißen Garten,  
+zwischen Farben eingeklemmt,  
+in der Enklave meiner Wahl,  
+in der ich mich versteck.  
+Im Yodau. See Fig. 1.<sup><a href="#ref-7">[7]</a></sup>  
 
 ![Negative](assets/showcase/negative.png)
 
 **Fig. 1.** Negative. Made Feb. 11, 2026.
 
-**I / SHALL / KEEP WAITING** / if you don't mind
-**IN / THE / YO-DAU / I / SHALL**
-**KEEP WAITING** / if you decide / in the yodau.
-**I / SHALL / KEEP WAITING** / if you don't mind
-**I / SHALL / KEEP WAITING** / if you don't mind
-**I / SHALL / KEEP WAITING** / if you don't forget
-**IN / THE / YO-DAU / I / SHALL**
-**IN / THE / YO-DAU / I / SHALL**
-**KEEP WAITING** / if it's pouring down with rain / in the yodau.
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**IN / THE / YO-DAU / I / SHALL**  
+**KEEP WAITING** / if you decide / in the yodau.  
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**I / SHALL / KEEP WAITING** / if you don't forget  
+**IN / THE / YO-DAU / I / SHALL**  
+**IN / THE / YO-DAU / I / SHALL**  
+**KEEP WAITING** / if it's pouring down with rain / in the yodau.  
 
-I will be waiting for you through bubbles; see Fig. 2.
-continue waiting for you waiting in the bubbles
-waiting, waiting for their fall
-I will continue waiting for the bubbles to be ripened
-waiting, waiting for their fall
-I will continue waiting in the spring of *Homo bulla*.
+I will be waiting for you through bubbles; see Fig. 2.  
+continue waiting for you waiting in the bubbles  
+waiting, waiting for their fall  
+I will continue waiting for the bubbles to be ripened  
+waiting, waiting for their fall  
+I will continue waiting in the spring of *Homo bulla*.  
 
 ![Bubbles](assets/showcase/bubbles.gif)
 
 **Fig. 2.** Motion through bubbles.<sup><a href="#ref-5">[5]</a></sup>
 
-I will continue waiting while the ash still holds its shape
-continue waiting until movement gives the shape away
-waiting, waiting for what is left to fall
-waiting for their fall
-waiting for their fall.
+I will continue waiting while the ash still holds its shape  
+continue waiting until movement gives the shape away  
+waiting, waiting for what is left to fall  
+waiting for their fall  
+waiting for their fall.  
 
-**I / SHALL / KEEP WAITING** / if you don't mind
-**IN / THE / YO-DAU / I / SHALL**
-**KEEP WAITING** / if you decide / in the yodau.
-**I / SHALL / KEEP WAITING** / if you don't mind
-**I / SHALL / KEEP WAITING** / if you don't mind
-**I / SHALL / KEEP WAITING** / if you don't forget
-**IN / THE / YO-DAU / I / SHALL**
-**IN / THE / YO-DAU / I / SHALL**
-**KEEP WAITING** / if it's pouring down with rain / in the yodau.
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**IN / THE / YO-DAU / I / SHALL**  
+**KEEP WAITING** / if you decide / in the yodau.  
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**I / SHALL / KEEP WAITING** / if you don't mind  
+**I / SHALL / KEEP WAITING** / if you don't forget  
+**IN / THE / YO-DAU / I / SHALL**  
+**IN / THE / YO-DAU / I / SHALL**  
+**KEEP WAITING** / if it's pouring down with rain / in the yodau.  
 
-*Komm mich mal besuchen.*
-*Ich hab' unendlich Zeit.*<sup><a href="#ref-7">[7]</a></sup>
-=======
+*Komm mich mal besuchen.*  
+*Ich hab' unendlich Zeit.*<sup><a href="#ref-7">[7]</a></sup>  
+
 **I / SHALL / KEEP WAITING** / if you don't mind  
 **IN / THE / YO-DAU / I / SHALL**  
 **KEEP WAITING** / if you decide / in the yodau.  
