@@ -1,0 +1,8 @@
+{
+  "manifesto_repository": "ninjaro/cppr",
+  "manifesto_ref": "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914",
+  "manifesto_setup_action": "./.github/actions/setup-yodau-toolchain",
+  "manifesto_build_parallelism": "2",
+  "sphinx_theme": "sphinx_rtd_theme",
+  "sphinx_theme_package": "sphinx-rtd-theme"
+}
