@@ -5374,6 +5374,151 @@ void main_window_tests::
     QVERIFY(!name_edit->accessibleDescription().isEmpty());
 }
 
+void main_window_tests::
+    stream_board_preserves_active_view_for_stale_selection() {
+    stream_board board;
+    board.resize(800, 600);
+    auto* grid = board.grid_mode();
+    grid->add_stream(QStringLiteral("first"));
+    grid->add_stream(QStringLiteral("second"));
+    auto* first = grid->peek_stream_cell(QStringLiteral("first"));
+    auto* second = grid->peek_stream_cell(QStringLiteral("second"));
+    QVERIFY(first != nullptr);
+    QVERIFY(second != nullptr);
+    board.set_active_stream(QStringLiteral("missing"));
+    QVERIFY(board.active_cell() == nullptr);
+    QCOMPARE(grid->stream_names().size(), 2);
+
+    board.set_active_stream(QStringLiteral("first"));
+    board.show();
+    QCoreApplication::processEvents();
+    QVERIFY(first->isVisibleTo(&board));
+    QVERIFY(grid->isVisibleTo(&board));
+    for (const auto& name :
+         { QString(), QStringLiteral("first"), QStringLiteral("missing") }) {
+        board.set_active_stream(name);
+        QCOMPARE(board.active_cell(), first);
+        QVERIFY(first->is_active());
+        QVERIFY(first->isVisibleTo(&board));
+        QVERIFY(grid->isVisibleTo(&board));
+        QCOMPARE(
+            grid->stream_names(), QStringList { QStringLiteral("second") }
+        );
+        QCOMPARE(grid->peek_stream_cell(QStringLiteral("second")), second);
+        QCOMPARE(board.findChildren<stream_cell*>().size(), 2);
+    }
+
+    board.set_active_stream(QStringLiteral("second"));
+    QCOMPARE(board.active_cell(), second);
+    QVERIFY(second->is_active());
+    QVERIFY(!first->is_active());
+    QCOMPARE(grid->peek_stream_cell(QStringLiteral("first")), first);
+    QVERIFY(first->isVisibleTo(&board));
+    QVERIFY(grid->isVisibleTo(&board));
+    board.clear_active();
+    QVERIFY(board.active_cell() == nullptr);
+    QCOMPARE(grid->stream_names().size(), 2);
+    QCOMPARE(grid->peek_stream_cell(QStringLiteral("second")), second);
+    QVERIFY(!second->is_active());
+    QVERIFY(grid->isVisibleTo(&board));
+}
+
+void main_window_tests::
+    desktop_presentation_preserves_legacy_layout_and_panel_overrides() {
+    using namespace yodau::shell;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto path = directory.filePath(QStringLiteral("ui.ini"));
+    QSettings settings(path, QSettings::IniFormat);
+    settings.setValue(
+        QStringLiteral("layout/stream_grid/sizing_mode"),
+        QStringLiteral("fixed")
+    );
+    settings.setValue(
+        QStringLiteral("mobile/session"), QByteArray("unchanged")
+    );
+    QMainWindow window;
+    auto* streams = new QDockWidget(QStringLiteral("Streams"), &window);
+    auto* editor = new QDockWidget(QStringLiteral("Editor"), &window);
+    auto* logs = new QDockWidget(QStringLiteral("Logs"), &window);
+    const std::array<QDockWidget*, 3> docks { streams, editor, logs };
+    for (std::size_t index = 0; index < docks.size(); ++index) {
+        docks[index]->setObjectName(QStringLiteral("dock_%1").arg(index));
+        window.addDockWidget(Qt::LeftDockWidgetArea, docks[index]);
+    }
+    editor->hide();
+    QVERIFY(save_main_window_state(window, settings));
+    const auto old_layout
+        = settings.value(QStringLiteral("desktop/main_window/layout"));
+    QVERIFY(!load_desktop_presentation(settings));
+    QVERIFY(editor->isHidden());
+
+    desktop_presentation value;
+    value.preset = desktop_preset::canvas;
+    apply_desktop_presentation(value, docks);
+    QVERIFY(!streams->isHidden());
+    QVERIFY(editor->isHidden());
+    QVERIFY(logs->isHidden());
+    logs->show(); // Equivalent intent to its existing toggle action or close
+                  // box.
+    window.hide(); // Parent visibility must not become a panel override.
+    capture_desktop_panel_overrides(value, docks);
+    QVERIFY(!value.panel_overrides[0]);
+    QVERIFY(!value.panel_overrides[1]);
+    QCOMPARE(value.panel_overrides[2], std::optional<bool>(true));
+    QVERIFY(save_desktop_presentation(settings, value));
+    QSettings reloaded(path, QSettings::IniFormat);
+    QCOMPARE(
+        load_desktop_presentation(reloaded),
+        std::optional<desktop_presentation>(value)
+    );
+    QCOMPARE(
+        settings.value(QStringLiteral("desktop/main_window/layout")), old_layout
+    );
+    QCOMPARE(
+        settings.value(QStringLiteral("layout/stream_grid/sizing_mode"))
+            .toString(),
+        QStringLiteral("fixed")
+    );
+    QCOMPARE(
+        settings.value(QStringLiteral("mobile/session")).toByteArray(),
+        QByteArray("unchanged")
+    );
+    value.reset_overrides();
+    apply_desktop_presentation(value, docks);
+    QVERIFY(logs->isHidden());
+    QVERIFY(save_desktop_presentation(settings, value));
+    QVERIFY(
+        !settings.contains(QStringLiteral("desktop/presentation/panels/logs"))
+    );
+    value.preset = desktop_preset::classic;
+    apply_desktop_presentation(value, docks);
+    for (auto* dock : docks) {
+        QVERIFY(!dock->isHidden());
+    }
+    streams->hide();
+    capture_desktop_panel_overrides(value, docks);
+    QCOMPARE(value.panel_overrides[0], std::optional<bool>(false));
+    QVERIFY(save_desktop_presentation(settings, value));
+    QCOMPARE(
+        load_desktop_presentation(settings),
+        std::optional<desktop_presentation>(value)
+    );
+    settings.setValue(
+        QStringLiteral("desktop/presentation/preset"), QStringLiteral("future")
+    );
+    settings.setValue(
+        QStringLiteral("desktop/presentation/panels/streams"),
+        QStringLiteral("invalid")
+    );
+    QCOMPARE(
+        load_desktop_presentation(settings),
+        std::optional<desktop_presentation>(desktop_presentation {})
+    );
+    QSettings unwritable(directory.path(), QSettings::IniFormat);
+    QVERIFY(!save_desktop_presentation(unwritable, value));
+}
+
 void main_window_tests::window_state_store_round_trips_shared_layout() {
     QTemporaryDir temporary_directory;
     QVERIFY(temporary_directory.isValid());

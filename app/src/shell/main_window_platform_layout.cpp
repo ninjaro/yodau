@@ -273,6 +273,9 @@ void main_window::show_settings_panel() {
 }
 
 void main_window::setup_desktop_shell() {
+#if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+    auto* presentation_menu = setup_desktop_presentation_menu();
+#endif
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
     import_line_configuration_action->setText(tr("Import"));
     export_line_configuration_action->setText(tr("Export"));
@@ -320,6 +323,9 @@ void main_window::setup_desktop_shell() {
     register_dock_action(settings_dock, QStringLiteral("view_streams_dock"));
     register_dock_action(line_dock, QStringLiteral("view_lines_dock"));
     register_dock_action(log_dock, QStringLiteral("view_logs_dock"));
+    actions->addAction(
+        QStringLiteral("view_presentation"), presentation_menu->menuAction()
+    );
 
     KStandardAction::quit(this, &QWidget::close, actions);
     KStandardAction::preferences(
@@ -340,6 +346,7 @@ void main_window::setup_desktop_shell() {
     connect(quit_action, &QAction::triggered, this, &QWidget::close);
 
     auto* view_menu = menuBar()->addMenu(tr("&View"));
+    view_menu->addMenu(presentation_menu);
     if (settings_dock != nullptr) {
         view_menu->addAction(settings_dock->toggleViewAction());
     }
@@ -372,4 +379,103 @@ void main_window::setup_desktop_shell() {
         );
     });
 #endif
+}
+
+QMenu* main_window::setup_desktop_presentation_menu() {
+    auto* menu = new QMenu(tr("Desktop &presentation"), this);
+    menu->setObjectName(QStringLiteral("desktop_presentation_menu"));
+    menu->addSection(tr("Preset (panel toggles override it)"));
+    desktop_preset_actions_ = new QActionGroup(menu);
+    const auto add_preset
+        = [this, menu](
+              const QString& label, yodau::shell::desktop_preset preset,
+              const QString& name
+          ) {
+              auto* action = menu->addAction(label);
+              action->setObjectName(name);
+              action->setCheckable(true);
+              action->setData(static_cast<int>(preset));
+              desktop_preset_actions_->addAction(action);
+              connect(action, &QAction::triggered, this, [this, preset] {
+                  yodau::shell::desktop_presentation value;
+                  value.preset = preset;
+                  choose_desktop_presentation(value);
+              });
+          };
+    add_preset(
+        tr("Classic"), yodau::shell::desktop_preset::classic,
+        QStringLiteral("desktop_preset_classic")
+    );
+    add_preset(
+        tr("Canvas"), yodau::shell::desktop_preset::canvas,
+        QStringLiteral("desktop_preset_canvas")
+    );
+    auto* reset = menu->addAction(tr("Reset panels to preset"));
+    reset->setObjectName(QStringLiteral("desktop_preset_reset"));
+    connect(reset, &QAction::triggered, this, [this] {
+        auto value = desktop_presentation_.value_or(
+            yodau::shell::desktop_presentation {}
+        );
+        value.reset_overrides();
+        choose_desktop_presentation(value);
+    });
+    menu->addSeparator();
+    for (auto* dock : { settings_dock, line_dock, log_dock }) {
+        if (dock != nullptr) {
+            menu->addAction(dock->toggleViewAction());
+            connect(
+                dock->toggleViewAction(), &QAction::triggered, this,
+                [this] { persist_desktop_presentation(); }
+            );
+        }
+    }
+    return menu;
+}
+
+void main_window::refresh_desktop_preset_actions() {
+    if (desktop_preset_actions_ == nullptr) {
+        return;
+    }
+    const auto preset
+        = desktop_presentation_.value_or(yodau::shell::desktop_presentation {})
+              .preset;
+    for (auto* action : desktop_preset_actions_->actions()) {
+        action->setChecked(action->data().toInt() == static_cast<int>(preset));
+    }
+}
+
+void main_window::choose_desktop_presentation(
+    yodau::shell::desktop_presentation value
+) {
+    QSettings app_preferences;
+    if (!yodau::shell::save_desktop_presentation(app_preferences, value)) {
+        QMessageBox::warning(
+            this, tr("Desktop presentation"),
+            tr("Could not save the desktop presentation settings.")
+        );
+        refresh_desktop_preset_actions();
+        return;
+    }
+    desktop_presentation_ = value;
+    yodau::shell::apply_desktop_presentation(
+        value, { settings_dock, line_dock, log_dock }
+    );
+    refresh_desktop_preset_actions();
+}
+
+void main_window::persist_desktop_presentation() {
+    // Do not opt existing users into a new preset simply by restoring/closing
+    // their window. Their named Qt docks remain the authority until opt-in.
+    if (!desktop_presentation_) {
+        return;
+    }
+    yodau::shell::capture_desktop_panel_overrides(
+        *desktop_presentation_, { settings_dock, line_dock, log_dock }
+    );
+    QSettings app_preferences;
+    if (!yodau::shell::save_desktop_presentation(
+            app_preferences, *desktop_presentation_
+        )) {
+        qWarning("Could not save desktop presentation overrides");
+    }
 }

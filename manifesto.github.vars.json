@@ -1,5 +1,5 @@
 {
-  "manifesto_repository": "ninjaro/cppr",
+  "manifesto_repository": "ninjaro/ecosystem",
   "manifesto_ref": "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914",
   "manifesto_setup_action": "./.github/actions/setup-yodau-toolchain",
   "manifesto_build_parallelism": "2",
