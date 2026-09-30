@@ -21,6 +21,7 @@
 *.app
 *.qm
 .ecosystem/
+/manifesto.local.json
 build*/
 cmake-build*/
 cov/

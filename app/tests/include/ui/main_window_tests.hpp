@@ -24,6 +24,7 @@ private slots:
     void stream_widget_bridge_registers_and_routes_grid_visibility();
     void grid_view_uses_packing_layout_plans();
     void grid_view_handles_session_sizes_and_viewport_changes();
+    void stream_board_preserves_active_view_for_stale_selection();
     void grid_preferences_persist_through_main_window();
     void stream_inventory_panel_tracks_entries_and_visibility_signal();
     void stream_source_panel_tracks_modes_validation_and_requests();
@@ -59,6 +60,7 @@ private slots:
     void main_window_exposes_profile_shell_and_shared_workflows();
     void window_state_store_round_trips_shared_layout();
     void window_state_store_rejects_invalid_payload();
+    void desktop_presentation_preserves_legacy_layout_and_panel_overrides();
     void mobile_session_store_round_trips_and_rejects_unsafe_state();
     void app_log_bounds_history_and_updates_views_incrementally();
     void stream_cell_exposes_keyboard_creation_and_accessible_controls();

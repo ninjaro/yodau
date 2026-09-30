@@ -9,15 +9,45 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
 
 concurrency:
   group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  select:
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    runs-on: ubuntu-24.04
+    outputs:
+      scope: ${{ steps.selection.outputs.scope }}
+      verified: ${{ steps.selection.outputs.verified }}
+      source: ${{ steps.selection.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: selection
+        uses: ./.github/actions/select-manifesto-ci
+        with:
+          kind: checks
+
+      - name: Upload reused verification reports
+        if: ${{ steps.selection.outputs.scope == 'reuse' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-reports-yodau-checks
+          path: ${{ steps.selection.outputs.reports }}
+          include-hidden-files: true
+          if-no-files-found: error
+
   checks:
+    permissions:
+      contents: read
+      actions: read
+    needs: select
+    if: ${{ needs.select.outputs.scope == 'cheap' || needs.select.outputs.scope == 'full' || needs.select.outputs.scope == 'reuse' }}
     runs-on: ubuntu-24.04
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 2
@@ -25,27 +55,53 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup manifesto tool
+        if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: manifesto
         uses: ./.github/actions/setup-yodau-toolchain
         with:
           bootstrap: "repository"
           source-path: "."
-          manifesto-repository: "ninjaro/cppr"
+          manifesto-repository: "ninjaro/ecosystem"
           manifesto-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
           build-parallelism: 2
+          install-project-deps: ${{ needs.select.outputs.scope == 'full' }}
 
       - name: Run required local checks
+        if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: required
+        env:
+          CHECK_SCOPE: ${{ needs.select.outputs.scope }}
         uses: ./.github/actions/run-manifesto-stage
         with:
           stage-id: 01-required-checks
           stage-label: Required local checks
           shell-command: |
-            "${{ steps.manifesto.outputs.engels-binary }}" check ci
+            case "$CHECK_SCOPE" in
+              cheap)
+                "${{ steps.manifesto.outputs.engels-binary }}" check repo
+                "${{ steps.manifesto.outputs.engels-binary }}" check format
+                ;;
+              full)
+                "${{ steps.manifesto.outputs.marx-binary }}" build debug
+                "${{ steps.manifesto.outputs.engels-binary }}" check ci
+                ;;
+              *) echo '::error::Missing or invalid verification scope.'; exit 1 ;;
+            esac
           skipped-exit-codes: ''
 
+      - name: Run full verification coverage
+        if: ${{ needs.select.outputs.scope == 'full' && steps.required.outputs.status == 'passed' }}
+        id: coverage
+        uses: ./.github/actions/run-manifesto-stage
+        with:
+          stage-id: 02-coverage-check
+          stage-label: Coverage check
+          shell-command: |
+            "${{ steps.manifesto.outputs.engels-binary }}" check coverage
+          skipped-exit-codes: 3
+
       - name: Upload check reports
-        if: ${{ always() }}
+        if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -53,7 +109,99 @@ jobs:
           path: |
             .ecosystem/github/reports
             .ecosystem/reports
+          include-hidden-files: true
           if-no-files-found: warn
+
+      - name: Enforce required result
+        if: ${{ always() }}
+        env:
+          REUSE_VERIFIED: ${{ needs.select.outputs.verified }}
+          REUSE_SOURCE: ${{ needs.select.outputs.source }}
+          CHECK_SCOPE: ${{ needs.select.outputs.scope }}
+          CHECK_OUTCOME: ${{ steps.required.outcome }}
+          CHECK_STATUS: ${{ steps.required.outputs.status }}
+          CHECK_EXIT_CODE: ${{ steps.required.outputs.exit-code }}
+          COVERAGE_OUTCOME: ${{ steps.coverage.outcome }}
+          COVERAGE_STATUS: ${{ steps.coverage.outputs.status }}
+          COVERAGE_EXIT_CODE: ${{ steps.coverage.outputs.exit-code }}
+        shell: bash
+        run: |
+          if [ "$CHECK_SCOPE" = reuse ]; then
+            if [ "$REUSE_VERIFIED" != true ] || [ -z "$REUSE_SOURCE" ]; then
+              echo '::error::Verification reuse has no validated source.'
+              exit 1
+            fi
+            printf 'Reused verification:\n\n```json\n%s\n```\n' "$REUSE_SOURCE" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$CHECK_SCOPE" != cheap ] && [ "$CHECK_SCOPE" != full ]; then
+            echo '::error::Missing or invalid verification scope.'
+            exit 1
+          fi
+          if [ "$CHECK_OUTCOME" != success ] || [ "$CHECK_STATUS" != passed ] || [ "$CHECK_EXIT_CODE" != 0 ] || [ ! -s .ecosystem/github/reports/01-required-checks/summary.md ] || [ ! -f .ecosystem/github/reports/01-required-checks/output.log ]; then
+            echo '::error::Required local checks failed or did not produce a complete result. See the stage report and setup logs.'
+            exit 1
+          fi
+          if [ "$CHECK_SCOPE" = full ]; then
+            if [ "$COVERAGE_OUTCOME" != success ] || [ ! -s .ecosystem/github/reports/02-coverage-check/summary.md ] || [ ! -f .ecosystem/github/reports/02-coverage-check/output.log ]; then
+              echo '::error::Coverage verification did not produce a complete result.'
+              exit 1
+            fi
+            if [ "$COVERAGE_STATUS" = passed ] && [ "$COVERAGE_EXIT_CODE" = 0 ] && [ -s .ecosystem/reports/coverage.json ]; then
+              exit 0
+            fi
+            if [ "$COVERAGE_STATUS" = skipped ] && [ "$COVERAGE_EXIT_CODE" = 3 ]; then
+              exit 0
+            fi
+            echo '::error::Coverage verification failed. Only unsupported coverage (exit 3) may skip.'
+            exit 1
+          fi
+
+      - name: Record reusable verification
+        if: ${{ needs.select.outputs.scope == 'full' }}
+        id: evidence
+        uses: actions/github-script@v7
+        env:
+          EVIDENCE_KIND: checks
+          TOOL_SOURCE_ROOT: ${{ steps.manifesto.outputs.manifesto-source-root }}
+          CHECK_OUTCOME: ${{ steps.required.outcome }}
+          CHECK_STATUS: ${{ steps.required.outputs.status }}
+          CHECK_EXIT_CODE: ${{ steps.required.outputs.exit-code }}
+          COVERAGE_OUTCOME: ${{ steps.coverage.outcome }}
+          COVERAGE_STATUS: ${{ steps.coverage.outputs.status }}
+          COVERAGE_EXIT_CODE: ${{ steps.coverage.outputs.exit-code }}
+        with:
+          script: |
+            await require('./.github/actions/select-manifesto-ci/evidence.cjs').record({github, context, core});
+
+      - name: Upload verification evidence
+        if: ${{ steps.evidence.outputs.name != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.evidence.outputs.name }}
+          path: ${{ steps.evidence.outputs.directory }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+
+  report:
+    runs-on: ubuntu-24.04
+    needs: checks
+    if: ${{ always() && needs.checks.result != 'skipped' }}
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download check report artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ci-reports-yodau-checks
+          path: .ecosystem
+          merge-multiple: true
 
       - name: Publish check report
         if: ${{ always() }}
@@ -64,16 +212,3 @@ jobs:
           report-key: checks
           report-title: Checks
           report-directory: .ecosystem/github/reports
-
-      - name: Enforce required result
-        if: ${{ always() }}
-        env:
-          CHECK_OUTCOME: ${{ steps.required.outcome }}
-          CHECK_STATUS: ${{ steps.required.outputs.status }}
-          CHECK_EXIT_CODE: ${{ steps.required.outputs.exit-code }}
-        shell: bash
-        run: |
-          if [ "$CHECK_OUTCOME" != success ] || [ "$CHECK_STATUS" != passed ] || [ "$CHECK_EXIT_CODE" != 0 ] || [ ! -s .ecosystem/github/reports/01-required-checks/summary.md ] || [ ! -f .ecosystem/github/reports/01-required-checks/output.log ]; then
-            echo '::error::Required local checks failed or did not produce a complete result. See the stage report and setup logs.'
-            exit 1
-          fi

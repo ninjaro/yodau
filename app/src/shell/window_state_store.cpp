@@ -1,6 +1,7 @@
 #include "shell/window_state_store.hpp"
 
 #include <QByteArray>
+#include <QDockWidget>
 #include <QMainWindow>
 #include <QSettings>
 
@@ -34,6 +35,105 @@ void set_error(QString* error_message, const QString& value) {
 } // namespace
 
 namespace yodau::shell {
+
+bool desktop_presentation::visible(desktop_panel panel) const {
+    const auto index = static_cast<std::size_t>(panel);
+    if (index >= panel_overrides.size()) {
+        return true;
+    }
+    return panel_overrides[index].value_or(
+        preset != desktop_preset::canvas || panel == desktop_panel::streams
+    );
+}
+
+void desktop_presentation::reset_overrides() { panel_overrides = {}; }
+
+namespace {
+    constexpr std::array panel_keys { "streams", "editor", "logs" };
+}
+
+std::optional<desktop_presentation>
+load_desktop_presentation(QSettings& settings) {
+    settings.beginGroup(QStringLiteral("desktop/presentation"));
+    if (!settings.contains(QStringLiteral("preset"))) {
+        settings.endGroup();
+        return std::nullopt;
+    }
+    desktop_presentation value;
+    if (settings.value(QStringLiteral("preset")).toString()
+        == QStringLiteral("canvas")) {
+        value.preset = desktop_preset::canvas;
+    }
+    for (std::size_t index = 0; index < panel_keys.size(); ++index) {
+        const QString key = QStringLiteral("panels/%1")
+                                .arg(QString::fromLatin1(panel_keys[index]));
+        const QString choice = settings.value(key).toString();
+        if (choice == QStringLiteral("shown")) {
+            value.panel_overrides[index] = true;
+        } else if (choice == QStringLiteral("hidden")) {
+            value.panel_overrides[index] = false;
+        }
+    }
+    settings.endGroup();
+    return value;
+}
+
+bool save_desktop_presentation(
+    QSettings& settings, const desktop_presentation& value
+) {
+    settings.beginGroup(QStringLiteral("desktop/presentation"));
+    settings.setValue(
+        QStringLiteral("preset"),
+        value.preset == desktop_preset::canvas ? QStringLiteral("canvas")
+                                               : QStringLiteral("classic")
+    );
+    for (std::size_t index = 0; index < panel_keys.size(); ++index) {
+        const QString key = QStringLiteral("panels/%1")
+                                .arg(QString::fromLatin1(panel_keys[index]));
+        if (value.panel_overrides[index]) {
+            settings.setValue(
+                key,
+                *value.panel_overrides[index] ? QStringLiteral("shown")
+                                              : QStringLiteral("hidden")
+            );
+        } else {
+            settings.remove(key);
+        }
+    }
+    settings.endGroup();
+    settings.sync();
+    return settings.status() == QSettings::NoError;
+}
+
+void apply_desktop_presentation(
+    const desktop_presentation& value, const std::array<QDockWidget*, 3>& docks
+) {
+    for (std::size_t index = 0; index < docks.size(); ++index) {
+        if (docks[index] != nullptr) {
+            docks[index]->setVisible(
+                value.visible(static_cast<desktop_panel>(index))
+            );
+        }
+    }
+}
+
+void capture_desktop_panel_overrides(
+    desktop_presentation& value, const std::array<QDockWidget*, 3>& docks
+) {
+    auto defaults = value;
+    defaults.reset_overrides();
+    for (std::size_t index = 0; index < docks.size(); ++index) {
+        if (docks[index] == nullptr) {
+            continue;
+        }
+        // isVisible() also becomes false when the parent window is hidden.
+        const bool shown = !docks[index]->isHidden();
+        value.panel_overrides[index]
+            = shown == defaults.visible(static_cast<desktop_panel>(index))
+            ? std::nullopt
+            : std::optional<bool>(shown);
+    }
+}
 
 bool save_main_window_state(
     const QMainWindow& window, QSettings& settings, QString* error_message

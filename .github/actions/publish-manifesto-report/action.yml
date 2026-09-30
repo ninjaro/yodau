@@ -70,7 +70,6 @@ runs:
       with:
         script: |
           const fs = require('fs');
-          const core = require('@actions/core');
           try {
             const body = fs.readFileSync(process.env.ECOS_SUMMARY_PATH, 'utf8');
             const marker = process.env.ECOS_MARKER;
@@ -116,7 +115,6 @@ runs:
       with:
         script: |
           const fs = require('fs');
-          const core = require('@actions/core');
           try {
             const body = fs.readFileSync(process.env.ECOS_SUMMARY_PATH, 'utf8');
             const marker = process.env.ECOS_MARKER;

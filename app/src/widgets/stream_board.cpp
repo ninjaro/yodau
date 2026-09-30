@@ -39,6 +39,13 @@ void stream_board::set_active_stream(const QString& name) {
         return;
     }
 
+    // Resolve the replacement before changing the current view: a stale
+    // selection must leave both the active cell and pool membership intact.
+    stream_cell* cell = grid->take_stream_cell(name);
+    if (!cell) {
+        return;
+    }
+
     if (active_tile) {
         active_layout->removeWidget(active_tile);
         active_tile->set_active(false);
@@ -46,10 +53,6 @@ void stream_board::set_active_stream(const QString& name) {
         active_tile = nullptr;
     }
 
-    stream_cell* cell = grid->take_stream_cell(name);
-    if (!cell) {
-        return;
-    }
     active_container->show();
 
     cell->setParent(active_container);

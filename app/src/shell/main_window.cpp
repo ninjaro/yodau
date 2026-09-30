@@ -79,6 +79,15 @@ main_window::main_window(QWidget* parent)
     restore_mobile_session();
 #else
     (void)yodau::shell::restore_main_window_state(*this);
+    QSettings desktop_settings;
+    desktop_presentation_
+        = yodau::shell::load_desktop_presentation(desktop_settings);
+    if (desktop_presentation_) {
+        yodau::shell::apply_desktop_presentation(
+            *desktop_presentation_, { settings_dock, line_dock, log_dock }
+        );
+    }
+    refresh_desktop_preset_actions();
 #endif
 }
 
@@ -168,6 +177,7 @@ main_window::~main_window() {
         main_zone->set_application_active(false);
     }
 #else
+    persist_desktop_presentation();
     (void)yodau::shell::save_main_window_state(*this);
 #endif
     delete app_stream_controller;

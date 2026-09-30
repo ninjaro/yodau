@@ -9,6 +9,7 @@ using base_main_window = KXmlGuiWindow;
 using base_main_window = QMainWindow;
 #endif
 
+#include "shell/window_state_store.hpp"
 #include <QString>
 #include <Qt>
 #include <memory>
@@ -27,6 +28,7 @@ class QKeyEvent;
 class QLabel;
 class QStackedWidget;
 class QToolBar;
+class QMenu;
 
 class main_window final : public base_main_window {
     Q_OBJECT
@@ -45,6 +47,12 @@ private:
     void setup_configuration_actions();
     void setup_grid_layout_preferences();
     void setup_desktop_shell();
+    QMenu* setup_desktop_presentation_menu();
+    void choose_desktop_presentation(yodau::shell::desktop_presentation value);
+    void persist_desktop_presentation();
+    void refresh_desktop_preset_actions();
+    std::optional<yodau::shell::desktop_presentation> desktop_presentation_;
+    QActionGroup* desktop_preset_actions_ = nullptr;
     void show_mobile_page(int page_index);
     void restore_mobile_session();
     void persist_mobile_session();
