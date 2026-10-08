@@ -30,7 +30,7 @@ jobs:
       verified: ${{ steps.selection.outputs.verified }}
       source: ${{ steps.selection.outputs.source }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - id: selection
         uses: ./.github/actions/select-manifesto-ci
         with:
@@ -39,7 +39,7 @@ jobs:
       - name: Upload reused verification reports
         if: ${{ steps.selection.outputs.scope == 'reuse' }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-reports-yodau-codeql
           path: ${{ steps.selection.outputs.reports }}
@@ -62,7 +62,7 @@ jobs:
         language: ['cpp']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup manifesto tool
         if: ${{ needs.select.outputs.scope != 'reuse' }}
@@ -85,7 +85,7 @@ jobs:
           shell-command: |
             "${{ steps.manifesto.outputs.engels-binary }}" check repo
 
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@9f759ee644a3e7c15c1390abf49868036c00067b # v3
         id: codeql_init
         if: ${{ steps.repository.outputs.status == 'passed' }}
         continue-on-error: true
@@ -107,7 +107,7 @@ jobs:
         id: codeql_analyze
         if: ${{ steps.codeql_init.outcome == 'success' && steps.codeql_build.outputs.status == 'passed' }}
         continue-on-error: true
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@9f759ee644a3e7c15c1390abf49868036c00067b # v3
 
       - name: Summarize CodeQL analysis
         if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
@@ -137,7 +137,7 @@ jobs:
       - name: Upload CodeQL reports
         if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-reports-yodau-codeql
           path: .ecosystem/github/reports
@@ -172,7 +172,7 @@ jobs:
       - name: Record reusable verification
         if: ${{ needs.select.outputs.scope == 'full' }}
         id: evidence
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           EVIDENCE_KIND: codeql
           TOOL_SOURCE_ROOT: ${{ steps.manifesto.outputs.manifesto-source-root }}
@@ -190,7 +190,7 @@ jobs:
 
       - name: Upload verification evidence
         if: ${{ steps.evidence.outputs.name != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.evidence.outputs.name }}
           path: ${{ steps.evidence.outputs.directory }}
@@ -207,11 +207,11 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download CodeQL report artifacts
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: ci-reports-yodau-codeql
           path: .ecosystem/github/reports
