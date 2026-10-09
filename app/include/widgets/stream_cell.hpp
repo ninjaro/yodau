@@ -75,6 +75,7 @@ public:
     [[nodiscard]] bool is_drawing_enabled() const;
     [[nodiscard]] bool has_line_edit_preview() const;
     [[nodiscard]] bool application_active() const;
+    [[nodiscard]] QString source_status() const;
     [[nodiscard]] QString line_edit_preview_name() const;
     [[nodiscard]] double source_frame_aspect() const noexcept;
     [[nodiscard]] double effective_display_aspect() const noexcept;
@@ -181,6 +182,23 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
 
 private:
+    /// Canonical frame percentages, before display rotation or fitting.
+    [[nodiscard]] static QPointF clamp_pct(QPointF point_pct);
+    [[nodiscard]] static QColor color_with_alpha(QColor color, int alpha);
+    [[nodiscard]] static QColor
+    contrasting_text_color(const QColor& background);
+    [[nodiscard]] static QColor line_color_for(
+        const line_instance& line_value, int line_index, int line_count,
+        const QImage& frame
+    );
+    [[nodiscard]] static QColor draft_color_for(
+        const QString& color_mode_id, const QColor& color,
+        const std::vector<QPointF>& pts_pct, const QImage& frame,
+        int line_index, int line_count
+    );
+    [[nodiscard]] static int
+    enabled_line_count(const std::vector<line_instance>& lines);
+
     static constexpr double manual_minimum = 96.0;
     static constexpr double manual_step = 16.0;
     void build_resize_handle();

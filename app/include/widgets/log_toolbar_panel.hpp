@@ -8,6 +8,7 @@
 #include <optional>
 
 class QComboBox;
+class QCheckBox;
 class QLineEdit;
 class QPushButton;
 
@@ -22,6 +23,10 @@ public:
 
     void set_log_mode(app_log_mode mode);
     [[nodiscard]] app_log_mode log_mode() const;
+    /** Freeze rendering only; collection and filtered exports stay live. */
+    [[nodiscard]] bool view_paused() const;
+    [[nodiscard]] bool follows_latest() const;
+    void set_follows_latest(bool follow);
     [[nodiscard]] bool entry_matches(const app_log_entry& entry) const;
 
     [[nodiscard]] QVector<app_log_entry>
@@ -38,6 +43,7 @@ public:
 
 signals:
     void view_state_changed();
+    void presentation_changed();
     void entry_available(app_log_entry entry);
     void log_mode_changed(app_log_mode mode);
     void copy_logs_requested();
@@ -57,6 +63,7 @@ private slots:
 
 private:
     void build_ui();
+    void clear_filters();
     void append_filter_options(const app_log_entry& entry) const;
     void refresh_filter_options() const;
 
@@ -72,6 +79,8 @@ private:
     QPushButton* copy_logs_btn { nullptr };
     QPushButton* copy_summary_btn { nullptr };
     QPushButton* save_logs_btn { nullptr };
+    QCheckBox* freeze_view_ { nullptr };
+    QCheckBox* follow_latest_ { nullptr };
 
     app_log_mode current_log_mode { app_log_mode::release };
     int current_log_area_filter { -1 };

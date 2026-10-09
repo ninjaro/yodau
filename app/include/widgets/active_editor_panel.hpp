@@ -94,7 +94,7 @@ private:
     void refresh_canvas_tools() const;
     void refresh_inspector() const;
 
-    struct line_edit_snapshot;
+    struct edit_snapshot;
 
     void build_ui();
     void update_tools() const;
@@ -106,17 +106,20 @@ private:
     void refresh_line_edit_table();
     void refresh_line_edit_summary() const;
     void refresh_line_edit_state() const;
-    void initialize_line_points_from_source();
+    /// Restore source points and enabled rows, discarding edit history.
+    void reset_edit_points();
     void emit_line_preview_if_visible();
     [[nodiscard]] line_edit_request current_line_edit_request() const;
     void clear_line_edit_history();
-    void record_line_edit_mutation();
-    void push_line_edit_undo_snapshot();
-    void restore_line_edit_snapshot(const line_edit_snapshot& snapshot);
-    void refresh_line_edit_after_mutation();
+    /// Save pre-change state unless a grouped edit already owns it.
+    void record_edit();
+    void push_edit_undo();
+    void restore_line_edit_snapshot(const edit_snapshot& snapshot);
+    void refresh_edit_view();
     [[nodiscard]] bool line_edit_has_unsaved_changes() const;
     bool delete_line_edit_row(int row);
-    void emit_line_enabled_changed_queued(QString line_name, bool enabled);
+    /// Coalesce line toggles until the next GUI turn.
+    void queue_line_enabled(QString line_name, bool enabled);
     [[nodiscard]] QString selected_line_name() const;
 
 private slots:
@@ -151,15 +154,15 @@ private:
         bool typing = false;
     } canvas_;
 
-    struct line_edit_snapshot {
+    struct edit_snapshot {
         std::vector<QPointF> points_pct;
         std::vector<bool> point_enabled;
         int selected_row { -1 };
     };
 
-    [[nodiscard]] line_edit_snapshot current_line_edit_snapshot() const;
+    [[nodiscard]] edit_snapshot edit_snapshot_now() const;
     [[nodiscard]] bool
-    snapshot_matches_current(const line_edit_snapshot& snapshot) const;
+    snapshot_matches_current(const edit_snapshot& snapshot) const;
 
     active_stream_panel* active_stream_panel_widget { nullptr };
     QGroupBox* status_box_ { nullptr };
@@ -190,8 +193,8 @@ private:
     QString line_edit_source_name_;
     QString edit_stream_name_;
     int line_edit_selected_row_ { -1 };
-    std::vector<line_edit_snapshot> line_edit_undo_stack_;
-    std::vector<line_edit_snapshot> line_edit_redo_stack_;
+    std::vector<edit_snapshot> line_edit_undo_stack_;
+    std::vector<edit_snapshot> line_edit_redo_stack_;
     bool line_edit_transaction_active_ { false };
     bool syncing_line_edit_ui_ { false };
     bool line_toggle_flush_scheduled_ { false };

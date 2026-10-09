@@ -3,7 +3,10 @@
 #include "shell/app_settings.hpp"
 #include "widgets/log_toolbar_panel.hpp"
 
+#include <QEvent>
 #include <QFont>
+#include <QPalette>
+#include <QScrollBar>
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
 
@@ -19,7 +22,8 @@ QTextCharFormat format_with_color(
     return format;
 }
 
-QColor severity_color(const app_log_severity severity) {
+QColor
+severity_color(const app_log_severity severity, const QPalette& palette) {
     switch (severity) {
     case app_log_severity::debug:
         return { QStringLiteral("#9ca3af") };
@@ -29,7 +33,7 @@ QColor severity_color(const app_log_severity severity) {
         return { QStringLiteral("#e63946") };
     case app_log_severity::info:
     default:
-        return { QStringLiteral("#dce1de") };
+        return palette.color(QPalette::Text);
     }
 }
 
@@ -84,7 +88,9 @@ protected:
             setFormat(
                 static_cast<int>(severity_index),
                 static_cast<int>(severity_token.size()),
-                format_with_color(severity_color(entry.severity), true)
+                format_with_color(
+                    severity_color(entry.severity, owner_->palette()), true
+                )
             );
         }
 
@@ -153,6 +159,24 @@ log_area_view::log_area_view(
     , log_area(area) {
     setReadOnly(true);
     log_highlighter_ = new log_entry_highlighter(this);
+    connect(
+        verticalScrollBar(), &QAbstractSlider::actionTriggered, this, [this] {
+            if (log_toolbar_widget != nullptr
+                && verticalScrollBar()->sliderPosition()
+                    < verticalScrollBar()->maximum()) {
+                log_toolbar_widget->set_follows_latest(false);
+            }
+        }
+    );
+}
+
+void log_area_view::changeEvent(QEvent* event) {
+    QPlainTextEdit::changeEvent(event);
+    if (log_highlighter_ != nullptr
+        && (event->type() == QEvent::PaletteChange
+            || event->type() == QEvent::ApplicationPaletteChange)) {
+        log_highlighter_->rehighlight();
+    }
 }
 
 void log_area_view::set_log_toolbar(log_toolbar_panel* toolbar) {
@@ -166,6 +190,10 @@ void log_area_view::set_log_toolbar(log_toolbar_panel* toolbar) {
     }
 
     log_toolbar_widget = toolbar;
+    visible_entries_.clear();
+    clear();
+    refresh_pending_ = false;
+    display_mode_ = app_log_mode::release;
 
     if (log_toolbar_widget != nullptr) {
         connect(
@@ -176,12 +204,32 @@ void log_area_view::set_log_toolbar(log_toolbar_panel* toolbar) {
             log_toolbar_widget, &log_toolbar_panel::entry_available, this,
             [this](const app_log_entry& entry) { append_entry(entry); }
         );
+        connect(
+            log_toolbar_widget, &log_toolbar_panel::presentation_changed, this,
+            [this] {
+                if (!log_toolbar_widget || log_toolbar_widget->view_paused()) {
+                    return;
+                }
+                if (refresh_pending_) {
+                    rebuild_from_toolbar();
+                } else if (log_toolbar_widget->follows_latest()) {
+                    apply_scroll(verticalScrollBar()->maximum());
+                }
+            }
+        );
+        connect(log_toolbar_widget, &QObject::destroyed, this, [this] {
+            set_log_toolbar(nullptr);
+        });
     }
 
     rebuild_from_toolbar();
 }
 
 bool log_area_view::append_entry(const app_log_entry& entry) const {
+    if (log_toolbar_widget != nullptr && log_toolbar_widget->view_paused()) {
+        refresh_pending_ = true;
+        return false;
+    }
     if (log_area.has_value() && entry.area != *log_area) {
         return false;
     }
@@ -192,21 +240,27 @@ bool log_area_view::append_entry(const app_log_entry& entry) const {
     }
 
     const auto self = const_cast<log_area_view*>(this);
+    const int scroll = verticalScrollBar()->value();
     self->visible_entries_.push_back(entry);
-    self->appendPlainText(format_app_log_entry(
-        log_toolbar_widget != nullptr ? log_toolbar_widget->log_mode()
-                                      : app_log_mode::release,
-        entry
-    ));
+    self->appendPlainText(format_app_log_entry(active_mode(), entry));
+    apply_scroll(scroll);
     return true;
 }
 
 void log_area_view::rebuild_from_toolbar() const {
+    if (log_toolbar_widget != nullptr && log_toolbar_widget->view_paused()) {
+        refresh_pending_ = true;
+        return;
+    }
+    refresh_pending_ = false;
+    display_mode_ = log_toolbar_widget != nullptr
+        ? log_toolbar_widget->log_mode()
+        : app_log_mode::release;
     const auto self = const_cast<log_area_view*>(this);
-    self->clear();
     self->visible_entries_.clear();
 
     if (log_toolbar_widget == nullptr) {
+        self->clear();
         return;
     }
 
@@ -217,10 +271,7 @@ const QVector<app_log_entry>& log_area_view::visible_entries() const {
     return visible_entries_;
 }
 
-app_log_mode log_area_view::active_mode() const {
-    return log_toolbar_widget != nullptr ? log_toolbar_widget->log_mode()
-                                         : app_log_mode::release;
-}
+app_log_mode log_area_view::active_mode() const { return display_mode_; }
 
 void log_area_view::set_visible_entries(
     const QVector<app_log_entry>& entries
@@ -236,5 +287,21 @@ void log_area_view::set_visible_entries(
     }
 
     const auto self = const_cast<log_area_view*>(this);
+    const int scroll = verticalScrollBar()->value();
     self->setPlainText(lines.join('\n'));
+    apply_scroll(scroll);
+}
+
+void log_area_view::apply_scroll(int position) const {
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    Q_UNUSED(position);
+#else
+    if (log_toolbar_widget != nullptr) {
+        verticalScrollBar()->setValue(
+            log_toolbar_widget->follows_latest()
+                ? verticalScrollBar()->maximum()
+                : position
+        );
+    }
+#endif
 }

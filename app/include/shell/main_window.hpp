@@ -51,6 +51,7 @@ private:
     void setup_canvas_tools();
     QAction* canvas_tools_action_ = nullptr;
     void setup_context_inspector();
+    void setup_processing_readout();
     QAction* inspector_action_ = nullptr;
     void choose_desktop_presentation(yodau::shell::desktop_presentation value);
     void persist_desktop_presentation();
@@ -81,6 +82,7 @@ protected:
     QDockWidget* settings_dock { nullptr };
     QDockWidget* line_dock { nullptr };
     QDockWidget* log_dock { nullptr };
+    QDockWidget* processing_dock_ { nullptr };
     QToolBar* mobile_document_toolbar { nullptr };
     QToolBar* mobile_navigation_toolbar { nullptr };
     QActionGroup* mobile_navigation_actions { nullptr };

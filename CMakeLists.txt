@@ -450,6 +450,7 @@ set(YODAU_CORE_CORE_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/stream_processed_frame_router.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/stream_registry.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/virtual_camera.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/core/tests/streams/stream_manager/frames.hpp
 )
 set(YODAU_CORE_CORE_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/analysis/centroid_track_algorithm.cpp
@@ -555,6 +556,7 @@ set(YODAU_APP_UI_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/main_window.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/mobile_session_store.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/processing_feedback_state.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/processing_sample.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/str_label.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/stream_catalog_state.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/stream_catalog_workflow.hpp
@@ -562,6 +564,8 @@ set(YODAU_APP_UI_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/stream_route_state.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/stream_widget_bridge.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/window_state_store.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/active_editor_panel/line_lookup.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/active_editor_panel/point_rows.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/active_editor_panel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/active_stream_panel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/algorithm_panel.hpp
@@ -570,11 +574,15 @@ set(YODAU_APP_UI_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_edit_interaction.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_profile_panel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_wave_preview.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_wave_renderer/paint.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_wave_renderer/path.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_wave_renderer/pulse.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_wave_renderer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/log_area_view.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/log_toolbar_panel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/processing_overlay.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/processing_overlay_renderer.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/processing_readout.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/settings_panel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/stream_board.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/stream_cell.hpp
@@ -595,18 +603,28 @@ set(YODAU_APP_UI_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/icon_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/canvas.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/inspector.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/readout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window_platform_layout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/mobile_session_store.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/processing_feedback_state.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_catalog_state.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_catalog_workflow.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/configuration.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/frames.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/logging.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/readout.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/runtime.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_route_state.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_widget_bridge.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/window_state_store.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/canvas.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/edit_view.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/history.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/inspector.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/layout.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/points.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_stream_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/algorithm_panel.cpp
@@ -616,10 +634,20 @@ set(YODAU_APP_UI_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_profile_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_wave_preview.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_area_view.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_toolbar_panel/layout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_toolbar_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/processing_overlay_renderer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/processing_readout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/settings_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_board.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/colors.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/coordinates.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/effects.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/interaction.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/layout.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/lines.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/media.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/paint.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/resize.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_inventory_panel/order.cpp
@@ -640,18 +668,28 @@ set(YODAU_APP_UI_RUNTIME_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/icon_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/canvas.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/inspector.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/readout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window_platform_layout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/mobile_session_store.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/processing_feedback_state.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_catalog_state.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_catalog_workflow.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/configuration.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/frames.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/logging.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/readout.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller/runtime.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_controller.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_route_state.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_widget_bridge.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/window_state_store.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/canvas.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/edit_view.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/history.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/inspector.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/layout.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/points.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_stream_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/algorithm_panel.cpp
@@ -661,10 +699,20 @@ set(YODAU_APP_UI_RUNTIME_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_profile_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_wave_preview.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_area_view.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_toolbar_panel/layout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_toolbar_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/processing_overlay_renderer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/processing_readout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/settings_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_board.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/colors.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/coordinates.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/effects.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/interaction.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/layout.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/lines.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/media.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/paint.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/resize.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_inventory_panel/order.cpp

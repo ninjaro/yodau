@@ -276,6 +276,7 @@ void main_window::setup_desktop_shell() {
 #if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
     setup_canvas_tools();
     setup_context_inspector();
+    setup_processing_readout();
     auto* presentation_menu = setup_desktop_presentation_menu();
 #endif
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
@@ -325,6 +326,9 @@ void main_window::setup_desktop_shell() {
     register_dock_action(settings_dock, QStringLiteral("view_streams_dock"));
     register_dock_action(line_dock, QStringLiteral("view_lines_dock"));
     register_dock_action(log_dock, QStringLiteral("view_logs_dock"));
+    register_dock_action(
+        processing_dock_, QStringLiteral("view_processing_dock")
+    );
     actions->addAction(
         QStringLiteral("view_presentation"), presentation_menu->menuAction()
     );
@@ -357,6 +361,9 @@ void main_window::setup_desktop_shell() {
     }
     if (log_dock != nullptr) {
         view_menu->addAction(log_dock->toggleViewAction());
+    }
+    if (processing_dock_ != nullptr) {
+        view_menu->addAction(processing_dock_->toggleViewAction());
     }
 
     auto* settings_menu = menuBar()->addMenu(tr("&Settings"));
