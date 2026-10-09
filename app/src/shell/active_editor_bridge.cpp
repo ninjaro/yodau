@@ -58,6 +58,9 @@ std::optional<stream_cell::line_instance> active_line_edit_preview(
     preview_line.length_text = edit_request->profile.length_text;
     preview_line.response_text = edit_request->profile.response_text;
     preview_line.selected_visible_index = edit_request->selected_visible_index;
+    // The edited geometry replaces the source points; appending would create
+    // duplicate hit targets whose indices cannot be routed back to the editor.
+    preview_line.pts_pct.clear();
     preview_line.pts_pct.reserve(
         static_cast<std::vector<QPointF>::size_type>(
             edit_request->points_pct.size()

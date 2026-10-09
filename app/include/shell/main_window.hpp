@@ -48,11 +48,18 @@ private:
     void setup_grid_layout_preferences();
     void setup_desktop_shell();
     QMenu* setup_desktop_presentation_menu();
+    void setup_canvas_tools();
+    QAction* canvas_tools_action_ = nullptr;
+    void setup_context_inspector();
+    QAction* inspector_action_ = nullptr;
     void choose_desktop_presentation(yodau::shell::desktop_presentation value);
     void persist_desktop_presentation();
     void refresh_desktop_preset_actions();
+    void choose_pool_side(pool_side side);
+    void refresh_pool_actions();
     std::optional<yodau::shell::desktop_presentation> desktop_presentation_;
     QActionGroup* desktop_preset_actions_ = nullptr;
+    QActionGroup* pool_side_actions_ = nullptr;
     void show_mobile_page(int page_index);
     void restore_mobile_session();
     void persist_mobile_session();

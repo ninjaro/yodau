@@ -5,12 +5,14 @@
 #include "widgets/stream_cell.hpp"
 
 #include <QColor>
+#include <QPointer>
 #include <QWidget>
 
 #include <utility>
 #include <vector>
 
 class active_stream_panel;
+class stream_board;
 class line_profile_panel;
 class template_apply_panel;
 class QLabel;
@@ -21,13 +23,21 @@ class QTableWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QComboBox;
+class QCheckBox;
 class QTableWidgetItem;
+class QGroupBox;
+class QScrollArea;
 
 class active_editor_panel final : public QWidget {
     Q_OBJECT
 
 public:
     explicit active_editor_panel(QWidget* parent = nullptr);
+
+    /// A desktop view of this editor's existing actions, not another session.
+    QWidget* make_canvas_tools(stream_board* board);
+    /// Change desktop presentation without changing tools, targets or edits.
+    void set_context_inspector(bool enabled);
 
     void set_active_candidates(const QStringList& names) const;
     void set_active_current(const QString& name) const;
@@ -78,6 +88,12 @@ signals:
     void template_settings_changed(template_apply_settings settings_value);
 
 private:
+    enum class canvas_tool { select, draw, edit };
+    [[nodiscard]] canvas_tool current_canvas_tool() const;
+    void choose_canvas_tool(canvas_tool tool);
+    void refresh_canvas_tools() const;
+    void refresh_inspector() const;
+
     struct line_edit_snapshot;
 
     void build_ui();
@@ -119,6 +135,22 @@ private slots:
     void on_line_edit_save_clicked();
 
 private:
+    struct canvas_controls {
+        QPointer<QWidget> root;
+        QPointer<stream_board> board;
+        QComboBox* tool = nullptr;
+        QComboBox* target = nullptr;
+        QWidget* details = nullptr;
+        QWidget* history = nullptr;
+        QLineEdit* name = nullptr;
+        QCheckBox* closed = nullptr;
+        QPushButton* save = nullptr;
+        QPushButton* undo = nullptr;
+        QPushButton* redo = nullptr;
+        QPushButton* revert = nullptr;
+        bool typing = false;
+    } canvas_;
+
     struct line_edit_snapshot {
         std::vector<QPointF> points_pct;
         std::vector<bool> point_enabled;
@@ -130,6 +162,10 @@ private:
     snapshot_matches_current(const line_edit_snapshot& snapshot) const;
 
     active_stream_panel* active_stream_panel_widget { nullptr };
+    QGroupBox* status_box_ { nullptr };
+    QLabel* context_label_ { nullptr };
+    QScrollArea* inspector_scroll_ { nullptr };
+    bool contextual_ = false;
     line_profile_panel* active_line_panel { nullptr };
     template_apply_panel* active_template_panel { nullptr };
     QLabel* status_summary_label { nullptr };
@@ -152,6 +188,7 @@ private:
     std::vector<QPointF> line_edit_points_pct_;
     std::vector<bool> line_edit_point_enabled_;
     QString line_edit_source_name_;
+    QString edit_stream_name_;
     int line_edit_selected_row_ { -1 };
     std::vector<line_edit_snapshot> line_edit_undo_stack_;
     std::vector<line_edit_snapshot> line_edit_redo_stack_;

@@ -7,6 +7,12 @@ inputs:
     default: checks
 
 outputs:
+  changes:
+    description: Bounded event delta JSON; complete=false forbids narrowing verification.
+    value: ${{ steps.changes.outputs.changes }}
+  changes-file:
+    description: Local JSON report containing the same event delta and resolution reason.
+    value: ${{ steps.changes.outputs.changes-file }}
   scope:
     description: cheap, full, security, reuse, or skip.
     value: ${{ steps.evidence.outputs.scope }}
@@ -64,6 +70,15 @@ runs:
         esac
         echo "scope=$scope" >> "$GITHUB_OUTPUT"
         printf 'Verification scope: %s\n' "$scope" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Resolve event changes
+      id: changes
+      uses: actions/github-script@v7
+      env:
+        CHANGES_MODULE: ${{ github.action_path }}/changes.cjs
+      with:
+        script: |
+          require(process.env.CHANGES_MODULE).collect({context, core});
 
     - name: Verify reusable PR evidence
       id: evidence

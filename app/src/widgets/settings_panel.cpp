@@ -680,6 +680,10 @@ QWidget* settings_panel::build_streams_tab() {
 
     inventory_panel = new stream_inventory_panel(tab);
     layout->addWidget(inventory_panel, 1);
+    connect(
+        inventory_panel, &stream_inventory_panel::stream_order_changed, this,
+        &settings_panel::stream_order_changed
+    );
 
     connect(
         source_panel, &stream_source_panel::add_file_stream, this,

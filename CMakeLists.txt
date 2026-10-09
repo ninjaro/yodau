@@ -342,19 +342,53 @@ function(ecosystem_apply_defaults target_name)
     endif ()
 endfunction()
 function(ecosystem_stage_assets target_name)
+    file(GENERATE
+            OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/manifesto_assets_${target_name}_$<CONFIG>.cmake"
+            CONTENT [==[if (NOT IS_DIRECTORY "${asset_source}" OR IS_SYMLINK "${asset_source}")
+    message(FATAL_ERROR "Invalid runtime asset source: ${asset_source}")
+endif ()
+if (IS_SYMLINK "${asset_destination}" OR
+        (EXISTS "${asset_destination}" AND NOT IS_DIRECTORY "${asset_destination}"))
+    message(FATAL_ERROR "Invalid runtime asset destination: ${asset_destination}")
+endif ()
+foreach (category IN ITEMS brand reports dataset dumps sets templates)
+    if (IS_SYMLINK "${asset_source}/${category}" OR IS_SYMLINK "${asset_destination}/${category}")
+        message(FATAL_ERROR "Runtime asset category uses a symlink: ${category}")
+    endif ()
+    if (EXISTS "${asset_source}/${category}")
+        if (NOT IS_DIRECTORY "${asset_source}/${category}")
+            message(FATAL_ERROR "Runtime asset category is not a directory: ${category}")
+        endif ()
+        file(COPY "${asset_source}/${category}" DESTINATION "${asset_destination}")
+    endif ()
+endforeach ()
+# Retire media staged by older facades without following a directory alias.
+if (IS_SYMLINK "${asset_destination}/showcase")
+    file(REMOVE "${asset_destination}/showcase")
+else ()
+    file(REMOVE_RECURSE "${asset_destination}/showcase")
+endif ()
+]==]
+    )
     add_custom_command(
             TARGET ${target_name} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/assets
-            $<TARGET_FILE_DIR:${target_name}>/assets
+            COMMAND ${CMAKE_COMMAND}
+            "-Dasset_source=${CMAKE_CURRENT_SOURCE_DIR}/assets"
+            "-Dasset_destination=$<TARGET_FILE_DIR:${target_name}>/assets"
+            -P "${CMAKE_CURRENT_BINARY_DIR}/manifesto_assets_${target_name}_$<CONFIG>.cmake"
+            VERBATIM
     )
 endfunction()
 function(ecosystem_embed_assets target_name)
     if (COMMAND qt_add_resources)
-        file(GLOB_RECURSE ecosystem_asset_files
-                CONFIGURE_DEPENDS
-                "${CMAKE_CURRENT_SOURCE_DIR}/assets/*"
-        )
+        set(ecosystem_asset_files)
+        foreach (category IN ITEMS brand reports dataset dumps sets templates)
+            file(GLOB_RECURSE ecosystem_category_files
+                    CONFIGURE_DEPENDS
+                    "${CMAKE_CURRENT_SOURCE_DIR}/assets/${category}/*"
+            )
+            list(APPEND ecosystem_asset_files ${ecosystem_category_files})
+        endforeach ()
         if (ecosystem_asset_files)
             qt_add_resources(${target_name} "yodau_assets"
                     PREFIX "/yodau"
@@ -365,10 +399,13 @@ function(ecosystem_embed_assets target_name)
     endif ()
 endfunction()
 
-install(
-        DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/assets/
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/yodau/assets
-)
+foreach (category IN ITEMS brand reports dataset dumps sets templates)
+    install(
+            DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/${category}"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/yodau/assets
+            OPTIONAL
+    )
+endforeach ()
 
 
 set(YODAU_CORE_CORE_HEADERS
@@ -528,9 +565,11 @@ set(YODAU_APP_UI_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/active_editor_panel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/active_stream_panel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/algorithm_panel.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/file_transport.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/grid_view.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_edit_interaction.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_profile_panel.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_wave_preview.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/line_wave_renderer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/log_area_view.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/widgets/log_toolbar_panel.hpp
@@ -554,6 +593,8 @@ set(YODAU_APP_UI_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/app_log.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/app_settings.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/icon_loader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/canvas.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/inspector.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window_platform_layout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/mobile_session_store.cpp
@@ -564,17 +605,24 @@ set(YODAU_APP_UI_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_route_state.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_widget_bridge.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/window_state_store.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/canvas.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/inspector.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_stream_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/algorithm_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/file_transport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/grid_view.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_profile_panel/wave.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_profile_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_wave_preview.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_area_view.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_toolbar_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/processing_overlay_renderer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/settings_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_board.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/resize.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_inventory_panel/order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_inventory_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_source_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/template_apply_panel.cpp
@@ -590,6 +638,8 @@ set(YODAU_APP_UI_RUNTIME_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/app_log.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/app_settings.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/icon_loader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/canvas.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/inspector.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window_platform_layout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/mobile_session_store.cpp
@@ -600,17 +650,24 @@ set(YODAU_APP_UI_RUNTIME_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_route_state.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/stream_widget_bridge.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/window_state_store.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/canvas.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel/inspector.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_editor_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/active_stream_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/algorithm_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/file_transport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/grid_view.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_profile_panel/wave.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_profile_panel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/line_wave_preview.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_area_view.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/log_toolbar_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/processing_overlay_renderer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/settings_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_board.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell/resize.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_cell.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_inventory_panel/order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_inventory_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/stream_source_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/widgets/template_apply_panel.cpp

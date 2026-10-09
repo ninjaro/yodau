@@ -80,6 +80,8 @@ main_window::main_window(QWidget* parent)
 #else
     (void)yodau::shell::restore_main_window_state(*this);
     QSettings desktop_settings;
+    main_zone->set_pool_side(yodau::shell::load_pool_side(desktop_settings));
+    refresh_pool_actions();
     desktop_presentation_
         = yodau::shell::load_desktop_presentation(desktop_settings);
     if (desktop_presentation_) {
@@ -120,6 +122,12 @@ void main_window::setup_grid_layout_preferences() {
     settings->set_grid_sizing_mode_id(sizing_mode);
 
     grid_view* grid = main_zone->grid_mode();
+#if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+    connect(
+        settings, &settings_panel::stream_order_changed, grid,
+        [grid](const QStringList& names) { grid->set_stream_order(names); }
+    );
+#endif
     grid->set_scroll_direction(
         scroll_direction == QStringLiteral("vertical")
             ? grid_view::scroll_direction::vertical

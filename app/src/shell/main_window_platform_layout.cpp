@@ -274,6 +274,8 @@ void main_window::show_settings_panel() {
 
 void main_window::setup_desktop_shell() {
 #if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+    setup_canvas_tools();
+    setup_context_inspector();
     auto* presentation_menu = setup_desktop_presentation_menu();
 #endif
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
@@ -419,6 +421,35 @@ QMenu* main_window::setup_desktop_presentation_menu() {
         value.reset_overrides();
         choose_desktop_presentation(value);
     });
+    if (canvas_tools_action_ != nullptr) {
+        menu->addAction(canvas_tools_action_);
+    }
+    if (inspector_action_ != nullptr) {
+        menu->addAction(inspector_action_);
+    }
+    auto* pool_menu = menu->addMenu(tr("Pool &position"));
+    pool_menu->setObjectName(QStringLiteral("desktop_pool_menu"));
+    pool_side_actions_ = new QActionGroup(pool_menu);
+    const auto add_side =
+        [this,
+         pool_menu](const QString& label, pool_side side, const QString& name) {
+            auto* action = pool_menu->addAction(label);
+            action->setObjectName(name);
+            action->setCheckable(true);
+            action->setData(static_cast<int>(side));
+            pool_side_actions_->addAction(action);
+            connect(action, &QAction::triggered, this, [this, side] {
+                choose_pool_side(side);
+            });
+        };
+    add_side(
+        tr("&Bottom"), pool_side::bottom, QStringLiteral("desktop_pool_bottom")
+    );
+    add_side(
+        tr("&Right"), pool_side::right, QStringLiteral("desktop_pool_right")
+    );
+    add_side(tr("&Left"), pool_side::left, QStringLiteral("desktop_pool_left"));
+    refresh_pool_actions();
     menu->addSeparator();
     for (auto* dock : { settings_dock, line_dock, log_dock }) {
         if (dock != nullptr) {
@@ -430,6 +461,32 @@ QMenu* main_window::setup_desktop_presentation_menu() {
         }
     }
     return menu;
+}
+
+void main_window::refresh_pool_actions() {
+    if (pool_side_actions_ == nullptr) {
+        return;
+    }
+    for (auto* action : pool_side_actions_->actions()) {
+        action->setChecked(
+            action->data().toInt()
+            == static_cast<int>(main_zone->current_pool_side())
+        );
+    }
+}
+
+void main_window::choose_pool_side(const pool_side side) {
+    QSettings app_preferences;
+    if (!yodau::shell::save_pool_side(app_preferences, side)) {
+        refresh_pool_actions();
+        QMessageBox::warning(
+            this, tr("Pool position"),
+            tr("Could not save the pool position settings.")
+        );
+        return;
+    }
+    main_zone->set_pool_side(side);
+    refresh_pool_actions();
 }
 
 void main_window::refresh_desktop_preset_actions() {

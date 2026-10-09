@@ -355,6 +355,15 @@ void active_editor_panel::set_active_current(const QString& name) const {
     }
 
     active_stream_panel_widget->set_active_current(name);
+    const auto active_name
+        = active_stream_panel_widget->current_stream_settings().stream_name;
+    if (edit_stream_name_ != active_name) {
+        auto* self = const_cast<active_editor_panel*>(this);
+        self->edit_stream_name_ = active_name;
+        // Geometry names are only unique within a stream. Never carry an
+        // unfinished edit to another stream with a matching name.
+        line_edit_combo_->setCurrentIndex(0);
+    }
     update_tools();
 }
 
@@ -401,6 +410,7 @@ void active_editor_panel::set_line_profile(const line_profile& profile) {
     }
 
     active_line_panel->set_line_profile(profile);
+    refresh_canvas_tools();
 }
 
 line_profile active_editor_panel::current_line_profile() const {
@@ -826,6 +836,7 @@ void active_editor_panel::build_ui() {
     layout->setSpacing(10);
 
     const auto status_box = new QGroupBox(str_label("line editing"), this);
+    status_box_ = status_box;
     status_box->setObjectName(QStringLiteral("settings_active_status_box"));
     const auto status_layout = new QVBoxLayout(status_box);
     status_summary_label = new QLabel(status_box);
@@ -1496,6 +1507,8 @@ void active_editor_panel::refresh_line_edit_state() const {
             edit_tab_index, has_active && enabled_line_count > 0
         );
     }
+    refresh_canvas_tools();
+    refresh_inspector();
 }
 
 void active_editor_panel::emit_line_preview_if_visible() {
@@ -1590,16 +1603,20 @@ void active_editor_panel::on_editor_tab_changed(const int index) {
         return;
     }
 
+    refresh_inspector();
+
     if (editor_tabs->currentWidget() == edit_tab_widget_) {
         if (!line_edit_source_name_.isEmpty()) {
             emit_line_preview_if_visible();
         } else {
             emit line_edit_preview_cleared();
         }
+        refresh_canvas_tools();
         return;
     }
 
     emit line_edit_preview_cleared();
+    refresh_canvas_tools();
 }
 
 void active_editor_panel::on_line_edit_selection_changed(const int index) {

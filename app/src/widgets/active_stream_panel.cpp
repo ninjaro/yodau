@@ -251,6 +251,14 @@ bool active_stream_panel::drawing_new_mode() const {
         || active_mode_draw_radio->isChecked();
 }
 
+void active_stream_panel::set_drawing_new_mode(const bool drawing) {
+    auto* button
+        = drawing ? active_mode_draw_radio : active_mode_template_radio;
+    if (button != nullptr && !button->isChecked()) {
+        button->click();
+    }
+}
+
 void active_stream_panel::on_active_combo_changed(const QString& text) {
     Q_UNUSED(text);
 

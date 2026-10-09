@@ -39,12 +39,15 @@
 #include <QCoreApplication>
 #include <QDockWidget>
 #include <QFile>
+#include <QFileInfo>
 #include <QGroupBox>
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
@@ -67,6 +70,7 @@
 #include <QTreeWidget>
 #include <QtTest/QtTest>
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <string_view>
@@ -5423,6 +5427,766 @@ void main_window_tests::
     QVERIFY(grid->isVisibleTo(&board));
 }
 
+namespace thumbnail_tests {
+
+void mouse_event(
+    QWidget* grip, QEvent::Type type, const QPointF& global_pos,
+    Qt::MouseButton button, Qt::MouseButtons buttons
+) {
+    const QPointF local = grip->mapFromGlobal(global_pos.toPoint());
+    QMouseEvent event(type, local, global_pos, button, buttons, Qt::NoModifier);
+    QApplication::sendEvent(grip, &event);
+}
+
+QWidget* grip_for(stream_cell& cell) {
+    return cell.findChild<QWidget*>(
+        QStringLiteral("stream_cell_resize_handle")
+    );
+}
+
+QPointF size_vector(const stream_cell& cell) {
+    const double aspect = cell.effective_display_aspect();
+    return { std::max(1.0, aspect), std::max(1.0, 1.0 / aspect) };
+}
+
+} // namespace thumbnail_tests
+
+void main_window_tests::thumbnail_drag_data() {
+    QTest::addColumn<QSize>("frame_size");
+    QTest::addColumn<int>("turns");
+    QTest::addColumn<bool>("rtl");
+    for (const auto size : { QSize(60, 40), QSize(80, 40), QSize(40, 80) }) {
+        for (int turns = 0; turns < 4; ++turns) {
+            for (const bool rtl : { false, true }) {
+                const auto row = QStringLiteral("%1-%2-%3-%4")
+                                     .arg(size.width())
+                                     .arg(size.height())
+                                     .arg(turns)
+                                     .arg(rtl)
+                                     .toLatin1();
+                QTest::newRow(row.constData()) << size << turns << rtl;
+            }
+        }
+    }
+}
+
+void main_window_tests::thumbnail_drag() {
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    QSKIP("Corner grip is desktop-only");
+#else
+    using namespace thumbnail_tests;
+    QFETCH(QSize, frame_size);
+    QFETCH(int, turns);
+    QFETCH(bool, rtl);
+    stream_cell cell(QStringLiteral("camera"));
+    QImage image(frame_size, QImage::Format_RGB32);
+    image.fill(Qt::black);
+    const QVideoFrame frame(image);
+    QVERIFY(
+        QMetaObject::invokeMethod(
+            &cell, "on_frame_changed", Qt::DirectConnection,
+            Q_ARG(QVideoFrame, frame)
+        )
+    );
+    QCOMPARE(
+        cell.source_frame_aspect(),
+        static_cast<double>(frame_size.width()) / frame_size.height()
+    );
+    cell.set_quarter_turns(turns);
+    cell.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    cell.set_fixed_size_controls_visible(true);
+    cell.initialize_manual_short_side(192.5);
+    cell.resize(400, 300);
+    cell.show();
+    QCoreApplication::processEvents();
+    auto* grip = grip_for(cell);
+    QVERIFY(grip != nullptr);
+    QVERIFY(grip->isVisibleTo(&cell));
+    QCOMPARE(grip->geometry().right(), cell.width() - 2);
+    QCOMPARE(grip->geometry().bottom(), cell.height() - 2);
+    QCOMPARE(grip->cursor().shape(), Qt::SizeFDiagCursor);
+    QVERIFY(!grip->accessibleName().isEmpty());
+    QVERIFY(!grip->accessibleDescription().isEmpty());
+    QSignalSpy layout_changes(&cell, &stream_cell::layout_geometry_changed);
+    const QPointF origin = grip->mapToGlobal(grip->rect().center());
+    const auto direction = size_vector(cell);
+    mouse_event(
+        grip, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton
+    );
+    mouse_event(
+        grip, QEvent::MouseButtonRelease, origin, Qt::RightButton, Qt::NoButton
+    );
+    QCOMPARE(layout_changes.count(), 0);
+    mouse_event(
+        grip, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton
+    );
+    // A tangential move must not change aspect-constrained size.
+    mouse_event(
+        grip, QEvent::MouseMove,
+        origin + QPointF(direction.y(), -direction.x()) * 16, Qt::NoButton,
+        Qt::LeftButton
+    );
+    QCOMPARE(cell.manual_short_side(), 192.5);
+    QCOMPARE(layout_changes.count(), 0);
+    const QPointF moved = origin + direction * 32;
+    mouse_event(grip, QEvent::MouseMove, moved, Qt::NoButton, Qt::LeftButton);
+    QCOMPARE(cell.manual_short_side(), 224.5);
+    QCOMPARE(layout_changes.count(), 1);
+    cell.move(cell.pos() + QPoint(100, 80));
+    cell.resize(420, 320);
+    mouse_event(grip, QEvent::MouseMove, moved, Qt::NoButton, Qt::LeftButton);
+    QCOMPARE(cell.manual_short_side(), 224.5);
+    QCOMPARE(layout_changes.count(), 1);
+    // Release position is consumed even without another move event.
+    mouse_event(
+        grip, QEvent::MouseButtonRelease, origin + direction * 48,
+        Qt::LeftButton, Qt::NoButton
+    );
+    QCOMPARE(cell.manual_short_side(), 240.5);
+    QCOMPARE(layout_changes.count(), 2);
+    QVERIFY(QWidget::mouseGrabber() != grip);
+    QCOMPARE(cell.size(), QSize(420, 320)); // Only Packing owns widget sizing.
+    QCOMPARE(cell.quarter_turns(), turns);
+#endif
+}
+
+void main_window_tests::thumbnail_cancel_data() {
+    QTest::addColumn<QString>("cause");
+    for (const auto* cause :
+         { "escape", "ungrab", "hide", "hide_grip", "focus", "window",
+           "disable", "mode", "active", "rotate", "reparent", "idle",
+           "no_buttons", "aspect", "uninitialized" }) {
+        QTest::newRow(cause) << QString::fromLatin1(cause);
+    }
+}
+
+void main_window_tests::thumbnail_cancel() {
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    QSKIP("Corner grip is desktop-only");
+#else
+    using namespace thumbnail_tests;
+    QFETCH(QString, cause);
+    QWidget new_parent;
+    stream_cell cell(QStringLiteral("camera"));
+    cell.set_fixed_size_controls_visible(true);
+    if (cause != QStringLiteral("uninitialized")) {
+        cell.initialize_manual_short_side(192.0);
+    }
+    const double start = cell.manual_short_side();
+    const bool initialized = cell.has_manual_short_side();
+    cell.resize(400, 300);
+    cell.show();
+    QCoreApplication::processEvents();
+    auto* grip = grip_for(cell);
+    QVERIFY(grip != nullptr);
+    const QPointF origin = grip->mapToGlobal(grip->rect().center());
+    mouse_event(
+        grip, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton
+    );
+    const QPointF moved = origin + size_vector(cell) * 32;
+    mouse_event(grip, QEvent::MouseMove, moved, Qt::NoButton, Qt::LeftButton);
+    QCOMPARE(cell.manual_short_side(), start + 32);
+    if (cause == QStringLiteral("escape")
+        || cause == QStringLiteral("uninitialized")) {
+        QTest::keyClick(&cell, Qt::Key_Escape);
+    } else if (cause == QStringLiteral("ungrab")) {
+        QEvent lost(QEvent::UngrabMouse);
+        QApplication::sendEvent(grip, &lost);
+    } else if (cause == QStringLiteral("hide")) {
+        cell.hide();
+    } else if (cause == QStringLiteral("hide_grip")) {
+        grip->hide();
+        QVERIFY(grip->isHidden());
+    } else if (
+        cause == QStringLiteral("focus") || cause == QStringLiteral("window")
+    ) {
+        QEvent lost(
+            cause == QStringLiteral("focus") ? QEvent::FocusOut
+                                             : QEvent::WindowDeactivate
+        );
+        QApplication::sendEvent(&cell, &lost);
+    } else if (cause == QStringLiteral("disable")) {
+        cell.setEnabled(false);
+    } else if (cause == QStringLiteral("mode")) {
+        cell.set_fixed_size_controls_visible(false);
+    } else if (cause == QStringLiteral("active")) {
+        cell.set_active(true);
+    } else if (cause == QStringLiteral("rotate")) {
+        cell.set_quarter_turns(1);
+    } else if (cause == QStringLiteral("reparent")) {
+        cell.setParent(&new_parent);
+    } else if (cause == QStringLiteral("idle")) {
+        cell.set_application_active(false);
+    } else if (cause == QStringLiteral("no_buttons")) {
+        mouse_event(grip, QEvent::MouseMove, moved, Qt::NoButton, Qt::NoButton);
+    } else if (cause == QStringLiteral("aspect")) {
+        QImage image(QSize(40, 80), QImage::Format_RGB32);
+        image.fill(Qt::black);
+        const QVideoFrame frame(image);
+        QVERIFY(
+            QMetaObject::invokeMethod(
+                &cell, "on_frame_changed", Qt::DirectConnection,
+                Q_ARG(QVideoFrame, frame)
+            )
+        );
+    }
+    QCOMPARE(cell.manual_short_side(), start);
+    QCOMPARE(cell.has_manual_short_side(), initialized);
+    QVERIFY(QWidget::mouseGrabber() != grip);
+    mouse_event(
+        grip, QEvent::MouseButtonRelease, moved, Qt::LeftButton, Qt::NoButton
+    );
+    QCOMPARE(cell.manual_short_side(), start);
+#endif
+}
+
+void main_window_tests::thumbnail_controls() {
+    stream_cell cell(QStringLiteral("camera"));
+    cell.resize(400, 300);
+    cell.show();
+    QCoreApplication::processEvents();
+    auto* smaller = cell.findChild<QPushButton*>(
+        QStringLiteral("stream_cell_size_decrease_button")
+    );
+    auto* larger = cell.findChild<QPushButton*>(
+        QStringLiteral("stream_cell_size_increase_button")
+    );
+    QVERIFY(smaller && larger);
+    auto* grip = thumbnail_tests::grip_for(cell);
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    QVERIFY(grip == nullptr);
+#else
+    QVERIFY(grip != nullptr);
+    QVERIFY(grip->isHidden());
+#endif
+    cell.set_fixed_size_controls_visible(true);
+    cell.initialize_manual_short_side(96.0);
+    QVERIFY(smaller->isVisibleTo(&cell));
+    QVERIFY(larger->isVisibleTo(&cell));
+    QVERIFY(!smaller->isEnabled());
+    QVERIFY(!smaller->accessibleName().isEmpty());
+    QVERIFY(!larger->accessibleName().isEmpty());
+    QTest::keyClick(larger, Qt::Key_Space);
+    QCOMPARE(cell.manual_short_side(), 112.0);
+    QTest::keyClick(smaller, Qt::Key_Space);
+    QCOMPARE(cell.manual_short_side(), 96.0);
+#if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+    const QPointF origin = grip->mapToGlobal(grip->rect().center());
+    thumbnail_tests::mouse_event(
+        grip, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton
+    );
+    thumbnail_tests::mouse_event(
+        grip, QEvent::MouseButtonRelease,
+        origin - thumbnail_tests::size_vector(cell) * 1000, Qt::LeftButton,
+        Qt::NoButton
+    );
+    QCOMPARE(cell.manual_short_side(), 96.0);
+    QVERIFY(!smaller->isEnabled());
+#endif
+    cell.set_active(true);
+    cell.set_drawing_enabled(true);
+    QVERIFY(smaller->isHidden() && larger->isHidden());
+    if (grip) {
+        QVERIFY(grip->isHidden());
+    }
+    const auto size = cell.manual_short_side();
+    QTest::mouseClick(
+        &cell, Qt::LeftButton, Qt::NoModifier,
+        QPoint(cell.width() - 4, cell.height() - 4)
+    );
+    QCOMPARE(cell.draft_points_pct().size(), std::size_t(1));
+    QCOMPARE(cell.manual_short_side(), size);
+    cell.set_active(false);
+    cell.set_fixed_size_controls_visible(false);
+    if (grip) {
+        QVERIFY(grip->isHidden());
+    }
+}
+
+void main_window_tests::thumbnail_pool_data() {
+    QTest::addColumn<int>("side");
+    QTest::addColumn<bool>("vertical");
+    QTest::addColumn<bool>("ordered");
+    for (const auto side :
+         { pool_side::bottom, pool_side::right, pool_side::left }) {
+        for (const bool vertical : { false, true }) {
+            for (const bool ordered : { false, true }) {
+                const auto row = QStringLiteral("%1-%2-%3")
+                                     .arg(static_cast<int>(side))
+                                     .arg(vertical)
+                                     .arg(ordered)
+                                     .toLatin1();
+                QTest::newRow(row.constData())
+                    << static_cast<int>(side) << vertical << ordered;
+            }
+        }
+    }
+}
+
+void main_window_tests::thumbnail_pool() {
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    QSKIP("Corner grip is desktop-only");
+#else
+    using namespace thumbnail_tests;
+    QFETCH(int, side);
+    QFETCH(bool, vertical);
+    QFETCH(bool, ordered);
+    stream_board board;
+    board.resize(1000, 700);
+    board.set_pool_side(static_cast<pool_side>(side));
+    auto* grid = board.grid_mode();
+    grid->set_sizing_mode(grid_view::sizing_mode::fixed);
+    grid->set_scroll_direction(
+        vertical ? grid_view::scroll_direction::vertical
+                 : grid_view::scroll_direction::horizontal
+    );
+    grid->set_preserve_stream_order(ordered);
+    grid->add_stream(QStringLiteral("active"));
+    grid->add_stream(QStringLiteral("first"));
+    grid->add_stream(QStringLiteral("second"));
+    board.set_active_stream(QStringLiteral("active"));
+    auto* active = board.active_cell();
+    auto* first = grid->peek_stream_cell(QStringLiteral("first"));
+    auto* second = grid->peek_stream_cell(QStringLiteral("second"));
+    QVERIFY(active && first && second);
+    active->set_draft_points_pct({ QPointF(10, 20), QPointF(80, 90) });
+    const auto points = active->draft_points_pct();
+    board.show();
+    QCoreApplication::processEvents();
+    auto* grip = grip_for(*first);
+    QVERIFY(grip != nullptr);
+    QVERIFY(grip->isVisibleTo(&board));
+    auto* scroll = grid->findChild<QScrollArea*>();
+    QVERIFY(scroll != nullptr);
+    scroll->ensureWidgetVisible(grip);
+    QCoreApplication::processEvents();
+    QTRY_VERIFY(scroll->viewport()->rect().contains(
+        grip->mapTo(scroll->viewport(), grip->rect().center())
+    ));
+    const QPointF origin = grip->mapToGlobal(grip->rect().center());
+    const auto direction = size_vector(*first);
+    const double start = first->manual_short_side();
+    mouse_event(
+        grip, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton
+    );
+    mouse_event(
+        grip, QEvent::MouseMove, origin + direction * 300, Qt::NoButton,
+        Qt::LeftButton
+    );
+    QCOMPARE(first->manual_short_side(), start + 300);
+    QCOMPARE(std::min(first->width(), first->height()), qRound(start + 300));
+    mouse_event(
+        grip, QEvent::MouseMove, origin + direction * 300, Qt::NoButton,
+        Qt::LeftButton
+    );
+    QCOMPARE(first->manual_short_side(), start + 300);
+    mouse_event(
+        grip, QEvent::MouseButtonRelease, origin + direction * 320,
+        Qt::LeftButton, Qt::NoButton
+    );
+    QCOMPARE(first->manual_short_side(), start + 320);
+    QCOMPARE(std::min(first->width(), first->height()), qRound(start + 320));
+    QCOMPARE(board.active_cell(), active);
+    QCOMPARE(active->draft_points_pct(), points);
+    QCOMPARE(grid->peek_stream_cell(QStringLiteral("second")), second);
+    QCOMPARE(second->manual_short_side(), 160.0);
+    QCOMPARE(board.current_pool_side(), static_cast<pool_side>(side));
+    QCOMPARE(grid->preserves_stream_order(), ordered);
+    board.resize(800, 500);
+    QCoreApplication::processEvents();
+    QCOMPARE(first->manual_short_side(), start + 320);
+    QCOMPARE(std::min(first->width(), first->height()), qRound(start + 320));
+    grid->set_sizing_mode(grid_view::sizing_mode::adaptive);
+    QVERIFY(grip->isHidden());
+    QTimer::singleShot(0, [] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+            if (auto* dialog = qobject_cast<QMessageBox*>(widget)) {
+                dialog->done(QMessageBox::Yes);
+            }
+        }
+    });
+    grid->set_sizing_mode(grid_view::sizing_mode::fixed);
+    QCOMPARE(first->manual_short_side(), start + 320);
+    QVERIFY(grip->isVisibleTo(&board));
+    QCOMPARE(std::min(first->width(), first->height()), qRound(start + 320));
+#endif
+}
+
+void main_window_tests::pool_placement_data() {
+    QTest::addColumn<int>("side");
+    QTest::addColumn<QSize>("size");
+    QTest::addColumn<int>("count");
+    QTest::addColumn<bool>("rtl");
+    QTest::addColumn<bool>("vertical_scroll");
+    for (const auto side :
+         { pool_side::bottom, pool_side::right, pool_side::left }) {
+        for (const auto size : { QSize(640, 480), QSize(1280, 800) }) {
+            for (const int count : { 0, 1, 8 }) {
+                for (const bool rtl : { false, true }) {
+                    for (const bool vertical : { false, true }) {
+                        const auto row = QStringLiteral("%1-%2-%3-%4-%5")
+                                             .arg(static_cast<int>(side))
+                                             .arg(size.width())
+                                             .arg(count)
+                                             .arg(rtl)
+                                             .arg(vertical)
+                                             .toLatin1();
+                        QTest::newRow(row.constData())
+                            << static_cast<int>(side) << size << count << rtl
+                            << vertical;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void main_window_tests::pool_placement() {
+    QFETCH(int, side);
+    QFETCH(QSize, size);
+    QFETCH(int, count);
+    QFETCH(bool, rtl);
+    QFETCH(bool, vertical_scroll);
+    stream_board board;
+    board.resize(size);
+    auto* grid = board.grid_mode();
+    const auto direction = vertical_scroll
+        ? grid_view::scroll_direction::vertical
+        : grid_view::scroll_direction::horizontal;
+    grid->set_scroll_direction(direction);
+    grid->add_stream(QStringLiteral("active"));
+    for (int index = 0; index < count; ++index) {
+        grid->add_stream(QStringLiteral("pool_%1").arg(index));
+    }
+    board.set_active_stream(QStringLiteral("active"));
+    // Change text direction after side selection as well as at startup.
+    const auto choice = static_cast<pool_side>(side);
+    board.set_pool_side(choice);
+    board.setLayoutDirection(rtl ? Qt::RightToLeft : Qt::LeftToRight);
+    board.show();
+    QCoreApplication::processEvents();
+    board.resize(size + QSize(160, 120));
+    QCoreApplication::processEvents();
+    board.resize(size);
+    QCoreApplication::processEvents();
+    QCOMPARE(board.size(), size);
+    QCOMPARE(board.current_pool_side(), choice);
+    QCOMPARE(grid->current_scroll_direction(), direction);
+    auto* active = board.active_cell()->parentWidget();
+    QVERIFY(active->isVisibleTo(&board));
+    QVERIFY(board.rect().contains(active->geometry()));
+    if (count == 0) {
+        QVERIFY(grid->isHidden());
+        QCOMPARE(active->geometry(), board.rect());
+        return;
+    }
+    QVERIFY(grid->isVisibleTo(&board));
+    QVERIFY(board.rect().contains(grid->geometry()));
+    QVERIFY(!grid->geometry().intersects(active->geometry()));
+    QVERIFY(grid->width() > 0 && grid->height() > 0);
+    if (choice == pool_side::bottom) {
+        QVERIFY(grid->y() > active->geometry().bottom());
+        QVERIFY(active->height() > grid->height());
+    } else {
+        QVERIFY(active->width() > grid->width());
+        if (choice == pool_side::left) {
+            QVERIFY(grid->geometry().right() < active->x());
+        } else {
+            QVERIFY(grid->x() > active->geometry().right());
+        }
+    }
+    // Overflow is reachable, not clipped to an inaccessible thumbnail area.
+    auto* scroll = grid->findChild<QScrollArea*>();
+    QVERIFY(scroll != nullptr);
+    auto* bar = vertical_scroll ? scroll->verticalScrollBar()
+                                : scroll->horizontalScrollBar();
+    QTRY_COMPARE(bar->isVisibleTo(&board), bar->maximum() > 0);
+    bar->setValue(bar->maximum());
+    if (bar->maximum() > 0) {
+        QCOMPARE(bar->value(), bar->maximum());
+        QVERIFY(bar->isVisibleTo(&board));
+    }
+    QCOMPARE(grid->stream_names().size(), count);
+}
+
+void main_window_tests::pool_changes_preserve_cells() {
+    stream_board board;
+    board.resize(800, 600);
+    auto* grid = board.grid_mode();
+    grid->set_sizing_mode(grid_view::sizing_mode::fixed);
+    grid->set_preserve_stream_order(true);
+    grid->add_stream(QStringLiteral("first"));
+    grid->add_stream(QStringLiteral("second"));
+    auto* first = grid->peek_stream_cell(QStringLiteral("first"));
+    auto* second = grid->peek_stream_cell(QStringLiteral("second"));
+    second->initialize_manual_short_side(192.0);
+    first->set_quarter_turns(1);
+    first->set_keep_frame_aspect_ratio(false);
+    first->set_draft_points_pct({ QPointF(10, 20), QPointF(80, 90) });
+    const auto points = first->draft_points_pct();
+    auto* player = first->findChild<QMediaPlayer*>();
+    QVERIFY(player != nullptr);
+    board.set_active_stream(QStringLiteral("first"));
+    board.show();
+    QCoreApplication::processEvents();
+    first->setFocus();
+    QTRY_VERIFY(first->hasFocus());
+    for (const auto side :
+         { pool_side::left, pool_side::right, pool_side::bottom }) {
+        board.set_pool_side(side);
+        QCoreApplication::processEvents();
+        QCOMPARE(board.active_cell(), first);
+        QCOMPARE(grid->peek_stream_cell(QStringLiteral("second")), second);
+        QCOMPARE(board.findChildren<stream_cell*>().size(), 2);
+        QCOMPARE(first->findChild<QMediaPlayer*>(), player);
+        QCOMPARE(first->draft_points_pct(), points);
+        QCOMPARE(first->quarter_turns(), 1);
+        QVERIFY(!first->keeps_frame_aspect_ratio());
+        QCOMPARE(second->manual_short_side(), 192.0);
+        QCOMPARE(grid->current_sizing_mode(), grid_view::sizing_mode::fixed);
+        QVERIFY(grid->preserves_stream_order());
+        QVERIFY(first->hasFocus());
+        board.set_active_stream(QStringLiteral("missing"));
+        QCOMPARE(board.active_cell(), first);
+    }
+    board.set_pool_side(pool_side::left);
+    board.set_pool_side(static_cast<pool_side>(99));
+    QCOMPARE(board.current_pool_side(), pool_side::left);
+    board.hide();
+    board.set_pool_side(pool_side::right);
+    board.show();
+    QCoreApplication::processEvents();
+    QVERIFY(first->isVisibleTo(&board));
+    QVERIFY(grid->isVisibleTo(&board));
+    QCOMPARE(board.take_active_cell(), first);
+    grid->put_stream_cell(first);
+    QCoreApplication::processEvents();
+    QCOMPARE(grid->geometry(), board.rect());
+    board.set_active_stream(QStringLiteral("second"));
+    board.clear_active();
+    QCoreApplication::processEvents();
+    QCOMPARE(grid->geometry(), board.rect());
+    grid->remove_stream(QStringLiteral("first"));
+    grid->remove_stream(QStringLiteral("second"));
+    board.set_pool_side(pool_side::left);
+    QVERIFY(grid->isHidden());
+    QVERIFY(board.active_cell() == nullptr);
+    grid->add_stream(QStringLiteral("replacement"));
+    QCoreApplication::processEvents();
+    QCOMPARE(grid->geometry(), board.rect());
+}
+
+void main_window_tests::pool_preference_is_independent() {
+    using namespace yodau::shell;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto path = directory.filePath(QStringLiteral("pool.ini"));
+    QSettings settings(path, QSettings::IniFormat);
+    settings.setValue(
+        QStringLiteral("desktop/main_window/layout"), QByteArray("layout")
+    );
+    settings.setValue(
+        QStringLiteral("layout/stream_grid/scroll_direction"),
+        QStringLiteral("vertical")
+    );
+    settings.setValue(QStringLiteral("mobile/session"), QByteArray("session"));
+    const auto old_keys = settings.allKeys();
+    QCOMPARE(load_pool_side(settings), pool_side::bottom);
+    QCOMPARE(settings.allKeys(), old_keys);
+    for (const auto side :
+         { pool_side::right, pool_side::left, pool_side::bottom }) {
+        QVERIFY(save_pool_side(settings, side));
+        QSettings reloaded(path, QSettings::IniFormat);
+        QCOMPARE(load_pool_side(reloaded), side);
+        QVERIFY(!load_desktop_presentation(reloaded));
+        desktop_presentation value;
+        value.preset = desktop_preset::canvas;
+        QVERIFY(save_desktop_presentation(settings, value));
+        value.reset_overrides();
+        QVERIFY(save_desktop_presentation(settings, value));
+        QCOMPARE(load_pool_side(settings), side);
+        settings.remove(QStringLiteral("desktop/presentation/preset"));
+    }
+    QCOMPARE(
+        settings.value(QStringLiteral("desktop/main_window/layout"))
+            .toByteArray(),
+        QByteArray("layout")
+    );
+    QCOMPARE(
+        settings.value(QStringLiteral("layout/stream_grid/scroll_direction"))
+            .toString(),
+        QStringLiteral("vertical")
+    );
+    QCOMPARE(
+        settings.value(QStringLiteral("mobile/session")).toByteArray(),
+        QByteArray("session")
+    );
+    const auto previous
+        = settings.value(QStringLiteral("desktop/presentation/pool_side"));
+    QVERIFY(!save_pool_side(settings, static_cast<pool_side>(99)));
+    QCOMPARE(
+        settings.value(QStringLiteral("desktop/presentation/pool_side")),
+        previous
+    );
+    settings.setValue(
+        QStringLiteral("desktop/presentation/pool_side"),
+        QStringLiteral("future")
+    );
+    QCOMPARE(load_pool_side(settings), pool_side::bottom);
+    QCOMPARE(
+        settings.value(QStringLiteral("desktop/presentation/pool_side"))
+            .toString(),
+        QStringLiteral("future")
+    );
+    QSettings unwritable(directory.path(), QSettings::IniFormat);
+    QVERIFY(!save_pool_side(unwritable, pool_side::left));
+    QVERIFY(
+        !unwritable.contains(QStringLiteral("desktop/presentation/pool_side"))
+    );
+    unwritable.setValue(
+        QStringLiteral("desktop/presentation/pool_side"),
+        QStringLiteral("right")
+    );
+    QVERIFY(!save_pool_side(unwritable, pool_side::left));
+    QCOMPARE(load_pool_side(unwritable), pool_side::right);
+}
+
+void main_window_tests::pool_menu_restores_choice() {
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    QSKIP("Pool presentation actions are desktop-only");
+#else
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto old_organization = QCoreApplication::organizationName();
+    const auto old_application = QCoreApplication::applicationName();
+    const auto old_format = QSettings::defaultFormat();
+    const auto old_path
+        = QFileInfo(QSettings(
+                        QSettings::IniFormat, QSettings::UserScope,
+                        QStringLiteral("yodau_path_probe")
+                    )
+                        .fileName())
+              .path();
+    const auto restore_identity = qScopeGuard([&] {
+        QCoreApplication::setOrganizationName(old_organization);
+        QCoreApplication::setApplicationName(old_application);
+        QSettings::setDefaultFormat(old_format);
+        QSettings::setPath(
+            QSettings::IniFormat, QSettings::UserScope, old_path
+        );
+    });
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(
+        QSettings::IniFormat, QSettings::UserScope, directory.path()
+    );
+    QCoreApplication::setOrganizationName(QStringLiteral("yodau"));
+    QCoreApplication::setApplicationName(QStringLiteral("pool-tests"));
+    {
+        main_window window;
+        auto* board = window.findChild<stream_board*>();
+        QVERIFY(board != nullptr);
+        auto* right
+            = window.findChild<QAction*>(QStringLiteral("desktop_pool_right"));
+        auto* left
+            = window.findChild<QAction*>(QStringLiteral("desktop_pool_left"));
+        auto* bottom
+            = window.findChild<QAction*>(QStringLiteral("desktop_pool_bottom"));
+        QVERIFY(right && left && bottom);
+        auto* presentation = window.findChild<QMenu*>(
+            QStringLiteral("desktop_presentation_menu")
+        );
+        auto* pool_menu
+            = window.findChild<QMenu*>(QStringLiteral("desktop_pool_menu"));
+        QVERIFY(presentation && pool_menu);
+        QVERIFY(presentation->actions().contains(pool_menu->menuAction()));
+        QVERIFY(pool_menu->actions().contains(right));
+        bool reachable = false;
+        for (auto* action : window.menuBar()->actions()) {
+            if (action->menu()
+                && action->menu()->actions().contains(
+                    presentation->menuAction()
+                )) {
+                reachable = true;
+            }
+        }
+        QVERIFY(reachable);
+#ifdef KC_KDE
+        QCOMPARE(
+            window.actionCollection()->action(
+                QStringLiteral("view_presentation")
+            ),
+            presentation->menuAction()
+        );
+#endif
+        QVERIFY(bottom->isChecked());
+        auto* lines = window.findChild<QDockWidget*>(
+            QStringLiteral("main_window_line_dock")
+        );
+        QVERIFY(lines != nullptr);
+        lines->hide();
+        right->trigger();
+        QCOMPARE(board->current_pool_side(), pool_side::right);
+        QVERIFY(
+            right->isChecked() && !left->isChecked() && !bottom->isChecked()
+        );
+        QVERIFY(lines->isHidden());
+        QSettings saved;
+        saved.setFallbacksEnabled(false);
+        QVERIFY(!yodau::shell::load_desktop_presentation(saved));
+        auto* canvas = window.findChild<QAction*>(
+            QStringLiteral("desktop_preset_canvas")
+        );
+        auto* reset = window.findChild<QAction*>(
+            QStringLiteral("desktop_preset_reset")
+        );
+        QVERIFY(canvas && reset);
+        canvas->trigger();
+        reset->trigger();
+        QCOMPARE(board->current_pool_side(), pool_side::right);
+        left->trigger();
+        QCOMPARE(board->current_pool_side(), pool_side::left);
+        QVERIFY(left->isChecked() && !right->isChecked());
+    }
+    {
+        main_window restored;
+        auto* board = restored.findChild<stream_board*>();
+        QVERIFY(board != nullptr);
+        QCOMPARE(board->current_pool_side(), pool_side::left);
+        QVERIFY(restored
+                    .findChild<QAction*>(QStringLiteral("desktop_pool_left"))
+                    ->isChecked());
+        QFile blocker(directory.filePath(QStringLiteral("blocked")));
+        QVERIFY(blocker.open(QIODevice::WriteOnly));
+        blocker.close();
+        QSettings::setPath(
+            QSettings::IniFormat, QSettings::UserScope, blocker.fileName()
+        );
+        int warnings = 0;
+        QTimer::singleShot(0, &restored, [&warnings] {
+            for (auto* widget : QApplication::topLevelWidgets()) {
+                if (auto* dialog = qobject_cast<QMessageBox*>(widget)) {
+                    ++warnings;
+                    dialog->accept();
+                }
+            }
+        });
+        auto* right = restored.findChild<QAction*>(
+            QStringLiteral("desktop_pool_right")
+        );
+        right->trigger();
+        QCOMPARE(warnings, 1);
+        QCOMPARE(board->current_pool_side(), pool_side::left);
+        QVERIFY(!right->isChecked());
+        QVERIFY(restored
+                    .findChild<QAction*>(QStringLiteral("desktop_pool_left"))
+                    ->isChecked());
+        QSettings::setPath(
+            QSettings::IniFormat, QSettings::UserScope, directory.path()
+        );
+    }
+#endif
+}
+
 void main_window_tests::
     desktop_presentation_preserves_legacy_layout_and_panel_overrides() {
     using namespace yodau::shell;
@@ -5943,15 +6707,33 @@ void main_window_tests::grid_view_handles_session_sizes_and_viewport_changes() {
 void main_window_tests::grid_preferences_persist_through_main_window() {
     QTemporaryDir temporary_directory;
     QVERIFY(temporary_directory.isValid());
-    const QByteArray previous_config_home = qgetenv("XDG_CONFIG_HOME");
-    const auto restore_config_home = qScopeGuard([previous_config_home]() {
-        if (previous_config_home.isNull()) {
-            qunsetenv("XDG_CONFIG_HOME");
-        } else {
-            qputenv("XDG_CONFIG_HOME", previous_config_home);
-        }
+    const auto old_organization = QCoreApplication::organizationName();
+    const auto old_application = QCoreApplication::applicationName();
+    const auto old_format = QSettings::defaultFormat();
+    const auto old_path
+        = QFileInfo(QSettings(
+                        QSettings::IniFormat, QSettings::UserScope,
+                        QStringLiteral("yodau_path_probe")
+                    )
+                        .fileName())
+              .path();
+    const auto restore = qScopeGuard([&] {
+        QCoreApplication::setOrganizationName(old_organization);
+        QCoreApplication::setApplicationName(old_application);
+        QSettings::setDefaultFormat(old_format);
+        QSettings::setPath(
+            QSettings::IniFormat, QSettings::UserScope, old_path
+        );
     });
-    QVERIFY(qputenv("XDG_CONFIG_HOME", temporary_directory.path().toUtf8()));
+    // setPath() from another case takes precedence over XDG_CONFIG_HOME.
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(
+        QSettings::IniFormat, QSettings::UserScope, temporary_directory.path()
+    );
+    QCoreApplication::setOrganizationName(QStringLiteral("yodau"));
+    QCoreApplication::setApplicationName(
+        QStringLiteral("grid-preference-tests")
+    );
 
     {
         main_window window;

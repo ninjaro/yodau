@@ -198,6 +198,28 @@
           "WidgetsAddons"
         ]
       }
+    },
+    {
+      "id": "app:tests",
+      "kind": "exe",
+      "name": "yodau_app_tests",
+      "root": "app",
+      "owns": [
+        "tests/ui",
+        "tests/include/ui"
+      ],
+      "entry": "tests/main.cpp",
+      "dependencies": [
+        "app:ui"
+      ],
+      "packages": {
+        "qt": [
+          "Test"
+        ]
+      },
+      "tests": {
+        "qttest": true
+      }
     }
   ]
 }

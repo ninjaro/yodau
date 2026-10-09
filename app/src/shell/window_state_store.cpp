@@ -1,4 +1,5 @@
 #include "shell/window_state_store.hpp"
+#include "widgets/stream_board.hpp"
 
 #include <QByteArray>
 #include <QDockWidget>
@@ -9,6 +10,9 @@ namespace {
 
 constexpr auto geometry_key = "desktop/main_window/geometry";
 constexpr auto layout_key = "desktop/main_window/layout";
+constexpr auto pool_side_key = "desktop/presentation/pool_side";
+constexpr auto canvas_tools_key = "desktop/presentation/canvas_tools";
+constexpr auto context_inspector_key = "desktop/presentation/context_inspector";
 // QMainWindow requires the same application-defined tag when restoring its
 // opaque saveState payload. This is format identity for the active Qt API,
 // not compatibility negotiation.
@@ -35,6 +39,89 @@ void set_error(QString* error_message, const QString& value) {
 } // namespace
 
 namespace yodau::shell {
+
+pool_side load_pool_side(QSettings& settings) {
+    const auto side = settings.value(pool_side_key).toString();
+    if (side == QStringLiteral("right")) {
+        return pool_side::right;
+    }
+    if (side == QStringLiteral("left")) {
+        return pool_side::left;
+    }
+    return pool_side::bottom;
+}
+
+bool save_pool_side(QSettings& settings, const pool_side side) {
+    QString name;
+    switch (side) {
+    case pool_side::bottom:
+        name = QStringLiteral("bottom");
+        break;
+    case pool_side::right:
+        name = QStringLiteral("right");
+        break;
+    case pool_side::left:
+        name = QStringLiteral("left");
+        break;
+    default:
+        return false;
+    }
+    const bool existed = settings.contains(pool_side_key);
+    const auto previous = settings.value(pool_side_key);
+    settings.setValue(pool_side_key, name);
+    settings.sync();
+    if (settings.status() == QSettings::NoError) {
+        return true;
+    }
+    // QSettings also caches failed writes. Do not let an unaccepted choice
+    // leak into another settings instance or a later retry.
+    if (existed) {
+        settings.setValue(pool_side_key, previous);
+    } else {
+        settings.remove(pool_side_key);
+    }
+    return false;
+}
+
+bool load_canvas_tools(QSettings& settings) {
+    return settings.value(canvas_tools_key, false).toBool();
+}
+
+bool save_canvas_tools(QSettings& settings, const bool shown) {
+    const bool existed = settings.contains(canvas_tools_key);
+    const auto previous = settings.value(canvas_tools_key);
+    settings.setValue(canvas_tools_key, shown);
+    settings.sync();
+    if (settings.status() == QSettings::NoError) {
+        return true;
+    }
+    if (existed) {
+        settings.setValue(canvas_tools_key, previous);
+    } else {
+        settings.remove(canvas_tools_key);
+    }
+    return false;
+}
+
+bool load_context_inspector(QSettings& settings) {
+    return settings.value(context_inspector_key, false).toBool();
+}
+
+bool save_context_inspector(QSettings& settings, const bool enabled) {
+    const bool existed = settings.contains(context_inspector_key);
+    const auto previous = settings.value(context_inspector_key);
+    settings.setValue(context_inspector_key, enabled);
+    settings.sync();
+    if (settings.status() == QSettings::NoError) {
+        return true;
+    }
+    if (existed) {
+        settings.setValue(context_inspector_key, previous);
+    } else {
+        settings.remove(context_inspector_key);
+    }
+    return false;
+}
 
 bool desktop_presentation::visible(desktop_panel panel) const {
     const auto index = static_cast<std::size_t>(panel);

@@ -22,15 +22,27 @@ jobs:
       pull-requests: read
     runs-on: ubuntu-24.04
     outputs:
+      changes: ${{ steps.selection.outputs.changes }}
       scope: ${{ steps.selection.outputs.scope }}
       verified: ${{ steps.selection.outputs.verified }}
       source: ${{ steps.selection.outputs.source }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - id: selection
         uses: ./.github/actions/select-manifesto-ci
         with:
           kind: checks
+
+      - name: Upload change resolution
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-changes-yodau-checks
+          path: ${{ steps.selection.outputs.changes-file }}
+          include-hidden-files: true
+          if-no-files-found: error
 
       - name: Upload reused verification reports
         if: ${{ steps.selection.outputs.scope == 'reuse' }}
@@ -53,6 +65,16 @@ jobs:
       CMAKE_BUILD_PARALLEL_LEVEL: 2
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ needs.select.outputs.scope != 'reuse' && '0' || '1' }}
+
+      # Resolve against this job's checkout; selection artifacts are diagnostic.
+      - name: Resolve checked-out changes
+        if: ${{ needs.select.outputs.scope != 'reuse' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            require('./.github/actions/select-manifesto-ci/changes.cjs').collect({context, core});
 
       - name: Setup manifesto tool
         if: ${{ needs.select.outputs.scope != 'reuse' }}
@@ -65,6 +87,28 @@ jobs:
           manifesto-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
           build-parallelism: 2
           install-project-deps: ${{ needs.select.outputs.scope == 'full' }}
+
+      - name: Classify checked-out changes
+        if: ${{ needs.select.outputs.scope == 'full' }}
+        id: classification
+        uses: actions/github-script@v7
+        env:
+          ENGELS_BINARY: ${{ steps.manifesto.outputs.engels-binary }}
+        with:
+          script: |
+            require('./.github/actions/select-manifesto-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
+
+      - name: Upload change classification
+        if: ${{ steps.classification.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-classification-yodau-checks
+          path: |
+            .ecosystem/github/changes.json
+            .ecosystem/github/classification.json
+          include-hidden-files: true
+          if-no-files-found: error
 
       - name: Run required local checks
         if: ${{ needs.select.outputs.scope != 'reuse' }}
@@ -79,7 +123,7 @@ jobs:
             case "$CHECK_SCOPE" in
               cheap)
                 "${{ steps.manifesto.outputs.engels-binary }}" check repo
-                "${{ steps.manifesto.outputs.engels-binary }}" check format
+                "${{ steps.manifesto.outputs.engels-binary }}" check format --changes
                 ;;
               full)
                 "${{ steps.manifesto.outputs.marx-binary }}" build debug
@@ -108,6 +152,7 @@ jobs:
           name: ci-reports-yodau-checks
           path: |
             .ecosystem/github/reports
+            .ecosystem/github/changes.json
             .ecosystem/reports
           include-hidden-files: true
           if-no-files-found: warn
@@ -163,7 +208,9 @@ jobs:
         uses: actions/github-script@v7
         env:
           EVIDENCE_KIND: checks
+          VERIFICATION_SCOPE: ${{ needs.select.outputs.scope }}
           TOOL_SOURCE_ROOT: ${{ steps.manifesto.outputs.manifesto-source-root }}
+          ENGELS_BINARY: ${{ steps.manifesto.outputs.engels-binary }}
           CHECK_OUTCOME: ${{ steps.required.outcome }}
           CHECK_STATUS: ${{ steps.required.outputs.status }}
           CHECK_EXIT_CODE: ${{ steps.required.outputs.exit-code }}

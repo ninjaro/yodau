@@ -41,8 +41,6 @@ constexpr double line_edit_key_nudge_px = 1.0;
 constexpr double edit_key_nudge_fast_px = 5.0;
 constexpr double edit_wheel_degrees_per_step = 5.0;
 constexpr double edit_wheel_fine_step_degrees = 1.0;
-constexpr double manual_short_side_minimum = 96.0;
-constexpr double manual_short_side_step = 16.0;
 
 QPointF clamped_pct(QPointF point_pct) {
     point_pct.setX(std::clamp(point_pct.x(), 0.0, 100.0));
@@ -325,6 +323,7 @@ stream_cell::stream_cell(const QString& stream_name, QWidget* parent)
     stream_settings_value.algorithm_preset
         = default_algorithm_preset_id(stream_settings_value.algorithm_id);
     build_ui();
+    build_resize_handle();
     setFocusPolicy(Qt::StrongFocus);
     setAccessibleName(tr("Video stream %1").arg(name));
     update_accessible_description();
@@ -379,9 +378,7 @@ bool stream_cell::has_manual_short_side() const noexcept {
 }
 
 double stream_cell::manual_short_side() const noexcept {
-    return manual_short_side_.value_or(
-        stream_cell_support::manual_short_side_minimum
-    );
+    return manual_short_side_.value_or(manual_minimum);
 }
 
 bool stream_cell::is_draft_preview() const { return draft_preview; }
@@ -400,6 +397,7 @@ void stream_cell::set_active(const bool val) {
     if (active == val) {
         return;
     }
+    end_resize(false);
     active = val;
     if (!active) {
         set_drawing_enabled(false);
@@ -407,6 +405,7 @@ void stream_cell::set_active(const bool val) {
     }
     update_icon();
     update_display_controls();
+    update_resize_handle();
     update_accessible_description();
     update();
 }
@@ -416,6 +415,7 @@ void stream_cell::set_quarter_turns(const int turns) {
     if (quarter_turns_ == normalized) {
         return;
     }
+    end_resize(false);
     quarter_turns_ = normalized;
     update_display_controls();
     update_accessible_description();
@@ -436,16 +436,17 @@ void stream_cell::set_fixed_size_controls_visible(const bool visible) {
     if (fixed_size_controls_visible_ == visible) {
         return;
     }
+    end_resize(false);
     fixed_size_controls_visible_ = visible;
     update_display_controls();
+    update_resize_handle();
 }
 
 void stream_cell::initialize_manual_short_side(const double short_side) {
     if (!std::isfinite(short_side)) {
         return;
     }
-    manual_short_side_
-        = std::max(stream_cell_support::manual_short_side_minimum, short_side);
+    manual_short_side_ = std::max(manual_minimum, short_side);
     update_display_controls();
 }
 
@@ -607,6 +608,20 @@ void stream_cell::set_source(const QUrl& source) {
         return;
     }
 
+    // A file/URL binding replaces capture, including its activation intent.
+    camera_id.clear();
+    resume_camera_on_activation_ = false;
+    if (camera != nullptr) {
+        camera->stop();
+        camera->deleteLater();
+        camera = nullptr;
+    }
+    if (session != nullptr) {
+        session->setCamera(nullptr);
+        session->setVideoSink(nullptr);
+    }
+    player->setVideoOutput(sink);
+
     last_error.clear();
     last_frame = QImage();
     if (std::abs(source_frame_aspect_ - 1.5) > 1e-3) {
@@ -617,8 +632,9 @@ void stream_cell::set_source(const QUrl& source) {
     update_accessible_description();
 
     player->setSource(source);
-    resume_player_on_activation_ = true;
-    if (application_active_) {
+    player->setPlaybackRate(1.0);
+    resume_player_on_activation_ = !source.isEmpty();
+    if (application_active_ && resume_player_on_activation_) {
         player->play();
     }
 }
@@ -638,8 +654,9 @@ void stream_cell::set_camera_id(const QByteArray& id) {
     update_accessible_description();
 
     if (player) {
-        player->stop();
+        player->setSource({});
     }
+    resume_player_on_activation_ = false;
 
     if (camera) {
         camera->stop();
@@ -658,6 +675,7 @@ void stream_cell::set_application_active(const bool active_value) {
     if (application_active_ == active_value) {
         return;
     }
+    end_resize(false);
     application_active_ = active_value;
 
     if (!application_active_) {
@@ -1098,6 +1116,11 @@ void stream_cell::leaveEvent(QEvent* event) {
 }
 
 void stream_cell::keyPressEvent(QKeyEvent* event) {
+    if (resizing_ && event->key() == Qt::Key_Escape) {
+        end_resize(false);
+        event->accept();
+        return;
+    }
     if (active && line_edit_preview_.has_value()) {
         const bool control_pressed
             = (event->modifiers() & Qt::ControlModifier) != 0;
@@ -1501,7 +1524,7 @@ void stream_cell::update_display_controls() {
     if (manual_size_decrease_btn != nullptr) {
         manual_size_decrease_btn->setVisible(show_manual);
         manual_size_decrease_btn->setEnabled(
-            manual_short_side() > stream_cell_support::manual_short_side_minimum
+            manual_short_side() > manual_minimum
         );
     }
     if (manual_size_increase_btn != nullptr) {
@@ -2637,24 +2660,11 @@ void stream_cell::on_aspect_mode_clicked() {
 }
 
 void stream_cell::on_manual_size_decrease_clicked() {
-    const double next = std::max(
-        stream_cell_support::manual_short_side_minimum,
-        manual_short_side() - stream_cell_support::manual_short_side_step
-    );
-    if (std::abs(next - manual_short_side())
-        <= std::numeric_limits<double>::epsilon()) {
-        return;
-    }
-    manual_short_side_ = next;
-    update_display_controls();
-    emit layout_geometry_changed();
+    set_manual_size(manual_short_side() - manual_step);
 }
 
 void stream_cell::on_manual_size_increase_clicked() {
-    manual_short_side_
-        = manual_short_side() + stream_cell_support::manual_short_side_step;
-    update_display_controls();
-    emit layout_geometry_changed();
+    set_manual_size(manual_short_side() + manual_step);
 }
 
 void stream_cell::on_frame_changed(const QVideoFrame& frame) {
@@ -2680,6 +2690,7 @@ void stream_cell::on_frame_changed(const QVideoFrame& frame) {
             = std::max(1e-3, std::abs(source_frame_aspect_) * 1e-3);
         if (std::isfinite(next_aspect) && next_aspect > 0.0
             && std::abs(next_aspect - source_frame_aspect_) > tolerance) {
+            end_resize(false);
             source_frame_aspect_ = next_aspect;
             emit source_frame_aspect_changed(source_frame_aspect_);
             emit layout_geometry_changed();
@@ -2706,12 +2717,14 @@ void stream_cell::on_media_status_changed(
     if (status != QMediaPlayer::EndOfMedia) {
         return;
     }
-    if (!player) {
+    if (!player || player->source().isEmpty()) {
         return;
     }
 
     player->setPosition(0);
-    player->play();
+    if (application_active_) {
+        player->play();
+    }
 }
 
 void stream_cell::on_player_error(

@@ -7,6 +7,7 @@
 #include <QEvent>
 #include <QMessageBox>
 #include <QScrollArea>
+#include <QSet>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QtMath>
@@ -58,7 +59,42 @@ bool grid_view::has_stream(const QString& name) const {
     return tiles.contains(name);
 }
 
-QStringList grid_view::stream_names() const { return tiles.keys(); }
+QStringList grid_view::stream_names() const {
+    if (stream_order_.isEmpty()) {
+        return tiles.keys();
+    }
+    QStringList names;
+    QSet<QString> included;
+    for (const auto& name : stream_order_) {
+        if (tiles.contains(name)) {
+            names.append(name);
+            included.insert(name);
+        }
+    }
+    for (auto it = tiles.cbegin(); it != tiles.cend(); ++it) {
+        if (!included.contains(it.key())) {
+            names.append(it.key());
+        }
+    }
+    return names;
+}
+
+QStringList grid_view::stream_order() const { return stream_order_; }
+
+bool grid_view::set_stream_order(const QStringList& names) {
+    QSet<QString> unique;
+    for (const auto& name : names) {
+        if (name.isEmpty() || unique.contains(name)) {
+            return false;
+        }
+        unique.insert(name);
+    }
+    if (stream_order_ != names) {
+        stream_order_ = names;
+        rebuild_layout();
+    }
+    return true;
+}
 
 int grid_view::layout_row_count() const { return last_layout_rows; }
 
@@ -307,13 +343,21 @@ void grid_view::rebuild_layout() {
         static_cast<double>(available_width),
         static_cast<double>(available_height),
     };
+    // Keep one identity snapshot for input and output. A solver permutation
+    // describes placement traversal, never a replacement for user intent.
+    std::vector<stream_cell*> ordered_tiles;
+    ordered_tiles.reserve(static_cast<std::size_t>(n));
+    for (const auto& name : stream_names()) {
+        ordered_tiles.push_back(tiles.value(name));
+    }
     stream_layout_plan plan;
     if (sizing_mode_ == sizing_mode::adaptive) {
         std::vector<packing::ordered_slot> items(static_cast<std::size_t>(n));
         std::size_t item_index = 0;
-        for (auto it = tiles.cbegin(); it != tiles.cend(); ++it, ++item_index) {
-            items[item_index].aspect = it.value()->source_frame_aspect();
-            items[item_index].rotated = it.value()->quarter_turns() % 2 != 0;
+        for (const auto* tile : ordered_tiles) {
+            items[item_index].aspect = tile->source_frame_aspect();
+            items[item_index].rotated = tile->quarter_turns() % 2 != 0;
+            ++item_index;
         }
 
         if (preserve_stream_order_) {
@@ -355,7 +399,7 @@ void grid_view::rebuild_layout() {
         std::vector<packing::fixed_size_item> items;
         items.reserve(static_cast<std::size_t>(n));
         packing::extent fixed_viewport = viewport;
-        for (stream_cell* tile : tiles) {
+        for (stream_cell* tile : ordered_tiles) {
             if (!tile->has_manual_short_side()) {
                 tile->initialize_manual_short_side(adaptive_minimum_short_side);
             }
@@ -418,12 +462,6 @@ void grid_view::rebuild_layout() {
     }
     last_layout_rows = rows;
     last_layout_columns = cols;
-
-    std::vector<stream_cell*> ordered_tiles;
-    ordered_tiles.reserve(static_cast<std::size_t>(n));
-    for (auto it = tiles.cbegin(); it != tiles.cend(); ++it) {
-        ordered_tiles.push_back(it.value());
-    }
 
     if (plan.rectangles.size() == ordered_tiles.size()) {
         for (std::size_t index = 0; index < ordered_tiles.size(); ++index) {

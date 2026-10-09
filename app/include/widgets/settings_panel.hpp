@@ -117,6 +117,7 @@ signals:
 
     // streams tab
     void show_stream_changed(const QString& name, bool show);
+    void stream_order_changed(const QStringList& names);
     void grid_scroll_direction_changed(const QString& direction_id);
     void grid_preserve_order_changed(bool preserve);
     void grid_sizing_mode_changed(const QString& mode_id);

@@ -379,13 +379,17 @@ inline bool draw(
     const QVector<pulse>& pulses, const QSize& target_size,
     const QColor& line_color, const QString& width_text,
     const QString& length_text, const QString& response_text,
-    const qint64 now_ms
+    const qint64 now_ms, const double display_gain = 1.0
 ) {
     if (pulses.isEmpty() || geometry.segments.empty()) {
         return false;
     }
 
     const auto style = style_for_line(width_text, length_text, response_text);
+    // Presentation only: never change pulse dynamics or the default live wave.
+    const double gain = std::isfinite(display_gain)
+        ? std::clamp(display_gain, 1.0, 3.0)
+        : 1.0;
     QPolygonF wave_poly;
     bool has_visible_wave = false;
 
@@ -418,9 +422,9 @@ inline bool draw(
             const QPointF base_px = to_px(base_pct, target_size);
             const double sample_path_pos
                 = segment.start_pos + t * segment.length;
-            const double sample_displacement_px = displacement_px(
-                geometry, segment.index, sample_path_pos, now_ms, pulses
-            );
+            const double sample_displacement_px = gain
+                * displacement_px(geometry, segment.index, sample_path_pos,
+                                  now_ms, pulses);
 
             if (std::abs(sample_displacement_px) > 0.05) {
                 has_visible_wave = true;

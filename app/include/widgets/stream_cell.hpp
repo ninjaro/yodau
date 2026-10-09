@@ -37,6 +37,8 @@ class QMouseEvent;
 class QPaintEvent;
 class QPainter;
 class QWheelEvent;
+class QResizeEvent;
+class file_transport;
 
 struct hit_info {
     QPointF pos_pct;
@@ -165,6 +167,9 @@ signals:
     void layout_geometry_changed();
 
 protected:
+    bool event(QEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
 
     void mousePressEvent(QMouseEvent* event) override;
@@ -176,6 +181,16 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
 
 private:
+    static constexpr double manual_minimum = 96.0;
+    static constexpr double manual_step = 16.0;
+    void build_resize_handle();
+    void update_resize_handle();
+    void place_resize_handle();
+    [[nodiscard]] bool resize_enabled() const;
+    void begin_resize(const QPointF& global_pos);
+    void update_resize(const QPointF& global_pos);
+    void end_resize(bool commit);
+    void set_manual_size(double short_side);
     void build_ui();
     void update_icon();
     void update_accessible_description();
@@ -251,6 +266,7 @@ private slots:
     void on_manual_size_increase_clicked();
 
 private:
+    friend class file_transport;
     QString name;
 
     QPushButton* close_btn { nullptr };
@@ -293,6 +309,11 @@ private:
     bool keep_frame_aspect_ratio_ { false };
     bool fixed_size_controls_visible_ { false };
     std::optional<double> manual_short_side_;
+    QWidget* resize_handle_ { nullptr };
+    bool resizing_ { false };
+    QPointF resize_origin_;
+    std::optional<double> resize_start_;
+    double resize_aspect_ { 1.0 };
     bool loop_enabled { true };
     QString last_error;
     QCamera* camera { nullptr };
