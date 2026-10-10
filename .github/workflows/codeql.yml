@@ -39,7 +39,7 @@ jobs:
       - name: Upload reused verification reports
         if: ${{ steps.selection.outputs.scope == 'reuse' }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ci-reports-yodau-codeql
           path: ${{ steps.selection.outputs.reports }}
@@ -137,7 +137,7 @@ jobs:
       - name: Upload CodeQL reports
         if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ci-reports-yodau-codeql
           path: .ecosystem/github/reports
@@ -190,7 +190,7 @@ jobs:
 
       - name: Upload verification evidence
         if: ${{ steps.evidence.outputs.name != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ steps.evidence.outputs.name }}
           path: ${{ steps.evidence.outputs.directory }}
@@ -211,7 +211,7 @@ jobs:
 
       - name: Download CodeQL report artifacts
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: ci-reports-yodau-codeql
           path: .ecosystem/github/reports
