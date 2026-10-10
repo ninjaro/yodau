@@ -20,7 +20,7 @@ jobs:
       contents: read
       actions: read
       pull-requests: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       scope: ${{ steps.selection.outputs.scope }}
       verified: ${{ steps.selection.outputs.verified }}
@@ -48,7 +48,7 @@ jobs:
       actions: read
     needs: select
     if: ${{ needs.select.outputs.scope == 'cheap' || needs.select.outputs.scope == 'full' || needs.select.outputs.scope == 'reuse' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 2
     steps:
@@ -185,7 +185,7 @@ jobs:
           retention-days: 30
 
   report:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: checks
     if: ${{ always() && needs.checks.result != 'skipped' }}
     permissions:
