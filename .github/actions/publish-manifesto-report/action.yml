@@ -63,7 +63,7 @@ runs:
 
     - name: Update pull request comment
       if: ${{ github.event_name == 'pull_request' }}
-      uses: actions/github-script@v7
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
       env:
         ECOS_MARKER: ${{ steps.combine.outputs.marker }}
         ECOS_SUMMARY_PATH: ${{ steps.combine.outputs.summary-path }}
@@ -106,7 +106,7 @@ runs:
 
     - name: Sync default-branch issue
       if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
-      uses: actions/github-script@v7
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
       env:
         ECOS_HAS_FAILURES: ${{ steps.combine.outputs.has-failures }}
         ECOS_MARKER: ${{ steps.combine.outputs.marker }}
