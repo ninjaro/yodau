@@ -26,7 +26,7 @@ jobs:
       verified: ${{ steps.selection.outputs.verified }}
       source: ${{ steps.selection.outputs.source }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: selection
         uses: ./.github/actions/select-manifesto-ci
         with:
@@ -52,7 +52,7 @@ jobs:
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup manifesto tool
         if: ${{ needs.select.outputs.scope != 'reuse' }}
@@ -193,7 +193,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Download check report artifacts
         continue-on-error: true
