@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: ${{ success() && steps.publication.outcome == 'success' && (steps.automatic.outputs.coverage == 'passed' || steps.coverage.outputs.status == 'passed') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-yodau
           path: .ecosystem/github/presentation/reports/coverage.json
@@ -212,7 +212,7 @@ jobs:
       - name: Upload Pages reports
         if: ${{ always() }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ci-reports-yodau-pages
           path: |
@@ -274,7 +274,7 @@ jobs:
 
       - name: Download Pages report artifacts
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: ci-reports-yodau-pages
           path: .ecosystem
