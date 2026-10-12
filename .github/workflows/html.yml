@@ -40,7 +40,7 @@ jobs:
       - name: Select automatic publication evidence
         if: ${{ github.event_name == 'workflow_run' }}
         id: automatic
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             await require('./.github/actions/select-manifesto-ci/evidence.cjs').publication({github, context, core});
@@ -83,7 +83,7 @@ jobs:
       - name: Select current presentation reports
         if: ${{ github.event_name == 'workflow_dispatch' && steps.repository.outputs.status == 'passed' && (steps.coverage.outputs.status == 'passed' || steps.coverage.outputs.status == 'skipped') }}
         id: presentation
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           REPOSITORY_OUTCOME: ${{ steps.repository.outcome }}
           REPOSITORY_STATUS: ${{ steps.repository.outputs.status }}
@@ -111,7 +111,7 @@ jobs:
       - name: Revalidate automatic publication evidence
         if: ${{ github.event_name == 'workflow_run' && steps.docs.outputs.status == 'passed' }}
         id: revalidation
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           PUBLICATION_SOURCE: ${{ steps.automatic.outputs.source }}
         with:
@@ -204,7 +204,7 @@ jobs:
       - name: Confirm current publication revision
         if: ${{ success() && steps.publication.outcome == 'success' }}
         id: current
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             await require('./.github/actions/select-manifesto-ci/evidence.cjs').checkPublicationTip({github, context});
@@ -250,7 +250,7 @@ jobs:
           persist-credentials: false
 
       - name: Revalidate deployment source
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           PUBLICATION_SOURCE: ${{ needs.build.outputs.source }}
         with:

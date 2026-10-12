@@ -71,7 +71,7 @@ jobs:
       # Resolve against this job's checkout; selection artifacts are diagnostic.
       - name: Resolve checked-out changes
         if: ${{ needs.select.outputs.scope != 'reuse' }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             require('./.github/actions/select-manifesto-ci/changes.cjs').collect({context, core});
@@ -91,7 +91,7 @@ jobs:
       - name: Classify checked-out changes
         if: ${{ needs.select.outputs.scope == 'full' }}
         id: classification
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           ENGELS_BINARY: ${{ steps.manifesto.outputs.engels-binary }}
         with:
@@ -205,7 +205,7 @@ jobs:
       - name: Record reusable verification
         if: ${{ needs.select.outputs.scope == 'full' }}
         id: evidence
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           EVIDENCE_KIND: checks
           VERIFICATION_SCOPE: ${{ needs.select.outputs.scope }}
