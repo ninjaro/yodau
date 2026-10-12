@@ -5,12 +5,14 @@
 #include "widgets/stream_cell.hpp"
 
 #include <QColor>
+#include <QPointer>
 #include <QWidget>
 
 #include <utility>
 #include <vector>
 
 class active_stream_panel;
+class stream_board;
 class line_profile_panel;
 class template_apply_panel;
 class QLabel;
@@ -21,13 +23,21 @@ class QTableWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QComboBox;
+class QCheckBox;
 class QTableWidgetItem;
+class QGroupBox;
+class QScrollArea;
 
 class active_editor_panel final : public QWidget {
     Q_OBJECT
 
 public:
     explicit active_editor_panel(QWidget* parent = nullptr);
+
+    /// A desktop view of this editor's existing actions, not another session.
+    QWidget* make_canvas_tools(stream_board* board);
+    /// Change desktop presentation without changing tools, targets or edits.
+    void set_context_inspector(bool enabled);
 
     void set_active_candidates(const QStringList& names) const;
     void set_active_current(const QString& name) const;
@@ -78,7 +88,13 @@ signals:
     void template_settings_changed(template_apply_settings settings_value);
 
 private:
-    struct line_edit_snapshot;
+    enum class canvas_tool { select, draw, edit };
+    [[nodiscard]] canvas_tool current_canvas_tool() const;
+    void choose_canvas_tool(canvas_tool tool);
+    void refresh_canvas_tools() const;
+    void refresh_inspector() const;
+
+    struct edit_snapshot;
 
     void build_ui();
     void update_tools() const;
@@ -90,17 +106,20 @@ private:
     void refresh_line_edit_table();
     void refresh_line_edit_summary() const;
     void refresh_line_edit_state() const;
-    void initialize_line_points_from_source();
+    /// Restore source points and enabled rows, discarding edit history.
+    void reset_edit_points();
     void emit_line_preview_if_visible();
     [[nodiscard]] line_edit_request current_line_edit_request() const;
     void clear_line_edit_history();
-    void record_line_edit_mutation();
-    void push_line_edit_undo_snapshot();
-    void restore_line_edit_snapshot(const line_edit_snapshot& snapshot);
-    void refresh_line_edit_after_mutation();
+    /// Save pre-change state unless a grouped edit already owns it.
+    void record_edit();
+    void push_edit_undo();
+    void restore_line_edit_snapshot(const edit_snapshot& snapshot);
+    void refresh_edit_view();
     [[nodiscard]] bool line_edit_has_unsaved_changes() const;
     bool delete_line_edit_row(int row);
-    void emit_line_enabled_changed_queued(QString line_name, bool enabled);
+    /// Coalesce line toggles until the next GUI turn.
+    void queue_line_enabled(QString line_name, bool enabled);
     [[nodiscard]] QString selected_line_name() const;
 
 private slots:
@@ -119,17 +138,37 @@ private slots:
     void on_line_edit_save_clicked();
 
 private:
-    struct line_edit_snapshot {
+    struct canvas_controls {
+        QPointer<QWidget> root;
+        QPointer<stream_board> board;
+        QComboBox* tool = nullptr;
+        QComboBox* target = nullptr;
+        QWidget* details = nullptr;
+        QWidget* history = nullptr;
+        QLineEdit* name = nullptr;
+        QCheckBox* closed = nullptr;
+        QPushButton* save = nullptr;
+        QPushButton* undo = nullptr;
+        QPushButton* redo = nullptr;
+        QPushButton* revert = nullptr;
+        bool typing = false;
+    } canvas_;
+
+    struct edit_snapshot {
         std::vector<QPointF> points_pct;
         std::vector<bool> point_enabled;
         int selected_row { -1 };
     };
 
-    [[nodiscard]] line_edit_snapshot current_line_edit_snapshot() const;
+    [[nodiscard]] edit_snapshot edit_snapshot_now() const;
     [[nodiscard]] bool
-    snapshot_matches_current(const line_edit_snapshot& snapshot) const;
+    snapshot_matches_current(const edit_snapshot& snapshot) const;
 
     active_stream_panel* active_stream_panel_widget { nullptr };
+    QGroupBox* status_box_ { nullptr };
+    QLabel* context_label_ { nullptr };
+    QScrollArea* inspector_scroll_ { nullptr };
+    bool contextual_ = false;
     line_profile_panel* active_line_panel { nullptr };
     template_apply_panel* active_template_panel { nullptr };
     QLabel* status_summary_label { nullptr };
@@ -152,9 +191,10 @@ private:
     std::vector<QPointF> line_edit_points_pct_;
     std::vector<bool> line_edit_point_enabled_;
     QString line_edit_source_name_;
+    QString edit_stream_name_;
     int line_edit_selected_row_ { -1 };
-    std::vector<line_edit_snapshot> line_edit_undo_stack_;
-    std::vector<line_edit_snapshot> line_edit_redo_stack_;
+    std::vector<edit_snapshot> line_edit_undo_stack_;
+    std::vector<edit_snapshot> line_edit_redo_stack_;
     bool line_edit_transaction_active_ { false };
     bool syncing_line_edit_ui_ { false };
     bool line_toggle_flush_scheduled_ { false };

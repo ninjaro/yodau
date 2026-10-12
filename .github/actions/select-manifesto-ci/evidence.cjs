@@ -55,13 +55,61 @@ function policy(root) {
       revision: config.manifesto_ref || '', source_path: config.manifesto_source_path || '.'},
   };
 }
-function fileNames(kind, coverage) {
+function fileNames(kind, coverage, scope = 'full') {
   requireValue(kinds[kind], 'Unknown evidence kind');
-  const names = kinds[kind].stages.flatMap(stage =>
+  requireValue(scope === 'full' || (scope === 'delta' && kind === 'codeql'), 'Unknown evidence scope');
+  const stages = scope === 'delta' ? ['01-tracked-surface'] : kinds[kind].stages;
+  const names = stages.flatMap(stage =>
     ['summary.md', 'output.log'].map(file => `github/reports/${stage}/${file}`));
   if (kind === 'codeql') names.push('github/reports/03-codeql-analysis/summary.md');
   if (kind === 'checks' && coverage === 'passed') names.push('reports/coverage.json');
+  names.push(changeFile(kind));
   return names.sort();
+}
+function changeFile(kind) { return `github/selection/${kind}.json`; }
+
+// Classification explains the selection inputs; only verification attests what
+// ran. Even a presentation-only delta still needs every full stage in this schema.
+function validateChange(selection, receipt) {
+  const {input, report} = selection || {};
+  requireValue(selection?.schema === 1 && input?.schema === 1 && report?.schema === 1
+    && input.event === receipt.event && input.event_commit === receipt.tested_commit
+    && typeof input.complete === 'boolean' && Array.isArray(input.paths) && Array.isArray(input.changes)
+    && report.project === receipt.policy.project && typeof report.delta_validated === 'boolean'
+    && ['full', 'affected', 'presentation', 'none'].includes(report.classification), 'Invalid change selection identity');
+  requireValue(input.checkout === null || input.checkout === receipt.tested_commit, 'Change checkout differs');
+  if (input.complete) {
+    requireValue(input.checkout === receipt.tested_commit
+      && ['base', 'head', 'comparison_base'].every(key => /^[0-9a-f]{40}$/.test(input[key] || '')),
+    'Incomplete change comparison');
+    requireValue(receipt.event === 'pull_request'
+      ? input.base === receipt.pr?.base && input.head === receipt.pr?.head
+      : receipt.event === 'push' && input.head === receipt.tested_commit && input.comparison_base === input.base,
+    'Change comparison differs from the verified event');
+  } else {
+    requireValue(input.paths.length === 0 && input.changes.length === 0 && !report.delta_validated,
+      'Incomplete event delta cannot carry a selection');
+  }
+  if (report.delta_validated) {
+    requireValue(input.complete && equal(report.comparison, {
+      event: input.event, checkout: input.checkout, base: input.base, head: input.head,
+      comparison_base: input.comparison_base, manifest_blob: receipt.policy.manifest,
+    }), 'Classification comparison differs');
+  } else {
+    requireValue(report.classification === 'full' && report.format?.scope === 'full',
+      'Unvalidated classification must retain full scope');
+  }
+}
+
+function readChange(root, context, binary, receipt) {
+  const changes = require('./changes.cjs');
+  const input = JSON.parse(readFile(root, '.ecosystem/github/changes.json', true));
+  const report = JSON.parse(readFile(root, '.ecosystem/github/classification.json', true));
+  requireValue(equal(input, changes.resolve({context, root})), 'Event delta changed after acquisition');
+  requireValue(equal(report, changes.inspect({root, binary})), 'Native classification changed after selection');
+  const selection = {schema: 1, input, report};
+  validateChange(selection, receipt);
+  return selection;
 }
 function successful(env, prefix, optional = false) {
   const status = env[prefix + '_STATUS'];
@@ -71,8 +119,17 @@ function successful(env, prefix, optional = false) {
   'Incomplete native result: ' + prefix);
   return status;
 }
-function artifactName(kind, runId, attempt) {
-  return `manifesto-evidence-${kind}-${runId}-${attempt}`;
+// This version only attests whole-project verification. A changed-file or
+// presentation-only result needs its own contract before it can authorize reuse.
+function fullVerification(kind, tree, manifest) {
+  const stages = kind === 'checks'
+    ? ['repository', 'build', 'tests', 'java', 'tidy', 'format', 'coverage']
+    : ['repository', 'build', 'analysis'];
+  return {scope: 'full', selection: {kind: 'whole-tree', tree, manifest},
+    stages: Object.fromEntries(stages.map(stage => [stage, 'full']))};
+}
+function artifactName(kind, runId, attempt, scope = 'full') {
+  return `manifesto-${scope === 'delta' ? 'delta' : 'evidence'}-${kind}-${runId}-${attempt}`;
 }
 function workflowMatches(run, kind) {
   const file = kinds[kind].workflow;
@@ -133,6 +190,8 @@ async function presentation({context, core, root = process.cwd(), env = process.
 async function record({github, context, core, root = process.cwd(), env = process.env}) {
   const kind = env.EVIDENCE_KIND;
   requireValue(kinds[kind], 'Unknown evidence kind');
+  const delta = kind === 'codeql' && env.VERIFICATION_SCOPE === 'delta';
+  requireValue(env.VERIFICATION_SCOPE === 'full' || delta, 'Reusable evidence requires explicit full verification scope');
   let config;
   try { config = policy(root); }
   catch (error) { core.notice('No reusable receipt: ' + error.message); return; }
@@ -146,8 +205,15 @@ async function record({github, context, core, root = process.cwd(), env = proces
   let coverage = null;
   if (kind === 'checks') { successful(env, 'CHECK'); coverage = successful(env, 'COVERAGE', true); }
   else {
-    successful(env, 'REPOSITORY'); successful(env, 'CODEQL_BUILD');
-    requireValue(env.CODEQL_INIT_STATUS === 'success' && env.CODEQL_ANALYZE_STATUS === 'success', 'Incomplete CodeQL result');
+    successful(env, 'REPOSITORY');
+    if (delta) {
+      requireValue(env.CODEQL_INIT_STATUS === 'skipped' && env.CODEQL_BUILD_OUTCOME === 'skipped'
+        && !env.CODEQL_BUILD_STATUS && !env.CODEQL_BUILD_EXIT_CODE && env.CODEQL_ANALYZE_STATUS === 'skipped',
+      'Delta CodeQL evidence requires intentionally skipped analysis');
+    } else {
+      successful(env, 'CODEQL_BUILD');
+      requireValue(env.CODEQL_INIT_STATUS === 'success' && env.CODEQL_ANALYZE_STATUS === 'success', 'Incomplete CodeQL result');
+    }
   }
   const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id: context.runId});
   const attempt = Number(env.GITHUB_RUN_ATTEMPT);
@@ -156,17 +222,31 @@ async function record({github, context, core, root = process.cwd(), env = proces
     && run.event === context.eventName, 'Run metadata does not identify this verification');
   const pr = context.payload.pull_request;
   requireValue(run.head_sha === tested || run.head_sha === pr?.head.sha, 'Run does not identify the tested commit');
+  const tree = git(root, 'rev-parse', 'HEAD^{tree}');
   const receipt = {
-    schema: 1, kind, repository: {id: context.payload.repository.id, name: `${context.repo.owner}/${context.repo.repo}`},
+    schema: delta ? 1 : 3, kind: delta ? 'codeql-delta' : kind,
+    repository: {id: context.payload.repository.id, name: `${context.repo.owner}/${context.repo.repo}`},
     run_id: run.id, run_attempt: attempt, workflow_id: run.workflow_id, workflow: run.path, event: run.event,
-    run_head: run.head_sha, tested_commit: tested, tested_tree: git(root, 'rev-parse', 'HEAD^{tree}'),
+    run_head: run.head_sha, tested_commit: tested, tested_tree: tree,
     pr: pr ? {number: pr.number, head: pr.head.sha, base: pr.base.sha, base_ref: pr.base.ref,
       head_repository: pr.head.repo.id} : null,
-    policy: config, tooling_commit: tooling, coverage, files: {},
+    policy: config, tooling_commit: tooling, coverage,
+    verification: fullVerification(kind, tree, config.manifest), files: {},
   };
-  const destination = safePath(root, `.ecosystem/github/evidence/${kind}`);
-  writeBundle(root, receipt, destination, fileNames(kind, coverage));
-  core.setOutput('name', artifactName(kind, run.id, attempt));
+  const selection = readChange(root, context, env.ENGELS_BINARY, receipt);
+  if (delta) {
+    requireValue(context.eventName === 'pull_request' && selection.report.delta_validated
+      && selection.report.execution?.codeql === 'repository', 'Native policy requires full CodeQL analysis');
+    receipt.verification = {scope: 'delta', selection: {kind: 'event-delta', tree, manifest: config.manifest,
+      comparison_base: selection.input.comparison_base, head: selection.input.head},
+    stages: {repository: 'full', build: 'none', analysis: 'none'}};
+  }
+  const snapshot = safePath(root, '.ecosystem/' + changeFile(kind));
+  fs.mkdirSync(path.dirname(snapshot), {recursive: true});
+  fs.writeFileSync(snapshot, JSON.stringify(selection) + '\n', {flag: 'wx'});
+  const destination = safePath(root, `.ecosystem/github/evidence/${receipt.kind}`);
+  writeBundle(root, receipt, destination, fileNames(kind, coverage, env.VERIFICATION_SCOPE));
+  core.setOutput('name', artifactName(kind, run.id, attempt, env.VERIFICATION_SCOPE));
   core.setOutput('directory', destination);
 }
 
@@ -271,13 +351,15 @@ async function verifiedRun({api, run, kind, repository, context, tree, config, t
   const allowed = ['receipt.json', ...fileNames(kind, 'passed')];
   execFileSync('python3', ['-c', unpackProgram, archive, directory, JSON.stringify(allowed)], {stdio: 'pipe'});
   const receipt = JSON.parse(readFile(directory, 'receipt.json', true));
-  requireValue(receipt.schema === 1 && receipt.kind === kind && receipt.repository?.id === repository.id
+  requireValue(receipt.schema === 3 && receipt.kind === kind && receipt.repository?.id === repository.id
     && receipt.repository.name === `${context.repo.owner}/${context.repo.repo}` && receipt.run_id === run.id
     && receipt.run_attempt === run.run_attempt && receipt.workflow_id === run.workflow_id
     && receipt.workflow === run.path && receipt.event === run.event && receipt.run_head === run.head_sha
     && /^[0-9a-f]{40}$/.test(receipt.tested_commit || '') && receipt.tested_tree === tree
     && equal(receipt.policy, config) && receipt.tooling_commit === (config.tooling.bootstrap === 'checkout'
       ? receipt.tested_commit : config.tooling.revision), 'Receipt provenance differs from the source tree/configuration');
+  requireValue(equal(receipt.verification, fullVerification(kind, tree, config.manifest)),
+    'Receipt does not attest the required whole-project verification scope');
   if (pr) {
     const pointer = run.pull_requests.find(item => item.number === pr.number);
     requireValue(receipt.pr?.number === pr.number && receipt.pr.head === pr.head.sha && receipt.pr.base === pointer.base.sha
@@ -303,9 +385,11 @@ async function verifiedRun({api, run, kind, repository, context, tree, config, t
     const bytes = readFile(directory, file, !file.endsWith('/output.log'));
     requireValue(receipt.files[file].bytes === bytes.length && receipt.files[file].sha256 === hash(bytes), 'Report digest mismatch');
   }
+  validateChange(JSON.parse(readFile(directory, changeFile(kind), true)), receipt);
   await unchangedRun(api, run, matches);
   return {receipt, directory, source: {run_id: run.id, run_attempt: run.run_attempt,
-    artifact_id: artifact.id, artifact_digest: artifact.digest}};
+    artifact_id: artifact.id, artifact_digest: artifact.digest, verification: receipt.verification,
+    change: {event: receipt.event, commit: receipt.tested_commit, pr: receipt.pr, ...receipt.files[changeFile(kind)]}}};
 }
 async function reusablePair({github, context, root, temporary}) {
   const repository = context.payload.repository;
@@ -425,7 +509,7 @@ async function publication({github, context, core, root = process.cwd()}) {
     const {pair, source} = await publicationPair({github, context, root, temporary});
     const directory = safePath(root, '.ecosystem/github/presentation');
     requireValue(!fs.existsSync(directory), 'Presentation destination already exists');
-    const receipt = {schema: 1, kind: 'publication', repository: pair.checks.receipt.repository,
+    const receipt = {schema: 2, kind: 'publication', repository: pair.checks.receipt.repository,
       tested_commit: context.sha, tested_tree: source.tree, policy: pair.checks.receipt.policy,
       coverage: pair.checks.receipt.coverage, verification: source, files: {}};
     let total = 0;

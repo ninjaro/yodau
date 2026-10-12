@@ -264,6 +264,8 @@ void line_profile_panel::build_ui() {
     );
     layout->addWidget(random_color_button);
 
+    build_wave_controls(layout);
+
     advanced_settings_checkbox
         = new QCheckBox(str_label("advanced settings"), this);
     advanced_settings_checkbox->setObjectName(
@@ -295,6 +297,9 @@ void line_profile_panel::build_ui() {
     layout->addWidget(width_label);
     width_combo = new QComboBox(this);
     width_combo->setEditable(true);
+    width_combo->setToolTip(str_label(
+        "Thickness affects both the line stroke and the existing wave style."
+    ));
     width_combo->setObjectName(
         QStringLiteral("settings_active_line_width_combo")
     );
@@ -308,6 +313,10 @@ void line_profile_panel::build_ui() {
     layout->addWidget(length_label);
     length_combo = new QComboBox(this);
     length_combo->setEditable(true);
+    length_combo->setToolTip(str_label(
+        "Effective span shapes wave travel, spread and frequency; it does not "
+        "resize the drawn geometry."
+    ));
     length_combo->setObjectName(
         QStringLiteral("settings_active_line_length_combo")
     );
@@ -321,6 +330,10 @@ void line_profile_panel::build_ui() {
     layout->addWidget(response_label);
     response_combo = new QComboBox(this);
     response_combo->setEditable(true);
+    response_combo->setToolTip(str_label(
+        "Dry waves decay faster; resonant waves decay more slowly. This is "
+        "the existing visual response, not pitch or lossless physics."
+    ));
     response_combo->setObjectName(
         QStringLiteral("settings_active_line_response_combo")
     );
@@ -503,6 +516,7 @@ void line_profile_panel::refresh_parameter_mode_labels() {
 }
 
 void line_profile_panel::refresh_summary() {
+    refresh_wave_controls();
     if (summary_label == nullptr) {
         return;
     }

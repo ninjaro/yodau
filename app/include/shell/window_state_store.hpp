@@ -8,11 +8,20 @@
 class QDockWidget;
 class QMainWindow;
 class QSettings;
+enum class pool_side;
 
 namespace yodau::shell {
 
 enum class desktop_preset { classic, canvas };
 enum class desktop_panel { streams, editor, logs };
+
+// Independent of dock presets, grid policy and daemon configuration.
+[[nodiscard]] pool_side load_pool_side(QSettings& settings);
+[[nodiscard]] bool save_pool_side(QSettings& settings, pool_side side);
+[[nodiscard]] bool load_canvas_tools(QSettings& settings);
+[[nodiscard]] bool save_canvas_tools(QSettings& settings, bool shown);
+[[nodiscard]] bool load_context_inspector(QSettings& settings);
+[[nodiscard]] bool save_context_inspector(QSettings& settings, bool enabled);
 
 struct desktop_presentation {
     desktop_preset preset = desktop_preset::classic;

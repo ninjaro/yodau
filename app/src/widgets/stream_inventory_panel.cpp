@@ -13,7 +13,7 @@
 
 stream_inventory_panel::stream_inventory_panel(QWidget* parent)
     : QWidget(parent)
-    , streams_list(new QTreeWidget(this)) {
+    , streams_list(make_stream_list()) {
     const auto layout = new QVBoxLayout(this);
     layout->setSpacing(10);
 
@@ -35,6 +35,7 @@ stream_inventory_panel::stream_inventory_panel(QWidget* parent)
     streams_list->header()->setSectionResizeMode(1, QHeaderView::Stretch);
     streams_list->header()->setSectionResizeMode(2, QHeaderView::Stretch);
     layout->addWidget(streams_list);
+    build_order_controls(layout);
 
     connect(
         streams_list, &QTreeWidget::itemChanged, this,
@@ -56,12 +57,20 @@ void stream_inventory_panel::add_stream_entry(
     }
 
     const auto item = new QTreeWidgetItem();
-    item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+    item->setFlags(
+        (item->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsDropEnabled
+    );
     item->setCheckState(0, checked ? Qt::Checked : Qt::Unchecked);
     item->setText(1, name);
     item->setText(2, source);
     streams_list->addTopLevelItem(item);
     refresh_summary();
+    update_order_controls();
+    if (order_edited_) {
+        emit const_cast<stream_inventory_panel*>(this)->stream_order_changed(
+            stream_order()
+        );
+    }
 }
 
 void stream_inventory_panel::set_stream_checked(
@@ -81,15 +90,27 @@ void stream_inventory_panel::remove_stream_entry(const QString& name) const {
         const auto item = streams_list->topLevelItem(i);
         if (item->text(1) == name) {
             delete streams_list->takeTopLevelItem(i);
+            if (order_edited_) {
+                auto* self = const_cast<stream_inventory_panel*>(this);
+                self->order_edited_ = streams_list->topLevelItemCount() != 0;
+                emit self->stream_order_changed(stream_order());
+            }
             break;
         }
     }
     refresh_summary();
+    update_order_controls();
 }
 
 void stream_inventory_panel::clear_stream_entries() const {
     streams_list->clear();
+    if (order_edited_) {
+        auto* self = const_cast<stream_inventory_panel*>(this);
+        self->order_edited_ = false;
+        emit self->stream_order_changed({});
+    }
     refresh_summary();
+    update_order_controls();
 }
 
 void stream_inventory_panel::on_stream_item_changed(

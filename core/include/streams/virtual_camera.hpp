@@ -55,6 +55,9 @@ private:
         std::string device_path;
         bool device_ready { false };
         std::string last_error;
+        // Assignment rejection is terminal for this binding. Frame/worker
+        // errors cannot replace it; release() permits a fresh assignment.
+        std::string assignment_error;
         size_t published_frame_count { 0 };
         size_t dropped_frame_count { 0 };
 #ifdef __linux__

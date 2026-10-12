@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
     app.setWindowIcon(
         QIcon::fromTheme(
             QStringLiteral("org.ninjaro.yodau"),
-            QIcon(QStringLiteral(":/yodau/bug.svg"))
+            QIcon(QStringLiteral(":/yodau/brand/bug.svg"))
         )
     );
     QCommandLineParser parser;
@@ -73,6 +73,16 @@ int main(int argc, char* argv[]) {
     monitor::qt::gui_heartbeat gui_watchdog(&app);
 
     auto window = std::make_unique<main_window>();
+    // main() owns cleanup in both profiles; KMainWindow otherwise deletes
+    // itself on close while this unique_ptr still owns it.
+    window->setAttribute(Qt::WA_DeleteOnClose, false);
+#ifdef KC_KDE
+    // KMainWindow holds a quit lock until destruction. End the event loop on
+    // last-window close so the entrypoint can destroy its owned window once.
+    QObject::connect(
+        &app, &QGuiApplication::lastWindowClosed, &app, &QCoreApplication::quit
+    );
+#endif
     window->show();
 
     const int result = QApplication::exec();

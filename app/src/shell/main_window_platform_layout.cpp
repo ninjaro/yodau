@@ -1,5 +1,6 @@
 #include "shell/main_window.hpp"
 
+#include "shell/desktop_shell.hpp"
 #include "shell/mobile_session_store.hpp"
 #include "shell/str_label.hpp"
 #include "widgets/log_area_view.hpp"
@@ -25,11 +26,6 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
-
-#ifdef KC_KDE
-#include <KActionCollection>
-#include <KStandardAction>
-#endif
 
 void main_window::setup_platform_layout() {
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
@@ -235,14 +231,6 @@ void main_window::setup_platform_layout() {
     addDockWidget(Qt::BottomDockWidgetArea, log_dock);
     auto* log_action = log_dock->toggleViewAction();
     log_action->setText(str_label("logs"));
-
-#if !defined(KC_KDE)
-    auto* top_toolbar = addToolBar(str_label("top"));
-    top_toolbar->setObjectName(QStringLiteral("main_toolbar"));
-    top_toolbar->addAction(settings_action);
-    top_toolbar->addAction(line_action);
-    top_toolbar->addAction(log_action);
-#endif
 #endif
 }
 
@@ -274,6 +262,9 @@ void main_window::show_settings_panel() {
 
 void main_window::setup_desktop_shell() {
 #if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+    setup_canvas_tools();
+    setup_context_inspector();
+    setup_processing_readout();
     auto* presentation_menu = setup_desktop_presentation_menu();
 #endif
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
@@ -292,92 +283,14 @@ void main_window::setup_desktop_shell() {
         mobile_document_toolbar->addAction(export_line_configuration_action);
     }
     return;
-#elif defined(KC_KDE)
-    auto* actions = actionCollection();
-    actions->addAction(
-        QStringLiteral("line_configuration_import"),
-        import_line_configuration_action
-    );
-    actions->addAction(
-        QStringLiteral("line_configuration_export"),
-        export_line_configuration_action
-    );
-    KActionCollection::setDefaultShortcut(
-        import_line_configuration_action,
-        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I)
-    );
-    KActionCollection::setDefaultShortcut(
-        export_line_configuration_action,
-        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E)
-    );
-
-    auto register_dock_action
-        = [actions](QDockWidget* dock, const QString& action_name) {
-              if (dock == nullptr) {
-                  return;
-              }
-              auto* action = dock->toggleViewAction();
-              action->setObjectName(action_name);
-              actions->addAction(action_name, action);
-          };
-    register_dock_action(settings_dock, QStringLiteral("view_streams_dock"));
-    register_dock_action(line_dock, QStringLiteral("view_lines_dock"));
-    register_dock_action(log_dock, QStringLiteral("view_logs_dock"));
-    actions->addAction(
-        QStringLiteral("view_presentation"), presentation_menu->menuAction()
-    );
-
-    KStandardAction::quit(this, &QWidget::close, actions);
-    KStandardAction::preferences(
-        this, &main_window::show_settings_panel, actions
-    );
-    setupGUI(
-        KXmlGuiWindow::ToolBar | KXmlGuiWindow::Keys | KXmlGuiWindow::StatusBar
-            | KXmlGuiWindow::Create,
-        QStringLiteral(":/yodau/yodauui.rc")
-    );
 #else
-    auto* file_menu = menuBar()->addMenu(tr("&File"));
-    file_menu->addAction(import_line_configuration_action);
-    file_menu->addAction(export_line_configuration_action);
-    file_menu->addSeparator();
-    auto* quit_action = file_menu->addAction(tr("E&xit"));
-    quit_action->setObjectName(QStringLiteral("main_quit_action"));
-    connect(quit_action, &QAction::triggered, this, &QWidget::close);
-
-    auto* view_menu = menuBar()->addMenu(tr("&View"));
-    view_menu->addMenu(presentation_menu);
-    if (settings_dock != nullptr) {
-        view_menu->addAction(settings_dock->toggleViewAction());
-    }
-    if (line_dock != nullptr) {
-        view_menu->addAction(line_dock->toggleViewAction());
-    }
-    if (log_dock != nullptr) {
-        view_menu->addAction(log_dock->toggleViewAction());
-    }
-
-    auto* settings_menu = menuBar()->addMenu(tr("&Settings"));
-    auto* preferences_action
-        = settings_menu->addAction(tr("Show stream settings"));
-    preferences_action->setObjectName(
-        QStringLiteral("main_preferences_action")
+    yodau::shell::setup_desktop_shell(
+        *this,
+        { import_line_configuration_action, export_line_configuration_action,
+          presentation_menu,
+          { settings_dock, line_dock, log_dock, processing_dock_ } },
+        [this] { show_settings_panel(); }
     );
-    connect(
-        preferences_action, &QAction::triggered, this,
-        &main_window::show_settings_panel
-    );
-
-    auto* help_menu = menuBar()->addMenu(tr("&Help"));
-    auto* about_action = help_menu->addAction(tr("&About yodau"));
-    about_action->setObjectName(QStringLiteral("main_about_action"));
-    connect(about_action, &QAction::triggered, this, [this]() {
-        QMessageBox::about(
-            this, tr("About yodau"),
-            tr("yodau %1\nVideo stream analysis and line configuration.")
-                .arg(QCoreApplication::applicationVersion())
-        );
-    });
 #endif
 }
 
@@ -419,6 +332,35 @@ QMenu* main_window::setup_desktop_presentation_menu() {
         value.reset_overrides();
         choose_desktop_presentation(value);
     });
+    if (canvas_tools_action_ != nullptr) {
+        menu->addAction(canvas_tools_action_);
+    }
+    if (inspector_action_ != nullptr) {
+        menu->addAction(inspector_action_);
+    }
+    auto* pool_menu = menu->addMenu(tr("Pool &position"));
+    pool_menu->setObjectName(QStringLiteral("desktop_pool_menu"));
+    pool_side_actions_ = new QActionGroup(pool_menu);
+    const auto add_side =
+        [this,
+         pool_menu](const QString& label, pool_side side, const QString& name) {
+            auto* action = pool_menu->addAction(label);
+            action->setObjectName(name);
+            action->setCheckable(true);
+            action->setData(static_cast<int>(side));
+            pool_side_actions_->addAction(action);
+            connect(action, &QAction::triggered, this, [this, side] {
+                choose_pool_side(side);
+            });
+        };
+    add_side(
+        tr("&Bottom"), pool_side::bottom, QStringLiteral("desktop_pool_bottom")
+    );
+    add_side(
+        tr("&Right"), pool_side::right, QStringLiteral("desktop_pool_right")
+    );
+    add_side(tr("&Left"), pool_side::left, QStringLiteral("desktop_pool_left"));
+    refresh_pool_actions();
     menu->addSeparator();
     for (auto* dock : { settings_dock, line_dock, log_dock }) {
         if (dock != nullptr) {
@@ -430,6 +372,32 @@ QMenu* main_window::setup_desktop_presentation_menu() {
         }
     }
     return menu;
+}
+
+void main_window::refresh_pool_actions() {
+    if (pool_side_actions_ == nullptr) {
+        return;
+    }
+    for (auto* action : pool_side_actions_->actions()) {
+        action->setChecked(
+            action->data().toInt()
+            == static_cast<int>(main_zone->current_pool_side())
+        );
+    }
+}
+
+void main_window::choose_pool_side(const pool_side side) {
+    QSettings app_preferences;
+    if (!yodau::shell::save_pool_side(app_preferences, side)) {
+        refresh_pool_actions();
+        QMessageBox::warning(
+            this, tr("Pool position"),
+            tr("Could not save the pool position settings.")
+        );
+        return;
+    }
+    main_zone->set_pool_side(side);
+    refresh_pool_actions();
 }
 
 void main_window::refresh_desktop_preset_actions() {

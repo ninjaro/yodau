@@ -8,7 +8,7 @@ on:
       - 'manifest.json'
       - 'manifesto.github.vars.json'
       - 'CMakeLists.txt'
-      - '.github/actions/setup-yodau-toolchain/**'
+      - '.github/actions/setup-manifesto/**'
       - '.github/workflows/hardening.yml'
   push:
     paths:
@@ -17,7 +17,7 @@ on:
       - 'manifest.json'
       - 'manifesto.github.vars.json'
       - 'CMakeLists.txt'
-      - '.github/actions/setup-yodau-toolchain/**'
+      - '.github/actions/setup-manifesto/**'
       - '.github/workflows/hardening.yml'
   workflow_dispatch:
 
@@ -38,45 +38,86 @@ jobs:
 
       - name: Setup pinned toolchain
         id: manifesto
-        uses: ./.github/actions/setup-yodau-toolchain
+        uses: ./.github/actions/setup-manifesto
         with:
-          manifesto-repository: ninjaro/cppr
+          bootstrap: repository
+          source-path: '.'
+          # Keep these selectors aligned with manifesto.github.vars.json.
+          manifesto-repository: ninjaro/ecosystem
           manifesto-ref: b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914
           build-parallelism: 2
+          install-project-deps: 'true'
+
+      - name: Record resolved dependency versions
+        shell: bash
+        env:
+          TOOL_SOURCE: ${{ steps.manifesto.outputs.manifesto-source-root }}
+        run: |
+          report_root=".ecosystem/github/reports/00-toolchain"
+          mkdir -p "$report_root"
+          {
+            cmake --version | head -n 1
+            clang++ --version | head -n 1
+            qmake -query QT_VERSION
+            pkg-config --modversion opencv4
+            printf '%s\n' 'nlohmann_json 3.12.0 (canonical bootstrap prerequisite)'
+            printf 'tooling source %s\n' "$TOOL_SOURCE"
+            git -C "$TOOL_SOURCE" rev-parse HEAD
+          } > "$report_root/versions.txt"
 
       - name: Generate and verify standalone build surface
         shell: bash
         run: |
-          "${{ steps.manifesto.outputs.manifesto-binary }}" sync
+          "${{ steps.manifesto.outputs.marx-binary }}" sync
           if grep -Fq '.ecosystem/source/CMakeLists.txt' CMakeLists.txt; then
             echo 'Tracked CMake still depends on ignored generated files.' >&2
             exit 1
           fi
           cmake -S . -B build-standalone -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug
-          cmake --build build-standalone --parallel 2 --target app__app
+          # The outer facade builds the real Monitor/Packing provider closure
+          # and its application; app__app belongs to the inner graph only.
+          cmake --build build-standalone --parallel 2
+          cmake --install build-standalone --prefix "$PWD/.ecosystem/hardening-sdk"
 
-      - name: Configure sanitizer developer graph
+      - name: Run canonical sanitizer check
         shell: bash
         run: |
-          cmake -S .ecosystem/source -B build-hardening -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DECOSYSTEM_BUILD_TESTS=ON \
-            -DECOSYSTEM_BUILD_BENCHMARKS=OFF \
-            -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
-            -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+          # sync supplies tracked surfaces; Engels creates the developer graph
+          # and selects its actual test targets for ASan/UBSan/LSan checks.
+          export CMAKE_PREFIX_PATH="$PWD/.ecosystem/hardening-sdk${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+          "${{ steps.manifesto.outputs.engels-binary }}" check leaks
 
-      - name: Build sanitizer test targets
+      - name: Require complete authored test-source coverage
+        shell: bash
         run: |
-          cmake --build build-hardening --parallel 2 \
-            --target core_tests__tests app_tests__tests
+          # Require all 54 authored translation units after B1/B1.1 adoption.
+          # Fail explicitly if hosted tooling still emits an incomplete suite.
+          # This checks coverage; it does not supply missing targets.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
 
-      - name: Run ASan and UBSan tests
+          root = Path.cwd()
+          commands = json.loads(Path('.ecosystem/build/project/desktop/debug/leaks/compile_commands.json').read_text())
+          compiled = {(Path(item['directory']) / item['file']).resolve() for item in commands}
+          authored = {path.resolve() for area in ('core/tests', 'app/tests')
+                      for path in (root / area).rglob('*.cpp')}
+          missing = sorted(str(path.relative_to(root)) for path in authored - compiled)
+          report = Path('.ecosystem/github/reports/hardening/test-source-coverage.json')
+          report.parent.mkdir(parents=True, exist_ok=True)
+          report.write_text(json.dumps({'authored': len(authored), 'missing': missing}, indent=2) + '\n')
+          if missing:
+              print('\n'.join(missing))
+              raise SystemExit('::error::Incomplete sanitizer test-source coverage; see test-source-coverage.json.')
+          PY
+
+      - name: Repeat sanitizer tests with strict string checks
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
           QT_QPA_PLATFORM: offscreen
-        run: ctest --test-dir build-hardening --output-on-failure
+        run: ctest --test-dir .ecosystem/build/project/desktop/debug/leaks --output-on-failure --no-tests=error
 
       - name: Upload dependency and sanitizer evidence
         if: ${{ always() }}
@@ -85,6 +126,7 @@ jobs:
           name: yodau-hardening-evidence
           path: |
             .ecosystem/github/reports/00-toolchain/versions.txt
-            build-hardening/Testing/Temporary/LastTest.log
+            .ecosystem/github/reports/hardening/
+            .ecosystem/build/project/desktop/debug/leaks/Testing/Temporary/LastTest.log
           if-no-files-found: warn
           retention-days: 14

@@ -36,6 +36,7 @@ public:
 
     [[nodiscard]] bool has_active_stream() const;
     [[nodiscard]] bool drawing_new_mode() const;
+    void set_drawing_new_mode(bool drawing);
 
 signals:
     void stream_selected(const QString& name);

@@ -4,6 +4,52 @@
   "version": "1.0.0",
   "cpp_standard": 23,
   "android_application_id": "org.ninjaro.yodau",
+  "android": {
+    "name": "Yodau",
+    "version_code": 1,
+    "min_sdk": 28,
+    "permissions": [
+      "android.permission.CAMERA"
+    ],
+    "excluded_permissions": [
+      "android.permission.BLUETOOTH",
+      "android.permission.RECORD_AUDIO",
+      "android.permission.WRITE_EXTERNAL_STORAGE"
+    ],
+    "features": [
+      {
+        "name": "android.hardware.camera.any",
+        "required": false
+      },
+      {
+        "name": "android.hardware.camera",
+        "required": false
+      }
+    ],
+    "allow_backup": false,
+    "full_backup_content": false,
+    "icon": "assets/brand/bug.svg",
+    "icon_export_id": "spin",
+    "round_icon": true,
+    "activity_config_changes": [
+      "orientation",
+      "uiMode",
+      "screenLayout",
+      "screenSize",
+      "smallestScreenSize",
+      "density",
+      "keyboard",
+      "keyboardHidden",
+      "navigation",
+      "fontScale",
+      "locale",
+      "layoutDirection",
+      "mcc",
+      "mnc",
+      "colorMode",
+      "grammaticalGender"
+    ]
+  },
   "install_assets": true,
   "facade": "app:app",
   "artifacts": [
@@ -53,13 +99,17 @@
       "id": "core:core",
       "kind": "static_lib",
       "name": "yodau_core",
+      "tests": {
+        "gtest": true
+      },
       "root": "core",
       "owns": [
         "analysis",
         "geometry",
         "streams",
         "concurrency/stoppable_thread",
-        "configuration/line_configuration",
+        "include/configuration/line_configuration.hpp",
+        "src/configuration/line_configuration.cpp",
         "configuration/line_configuration_model"
       ],
       "dependencies": [
@@ -75,10 +125,14 @@
       "id": "configuration_io:io",
       "kind": "static_lib",
       "name": "yodau_configuration_io",
+      "tests": {
+        "gtest": true
+      },
       "root": "core",
       "owns": [
         "configuration/line_configuration_file",
-        "configuration/line_configuration_json"
+        "configuration/line_configuration_json",
+        "tests/configuration/line_configuration_tests.cpp"
       ],
       "dependencies": [
         "core:core"
@@ -93,6 +147,9 @@
       "id": "headless_runtime:runtime",
       "kind": "static_lib",
       "name": "yodau_daemon_runtime",
+      "tests": {
+        "gtest": true
+      },
       "root": "core",
       "owns": [
         "daemon/headless_daemon"
@@ -106,6 +163,9 @@
       "id": "core_cli:cli",
       "kind": "exe",
       "name": "yodau_cli",
+      "tests": {
+        "gtest": true
+      },
       "root": "core",
       "owns": [
         "cli/cli_client",
@@ -184,6 +244,9 @@
         "app:ui"
       ],
       "packages": {
+        "android": [
+          "qt_android"
+        ],
         "qt": [
           "Core",
           "Widgets",
@@ -197,6 +260,28 @@
           "ConfigWidgets",
           "WidgetsAddons"
         ]
+      }
+    },
+    {
+      "id": "app:tests",
+      "kind": "exe",
+      "name": "yodau_app_tests",
+      "root": "app",
+      "owns": [
+        "tests/ui",
+        "tests/include/ui"
+      ],
+      "entry": "tests/main.cpp",
+      "dependencies": [
+        "app:ui"
+      ],
+      "packages": {
+        "qt": [
+          "Test"
+        ]
+      },
+      "tests": {
+        "qttest": true
       }
     }
   ]

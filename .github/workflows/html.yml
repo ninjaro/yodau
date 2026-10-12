@@ -48,7 +48,7 @@ jobs:
       - name: Setup manifesto tool
         if: ${{ github.event_name == 'workflow_dispatch' || steps.automatic.outputs.ready == 'true' }}
         id: manifesto
-        uses: ./.github/actions/setup-yodau-toolchain
+        uses: ./.github/actions/setup-manifesto
         with:
           bootstrap: "repository"
           source-path: "."

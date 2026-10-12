@@ -22,6 +22,10 @@
 #include <QStackedWidget>
 #include <QStandardPaths>
 
+#ifdef KC_KDE
+#include <KActionCollection>
+#endif
+
 namespace {
 
 const QString grid_scroll_direction_key
@@ -32,6 +36,14 @@ const QString grid_sizing_mode_key
     = QStringLiteral("layout/stream_grid/sizing_mode");
 
 } // namespace
+
+#ifdef KC_KDE
+KActionCollection* main_window::actionCollection() const {
+    return findChild<KActionCollection*>(
+        QStringLiteral("desktop_action_collection")
+    );
+}
+#endif
 
 main_window::main_window(QWidget* parent)
     : base_main_window(parent)
@@ -80,6 +92,8 @@ main_window::main_window(QWidget* parent)
 #else
     (void)yodau::shell::restore_main_window_state(*this);
     QSettings desktop_settings;
+    main_zone->set_pool_side(yodau::shell::load_pool_side(desktop_settings));
+    refresh_pool_actions();
     desktop_presentation_
         = yodau::shell::load_desktop_presentation(desktop_settings);
     if (desktop_presentation_) {
@@ -120,6 +134,12 @@ void main_window::setup_grid_layout_preferences() {
     settings->set_grid_sizing_mode_id(sizing_mode);
 
     grid_view* grid = main_zone->grid_mode();
+#if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+    connect(
+        settings, &settings_panel::stream_order_changed, grid,
+        [grid](const QStringList& names) { grid->set_stream_order(names); }
+    );
+#endif
     grid->set_scroll_direction(
         scroll_direction == QStringLiteral("vertical")
             ? grid_view::scroll_direction::vertical

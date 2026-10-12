@@ -20,6 +20,10 @@ public:
 
     [[nodiscard]] bool has_stream(const QString& name) const;
     [[nodiscard]] QStringList stream_names() const;
+    [[nodiscard]] QStringList stream_order() const;
+    /// Session intent may include configured streams absent from the pool.
+    /// Reject empty/duplicate names; never change the Preserve order policy.
+    bool set_stream_order(const QStringList& names);
     [[nodiscard]] int layout_row_count() const;
     [[nodiscard]] int layout_column_count() const;
     [[nodiscard]] int layout_cell_count() const;
@@ -56,6 +60,7 @@ private:
     QScrollArea* scroll;
     QWidget* grid_container;
     QMap<QString, stream_cell*> tiles;
+    QStringList stream_order_;
     int last_layout_rows { 0 };
     int last_layout_columns { 0 };
     bool application_active_ { true };

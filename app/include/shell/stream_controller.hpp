@@ -1,8 +1,8 @@
 #ifndef YODAU_APP_SHELL_STREAM_CONTROLLER_HPP
 #define YODAU_APP_SHELL_STREAM_CONTROLLER_HPP
 
-#include <QColor>
 #include <QByteArray>
+#include <QColor>
 #include <QHash>
 #include <QImage>
 #include <QMap>
@@ -10,6 +10,7 @@
 #include <QObject>
 #include <QPointF>
 #include <QRandomGenerator>
+#include <QSize>
 #include <QString>
 #include <QThreadPool>
 #include <QTimer>
@@ -31,6 +32,7 @@
 #include "shell/app_log.hpp"
 #include "shell/app_settings.hpp"
 #include "shell/processing_feedback_state.hpp"
+#include "shell/processing_sample.hpp"
 #include "shell/stream_catalog_state.hpp"
 #include "shell/stream_catalog_workflow.hpp"
 #include "shell/stream_route_state.hpp"
@@ -70,6 +72,7 @@ public:
     );
     void focus_stream(const QString& stream_name);
     void return_to_stream_grid();
+    [[nodiscard]] processing_sample active_processing_sample() const;
 
 public slots:
     // add tab
@@ -231,6 +234,7 @@ private:
         std::chrono::steady_clock::time_point last_core_frame {};
         double input_fps_ema { 0.0 };
         double core_fps_ema { 0.0 };
+        QSize result_size;
     };
 
     QHash<QString, stream_rate_tracker> rate_trackers_by_stream;

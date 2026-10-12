@@ -11,6 +11,9 @@ class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QSlider;
+class QVBoxLayout;
+class line_wave_preview;
 
 class line_profile_panel final : public QGroupBox {
     Q_OBJECT
@@ -45,6 +48,8 @@ private slots:
 
 private:
     void build_ui();
+    void build_wave_controls(QVBoxLayout* layout);
+    void refresh_wave_controls();
     [[nodiscard]] QString current_color_mode_id() const;
     [[nodiscard]] QString current_parameter_mode_id() const;
     [[nodiscard]] bool advanced_settings_enabled() const;
@@ -71,6 +76,13 @@ private:
     QPushButton* save_button { nullptr };
     QLabel* summary_label { nullptr };
     QColor current_color { Qt::red };
+    QCheckBox* wave_checkbox_ { nullptr };
+    QWidget* wave_controls_ { nullptr };
+    line_wave_preview* wave_preview_ { nullptr };
+    QComboBox* wave_preset_ { nullptr };
+    QComboBox* wave_gain_ { nullptr };
+    QSlider* wave_age_ { nullptr };
+    QLabel* wave_age_label_ { nullptr };
 };
 
 #endif // YODAU_APP_WIDGETS_LINE_PROFILE_PANEL_HPP

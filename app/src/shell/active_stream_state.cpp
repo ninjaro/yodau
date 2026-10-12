@@ -26,6 +26,9 @@ active_stream_state::set_active_stream(const QString& name) const {
     result.active_name = route_state_.active_stream_name();
     result.changed = result.active_name != previous_active_name;
     result.settings = catalog_state_.settings_for(result.active_name);
+    if (result.changed) {
+        edit_session_.clear_active_line_edit();
+    }
 
     widget_bridge_.apply_active_stream(
         result.active_name, result.settings, edit_session_

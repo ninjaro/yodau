@@ -2,8 +2,9 @@
 #define YODAU_APP_SHELL_MAIN_WINDOW_HPP
 
 #ifdef KC_KDE
-#include <KXmlGuiWindow>
-using base_main_window = KXmlGuiWindow;
+#include <KMainWindow>
+using base_main_window = KMainWindow;
+class KActionCollection;
 #else
 #include <QMainWindow>
 using base_main_window = QMainWindow;
@@ -35,6 +36,9 @@ class main_window final : public base_main_window {
 public:
     explicit main_window(QWidget* parent = nullptr);
     ~main_window() override;
+#ifdef KC_KDE
+    KActionCollection* actionCollection() const;
+#endif
 
 private slots:
     void on_import_line_configuration_triggered();
@@ -48,11 +52,19 @@ private:
     void setup_grid_layout_preferences();
     void setup_desktop_shell();
     QMenu* setup_desktop_presentation_menu();
+    void setup_canvas_tools();
+    QAction* canvas_tools_action_ = nullptr;
+    void setup_context_inspector();
+    void setup_processing_readout();
+    QAction* inspector_action_ = nullptr;
     void choose_desktop_presentation(yodau::shell::desktop_presentation value);
     void persist_desktop_presentation();
     void refresh_desktop_preset_actions();
+    void choose_pool_side(pool_side side);
+    void refresh_pool_actions();
     std::optional<yodau::shell::desktop_presentation> desktop_presentation_;
     QActionGroup* desktop_preset_actions_ = nullptr;
+    QActionGroup* pool_side_actions_ = nullptr;
     void show_mobile_page(int page_index);
     void restore_mobile_session();
     void persist_mobile_session();
@@ -74,6 +86,7 @@ protected:
     QDockWidget* settings_dock { nullptr };
     QDockWidget* line_dock { nullptr };
     QDockWidget* log_dock { nullptr };
+    QDockWidget* processing_dock_ { nullptr };
     QToolBar* mobile_document_toolbar { nullptr };
     QToolBar* mobile_navigation_toolbar { nullptr };
     QActionGroup* mobile_navigation_actions { nullptr };
