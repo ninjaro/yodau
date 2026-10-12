@@ -1,5 +1,6 @@
 #include "shell/main_window.hpp"
 
+#include "shell/desktop_shell.hpp"
 #include "shell/mobile_session_store.hpp"
 #include "shell/str_label.hpp"
 #include "widgets/log_area_view.hpp"
@@ -25,11 +26,6 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
-
-#ifdef KC_KDE
-#include <KActionCollection>
-#include <KStandardAction>
-#endif
 
 void main_window::setup_platform_layout() {
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
@@ -235,14 +231,6 @@ void main_window::setup_platform_layout() {
     addDockWidget(Qt::BottomDockWidgetArea, log_dock);
     auto* log_action = log_dock->toggleViewAction();
     log_action->setText(str_label("logs"));
-
-#if !defined(KC_KDE)
-    auto* top_toolbar = addToolBar(str_label("top"));
-    top_toolbar->setObjectName(QStringLiteral("main_toolbar"));
-    top_toolbar->addAction(settings_action);
-    top_toolbar->addAction(line_action);
-    top_toolbar->addAction(log_action);
-#endif
 #endif
 }
 
@@ -295,98 +283,14 @@ void main_window::setup_desktop_shell() {
         mobile_document_toolbar->addAction(export_line_configuration_action);
     }
     return;
-#elif defined(KC_KDE)
-    auto* actions = actionCollection();
-    actions->addAction(
-        QStringLiteral("line_configuration_import"),
-        import_line_configuration_action
-    );
-    actions->addAction(
-        QStringLiteral("line_configuration_export"),
-        export_line_configuration_action
-    );
-    KActionCollection::setDefaultShortcut(
-        import_line_configuration_action,
-        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I)
-    );
-    KActionCollection::setDefaultShortcut(
-        export_line_configuration_action,
-        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E)
-    );
-
-    auto register_dock_action
-        = [actions](QDockWidget* dock, const QString& action_name) {
-              if (dock == nullptr) {
-                  return;
-              }
-              auto* action = dock->toggleViewAction();
-              action->setObjectName(action_name);
-              actions->addAction(action_name, action);
-          };
-    register_dock_action(settings_dock, QStringLiteral("view_streams_dock"));
-    register_dock_action(line_dock, QStringLiteral("view_lines_dock"));
-    register_dock_action(log_dock, QStringLiteral("view_logs_dock"));
-    register_dock_action(
-        processing_dock_, QStringLiteral("view_processing_dock")
-    );
-    actions->addAction(
-        QStringLiteral("view_presentation"), presentation_menu->menuAction()
-    );
-
-    KStandardAction::quit(this, &QWidget::close, actions);
-    KStandardAction::preferences(
-        this, &main_window::show_settings_panel, actions
-    );
-    setupGUI(
-        KXmlGuiWindow::ToolBar | KXmlGuiWindow::Keys | KXmlGuiWindow::StatusBar
-            | KXmlGuiWindow::Create,
-        QStringLiteral(":/yodau/yodauui.rc")
-    );
 #else
-    auto* file_menu = menuBar()->addMenu(tr("&File"));
-    file_menu->addAction(import_line_configuration_action);
-    file_menu->addAction(export_line_configuration_action);
-    file_menu->addSeparator();
-    auto* quit_action = file_menu->addAction(tr("E&xit"));
-    quit_action->setObjectName(QStringLiteral("main_quit_action"));
-    connect(quit_action, &QAction::triggered, this, &QWidget::close);
-
-    auto* view_menu = menuBar()->addMenu(tr("&View"));
-    view_menu->addMenu(presentation_menu);
-    if (settings_dock != nullptr) {
-        view_menu->addAction(settings_dock->toggleViewAction());
-    }
-    if (line_dock != nullptr) {
-        view_menu->addAction(line_dock->toggleViewAction());
-    }
-    if (log_dock != nullptr) {
-        view_menu->addAction(log_dock->toggleViewAction());
-    }
-    if (processing_dock_ != nullptr) {
-        view_menu->addAction(processing_dock_->toggleViewAction());
-    }
-
-    auto* settings_menu = menuBar()->addMenu(tr("&Settings"));
-    auto* preferences_action
-        = settings_menu->addAction(tr("Show stream settings"));
-    preferences_action->setObjectName(
-        QStringLiteral("main_preferences_action")
+    yodau::shell::setup_desktop_shell(
+        *this,
+        { import_line_configuration_action, export_line_configuration_action,
+          presentation_menu,
+          { settings_dock, line_dock, log_dock, processing_dock_ } },
+        [this] { show_settings_panel(); }
     );
-    connect(
-        preferences_action, &QAction::triggered, this,
-        &main_window::show_settings_panel
-    );
-
-    auto* help_menu = menuBar()->addMenu(tr("&Help"));
-    auto* about_action = help_menu->addAction(tr("&About yodau"));
-    about_action->setObjectName(QStringLiteral("main_about_action"));
-    connect(about_action, &QAction::triggered, this, [this]() {
-        QMessageBox::about(
-            this, tr("About yodau"),
-            tr("yodau %1\nVideo stream analysis and line configuration.")
-                .arg(QCoreApplication::applicationVersion())
-        );
-    });
 #endif
 }
 

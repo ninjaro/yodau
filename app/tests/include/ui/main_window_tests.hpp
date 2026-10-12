@@ -118,6 +118,7 @@ private slots:
     void cell_wave_profiles();
     void controller_configuration_round_trip();
     void window_shell_and_shared_workflows();
+    void desktop_shell_menus_and_shortcuts();
     void window_state_round_trip();
     void window_state_rejects_invalid_payload();
     void desktop_preserves_layout_overrides();

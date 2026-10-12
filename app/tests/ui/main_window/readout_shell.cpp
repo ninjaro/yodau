@@ -41,7 +41,7 @@ struct preferences_scope {
         );
         QCoreApplication::setOrganizationName("yodau");
 #ifdef KC_KDE
-        // XMLGUI consults cached KDE identity; isolate by path, not a
+        // KDE consults cached application identity; isolate by path, not a
         // conflicting application name left over from another test's window.
         QCoreApplication::setApplicationName(
             KAboutData::applicationData().componentName()

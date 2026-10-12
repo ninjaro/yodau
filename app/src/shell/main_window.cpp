@@ -22,6 +22,10 @@
 #include <QStackedWidget>
 #include <QStandardPaths>
 
+#ifdef KC_KDE
+#include <KActionCollection>
+#endif
+
 namespace {
 
 const QString grid_scroll_direction_key
@@ -32,6 +36,14 @@ const QString grid_sizing_mode_key
     = QStringLiteral("layout/stream_grid/sizing_mode");
 
 } // namespace
+
+#ifdef KC_KDE
+KActionCollection* main_window::actionCollection() const {
+    return findChild<KActionCollection*>(
+        QStringLiteral("desktop_action_collection")
+    );
+}
+#endif
 
 main_window::main_window(QWidget* parent)
     : base_main_window(parent)

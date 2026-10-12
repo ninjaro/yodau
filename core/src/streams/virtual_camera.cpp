@@ -599,7 +599,9 @@ std::vector<virtual_camera_frame_info> virtual_camera::frames() const {
             info.device_path = binding->device_path;
             info.device_ready
                 = binding->device_ready && binding->published_frame_count > 0U;
-            info.last_error = binding->last_error;
+            info.last_error = binding->assignment_error.empty()
+                ? binding->last_error
+                : binding->assignment_error;
             info.published_frame_count = binding->published_frame_count;
             info.dropped_frame_count = binding->dropped_frame_count;
         }
@@ -644,8 +646,9 @@ virtual_camera::ensure_binding_locked(const std::string& stream_name) {
     binding->device_path = requested_device_path;
     if (!binding->device_path.empty()) {
         if (!sink_by_stream.empty()) {
-            binding->last_error = "explicit virtual camera device is already "
-                                  "assigned to stream '"
+            binding->assignment_error
+                = "explicit virtual camera device is already "
+                  "assigned to stream '"
                 + sink_by_stream.begin()->first + "'";
             binding->device_path.clear();
         }
@@ -658,8 +661,9 @@ virtual_camera::ensure_binding_locked(const std::string& stream_name) {
                 && virtual_camera_support::same_output_device(
                     binding->device_path, other_binding->device_path
                 )) {
-                binding->last_error = "explicit virtual camera device is "
-                                      "already assigned to stream '"
+                binding->assignment_error
+                    = "explicit virtual camera device is "
+                      "already assigned to stream '"
                     + other_stream_name + "'";
                 binding->device_path.clear();
                 break;
@@ -860,7 +864,12 @@ void virtual_camera::stop_sink(const std::shared_ptr<sink_binding>& binding) {
         return;
     }
     if (binding->worker.joinable()) {
-        binding->worker.request_stop();
+        {
+            // Synchronize the stop predicate with wake.wait(): otherwise a
+            // notification can arrive between its false check and waiting.
+            std::scoped_lock lock(binding->mtx);
+            binding->worker.request_stop();
+        }
         binding->wake.notify_all();
         binding->worker.join();
     }

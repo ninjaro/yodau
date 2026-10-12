@@ -88,7 +88,7 @@ jobs:
       - name: Setup manifesto tool
         if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: manifesto
-        uses: ./.github/actions/setup-yodau-toolchain
+        uses: ./.github/actions/setup-manifesto
         with:
           bootstrap: "repository"
           source-path: "."

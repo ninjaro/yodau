@@ -13,6 +13,7 @@
 #include <fstream>
 #include <memory>
 #include <ranges>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
 
@@ -28,6 +29,18 @@ template <typename Predicate> bool wait_until(Predicate predicate) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     return predicate();
+}
+
+yodau::core::frame output_test_frame() {
+    yodau::core::frame value;
+    value.width = 64;
+    value.height = 48;
+    value.stride = value.width * 3;
+    value.format = yodau::core::pixel_format::bgr24;
+    value.data.resize(
+        static_cast<size_t>(value.stride) * static_cast<size_t>(value.height)
+    );
+    return value;
 }
 
 } // namespace
@@ -187,6 +200,167 @@ TEST(virtual_camera_test, explicit_output_is_not_shared_between_streams) {
                        != std::string::npos;
                });
     }));
+}
+
+TEST(virtual_camera_test, conflict_error_survives_worker_completion) {
+#ifndef __linux__
+    GTEST_SKIP() << "explicit V4L2 output assignment is Linux-only";
+#endif
+    const auto frame_value = output_test_frame();
+    for (const bool complete_first : { false, true }) {
+        SCOPED_TRACE(complete_first);
+        yodau::core::virtual_camera camera(
+            "test", "/dev/yodau-test-output-does-not-exist"
+        );
+        camera.publish("first", frame_value);
+        if (complete_first) {
+            ASSERT_TRUE(wait_until([&camera] {
+                return camera.frames().front().dropped_frame_count == 1U;
+            }));
+        }
+        camera.publish("second", frame_value);
+        // There is one submitted frame per worker, with no queue replacement.
+        // Observing its drop under the sink mutex proves processing finished;
+        // the assertion cannot pass by catching the pre-worker diagnostic.
+        ASSERT_TRUE(wait_until([&camera] {
+            const auto snapshots = camera.frames();
+            return snapshots.size() == 2U
+                && snapshots[0].dropped_frame_count == 1U
+                && snapshots[1].dropped_frame_count == 1U;
+        }));
+        const auto snapshots = camera.frames();
+        EXPECT_EQ(snapshots[1].stream_name, "second");
+        EXPECT_EQ(
+            snapshots[1].last_error,
+            "explicit virtual camera device is already assigned to stream 'first'"
+        );
+        EXPECT_TRUE(snapshots[1].device_path.empty());
+        EXPECT_FALSE(snapshots[1].device_ready);
+        EXPECT_EQ(snapshots[1].published_frame_count, 0U);
+        std::ostringstream status;
+        camera.dump(status);
+        EXPECT_NE(status.str().find("already assigned"), std::string::npos);
+        camera.publish("second", frame_value);
+        ASSERT_TRUE(wait_until([&camera] {
+            return camera.frames()[1].dropped_frame_count == 2U;
+        }));
+        EXPECT_EQ(camera.frames()[1].last_error, snapshots[1].last_error);
+    }
+}
+
+TEST(virtual_camera_test, conflict_rejection_is_stable_until_release) {
+#ifndef __linux__
+    GTEST_SKIP() << "explicit V4L2 output assignment is Linux-only";
+#endif
+    yodau::core::virtual_camera camera(
+        "test", "/dev/yodau-test-output-does-not-exist"
+    );
+    const auto frame_value = output_test_frame();
+    camera.publish("first", frame_value);
+    ASSERT_TRUE(wait_until([&camera] {
+        return camera.frames().front().dropped_frame_count == 1U;
+    }));
+    auto invalid = frame_value;
+    invalid.data.clear();
+    // An invalid frame is rejected synchronously and never queued. This
+    // observes assignment rejection before this sink can complete any work.
+    camera.publish("second", invalid);
+    const auto rejected = camera.frames()[1];
+    const std::string conflict
+        = "explicit virtual camera device is already assigned to stream 'first'";
+    EXPECT_EQ(rejected.last_error, conflict);
+    EXPECT_EQ(rejected.update_count, 0U);
+    EXPECT_EQ(rejected.dropped_frame_count, 1U);
+    EXPECT_FALSE(camera.latest_frame("second").has_value());
+
+    camera.publish("second", frame_value);
+    ASSERT_TRUE(wait_until([&camera] {
+        return camera.frames()[1].dropped_frame_count == 2U;
+    }));
+    EXPECT_EQ(camera.frames()[1].last_error, conflict);
+    EXPECT_TRUE(camera.latest_frame("second").has_value());
+    camera.release("second");
+    EXPECT_FALSE(camera.latest_frame("second").has_value());
+    ASSERT_EQ(camera.frames().size(), 1U);
+    camera.publish("first", frame_value);
+    ASSERT_TRUE(wait_until([&camera] {
+        return camera.frames().front().dropped_frame_count == 2U;
+    }));
+    EXPECT_EQ(camera.frames().front().update_count, 2U);
+
+    camera.release("first");
+    EXPECT_TRUE(camera.frames().empty());
+    camera.publish("second", frame_value);
+    ASSERT_TRUE(wait_until([&camera] {
+        return camera.frames().front().dropped_frame_count == 1U;
+    }));
+    EXPECT_EQ(camera.frames().front().update_count, 1U);
+    EXPECT_EQ(
+        camera.frames().front().last_error.find("already assigned"),
+        std::string::npos
+    );
+    camera.release("second");
+    EXPECT_TRUE(camera.frames().empty());
+    EXPECT_FALSE(camera.latest_frame("second").has_value());
+}
+
+TEST(virtual_camera_test, independent_output_assignments_remain_independent) {
+#ifndef __linux__
+    GTEST_SKIP() << "explicit V4L2 output assignment is Linux-only";
+#endif
+    const auto frame_value = output_test_frame();
+    yodau::core::virtual_camera first(
+        "first", "/dev/yodau-test-first-output-does-not-exist"
+    );
+    yodau::core::virtual_camera second(
+        "second", "/dev/yodau-test-second-output-does-not-exist"
+    );
+    first.publish("owner", frame_value);
+    second.publish("owner", frame_value);
+    ASSERT_TRUE(wait_until([&] {
+        return first.frames().front().dropped_frame_count == 1U
+            && second.frames().front().dropped_frame_count == 1U;
+    }));
+    const auto independent_error = second.frames().front().last_error;
+    EXPECT_EQ(independent_error.find("already assigned"), std::string::npos);
+    first.publish("rejected", frame_value);
+    ASSERT_TRUE(wait_until([&] {
+        return first.frames()[1].dropped_frame_count == 1U;
+    }));
+    EXPECT_NE(
+        first.frames()[1].last_error.find("already assigned"),
+        std::string::npos
+    );
+    first.release("rejected");
+    first.release("owner");
+    EXPECT_TRUE(first.frames().empty());
+    EXPECT_TRUE(second.latest_frame("owner").has_value());
+    second.publish("owner", frame_value);
+    ASSERT_TRUE(wait_until([&] {
+        return second.frames().front().dropped_frame_count == 2U;
+    }));
+    EXPECT_EQ(second.frames().front().last_error, independent_error);
+    EXPECT_EQ(second.frames().front().update_count, 2U);
+    second.release("owner");
+    EXPECT_TRUE(second.frames().empty());
+}
+
+TEST(virtual_camera_test, release_joins_workers_with_pending_publication) {
+    const auto frame_value = output_test_frame();
+    for (size_t iteration = 0; iteration < 64U; ++iteration) {
+        SCOPED_TRACE(iteration);
+        yodau::core::virtual_camera camera(
+            "test", "/dev/yodau-test-output-does-not-exist"
+        );
+        camera.publish("first", frame_value);
+        camera.publish("second", frame_value);
+        // Do not wait for worker startup or completion before stopping it.
+        camera.release("second");
+        camera.release("first");
+        EXPECT_TRUE(camera.frames().empty());
+        EXPECT_FALSE(camera.latest_frame("first").has_value());
+        EXPECT_FALSE(camera.latest_frame("second").has_value());
+    }
 }
 
 TEST(

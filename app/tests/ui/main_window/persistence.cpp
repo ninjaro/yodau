@@ -5,9 +5,12 @@
 #include "shell/mobile_session_store.hpp"
 #include "ui/main_window_tests.hpp"
 
+#include <QDir>
 #include <QDockWidget>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QToolBar>
@@ -87,6 +90,56 @@ void main_window_tests::window_state_round_trip() {
         restored_plain_window.dockWidgetArea(restored_plain_dock),
         Qt::BottomDockWidgetArea
     );
+
+#if defined(Q_OS_LINUX) && !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+    // A standalone window misses main()'s ownership/cleanup sequence. Run the
+    // actual entrypoint in a child with Linux XDG-isolated desktop settings.
+    QProcess child;
+    auto environment = QProcessEnvironment::systemEnvironment();
+    for (const auto* name : { "CONFIG", "DATA", "CACHE", "RUNTIME" }) {
+        const QString directory
+            = temporary_directory.filePath(QString::fromLatin1(name));
+        QVERIFY(QDir().mkpath(directory));
+        QVERIFY(QFile::setPermissions(
+            directory, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner
+        ));
+        environment.insert(
+            QStringLiteral("XDG_%1_%2")
+                .arg(QString::fromLatin1(name))
+                .arg(qstrcmp(name, "RUNTIME") == 0 ? QStringLiteral("DIR")
+                                                   : QStringLiteral("HOME")),
+            directory
+        );
+    }
+    environment.insert(
+        QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen")
+    );
+    child.setProcessEnvironment(environment);
+    child.setProcessChannelMode(QProcess::MergedChannels);
+    child.start(
+        QCoreApplication::applicationFilePath(),
+        { QStringLiteral("--probe-application-close") }
+    );
+    QVERIFY(child.waitForStarted());
+    QVERIFY2(child.waitForFinished(30000), qPrintable(child.errorString()));
+    const QByteArray output = child.readAll();
+    QCOMPARE(child.exitStatus(), QProcess::NormalExit);
+    QVERIFY2(child.exitCode() == 0, output.constData());
+    QSettings application_settings(
+        temporary_directory.filePath(
+            QStringLiteral("CONFIG/yodau/yodau.conf")
+        ),
+        QSettings::IniFormat
+    );
+    QVERIFY(!application_settings
+                 .value(QStringLiteral("desktop/main_window/geometry"))
+                 .toByteArray()
+                 .isEmpty());
+    QVERIFY(!application_settings
+                 .value(QStringLiteral("desktop/main_window/layout"))
+                 .toByteArray()
+                 .isEmpty());
+#endif
 }
 
 void main_window_tests::mobile_state_round_trip_and_validation() {

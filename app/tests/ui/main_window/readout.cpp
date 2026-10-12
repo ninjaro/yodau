@@ -58,9 +58,17 @@ void main_window_tests::processing_readout_states() {
     sample.metrics.manual_policy_active = true;
     update();
     QVERIFY(text(view, "processing_input").startsWith("Recent"));
+    QCOMPARE(
+        text(view, "processing_input").section('\n', 0, 0),
+        QStringLiteral("Recent — 3.0 s since GUI delivery")
+    );
     QVERIFY(text(view, "processing_input").contains("Rate pending"));
     QVERIFY(text(view, "processing_input").contains("1920 × 1080"));
     QVERIFY(text(view, "processing_result").startsWith("Stale"));
+    QCOMPARE(
+        text(view, "processing_result").section('\n', 0, 0),
+        QStringLiteral("Stale — 3.0 s since GUI delivery")
+    );
     QVERIFY(text(view, "processing_result").contains("12.5 fps (arrival EMA)"));
     QVERIFY(text(view, "processing_result").contains("640 × 360"));
     QCOMPARE(
@@ -91,6 +99,21 @@ void main_window_tests::processing_readout_states() {
     update();
     QVERIFY(text(view, "processing_result").contains("Rate pending"));
     QVERIFY(text(view, "processing_result").contains("Size unavailable"));
+    QCOMPARE(
+        text(view, "processing_result").section('\n', 0, 0),
+        QStringLiteral("Recent — 0.0 s since GUI delivery")
+    );
+    sample.input_age_ms = 1234;
+    sample.result_age_ms = 1500;
+    update();
+    QCOMPARE(
+        text(view, "processing_input").section('\n', 0, 0),
+        QStringLiteral("Recent — 1.2 s since GUI delivery")
+    );
+    QCOMPARE(
+        text(view, "processing_result").section('\n', 0, 0),
+        QStringLiteral("Recent — 1.5 s since GUI delivery")
+    );
     sample = {};
     update();
     QCOMPARE(

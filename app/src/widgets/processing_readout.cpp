@@ -38,7 +38,7 @@ QString sample_text(qint64 age_ms) {
         return processing_readout::tr("No sample");
     }
     const auto age = processing_readout::tr("%1 s since GUI delivery")
-                         .arg(age_ms / 1000.0, 0, 'f', 1);
+                         .arg(static_cast<double>(age_ms) / 1000.0, 0, 'f', 1);
     return (age_ms >= stale_after_ms ? processing_readout::tr("Stale — %1")
                                      : processing_readout::tr("Recent — %1"))
         .arg(age);

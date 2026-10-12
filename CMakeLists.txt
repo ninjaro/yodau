@@ -408,6 +408,188 @@ foreach (category IN ITEMS brand reports dataset dumps sets templates)
 endforeach ()
 
 
+if (ECOSYSTEM_PROFILE_ANDROID)
+    # This helper is embedded so tracked CMake remains independent of installed Marx.
+    function(ecosystem_android_package target source_root config)
+        if (CMAKE_CURRENT_BINARY_DIR STREQUAL source_root)
+            message(FATAL_ERROR "Android packaging requires a separate build directory")
+        endif ()
+        find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter)
+        set(package_root "${CMAKE_CURRENT_BINARY_DIR}/ecosystem/android/${target}")
+        file(MAKE_DIRECTORY "${package_root}")
+        file(WRITE "${package_root}/config.json" "${config}")
+        file(WRITE "${package_root}/generate_package.py" [=["""Generate a minimal Qt Android overlay; never vendor Qt's runtime package."""
+
+import argparse
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
+
+ANDROID = "http://schemas.android.com/apk/res/android"
+TOOLS = "http://schemas.android.com/tools"
+ET.register_namespace("android", ANDROID)
+ET.register_namespace("tools", TOOLS)
+
+
+def android(name):
+    return "{" + ANDROID + "}" + name
+
+
+def declaration(root, tag, name):
+    for child in root.findall(tag):
+        if child.get(android("name")) == name:
+            return child
+    return ET.SubElement(root, tag, {android("name"): name})
+
+
+def generate_package(template, config, source_root, output, converter=None):
+    parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
+    tree = ET.parse(template, parser=parser)
+    root = tree.getroot()
+    app = root.find("application")
+    activity = app.find("activity") if app is not None else None
+    if root.tag != "manifest" or app is None or activity is None:
+        raise ValueError("Qt Android template lacks manifest/application/activity")
+    original = Path(template).read_text(encoding="utf-8")
+    for marker in ("INSERT_VERSION_CODE", "INSERT_VERSION_NAME", "INSERT_APP_NAME",
+                   "INSERT_APP_LIB_NAME", "INSERT_APP_ARGUMENTS", "INSERT_PERMISSIONS",
+                   "INSERT_FEATURES"):
+        token = "%%" + marker + ("" if marker in ("INSERT_PERMISSIONS", "INSERT_FEATURES") else "%%")
+        if token not in original:
+            raise ValueError("Qt Android template lacks deployment placeholder " + marker)
+
+    root.set("package", config["application_id"])
+    for field, attribute in (("allow_backup", "allowBackup"),
+                             ("full_backup_content", "fullBackupContent"),
+                             ("full_backup_only", "fullBackupOnly"),
+                             ("supports_rtl", "supportsRtl")):
+        if field in config:
+            app.set(android(attribute), str(config[field]).lower())
+    if "activity_config_changes" in config:
+        activity.set(android("configChanges"), "|".join(config["activity_config_changes"]))
+
+    # Existing declarations also suppress androiddeployqt's automatic additions.
+    # tools:node removal additionally prevents a library manifest reintroducing them.
+    for permission in config.get("permissions", []):
+        declaration(root, "uses-permission", permission)
+    for permission in config.get("excluded_permissions", []):
+        declaration(root, "uses-permission", permission).set("{" + TOOLS + "}node", "remove")
+    for feature in config.get("features", []):
+        declaration(root, "uses-feature", feature["name"]).set(
+            android("required"), str(feature["required"]).lower())
+
+    icon = config.get("icon")
+    if icon:
+        source_root = Path(source_root).resolve()
+        source = (source_root / icon).resolve()
+        source.relative_to(source_root / "assets" / "brand")
+        if not source.is_file() or source.suffix != ".svg":
+            raise ValueError("Android icon must be an existing assets/brand SVG: " + icon)
+        converter = converter or shutil.which("rsvg-convert")
+        if not converter:
+            raise ValueError("Android SVG launcher generation requires rsvg-convert "
+                             "(librsvg); install it or set ECOSYSTEM_ANDROID_SVG_CONVERTER")
+        app.set(android("icon"), "@mipmap/ic_launcher")
+        if config.get("round_icon", False):
+            app.set(android("roundIcon"), "@mipmap/ic_launcher")
+    elif config.get("round_icon", False):
+        raise ValueError("Android round_icon requires icon metadata")
+
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # Keep an existing working overlay intact if template validation or rendering fails.
+    with tempfile.TemporaryDirectory(prefix=".package-", dir=output.parent) as temporary:
+        staged = Path(temporary)
+        if icon:
+            for density, size in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96),
+                                  ("xxhdpi", 144), ("xxxhdpi", 192)):
+                target = staged / "res" / ("mipmap-" + density) / "ic_launcher.png"
+                target.parent.mkdir(parents=True)
+                selection = (["--export-id", config["icon_export_id"]]
+                             if "icon_export_id" in config else [])
+                subprocess.run([str(converter), "--keep-aspect-ratio",
+                                "--width", str(size), "--height", str(size),
+                                "--page-width", str(size), "--page-height", str(size),
+                                "--output", str(target)] + selection + [str(source)], check=True)
+                if target.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+                    raise ValueError("SVG converter did not produce PNG: " + str(target))
+        tree.write(staged / "AndroidManifest.xml", encoding="utf-8", xml_declaration=True)
+        if output.exists():
+            shutil.rmtree(output)
+        shutil.copytree(staged, output)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--qt-template", required=True, type=Path)
+    parser.add_argument("--config", required=True, type=Path)
+    parser.add_argument("--source-root", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--svg-converter")
+    args = parser.parse_args()
+    try:
+        generate_package(args.qt_template, json.loads(args.config.read_text(encoding="utf-8")),
+                         args.source_root, args.output, args.svg_converter)
+    except (OSError, ValueError, ET.ParseError, subprocess.CalledProcessError) as error:
+        parser.exit(1, "ecosystem Android package generation: " + str(error) + "\n")
+
+
+if __name__ == "__main__":
+    main()
+]=])
+        get_filename_component(qt_android_root "${Qt6_DIR}/../../.." ABSOLUTE)
+        set(qt_manifest "${qt_android_root}/src/android/templates/AndroidManifest.xml")
+        if (NOT EXISTS "${qt_manifest}")
+            message(FATAL_ERROR "Qt Android manifest template is missing: ${qt_manifest}")
+        endif ()
+        string(JSON icon ERROR_VARIABLE no_icon GET "${config}" icon)
+        set(converter_args)
+        if (NOT no_icon)
+            find_program(ECOSYSTEM_ANDROID_SVG_CONVERTER NAMES rsvg-convert)
+            if (NOT ECOSYSTEM_ANDROID_SVG_CONVERTER)
+                message(FATAL_ERROR "Android SVG launcher generation requires rsvg-convert (librsvg); install it or set ECOSYSTEM_ANDROID_SVG_CONVERTER")
+            endif ()
+            list(APPEND converter_args --svg-converter "${ECOSYSTEM_ANDROID_SVG_CONVERTER}")
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${source_root}/${icon}")
+            set_property(TARGET ${target} PROPERTY QT_ANDROID_APP_ICON "@mipmap/ic_launcher")
+        endif ()
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${qt_manifest}")
+        execute_process(
+            COMMAND "${Python3_EXECUTABLE}" "${package_root}/generate_package.py"
+                --qt-template "${qt_manifest}" --config "${package_root}/config.json"
+                --source-root "${source_root}" --output "${package_root}/package"
+                ${converter_args}
+            RESULT_VARIABLE package_result ERROR_VARIABLE package_error
+        )
+        if (NOT package_result EQUAL 0)
+            message(FATAL_ERROR "${package_error}")
+        endif ()
+        foreach (mapping "application_id|PACKAGE_NAME" "name|APP_NAME"
+                         "version_code|VERSION_CODE" "version_name|VERSION_NAME"
+                         "min_sdk|MIN_SDK_VERSION" "target_sdk|TARGET_SDK_VERSION")
+            string(REPLACE "|" ";" parts "${mapping}")
+            list(GET parts 0 field)
+            list(GET parts 1 property)
+            string(JSON value ERROR_VARIABLE missing GET "${config}" "${field}")
+            if (NOT missing)
+                if (field STREQUAL "name")
+                    # androiddeployqt inserts this value directly into XML attributes.
+                    string(REPLACE "&" "&amp;" value "${value}")
+                    string(REPLACE "\"" "&quot;" value "${value}")
+                    string(REPLACE "'" "&apos;" value "${value}")
+                    string(REPLACE "<" "&lt;" value "${value}")
+                    string(REPLACE ">" "&gt;" value "${value}")
+                endif ()
+                set_property(TARGET ${target} PROPERTY "QT_ANDROID_${property}" "${value}")
+            endif ()
+        endforeach ()
+        set_property(TARGET ${target} PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR "${package_root}/package")
+    endfunction()
+endif ()
+
 set(YODAU_CORE_CORE_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/analysis/default_processing_algorithms.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/analysis/default_processing_hooks.hpp
@@ -552,6 +734,7 @@ set(YODAU_APP_UI_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/active_stream_workflow.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/app_log.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/app_settings.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/desktop_shell.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/icon_loader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/main_window.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/include/shell/mobile_session_store.hpp
@@ -600,6 +783,7 @@ set(YODAU_APP_UI_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/active_stream_workflow.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/app_log.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/app_settings.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/desktop_shell.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/icon_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/canvas.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/inspector.cpp
@@ -665,6 +849,7 @@ set(YODAU_APP_UI_RUNTIME_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/active_stream_workflow.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/app_log.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/app_settings.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/desktop_shell.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/icon_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/canvas.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/shell/main_window/inspector.cpp
@@ -870,6 +1055,17 @@ target_compile_definitions(app__app
         PRIVATE
         ECOSYSTEM_PROJECT_VERSION="${PROJECT_VERSION}"
 )
+
+if (ECOSYSTEM_PROFILE_ANDROID)
+    if (Qt6_VERSION VERSION_LESS 6.7)
+        message(FATAL_ERROR "MANIFESTO Android packaging requires Qt 6.7 or newer for per-target APK directories")
+    endif ()
+    set(QT_USE_TARGET_ANDROID_BUILD_DIR ON CACHE BOOL "Keep Android application payloads separate" FORCE)
+    if (COMMAND qt_policy)
+        qt_policy(SET QTP0002 NEW)
+    endif ()
+    ecosystem_android_package(app__app "${CMAKE_CURRENT_SOURCE_DIR}" [=[{"name":"Yodau","version_code":1,"min_sdk":28,"permissions":["android.permission.CAMERA"],"excluded_permissions":["android.permission.BLUETOOTH","android.permission.RECORD_AUDIO","android.permission.WRITE_EXTERNAL_STORAGE"],"features":[{"name":"android.hardware.camera.any","required":false},{"name":"android.hardware.camera","required":false}],"allow_backup":false,"full_backup_content":false,"icon":"assets/brand/bug.svg","icon_export_id":"spin","round_icon":true,"activity_config_changes":["orientation","uiMode","screenLayout","screenSize","smallestScreenSize","density","keyboard","keyboardHidden","navigation","fontScale","locale","layoutDirection","mcc","mnc","colorMode","grammaticalGender"],"application_id":"org.ninjaro.yodau","version_name":"1.0.0"}]=])
+endif ()
 
 ecosystem_embed_assets(app__app)
 

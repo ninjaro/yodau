@@ -1,0 +1,202 @@
+name: Setup Manifesto
+description: Build Marx and Engels from the reviewed checkout or an explicitly selected tooling repository.
+
+inputs:
+  bootstrap:
+    description: Use checkout for self-tests, or repository for a separate tooling checkout.
+    required: false
+    default: repository
+  source-path:
+    description: Relative directory containing the tooling CMakeLists.txt, manifest.json and assets/templates.
+    required: false
+    default: '.'
+  manifesto-repository:
+    description: GitHub repository that contains the manifesto project.
+    required: false
+    default: ''
+  manifesto-ref:
+    description: Git ref to use for the manifesto checkout.
+    required: false
+    default: ''
+  build-parallelism:
+    description: Parallelism limit for building the manifesto tool.
+    required: false
+    default: '2'
+  install-docs:
+    description: Install optional Sphinx presentation dependencies in an isolated Python environment.
+    required: false
+    default: 'false'
+  install-project-deps:
+    description: Install project build/test dependencies; cheap repository/format checks need only tooling dependencies.
+    required: false
+    default: 'true'
+  sphinx-theme-package:
+    description: Python package name for the selected Sphinx theme.
+    required: false
+    default: 'sphinx-rtd-theme'
+
+outputs:
+  manifesto-source-root:
+    description: Path to the checked out ecosystem source tree.
+    value: ${{ steps.paths.outputs.manifesto-source-root }}
+  manifesto-build-root:
+    description: Path to the manifesto debug build tree.
+    value: ${{ steps.paths.outputs.manifesto-build-root }}
+  marx-binary:
+    description: Path to the built Marx executable.
+    value: ${{ steps.paths.outputs.marx-binary }}
+  engels-binary:
+    description: Path to the built Engels executable.
+    value: ${{ steps.paths.outputs.engels-binary }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set ecosystem paths
+      id: paths
+      shell: bash
+      env:
+        BOOTSTRAP: ${{ inputs.bootstrap }}
+        SOURCE_PATH: ${{ inputs.source-path }}
+        TOOL_REPOSITORY: ${{ inputs.manifesto-repository }}
+        TOOL_REF: ${{ inputs.manifesto-ref }}
+        BUILD_PARALLELISM: ${{ inputs.build-parallelism }}
+      run: |
+        case "$BOOTSTRAP" in
+          checkout)
+            if [ -n "$TOOL_REPOSITORY" ] || [ -n "$TOOL_REF" ]; then
+              echo '::error::checkout bootstrap builds the reviewed revision; omit repository and ref.'
+              exit 1
+            fi
+            checkout_root="$GITHUB_WORKSPACE"
+            ;;
+          repository)
+            if [ -z "$TOOL_REPOSITORY" ] || [ -z "$TOOL_REF" ]; then
+              echo '::error::Set manifesto_repository and manifesto_ref in manifesto.github.vars.json, then run marx sync. Use manifesto_bootstrap=checkout only for tooling self-tests.'
+              exit 1
+            fi
+            checkout_root="$GITHUB_WORKSPACE/.ecosystem/tooling/source"
+            ;;
+          *) echo '::error::bootstrap must be checkout or repository.'; exit 1 ;;
+        esac
+        case "/$SOURCE_PATH/" in
+          //*|*/../*|*$'\n'*|*$'\r'*) echo '::error::source-path must stay within the checkout.'; exit 1 ;;
+        esac
+        if [ -z "$SOURCE_PATH" ] || [[ ! "$BUILD_PARALLELISM" =~ ^[1-9][0-9]*$ ]]; then
+          echo '::error::source-path is required and build-parallelism must be a positive integer.'
+          exit 1
+        fi
+        build_root="$GITHUB_WORKSPACE/.ecosystem/tooling/build/debug"
+        echo "manifesto-checkout-root=$checkout_root" >> "$GITHUB_OUTPUT"
+        echo "manifesto-source-root=$checkout_root/$SOURCE_PATH" >> "$GITHUB_OUTPUT"
+        echo "manifesto-build-root=$build_root" >> "$GITHUB_OUTPUT"
+        echo "marx-binary=$build_root/marx" >> "$GITHUB_OUTPUT"
+        echo "engels-binary=$build_root/engels" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout manifesto tool
+      if: ${{ inputs.bootstrap == 'repository' }}
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.manifesto-repository }}
+        ref: ${{ inputs.manifesto-ref }}
+        path: .ecosystem/tooling/source
+        persist-credentials: false
+
+    - name: Install Qt 6
+      if: ${{ inputs.install-project-deps == 'true' }}
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.8.*'
+        target: 'desktop'
+        modules: 'qtmultimedia'
+        install-deps: 'true'
+        cache: 'true'
+
+    - name: Install shared native dependencies
+      shell: bash
+      run: |
+        packages=(
+          clang
+          clang-format
+          cmake
+          ninja-build
+          pkg-config
+          libclang-dev
+          llvm-dev
+          libcxxopts-dev
+        )
+        if [ "${{ inputs.install-project-deps }}" = "true" ]; then
+          packages+=(
+            clang-tidy
+            default-jdk
+            libopencv-dev
+            libgtest-dev
+            libbenchmark-dev
+          )
+        fi
+        if [ "${{ inputs.install-project-deps }}" = "true" ] || [ "${{ inputs.install-docs }}" = "true" ]; then
+          packages+=(doxygen graphviz)
+        fi
+        if [ "${{ inputs.install-docs }}" = "true" ]; then
+          packages+=(
+            python3-venv
+            poppler-utils
+            ffmpeg
+          )
+        fi
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends "${packages[@]}"
+
+    # Ubuntu 24.04 supplies JSON 3.11; the tooling requires 3.12.
+    - name: Checkout declared JSON prerequisite
+      uses: actions/checkout@v4
+      with:
+        repository: nlohmann/json
+        ref: v3.12.0
+        path: .ecosystem/tooling/dependencies/json
+        persist-credentials: false
+
+    - name: Install declared JSON prerequisite
+      shell: bash
+      run: |
+        prefix="$GITHUB_WORKSPACE/.ecosystem/tooling/prefix"
+        cmake -S .ecosystem/tooling/dependencies/json -B .ecosystem/tooling/dependencies/json-build -DJSON_BuildTests=OFF -DCMAKE_INSTALL_PREFIX="$prefix"
+        cmake --install .ecosystem/tooling/dependencies/json-build
+        echo "CMAKE_PREFIX_PATH=$prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}" >> "$GITHUB_ENV"
+
+    - name: Install Sphinx dependencies
+      if: ${{ inputs.install-docs == 'true' }}
+      shell: bash
+      run: |
+        docs_env="$GITHUB_WORKSPACE/.ecosystem/tooling/docs-venv"
+        python3 -m venv "$docs_env"
+        "$docs_env/bin/python" -m pip install sphinx breathe myst-parser "${{ inputs.sphinx-theme-package }}"
+        echo "$docs_env/bin" >> "$GITHUB_PATH"
+
+    - name: Build Marx and Engels
+      shell: bash
+      env:
+        CC: clang
+        CXX: clang++
+        CHECKOUT_ROOT: ${{ steps.paths.outputs.manifesto-checkout-root }}
+        SOURCE_ROOT: ${{ steps.paths.outputs.manifesto-source-root }}
+        BUILD_ROOT: ${{ steps.paths.outputs.manifesto-build-root }}
+        BUILD_PARALLELISM: ${{ inputs.build-parallelism }}
+      run: |
+        checkout_root="$(realpath -e "$CHECKOUT_ROOT")"
+        source_root="$(realpath -e "$SOURCE_ROOT")"
+        case "$source_root/" in
+          "$checkout_root/"*) ;;
+          *) echo '::error::Tooling source-path resolves outside its checkout.'; exit 1 ;;
+        esac
+        if [ ! -f "$source_root/CMakeLists.txt" ] || [ ! -f "$source_root/manifest.json" ] || [ ! -d "$source_root/assets/templates" ]; then
+          echo '::error::Tooling source-path must contain CMakeLists.txt, manifest.json and assets/templates.'
+          exit 1
+        fi
+        cmake -S "$source_root" -B "$BUILD_ROOT" -DCMAKE_BUILD_TYPE=Debug -DECOSYSTEM_BUILD_TESTS=OFF
+        cmake -E rm -f "$BUILD_ROOT/marx" "$BUILD_ROOT/engels"
+        cmake --build "$BUILD_ROOT" --parallel "$BUILD_PARALLELISM"
+        if [ ! -x "$BUILD_ROOT/marx" ] || [ ! -x "$BUILD_ROOT/engels" ]; then
+          echo '::error::Selected tooling revision must build both marx and engels at the build root.'
+          exit 1
+        fi

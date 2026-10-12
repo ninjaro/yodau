@@ -2,8 +2,9 @@
 #define YODAU_APP_SHELL_MAIN_WINDOW_HPP
 
 #ifdef KC_KDE
-#include <KXmlGuiWindow>
-using base_main_window = KXmlGuiWindow;
+#include <KMainWindow>
+using base_main_window = KMainWindow;
+class KActionCollection;
 #else
 #include <QMainWindow>
 using base_main_window = QMainWindow;
@@ -35,6 +36,9 @@ class main_window final : public base_main_window {
 public:
     explicit main_window(QWidget* parent = nullptr);
     ~main_window() override;
+#ifdef KC_KDE
+    KActionCollection* actionCollection() const;
+#endif
 
 private slots:
     void on_import_line_configuration_triggered();
