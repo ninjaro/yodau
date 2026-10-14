@@ -52,13 +52,11 @@ void main_window_tests::actions_apply_lines_and_templates() {
 
     auto* active_cell = board.active_cell();
     QVERIFY(active_cell != nullptr);
-    active_cell->set_draft_points_pct(
-        {
-            QPointF(10.0, 10.0),
-            QPointF(80.0, 20.0),
-            QPointF(60.0, 75.0),
-        }
-    );
+    active_cell->set_draft_points_pct({
+        QPointF(10.0, 10.0),
+        QPointF(80.0, 20.0),
+        QPointF(60.0, 75.0),
+    });
 
     const auto line_result = edit_actions.save_active_line(
         QStringLiteral("cam-1"),
@@ -77,8 +75,7 @@ void main_window_tests::actions_apply_lines_and_templates() {
     QCOMPARE(line_result.profile.name, QStringLiteral("north"));
     QCOMPARE(line_result.final_name, QStringLiteral("north"));
     QCOMPARE(line_result.point_count, 3);
-    QVERIFY(
-        line_result.points_text.contains(QStringLiteral("(10.000,10.000)"))
+    QVERIFY(line_result.points_text.contains(QStringLiteral("(10.000,10.000)"))
     );
     QCOMPARE(static_cast<int>(stream_mgr.stream_lines("cam-1").size()), 1);
     QCOMPARE(
@@ -187,12 +184,10 @@ void main_window_tests::actions_apply_lines_and_templates() {
     );
     QVERIFY(std::fabs(stream_profile_after_apply->damping - 0.25f) < 0.01f);
 
-    active_cell->set_draft_points_pct(
-        {
-            QPointF(11.0, 12.0),
-            QPointF(40.0, 42.0),
-        }
-    );
+    active_cell->set_draft_points_pct({
+        QPointF(11.0, 12.0),
+        QPointF(40.0, 42.0),
+    });
     const auto before_line_count = static_cast<int>(
         edit_session.stream_lines(QStringLiteral("cam-1")).size()
     );
@@ -266,13 +261,11 @@ void main_window_tests::actions_save_variant_detaches_source() {
 
     auto* active_cell = board.active_cell();
     QVERIFY(active_cell != nullptr);
-    active_cell->set_draft_points_pct(
-        {
-            QPointF(10.0, 10.0),
-            QPointF(55.0, 20.0),
-            QPointF(80.0, 70.0),
-        }
-    );
+    active_cell->set_draft_points_pct({
+        QPointF(10.0, 10.0),
+        QPointF(55.0, 20.0),
+        QPointF(80.0, 70.0),
+    });
 
     const auto initial_line = edit_actions.save_active_line(
         QStringLiteral("cam-edit"),
@@ -392,12 +385,10 @@ void main_window_tests::actions_detach_preserves_template() {
 
     auto* active_cell = board.active_cell();
     QVERIFY(active_cell != nullptr);
-    active_cell->set_draft_points_pct(
-        {
-            QPointF(15.0, 20.0),
-            QPointF(70.0, 35.0),
-        }
-    );
+    active_cell->set_draft_points_pct({
+        QPointF(15.0, 20.0),
+        QPointF(70.0, 35.0),
+    });
 
     const auto initial_line = edit_actions.save_active_line(
         QStringLiteral("cam-detach"),
@@ -455,16 +446,14 @@ void main_window_tests::edit_workflow_logs_and_follow_up() {
         route_state, catalog_state, widget_bridge, edit_controller, edit_actions
     );
 
-    const auto missing_active_result = workflow.save_active_line(
-        line_profile {
-            .name = QStringLiteral("orphan"),
-            .color = QColor(Qt::red),
-            .closed = false,
-            .width_text = QStringLiteral("medium"),
-            .length_text = QStringLiteral("medium"),
-            .response_text = QStringLiteral("balanced"),
-        }
-    );
+    const auto missing_active_result = workflow.save_active_line(line_profile {
+        .name = QStringLiteral("orphan"),
+        .color = QColor(Qt::red),
+        .closed = false,
+        .width_text = QStringLiteral("medium"),
+        .length_text = QStringLiteral("medium"),
+        .response_text = QStringLiteral("balanced"),
+    });
 
     QCOMPARE(missing_active_result.entries.size(), 1);
     QCOMPARE(
@@ -479,15 +468,13 @@ void main_window_tests::edit_workflow_logs_and_follow_up() {
 
     stream_mgr.add_stream("/tmp/cam-1.mp4", "cam-1", "file", true);
     catalog_state.ensure_stream(QStringLiteral("cam-1"));
-    catalog_state.set_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral("cam-1"),
-            .labels_enabled = true,
-            .algorithm_id = QStringLiteral("spot grid"),
-            .algorithm_preset = QStringLiteral("dense"),
-            .algorithm_overlay_enabled = true,
-        }
-    );
+    catalog_state.set_stream_settings(stream_settings {
+        .stream_name = QStringLiteral("cam-1"),
+        .labels_enabled = true,
+        .algorithm_id = QStringLiteral("spot grid"),
+        .algorithm_preset = QStringLiteral("dense"),
+        .algorithm_overlay_enabled = true,
+    });
     route_state.set_active_stream(QStringLiteral("cam-1"));
 
     const stream_settings active_settings
@@ -519,16 +506,14 @@ void main_window_tests::edit_workflow_logs_and_follow_up() {
         mode_result.entries.front().algorithm_id, QStringLiteral("spot_grid")
     );
 
-    const auto line_profile_result = workflow.apply_line_profile(
-        line_profile {
-            .name = QStringLiteral(" north "),
-            .color = QColor(Qt::cyan),
-            .closed = true,
-            .width_text = QStringLiteral("string_heavy"),
-            .length_text = QStringLiteral("long"),
-            .response_text = QStringLiteral("resonant"),
-        }
-    );
+    const auto line_profile_result = workflow.apply_line_profile(line_profile {
+        .name = QStringLiteral(" north "),
+        .color = QColor(Qt::cyan),
+        .closed = true,
+        .width_text = QStringLiteral("string_heavy"),
+        .length_text = QStringLiteral("long"),
+        .response_text = QStringLiteral("resonant"),
+    });
 
     QCOMPARE(line_profile_result.entries.size(), 1);
     QCOMPARE(
@@ -543,23 +528,19 @@ void main_window_tests::edit_workflow_logs_and_follow_up() {
         QStringLiteral("spot_grid")
     );
 
-    active_cell->set_draft_points_pct(
-        {
-            QPointF(10.0, 10.0),
-            QPointF(80.0, 20.0),
-            QPointF(60.0, 75.0),
-        }
-    );
-    const auto line_save_result = workflow.save_active_line(
-        line_profile {
-            .name = QStringLiteral(" north "),
-            .color = QColor(Qt::cyan),
-            .closed = true,
-            .width_text = QStringLiteral("string_heavy"),
-            .length_text = QStringLiteral("long"),
-            .response_text = QStringLiteral("resonant"),
-        }
-    );
+    active_cell->set_draft_points_pct({
+        QPointF(10.0, 10.0),
+        QPointF(80.0, 20.0),
+        QPointF(60.0, 75.0),
+    });
+    const auto line_save_result = workflow.save_active_line(line_profile {
+        .name = QStringLiteral(" north "),
+        .color = QColor(Qt::cyan),
+        .closed = true,
+        .width_text = QStringLiteral("string_heavy"),
+        .length_text = QStringLiteral("long"),
+        .response_text = QStringLiteral("resonant"),
+    });
 
     QCOMPARE(line_save_result.entries.size(), 3);
     QCOMPARE(
@@ -600,15 +581,14 @@ void main_window_tests::edit_workflow_logs_and_follow_up() {
         0
     );
 
-    const auto template_settings_result = workflow.apply_template_settings(
-        template_apply_settings {
+    const auto template_settings_result
+        = workflow.apply_template_settings(template_apply_settings {
             .template_name = QStringLiteral(" north "),
             .color = QColor(Qt::yellow),
             .width_text = QStringLiteral("thin"),
             .length_text = QStringLiteral("short"),
             .response_text = QStringLiteral("dry"),
-        }
-    );
+        });
 
     QCOMPARE(template_settings_result.entries.size(), 1);
     QCOMPARE(
@@ -619,15 +599,14 @@ void main_window_tests::edit_workflow_logs_and_follow_up() {
         QStringLiteral("template=north")
     ));
 
-    const auto template_apply_result = workflow.apply_active_template(
-        template_apply_settings {
+    const auto template_apply_result
+        = workflow.apply_active_template(template_apply_settings {
             .template_name = QStringLiteral(" north "),
             .color = QColor(Qt::yellow),
             .width_text = QStringLiteral("thin"),
             .length_text = QStringLiteral("short"),
             .response_text = QStringLiteral("dry"),
-        }
-    );
+        });
 
     QCOMPARE(template_apply_result.entries.size(), 1);
     QCOMPARE(

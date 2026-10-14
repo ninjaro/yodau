@@ -165,8 +165,8 @@ std::string yodau::core::fps_stream_role_name(const fps_stream_role role) {
     return "grid";
 }
 
-std::string
-yodau::core::fps_capability_tier_name(const fps_capability_tier tier) {
+std::string yodau::core::fps_capability_tier_name(const fps_capability_tier tier
+) {
     switch (tier) {
     case fps_capability_tier::low:
         return "low";

@@ -21,19 +21,17 @@
 void main_window_tests::cell_stream_settings() {
     stream_cell cell(QStringLiteral("cam-7"));
 
-    cell.set_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral("cam-7"),
-            .labels_enabled = true,
-            .algorithm_id = QStringLiteral("contour"),
-            .algorithm_preset = QStringLiteral("debug"),
-            .algorithm_overlay_enabled = true,
-            .manual_processing_policy_enabled = true,
-            .manual_display_fps = 17,
-            .manual_core_fps = 9,
-            .manual_processing_pixels = 320 * 240,
-        }
-    );
+    cell.set_stream_settings(stream_settings {
+        .stream_name = QStringLiteral("cam-7"),
+        .labels_enabled = true,
+        .algorithm_id = QStringLiteral("contour"),
+        .algorithm_preset = QStringLiteral("debug"),
+        .algorithm_overlay_enabled = true,
+        .manual_processing_policy_enabled = true,
+        .manual_display_fps = 17,
+        .manual_core_fps = 9,
+        .manual_processing_pixels = 320 * 240,
+    });
 
     const stream_settings settings_value = cell.current_stream_settings();
     QCOMPARE(settings_value.stream_name, QStringLiteral("cam-7"));
@@ -49,21 +47,19 @@ void main_window_tests::cell_stream_settings() {
     cell.set_log_mode(app_log_mode::debug);
     QCOMPARE(cell.current_log_mode(), app_log_mode::debug);
 
-    cell.set_runtime_metrics(
-        stream_runtime_metrics {
-            .input_fps = 29.7,
-            .core_fps = 9.8,
-            .input_width = 1280,
-            .input_height = 720,
-            .processed_width = 320,
-            .processed_height = 180,
-            .effective_display_fps = 17,
-            .effective_core_fps = 9,
-            .effective_processing_pixels = 320 * 180,
-            .manual_policy_active = true,
-            .processing_summary = {},
-        }
-    );
+    cell.set_runtime_metrics(stream_runtime_metrics {
+        .input_fps = 29.7,
+        .core_fps = 9.8,
+        .input_width = 1280,
+        .input_height = 720,
+        .processed_width = 320,
+        .processed_height = 180,
+        .effective_display_fps = 17,
+        .effective_core_fps = 9,
+        .effective_processing_pixels = 320 * 180,
+        .manual_policy_active = true,
+        .processing_summary = {},
+    });
     const stream_runtime_metrics metrics = cell.current_runtime_metrics();
     QCOMPARE(metrics.processed_width, 320);
     QCOMPARE(metrics.processed_height, 180);
@@ -80,18 +76,14 @@ void main_window_tests::cell_coalesces_frame_conversion() {
     first_frame.fill(Qt::black);
     second_frame.fill(Qt::white);
 
-    QVERIFY(
-        QMetaObject::invokeMethod(
-            &cell, "on_frame_changed", Qt::DirectConnection,
-            Q_ARG(QVideoFrame, QVideoFrame(first_frame))
-        )
-    );
-    QVERIFY(
-        QMetaObject::invokeMethod(
-            &cell, "on_frame_changed", Qt::DirectConnection,
-            Q_ARG(QVideoFrame, QVideoFrame(second_frame))
-        )
-    );
+    QVERIFY(QMetaObject::invokeMethod(
+        &cell, "on_frame_changed", Qt::DirectConnection,
+        Q_ARG(QVideoFrame, QVideoFrame(first_frame))
+    ));
+    QVERIFY(QMetaObject::invokeMethod(
+        &cell, "on_frame_changed", Qt::DirectConnection,
+        Q_ARG(QVideoFrame, QVideoFrame(second_frame))
+    ));
 
     QCOMPARE(frame_spy.count(), 1);
 }
@@ -109,24 +101,20 @@ void main_window_tests::cell_rotated_fitted_coordinates() {
     QSignalSpy layout_spy(&cell, &stream_cell::layout_geometry_changed);
     QImage frame(QSize(200, 100), QImage::Format_ARGB32_Premultiplied);
     frame.fill(Qt::black);
-    QVERIFY(
-        QMetaObject::invokeMethod(
-            &cell, "on_frame_changed", Qt::DirectConnection,
-            Q_ARG(QVideoFrame, QVideoFrame(frame))
-        )
-    );
+    QVERIFY(QMetaObject::invokeMethod(
+        &cell, "on_frame_changed", Qt::DirectConnection,
+        Q_ARG(QVideoFrame, QVideoFrame(frame))
+    ));
     QCOMPARE(cell.source_frame_aspect(), 2.0);
     QCOMPARE(cell.effective_display_aspect(), 0.5);
     QVERIFY(!layout_spy.isEmpty());
 
     layout_spy.clear();
     QTest::qWait(2);
-    QVERIFY(
-        QMetaObject::invokeMethod(
-            &cell, "on_frame_changed", Qt::DirectConnection,
-            Q_ARG(QVideoFrame, QVideoFrame(frame))
-        )
-    );
+    QVERIFY(QMetaObject::invokeMethod(
+        &cell, "on_frame_changed", Qt::DirectConnection,
+        Q_ARG(QVideoFrame, QVideoFrame(frame))
+    ));
     QCOMPARE(layout_spy.count(), 0);
 
     // A 90-degree clockwise turn maps canonical (20, 30) to display
@@ -139,16 +127,12 @@ void main_window_tests::cell_rotated_fitted_coordinates() {
 
     const auto points = cell.draft_points_pct();
     QCOMPARE(points.size(), size_t(2));
-    QVERIFY(
-        main_window_tests_support::point_close(
-            points.at(0), QPointF(20.0, 30.0)
-        )
-    );
-    QVERIFY(
-        main_window_tests_support::point_close(
-            points.at(1), QPointF(20.0, 100.0)
-        )
-    );
+    QVERIFY(main_window_tests_support::point_close(
+        points.at(0), QPointF(20.0, 30.0)
+    ));
+    QVERIFY(main_window_tests_support::point_close(
+        points.at(1), QPointF(20.0, 100.0)
+    ));
 }
 
 void main_window_tests::cell_edit_signals() {
@@ -284,12 +268,12 @@ void main_window_tests::cell_keyboard_and_accessibility() {
     QCOMPARE(points.size(), size_t(2));
     QVERIFY(points.at(1).x() > points.at(0).x());
 
-    auto* focus_button = cell.findChild<QPushButton*>(
-        QStringLiteral("stream_cell_focus_button")
-    );
-    auto* close_button = cell.findChild<QPushButton*>(
-        QStringLiteral("stream_cell_close_button")
-    );
+    auto* focus_button
+        = cell.findChild<QPushButton*>(QStringLiteral("stream_cell_focus_button"
+        ));
+    auto* close_button
+        = cell.findChild<QPushButton*>(QStringLiteral("stream_cell_close_button"
+        ));
     QVERIFY(focus_button != nullptr);
     QVERIFY(close_button != nullptr);
     QCOMPARE(focus_button->focusPolicy(), Qt::StrongFocus);

@@ -70,7 +70,8 @@ bool has_distinct_point_count(
     distinct.reserve(required_count);
     for (const auto& value : points) {
         const bool already_seen = std::ranges::any_of(
-            distinct, [&value](const yodau::core::point& other) {
+            distinct,
+            [&value](const yodau::core::point& other) {
                 return value.compare(other);
             }
         );

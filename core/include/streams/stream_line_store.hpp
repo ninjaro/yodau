@@ -20,16 +20,14 @@ struct stream_line_connection {
 
 class stream_line_store {
 public:
-    line_ptr add(
-        std::vector<point> points, bool closed = false,
-        const std::string& name = {}
-    );
+    line_ptr
+    add(std::vector<point> points, bool closed = false,
+        const std::string& name = {});
     line_ptr
     add(const std::string& points, bool closed = false,
         const std::string& name = {});
-    line_ptr upsert(
-        std::vector<point> points, bool closed, const std::string& name
-    );
+    line_ptr
+    upsert(std::vector<point> points, bool closed, const std::string& name);
     line_ptr
     upsert(const std::string& points, bool closed, const std::string& name);
 
@@ -40,8 +38,8 @@ public:
     [[nodiscard]] std::optional<tripwire_dir>
     find_direction(const std::string& line_name) const;
 
-    [[nodiscard]] stream_line_connection
-    connection(const std::string& line_name) const;
+    [[nodiscard]] stream_line_connection connection(const std::string& line_name
+    ) const;
 
     [[nodiscard]] bool contains(const std::string& line_name) const;
     [[nodiscard]] line_ptr find(const std::string& line_name) const;

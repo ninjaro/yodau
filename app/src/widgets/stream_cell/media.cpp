@@ -160,7 +160,8 @@ void stream_cell::start_camera_if_permitted() {
         = application->checkPermission(camera_permission);
     if (permission_status == Qt::PermissionStatus::Undetermined) {
         application->requestPermission(
-            camera_permission, this, [this](const QPermission& permission) {
+            camera_permission, this,
+            [this](const QPermission& permission) {
                 if (permission.status() == Qt::PermissionStatus::Granted
                     && application_active_) {
                     start_camera();
@@ -266,8 +267,7 @@ void stream_cell::on_frame_changed(const QVideoFrame& frame) {
     update();
 }
 
-void stream_cell::on_media_status_changed(
-    const QMediaPlayer::MediaStatus status
+void stream_cell::on_media_status_changed(const QMediaPlayer::MediaStatus status
 ) {
     if (!loop_enabled) {
         return;

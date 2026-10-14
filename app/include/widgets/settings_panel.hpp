@@ -83,8 +83,8 @@ public:
     void set_active_line_closed(bool closed) const;
     void set_active_lines(const std::vector<stream_cell::line_instance>& lines);
     [[nodiscard]] bool select_active_line_edit_point(int visible_index) const;
-    [[nodiscard]] bool
-    translate_active_line_edit_shape(const QPointF& delta_pct) const;
+    [[nodiscard]] bool translate_active_line_edit_shape(const QPointF& delta_pct
+    ) const;
     [[nodiscard]] bool move_active_line_edit_point(
         int visible_index, const QPointF& point_pct
     ) const;
@@ -140,8 +140,8 @@ signals:
     void active_line_edit_save_requested(line_edit_request request);
 
     void active_template_add_requested(template_apply_settings settings_value);
-    void
-    active_template_settings_changed(template_apply_settings settings_value);
+    void active_template_settings_changed(template_apply_settings settings_value
+    );
 
 private:
     // ui build

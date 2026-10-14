@@ -12,8 +12,8 @@ struct tripwire_visual_payload {
     double speed { 1.0 };
 };
 
-tripwire_visual_payload
-parse_tripwire_visual_payload(const std::string& message) {
+tripwire_visual_payload parse_tripwire_visual_payload(const std::string& message
+) {
     tripwire_visual_payload payload;
     if (message.empty()) {
         return payload;
@@ -190,8 +190,8 @@ int processing_feedback_state::recent_motion_count() {
     return static_cast<int>(recent_motion_events_.size());
 }
 
-QString
-processing_feedback_state::event_kind_text(yodau::core::event_kind kind) {
+QString processing_feedback_state::event_kind_text(yodau::core::event_kind kind
+) {
     switch (kind) {
     case yodau::core::event_kind::motion:
         return QStringLiteral("motion");

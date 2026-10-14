@@ -73,7 +73,8 @@ struct desktop_fixture {
         readout->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P));
 #endif
         yodau::shell::setup_desktop_shell(
-            window, { import, export_action, presentation, docks }, [this] {
+            window, { import, export_action, presentation, docks },
+            [this] {
                 ++preferences_requests;
                 docks[0]->show();
             }
@@ -272,8 +273,7 @@ void main_window_tests::desktop_shell_menus_and_shortcuts() {
             .toByteArray(),
         layout
     );
-    QVERIFY(
-        saved_state.contains(QStringLiteral("desktop/main_window/geometry"))
+    QVERIFY(saved_state.contains(QStringLiteral("desktop/main_window/geometry"))
     );
     desktop_fixture restored;
     QVERIFY(

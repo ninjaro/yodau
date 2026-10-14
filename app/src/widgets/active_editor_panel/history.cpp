@@ -14,8 +14,7 @@ active_editor_panel::edit_snapshot_now() const {
     };
 }
 
-bool active_editor_panel::snapshot_matches_current(
-    const edit_snapshot& snapshot
+bool active_editor_panel::snapshot_matches_current(const edit_snapshot& snapshot
 ) const {
     return snapshot.points_pct == line_edit_points_pct_
         && snapshot.point_enabled == line_edit_point_enabled_
@@ -103,8 +102,7 @@ bool active_editor_panel::line_edit_has_unsaved_changes() const {
 
     return line_edit_name_edit_ != nullptr
         && line_edit_name_edit_->text().trimmed()
-        != active_editor_panel_support::variant_name(
-               source_line->template_name
+        != active_editor_panel_support::variant_name(source_line->template_name
         );
 }
 
@@ -167,11 +165,9 @@ bool active_editor_panel::revert_line_edit_changes() {
     line_edit_selected_row_ = -1;
     if (line_edit_name_edit_ != nullptr) {
         QSignalBlocker blocker(line_edit_name_edit_);
-        line_edit_name_edit_->setText(
-            active_editor_panel_support::variant_name(
-                source_line->template_name
-            )
-        );
+        line_edit_name_edit_->setText(active_editor_panel_support::variant_name(
+            source_line->template_name
+        ));
     }
 
     clear_line_edit_history();

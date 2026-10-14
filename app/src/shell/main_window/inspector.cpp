@@ -19,8 +19,7 @@ void main_window::setup_context_inspector() {
     const bool enabled = yodau::shell::load_context_inspector(preferences);
     editor->set_context_inspector(enabled);
     inspector_action_ = new QAction(tr("Contextual &inspector"), this);
-    inspector_action_->setObjectName(
-        QStringLiteral("desktop_context_inspector")
+    inspector_action_->setObjectName(QStringLiteral("desktop_context_inspector")
     );
     inspector_action_->setCheckable(true);
     inspector_action_->setChecked(enabled);

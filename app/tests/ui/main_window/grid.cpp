@@ -31,10 +31,8 @@ void main_window_tests::grid_packing_plans() {
     QCOMPARE(view.layout_cell_count(), 4);
     QCOMPARE(
         view.stream_names(),
-        QStringList(
-            { QStringLiteral("camera-a"), QStringLiteral("camera-b"),
-              QStringLiteral("camera-c"), QStringLiteral("camera-d") }
-        )
+        QStringList({ QStringLiteral("camera-a"), QStringLiteral("camera-b"),
+                      QStringLiteral("camera-c"), QStringLiteral("camera-d") })
     );
 
     view.resize(960, 210);
@@ -75,9 +73,9 @@ void main_window_tests::grid_session_sizes_and_viewport_changes() {
     view.add_stream(QStringLiteral("camera-c"));
     view.add_stream(QStringLiteral("camera-d"));
 
-    auto* scroll = view.findChild<QScrollArea*>(
-        QStringLiteral("stream_grid_scroll_area")
-    );
+    auto* scroll
+        = view.findChild<QScrollArea*>(QStringLiteral("stream_grid_scroll_area")
+        );
     QVERIFY(scroll != nullptr);
     QTRY_VERIFY(scroll->horizontalScrollBar()->isVisible());
     QTRY_VERIFY(([&view, scroll]() {

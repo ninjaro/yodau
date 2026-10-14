@@ -61,10 +61,8 @@ public:
 
         stoppable_thread thread(
             [this, snapshot_streams = std::move(snapshot_streams),
-             snapshot_hooks
-             = std::move(snapshot_hooks)](const stop_token& stop_token) {
-                run(stop_token, snapshot_streams, snapshot_hooks);
-            }
+             snapshot_hooks = std::move(snapshot_hooks)](const stop_token& token
+            ) { run(token, snapshot_streams, snapshot_hooks); }
         );
 
         {
@@ -100,12 +98,12 @@ public:
 
 private:
     void
-    run(const stop_token& stop_token,
+    run(const stop_token& token,
         const stream_demo_snapshot_fn& snapshot_streams,
         const stream_demo_hooks_snapshot_fn& snapshot_hooks) noexcept {
         frame dummy;
 
-        while (!stop_token.stop_requested()) {
+        while (!token.stop_requested()) {
             try {
                 const auto streams = snapshot_streams();
                 const auto hooks = snapshot_hooks();
@@ -137,7 +135,7 @@ private:
 
             std::unique_lock lock(mtx_);
             wake_.wait_for(lock, std::chrono::milliseconds(interval_ms_), [&] {
-                return stop_token.stop_requested();
+                return token.stop_requested();
             });
         }
     }

@@ -57,11 +57,9 @@ int normalized_manual_processing_pixels(const int pixels) {
 
 QString compact_pixels_text(const int pixels) {
     if (pixels >= 1000 * 1000) {
-        return QStringLiteral("%1M px").arg(
-            QString::number(
-                static_cast<double>(pixels) / 1000.0 / 1000.0, 'f', 2
-            )
-        );
+        return QStringLiteral("%1M px").arg(QString::number(
+            static_cast<double>(pixels) / 1000.0 / 1000.0, 'f', 2
+        ));
     }
 
     if (pixels >= 1000) {
@@ -304,23 +302,17 @@ QString algorithm_badge_text(
             normalized_algorithm, algorithm_ids::spot_grid
         )) {
         short_algorithm = QStringLiteral("SG");
-    } else if (
-        app_settings_support::algorithm_id_is(
-            normalized_algorithm, algorithm_ids::hybrid_auto
-        )
-    ) {
+    } else if (app_settings_support::algorithm_id_is(
+                   normalized_algorithm, algorithm_ids::hybrid_auto
+               )) {
         short_algorithm = QStringLiteral("HA");
-    } else if (
-        app_settings_support::algorithm_id_is(
-            normalized_algorithm, algorithm_ids::centroid_track
-        )
-    ) {
+    } else if (app_settings_support::algorithm_id_is(
+                   normalized_algorithm, algorithm_ids::centroid_track
+               )) {
         short_algorithm = QStringLiteral("CT");
-    } else if (
-        app_settings_support::algorithm_id_is(
-            normalized_algorithm, algorithm_ids::contour_mask
-        )
-    ) {
+    } else if (app_settings_support::algorithm_id_is(
+                   normalized_algorithm, algorithm_ids::contour_mask
+               )) {
         short_algorithm = QStringLiteral("CM");
     }
 
@@ -874,23 +866,17 @@ stream_processing_policy_summary_text(const stream_settings& settings_value) {
                "manual caps display to %1 fps, core processing to %2 fps, and "
                "processing input to %3."
     )
-        .arg(
-            app_settings_support::normalized_manual_fps(
-                settings_value.manual_display_fps, default_manual_display_fps()
+        .arg(app_settings_support::normalized_manual_fps(
+            settings_value.manual_display_fps, default_manual_display_fps()
+        ))
+        .arg(app_settings_support::normalized_manual_fps(
+            settings_value.manual_core_fps, default_manual_core_fps()
+        ))
+        .arg(app_settings_support::compact_pixels_text(
+            app_settings_support::normalized_manual_processing_pixels(
+                settings_value.manual_processing_pixels
             )
-        )
-        .arg(
-            app_settings_support::normalized_manual_fps(
-                settings_value.manual_core_fps, default_manual_core_fps()
-            )
-        )
-        .arg(
-            app_settings_support::compact_pixels_text(
-                app_settings_support::normalized_manual_processing_pixels(
-                    settings_value.manual_processing_pixels
-                )
-            )
-        );
+        ));
 }
 
 QString stream_runtime_metrics_text(const stream_runtime_metrics& metrics) {

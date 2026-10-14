@@ -18,17 +18,15 @@ stream_inventory_panel::stream_inventory_panel(QWidget* parent)
     layout->setSpacing(10);
 
     summary_label = new QLabel(this);
-    summary_label->setObjectName(
-        QStringLiteral("settings_streams_summary_label")
-    );
+    summary_label->setObjectName(QStringLiteral("settings_streams_summary_label"
+    ));
     summary_label->setWordWrap(true);
     layout->addWidget(summary_label);
 
     streams_list->setObjectName(QStringLiteral("settings_streams_list"));
     streams_list->setColumnCount(3);
-    streams_list->setHeaderLabels(
-        { str_label("show"), str_label("name"), str_label("source") }
-    );
+    streams_list->setHeaderLabels({ str_label("show"), str_label("name"),
+                                    str_label("source") });
     streams_list->header()->setSectionResizeMode(
         0, QHeaderView::ResizeToContents
     );

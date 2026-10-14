@@ -40,8 +40,7 @@ active_stream_workflow::set_active_stream(const QString& name) const {
 }
 
 active_stream_workflow::transition_result
-active_stream_workflow::apply_stream_settings(
-    stream_settings settings_value
+active_stream_workflow::apply_stream_settings(stream_settings settings_value
 ) const {
     transition_result transition;
     const active_stream_state::settings_result result
@@ -149,11 +148,9 @@ active_stream_workflow::transition_result
 active_stream_workflow::switched_result_entry(
     const active_stream_state::settings_result& result
 ) {
-    return selection_result_entry(
-        active_stream_state::selection_result {
-            .active_name = result.active_name,
-            .settings = result.settings,
-            .changed = result.active_name != result.previous_active_name,
-        }
-    );
+    return selection_result_entry(active_stream_state::selection_result {
+        .active_name = result.active_name,
+        .settings = result.settings,
+        .changed = result.active_name != result.previous_active_name,
+    });
 }

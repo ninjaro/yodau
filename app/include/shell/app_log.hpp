@@ -43,8 +43,8 @@ public:
     explicit app_log_buffer(QObject* parent = nullptr);
 
     [[nodiscard]] const QVector<app_log_entry>& entries() const;
-    [[nodiscard]] QVector<app_log_entry>
-    entries_for_area(app_log_area area) const;
+    [[nodiscard]] QVector<app_log_entry> entries_for_area(app_log_area area
+    ) const;
     [[nodiscard]] qsizetype capacity() const;
     void set_capacity(qsizetype maximum_entries);
     void append(app_log_entry entry);

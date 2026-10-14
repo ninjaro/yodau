@@ -105,8 +105,8 @@ private slots:
     void on_line_edit_preview_cleared();
     void on_line_edit_save_requested(line_edit_request request);
 
-    void
-    on_active_template_add_requested(template_apply_settings settings_value);
+    void on_active_template_add_requested(template_apply_settings settings_value
+    );
     void
     on_active_template_settings_changed(template_apply_settings settings_value);
 
@@ -190,9 +190,8 @@ private:
         std::chrono::steady_clock::time_point& last_sample, double& ema_fps,
         std::chrono::steady_clock::time_point now
     );
-    QSize processing_image_size(
-        const QString& stream_name, const QImage& image
-    ) const;
+    QSize processing_image_size(const QString& stream_name, const QImage& image)
+        const;
     void schedule_gui_frame_worker(const QString& stream_name, int delay_ms);
     void drain_latest_gui_frames(const QString& stream_name);
 

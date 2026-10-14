@@ -117,7 +117,8 @@ void stream_controller::schedule_gui_frame_worker(
         this,
         [this, stream_name, delay_ms]() {
             QTimer::singleShot(
-                std::max(0, delay_ms), this, [this, stream_name]() {
+                std::max(0, delay_ms), this,
+                [this, stream_name]() {
                     bool launch_worker = false;
                     {
                         QMutexLocker lock(&pending_gui_frames_mutex);

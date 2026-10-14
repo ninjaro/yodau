@@ -32,8 +32,7 @@ void mouse_event(
 }
 
 QWidget* grip_for(stream_cell& cell) {
-    return cell.findChild<QWidget*>(
-        QStringLiteral("stream_cell_resize_handle")
+    return cell.findChild<QWidget*>(QStringLiteral("stream_cell_resize_handle")
     );
 }
 
@@ -75,12 +74,10 @@ void main_window_tests::thumbnail_drag() {
     QImage image(frame_size, QImage::Format_RGB32);
     image.fill(Qt::black);
     const QVideoFrame frame(image);
-    QVERIFY(
-        QMetaObject::invokeMethod(
-            &cell, "on_frame_changed", Qt::DirectConnection,
-            Q_ARG(QVideoFrame, frame)
-        )
-    );
+    QVERIFY(QMetaObject::invokeMethod(
+        &cell, "on_frame_changed", Qt::DirectConnection,
+        Q_ARG(QVideoFrame, frame)
+    ));
     QCOMPARE(
         cell.source_frame_aspect(),
         static_cast<double>(frame_size.width()) / frame_size.height()
@@ -190,9 +187,8 @@ void main_window_tests::thumbnail_cancel() {
     } else if (cause == QStringLiteral("hide_grip")) {
         grip->hide();
         QVERIFY(grip->isHidden());
-    } else if (
-        cause == QStringLiteral("focus") || cause == QStringLiteral("window")
-    ) {
+    } else if (cause == QStringLiteral("focus")
+               || cause == QStringLiteral("window")) {
         QEvent lost(
             cause == QStringLiteral("focus") ? QEvent::FocusOut
                                              : QEvent::WindowDeactivate
@@ -216,12 +212,10 @@ void main_window_tests::thumbnail_cancel() {
         QImage image(QSize(40, 80), QImage::Format_RGB32);
         image.fill(Qt::black);
         const QVideoFrame frame(image);
-        QVERIFY(
-            QMetaObject::invokeMethod(
-                &cell, "on_frame_changed", Qt::DirectConnection,
-                Q_ARG(QVideoFrame, frame)
-            )
-        );
+        QVERIFY(QMetaObject::invokeMethod(
+            &cell, "on_frame_changed", Qt::DirectConnection,
+            Q_ARG(QVideoFrame, frame)
+        ));
     }
     QCOMPARE(cell.manual_short_side(), start);
     QCOMPARE(cell.has_manual_short_side(), initialized);

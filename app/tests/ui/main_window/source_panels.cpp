@@ -37,9 +37,9 @@ void main_window_tests::inventory_entries_and_visibility() {
         QStringLiteral("cam-2"), QStringLiteral("url:rtsp://cam-2"), true
     );
 
-    auto* streams_list = panel.findChild<QTreeWidget*>(
-        QStringLiteral("settings_streams_list")
-    );
+    auto* streams_list
+        = panel.findChild<QTreeWidget*>(QStringLiteral("settings_streams_list")
+        );
     QVERIFY(streams_list != nullptr);
     QCOMPARE(streams_list->topLevelItemCount(), 2);
     QCOMPARE(streams_list->topLevelItem(0)->text(1), QStringLiteral("cam-1"));
@@ -69,23 +69,21 @@ void main_window_tests::source_modes_validation_and_requests() {
 
     stream_source_panel panel;
     panel.set_existing_names({ QStringLiteral("dup") });
-    panel.set_local_sources(
-        QList<local_source_descriptor> {
-            local_source_descriptor {
-                .id = QStringLiteral("opaque-camera-id"),
-                .display_name = QStringLiteral("Rear camera"),
-            },
-        }
-    );
+    panel.set_local_sources(QList<local_source_descriptor> {
+        local_source_descriptor {
+            .id = QStringLiteral("opaque-camera-id"),
+            .display_name = QStringLiteral("Rear camera"),
+        },
+    });
 
     auto* name_edit
         = panel.findChild<QLineEdit*>(QStringLiteral("settings_add_name_edit"));
     auto* local_radio = panel.findChild<QRadioButton*>(
         QStringLiteral("settings_add_local_radio")
     );
-    auto* url_radio = panel.findChild<QRadioButton*>(
-        QStringLiteral("settings_add_url_radio")
-    );
+    auto* url_radio
+        = panel.findChild<QRadioButton*>(QStringLiteral("settings_add_url_radio"
+        ));
     auto* local_sources_combo = panel.findChild<QComboBox*>(
         QStringLiteral("settings_add_local_sources_combo")
     );
@@ -96,9 +94,9 @@ void main_window_tests::source_modes_validation_and_requests() {
         = panel.findChild<QLineEdit*>(QStringLiteral("settings_add_url_edit"));
     auto* add_button
         = panel.findChild<QPushButton*>(QStringLiteral("settings_add_button"));
-    auto* summary_label = panel.findChild<QLabel*>(
-        QStringLiteral("settings_add_summary_label")
-    );
+    auto* summary_label
+        = panel.findChild<QLabel*>(QStringLiteral("settings_add_summary_label")
+        );
 
     QVERIFY(name_edit != nullptr);
     QVERIFY(local_radio != nullptr);
@@ -188,9 +186,8 @@ void main_window_tests::stream_panel_selection_modes_and_settings() {
         active_stream_panel::panel_mode::stream_settings,
         QStringLiteral("settings_active")
     );
-    panel.set_active_candidates(
-        { QStringLiteral("cam-1"), QStringLiteral("cam-2") }
-    );
+    panel.set_active_candidates({ QStringLiteral("cam-1"),
+                                  QStringLiteral("cam-2") });
 
     QSignalSpy stream_selected_spy(
         &panel, &active_stream_panel::stream_selected
@@ -295,9 +292,8 @@ void main_window_tests::stream_panel_selection_modes_and_settings() {
         operator_profile_combo->currentData().toString(),
         QStringLiteral("balanced")
     );
-    QVERIFY(
-        operator_profile_summary->text().contains(QStringLiteral("balanced"))
-    );
+    QVERIFY(operator_profile_summary->text().contains(QStringLiteral("balanced")
+    ));
     QVERIFY(!algorithm_advanced_checkbox->isChecked());
     QVERIFY(preset_combo->isHidden());
     QVERIFY(!movement_display_combo->isHidden());
@@ -424,16 +420,14 @@ void main_window_tests::stream_panel_selection_modes_and_settings() {
     }
     stream_settings_spy.clear();
 
-    panel.set_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral("cam-2"),
-            .labels_enabled = true,
-            .algorithm_id = QStringLiteral("spot grid"),
-            .algorithm_preset = QStringLiteral("dense"),
-            .movement_display_mode = QStringLiteral("off"),
-            .algorithm_overlay_enabled = false,
-        }
-    );
+    panel.set_stream_settings(stream_settings {
+        .stream_name = QStringLiteral("cam-2"),
+        .labels_enabled = true,
+        .algorithm_id = QStringLiteral("spot grid"),
+        .algorithm_preset = QStringLiteral("dense"),
+        .movement_display_mode = QStringLiteral("off"),
+        .algorithm_overlay_enabled = false,
+    });
     const stream_settings current_settings = panel.current_stream_settings();
     QCOMPARE(current_settings.stream_name, QStringLiteral("cam-2"));
     QCOMPARE(current_settings.labels_enabled, true);

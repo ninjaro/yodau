@@ -48,8 +48,8 @@ namespace {
             return configuration_;
         }
 
-        void
-        configure(processing_algorithm_configuration configuration) override {
+        void configure(processing_algorithm_configuration configuration
+        ) override {
             configuration_ = completed_processing_configuration(
                 algorithm_id(), std::move(configuration)
             );

@@ -22,8 +22,7 @@ void analysis_scheduler::set_stream_interval_ms(
     interval_overrides_ms[stream_name] = ms;
 }
 
-void analysis_scheduler::clear_stream_interval_ms(
-    const std::string& stream_name
+void analysis_scheduler::clear_stream_interval_ms(const std::string& stream_name
 ) {
     if (stream_name.empty()) {
         return;
@@ -43,8 +42,7 @@ void analysis_scheduler::remove_stream(const std::string& stream_name) {
     last_analysis_ts.erase(stream_name);
 }
 
-int analysis_scheduler::interval_for_stream(
-    const std::string& stream_name
+int analysis_scheduler::interval_for_stream(const std::string& stream_name
 ) const {
     std::scoped_lock lock(mtx);
     const auto interval_it = interval_overrides_ms.find(stream_name);

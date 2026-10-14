@@ -96,14 +96,12 @@ processing_sparse_flow_result sparse_optical_flow(
             ),
             current_gray.size()
         );
-        result.vectors.push_back(
-            processing_sparse_flow_vector {
-                .from_pct = from_pct,
-                .to_pct = to_pct,
-                .distance_pct = distance_pct(from_pct, to_pct),
-                .error = index < errors.size() ? errors[index] : 0.0f,
-            }
-        );
+        result.vectors.push_back(processing_sparse_flow_vector {
+            .from_pct = from_pct,
+            .to_pct = to_pct,
+            .distance_pct = distance_pct(from_pct, to_pct),
+            .error = index < errors.size() ? errors[index] : 0.0f,
+        });
     }
 
     if (result.vectors.empty()) {

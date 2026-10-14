@@ -32,8 +32,7 @@ app_log_entry make_log_entry(
 QImage render_events(const stream_settings& settings_value) {
     stream_cell cell(QStringLiteral("cam-render"));
     cell.resize(240, 180);
-    cell.setStyleSheet(
-        QStringLiteral("background-color: black; color: white;")
+    cell.setStyleSheet(QStringLiteral("background-color: black; color: white;")
     );
     cell.set_stream_settings(settings_value);
     cell.add_event(QPointF(25.0, 25.0), QColor(QStringLiteral("#ff8844")));
@@ -50,8 +49,7 @@ QImage render_status(
 ) {
     stream_cell cell(QStringLiteral("cam-status"));
     cell.resize(240, 180);
-    cell.setStyleSheet(
-        QStringLiteral("background-color: black; color: white;")
+    cell.setStyleSheet(QStringLiteral("background-color: black; color: white;")
     );
     cell.set_stream_settings(settings_value);
     cell.set_log_mode(log_mode);
@@ -66,8 +64,7 @@ QImage render_status(
 QImage render_wave(const stream_cell::line_instance& line_value) {
     stream_cell cell(QStringLiteral("cam-wave"));
     cell.resize(240, 180);
-    cell.setStyleSheet(
-        QStringLiteral("background-color: black; color: white;")
+    cell.setStyleSheet(QStringLiteral("background-color: black; color: white;")
     );
     cell.set_persistent_lines({ line_value });
     cell.highlight_line_at(
@@ -103,8 +100,7 @@ QImage render_frame(
 ) {
     stream_cell cell(QStringLiteral("cam-render"));
     cell.resize(cell_size);
-    cell.setStyleSheet(
-        QStringLiteral("background-color: black; color: white;")
+    cell.setStyleSheet(QStringLiteral("background-color: black; color: white;")
     );
     cell.set_persistent_lines(lines);
     const bool invoked = QMetaObject::invokeMethod(
@@ -127,8 +123,7 @@ QImage render_highlights(
 ) {
     stream_cell cell(QStringLiteral("cam-render"));
     cell.resize(cell_size);
-    cell.setStyleSheet(
-        QStringLiteral("background-color: black; color: white;")
+    cell.setStyleSheet(QStringLiteral("background-color: black; color: white;")
     );
     cell.set_persistent_lines(lines);
     const bool invoked = QMetaObject::invokeMethod(

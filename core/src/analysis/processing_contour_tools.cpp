@@ -149,13 +149,11 @@ std::vector<processing_contour_candidate> contour_candidates_by_area(
             continue;
         }
 
-        candidates.push_back(
-            processing_contour_candidate {
-                .contour = contour,
-                .center_pct = *center_pct,
-                .area_px2 = cv::contourArea(contour),
-            }
-        );
+        candidates.push_back(processing_contour_candidate {
+            .contour = contour,
+            .center_pct = *center_pct,
+            .area_px2 = cv::contourArea(contour),
+        });
     }
 
     return candidates;

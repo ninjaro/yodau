@@ -125,8 +125,7 @@ void main_window_tests::processing_readout_shell() {
         = restored.findChild<QDockWidget*>("main_window_processing_dock");
     auto* timer = dock->findChild<QTimer*>("processing_refresh_timer");
     QVERIFY(!dock->isHidden());
-    QVERIFY(
-        !timer->isActive()
+    QVERIFY(!timer->isActive()
     ); // Restored visibility is not yet a shown window.
     restored.show();
     QTRY_VERIFY(dock->isVisible() && timer->isActive());

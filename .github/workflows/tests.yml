@@ -5,13 +5,15 @@ name: Checks
 on:
   pull_request:
   push:
+  schedule:
+    - cron: '23 4 * * 1'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: checks-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -24,6 +26,7 @@ jobs:
     outputs:
       changes: ${{ steps.selection.outputs.changes }}
       scope: ${{ steps.selection.outputs.scope }}
+      reason: ${{ steps.selection.outputs.reason }}
       verified: ${{ steps.selection.outputs.verified }}
       source: ${{ steps.selection.outputs.source }}
     steps:
@@ -31,11 +34,12 @@ jobs:
         with:
           fetch-depth: 0
       - id: selection
-        uses: ./.github/actions/select-manifesto-ci
+        uses: ./.github/actions/select-ecosystem-ci
         with:
           kind: checks
 
       - name: Upload change resolution
+        if: ${{ always() }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -70,21 +74,22 @@ jobs:
 
       # Resolve against this job's checkout; selection artifacts are diagnostic.
       - name: Resolve checked-out changes
+        id: changes
         if: ${{ needs.select.outputs.scope != 'reuse' }}
         uses: actions/github-script@v7
         with:
           script: |
-            require('./.github/actions/select-manifesto-ci/changes.cjs').collect({context, core});
+            require('./.github/actions/select-ecosystem-ci/changes.cjs').collect({context, core});
 
-      - name: Setup manifesto tool
+      - name: Setup ecosystem tool
         if: ${{ needs.select.outputs.scope != 'reuse' }}
-        id: manifesto
-        uses: ./.github/actions/setup-manifesto
+        id: ecosystem
+        uses: ./.github/actions/setup-ecosystem
         with:
           bootstrap: "repository"
           source-path: "."
-          manifesto-repository: "ninjaro/ecosystem"
-          manifesto-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
+          ecosystem-repository: "ninjaro/ecosystem"
+          ecosystem-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
           build-parallelism: 2
           install-project-deps: ${{ needs.select.outputs.scope == 'full' }}
 
@@ -93,10 +98,10 @@ jobs:
         id: classification
         uses: actions/github-script@v7
         env:
-          ENGELS_BINARY: ${{ steps.manifesto.outputs.engels-binary }}
+          ENGELS_BINARY: ${{ steps.ecosystem.outputs.engels-binary }}
         with:
           script: |
-            require('./.github/actions/select-manifesto-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
+            require('./.github/actions/select-ecosystem-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
 
       - name: Upload change classification
         if: ${{ steps.classification.outcome == 'success' }}
@@ -110,39 +115,107 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+      - name: Restore verified analysis cache
+        if: ${{ needs.select.outputs.scope == 'full' }}
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: .ecosystem/cache/verification
+          key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-analysis-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-ecosystem-analysis-v1-
+
       - name: Run required local checks
         if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: required
         env:
           CHECK_SCOPE: ${{ needs.select.outputs.scope }}
-        uses: ./.github/actions/run-manifesto-stage
+          ECOSYSTEM_CI_PROGRESS: '1'
+          ECOSYSTEM_REUSE_VERIFICATION: ${{ steps.classification.outputs.incremental == 'true' && '1' || '0' }}
+        uses: ./.github/actions/run-ecosystem-stage
         with:
           stage-id: 01-required-checks
           stage-label: Required local checks
           shell-command: |
             case "$CHECK_SCOPE" in
               cheap)
-                "${{ steps.manifesto.outputs.engels-binary }}" check repo
-                "${{ steps.manifesto.outputs.engels-binary }}" check format --changes
+                "${{ steps.ecosystem.outputs.engels-binary }}" check repo
+                "${{ steps.ecosystem.outputs.engels-binary }}" check format --changes
                 ;;
               full)
-                "${{ steps.manifesto.outputs.marx-binary }}" build debug
-                "${{ steps.manifesto.outputs.engels-binary }}" check ci
+                "${{ steps.ecosystem.outputs.engels-binary }}" check ci
                 ;;
               *) echo '::error::Missing or invalid verification scope.'; exit 1 ;;
             esac
           skipped-exit-codes: ''
 
+      - name: Record compiler cache statistics
+        if: ${{ always() && steps.ecosystem.outcome == 'success' && needs.select.outputs.scope != 'reuse' }}
+        shell: bash
+        run: |
+          mkdir -p .ecosystem/github/reports/compiler-cache
+          ccache --show-stats | tee .ecosystem/github/reports/compiler-cache/statistics.log
+
+      - name: Save verified compiler cache
+        continue-on-error: true
+        if: ${{ always() && steps.required.outcome == 'success' && github.event_name != 'pull_request' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .ecosystem/cache/ccache
+          key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-ccache-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Inspect verified analysis cache
+        id: analysis_cache
+        if: ${{ always() && steps.required.outcome == 'success' && github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=()
+          for file in .ecosystem/cache/verification/*.json; do
+            if [ -f "$file" ] && [ -s "$file" ] && [ ! -L "$file" ]; then
+              files+=("$file")
+            fi
+          done
+          if [ "${#files[@]}" -gt 0 ]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+            printf 'Verified analysis cache: %s evidence files available for saving.\n' "${#files[@]}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            echo 'Verified analysis cache not saved: no reusable evidence was produced; fresh or unknown inputs require execution.' | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Save verified analysis cache
+        if: ${{ always() && steps.required.outcome == 'success' && github.event_name != 'pull_request' && steps.analysis_cache.outputs.available == 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: .ecosystem/cache/verification
+          key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-analysis-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
       - name: Run full verification coverage
         if: ${{ needs.select.outputs.scope == 'full' && steps.required.outputs.status == 'passed' }}
         id: coverage
-        uses: ./.github/actions/run-manifesto-stage
+        uses: ./.github/actions/run-ecosystem-stage
         with:
           stage-id: 02-coverage-check
           stage-label: Coverage check
           shell-command: |
-            "${{ steps.manifesto.outputs.engels-binary }}" check coverage
+            "${{ steps.ecosystem.outputs.engels-binary }}" check coverage
           skipped-exit-codes: 3
+
+      - name: Record execution diagnosis
+        id: diagnostics
+        if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
+        uses: actions/github-script@v7
+        env:
+          DIAGNOSTIC_KIND: checks
+          DIAGNOSTIC_SCOPE: ${{ needs.select.outputs.scope }}
+          DIAGNOSTIC_SELECTION: ${{ needs.select.result }}
+          DIAGNOSTIC_STEPS: ${{ toJSON(steps) }}
+        with:
+          script: |
+            await require('./.github/actions/publish-ecosystem-report/diagnostics.cjs').snapshot({core,
+              kind: process.env.DIAGNOSTIC_KIND, scope: process.env.DIAGNOSTIC_SCOPE,
+              selectionResult: process.env.DIAGNOSTIC_SELECTION, steps: JSON.parse(process.env.DIAGNOSTIC_STEPS)});
 
       - name: Upload check reports
         if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
@@ -160,6 +233,8 @@ jobs:
       - name: Enforce required result
         if: ${{ always() }}
         env:
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostics.outcome }}
+          DIAGNOSTIC_STATUS: ${{ steps.diagnostics.outputs.status }}
           REUSE_VERIFIED: ${{ needs.select.outputs.verified }}
           REUSE_SOURCE: ${{ needs.select.outputs.source }}
           CHECK_SCOPE: ${{ needs.select.outputs.scope }}
@@ -178,6 +253,10 @@ jobs:
             fi
             printf 'Reused verification:\n\n```json\n%s\n```\n' "$REUSE_SOURCE" >> "$GITHUB_STEP_SUMMARY"
             exit 0
+          fi
+          if [ "$DIAGNOSTIC_OUTCOME" != success ] || [ "$DIAGNOSTIC_STATUS" != passed ] || [ ! -s .ecosystem/github/reports/00-workflow/result.json ]; then
+            echo '::error::Execution diagnosis failed or reports an incomplete required stage.'
+            exit 1
           fi
           if [ "$CHECK_SCOPE" != cheap ] && [ "$CHECK_SCOPE" != full ]; then
             echo '::error::Missing or invalid verification scope.'
@@ -209,8 +288,8 @@ jobs:
         env:
           EVIDENCE_KIND: checks
           VERIFICATION_SCOPE: ${{ needs.select.outputs.scope }}
-          TOOL_SOURCE_ROOT: ${{ steps.manifesto.outputs.manifesto-source-root }}
-          ENGELS_BINARY: ${{ steps.manifesto.outputs.engels-binary }}
+          TOOL_SOURCE_ROOT: ${{ steps.ecosystem.outputs.ecosystem-source-root }}
+          ENGELS_BINARY: ${{ steps.ecosystem.outputs.engels-binary }}
           CHECK_OUTCOME: ${{ steps.required.outcome }}
           CHECK_STATUS: ${{ steps.required.outputs.status }}
           CHECK_EXIT_CODE: ${{ steps.required.outputs.exit-code }}
@@ -219,7 +298,7 @@ jobs:
           COVERAGE_EXIT_CODE: ${{ steps.coverage.outputs.exit-code }}
         with:
           script: |
-            await require('./.github/actions/select-manifesto-ci/evidence.cjs').record({github, context, core});
+            await require('./.github/actions/select-ecosystem-ci/evidence.cjs').record({github, context, core});
 
       - name: Upload verification evidence
         if: ${{ steps.evidence.outputs.name != '' }}
@@ -233,10 +312,11 @@ jobs:
 
   report:
     runs-on: ubuntu-24.04
-    needs: checks
-    if: ${{ always() && needs.checks.result != 'skipped' }}
+    needs: [select, checks]
+    if: ${{ always() }}
     permissions:
       contents: read
+      actions: read
       issues: write
       pull-requests: write
     steps:
@@ -251,11 +331,37 @@ jobs:
           merge-multiple: true
 
       - name: Publish check report
+        id: published
         if: ${{ always() }}
         continue-on-error: true
-        uses: ./.github/actions/publish-manifesto-report
+        uses: ./.github/actions/publish-ecosystem-report
         with:
           project-id: yodau
           report-key: checks
           report-title: Checks
           report-directory: .ecosystem/github/reports
+          workflow-result: ${{ needs.checks.result }}
+          selection-result: ${{ needs.select.result }}
+          scope: ${{ needs.select.outputs.scope }}
+          selection-reason: ${{ needs.select.outputs.reason }}
+
+      - name: Upload diagnosed reports
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnosis-yodau-checks
+          path: .ecosystem/github/reports
+          include-hidden-files: true
+          if-no-files-found: error
+
+      - name: Enforce report completeness
+        if: ${{ always() }}
+        env:
+          REPORT_OUTCOME: ${{ steps.published.outcome }}
+          HAS_FAILURES: ${{ steps.published.outputs.has-failures }}
+        run: |
+          if [ "$REPORT_OUTCOME" != success ] || [ "$HAS_FAILURES" != false ]; then
+            echo '::error::Verification failed, was blocked, or has incomplete reports. See the execution diagnosis.'
+            exit 1
+          fi

@@ -324,8 +324,8 @@ bool log_toolbar_panel::entry_matches(const app_log_entry& entry) const {
     return true;
 }
 
-QStringList log_toolbar_panel::formatted_entries(
-    const std::optional<app_log_area> area
+QStringList
+log_toolbar_panel::formatted_entries(const std::optional<app_log_area> area
 ) const {
     QStringList lines;
     for (const app_log_entry& entry : filtered_entries(area)) {
@@ -334,8 +334,8 @@ QStringList log_toolbar_panel::formatted_entries(
     return lines;
 }
 
-QVector<app_log_entry> log_toolbar_panel::filtered_entries(
-    const std::optional<app_log_area> area
+QVector<app_log_entry>
+log_toolbar_panel::filtered_entries(const std::optional<app_log_area> area
 ) const {
     QVector<app_log_entry> entries;
     if (shared_log_buffer == nullptr) {
@@ -356,64 +356,62 @@ QVector<app_log_entry> log_toolbar_panel::filtered_entries(
     return entries;
 }
 
-QString log_toolbar_panel::compose_log_report(
-    const std::optional<app_log_area> area
+QString
+log_toolbar_panel::compose_log_report(const std::optional<app_log_area> area
 ) const {
     QStringList lines;
     lines << QStringLiteral("yodau log report");
-    lines
-        << QStringLiteral(
-               "scope=%1 mode=%2 area_filter=%3 severity=%4 event=%5 line=%6 "
-               "algorithm=%7 stream=%8 subsystem=%9 search=%10"
-           )
-               .arg(log_toolbar_panel_support::report_scope_text(area))
-               .arg(
-                   current_log_mode == app_log_mode::release
-                       ? QStringLiteral("release")
-                       : QStringLiteral("debug")
-               )
-               .arg(
-                   current_log_area_filter < 0
-                       ? log_toolbar_panel_support::filter_all_text()
-                       : log_toolbar_panel_support::log_area_title(
-                             static_cast<app_log_area>(current_log_area_filter)
-                         )
-               )
-               .arg(
-                   log_toolbar_panel_support::severity_filter_text(
-                       current_log_severity_filter
-                   )
-               )
-               .arg(
-                   current_log_event_filter.isEmpty()
-                       ? log_toolbar_panel_support::filter_all_text()
-                       : current_log_event_filter
-               )
-               .arg(
-                   current_log_line_filter.isEmpty()
-                       ? log_toolbar_panel_support::filter_all_text()
-                       : current_log_line_filter
-               )
-               .arg(
-                   current_log_algorithm_filter.isEmpty()
-                       ? log_toolbar_panel_support::filter_all_text()
-                       : current_log_algorithm_filter
-               )
-               .arg(
-                   current_log_stream_filter.isEmpty()
-                       ? log_toolbar_panel_support::filter_all_text()
-                       : current_log_stream_filter
-               )
-               .arg(
-                   current_log_subsystem_filter.isEmpty()
-                       ? log_toolbar_panel_support::filter_all_text()
-                       : current_log_subsystem_filter
-               )
-               .arg(
-                   current_log_search_filter.isEmpty()
-                       ? log_toolbar_panel_support::filter_all_text()
-                       : current_log_search_filter
-               );
+    lines << QStringLiteral(
+                 "scope=%1 mode=%2 area_filter=%3 severity=%4 event=%5 line=%6 "
+                 "algorithm=%7 stream=%8 subsystem=%9 search=%10"
+    )
+                 .arg(log_toolbar_panel_support::report_scope_text(area))
+                 .arg(
+                     current_log_mode == app_log_mode::release
+                         ? QStringLiteral("release")
+                         : QStringLiteral("debug")
+                 )
+                 .arg(
+                     current_log_area_filter < 0
+                         ? log_toolbar_panel_support::filter_all_text()
+                         : log_toolbar_panel_support::log_area_title(
+                               static_cast<app_log_area>(current_log_area_filter
+                               )
+                           )
+                 )
+                 .arg(log_toolbar_panel_support::severity_filter_text(
+                     current_log_severity_filter
+                 ))
+                 .arg(
+                     current_log_event_filter.isEmpty()
+                         ? log_toolbar_panel_support::filter_all_text()
+                         : current_log_event_filter
+                 )
+                 .arg(
+                     current_log_line_filter.isEmpty()
+                         ? log_toolbar_panel_support::filter_all_text()
+                         : current_log_line_filter
+                 )
+                 .arg(
+                     current_log_algorithm_filter.isEmpty()
+                         ? log_toolbar_panel_support::filter_all_text()
+                         : current_log_algorithm_filter
+                 )
+                 .arg(
+                     current_log_stream_filter.isEmpty()
+                         ? log_toolbar_panel_support::filter_all_text()
+                         : current_log_stream_filter
+                 )
+                 .arg(
+                     current_log_subsystem_filter.isEmpty()
+                         ? log_toolbar_panel_support::filter_all_text()
+                         : current_log_subsystem_filter
+                 )
+                 .arg(
+                     current_log_search_filter.isEmpty()
+                         ? log_toolbar_panel_support::filter_all_text()
+                         : current_log_search_filter
+                 );
 
     const QStringList visible_entries = formatted_entries(area);
     lines.append(visible_entries);
@@ -425,8 +423,8 @@ QString log_toolbar_panel::compose_log_report(
     return lines.join('\n');
 }
 
-QString log_toolbar_panel::compose_log_summary(
-    const std::optional<app_log_area> area
+QString
+log_toolbar_panel::compose_log_summary(const std::optional<app_log_area> area
 ) const {
     int debug_count = 0;
     int info_count = 0;
@@ -823,8 +821,7 @@ void log_toolbar_panel::refresh_filter_options() const {
     );
 }
 
-void log_toolbar_panel::append_filter_options(
-    const app_log_entry& entry
+void log_toolbar_panel::append_filter_options(const app_log_entry& entry
 ) const {
     log_toolbar_panel_support::insert_filter_combo_item(
         log_event_filter_combo, entry.event_type

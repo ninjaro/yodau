@@ -157,19 +157,19 @@ stream_manager::daemon_start_fn processing_runtime::daemon_start_hook() {
     return [weak_state](
                const stream& stream_value,
                const std::function<void(frame&&)>& on_frame,
-               const stop_token& stop_token
+               const stop_token& token
            ) {
         std::shared_ptr<processing_algorithm> algorithm;
         {
             callback_guard guard(weak_state.lock());
             if (processing_runtime* owner = guard.owner()) {
-                algorithm = owner->active_algorithm_for_stream(
-                    stream_value.get_name()
-                );
+                algorithm
+                    = owner->active_algorithm_for_stream(stream_value.get_name()
+                    );
             }
         }
         if (algorithm) {
-            algorithm->daemon_start(stream_value, on_frame, stop_token);
+            algorithm->daemon_start(stream_value, on_frame, token);
         }
     };
 }
@@ -231,14 +231,14 @@ processing_runtime::default_algorithm_settings() const {
     return session_store_.default_algorithm_settings();
 }
 
-std::string processing_runtime::algorithm_id_for_stream(
-    const std::string& stream_name
+std::string
+processing_runtime::algorithm_id_for_stream(const std::string& stream_name
 ) const {
     return session_store_.algorithm_id_for_stream(stream_name);
 }
 
-processing_algorithm_settings processing_runtime::algorithm_settings_for_stream(
-    const std::string& stream_name
+processing_algorithm_settings
+processing_runtime::algorithm_settings_for_stream(const std::string& stream_name
 ) const {
     return session_store_.algorithm_settings_for_stream(stream_name);
 }
@@ -257,8 +257,7 @@ processing_runtime::stream_algorithm_setting_overrides() const {
     return session_store_.stream_algorithm_setting_overrides();
 }
 
-bool processing_runtime::set_default_algorithm(
-    const std::string& algorithm_id
+bool processing_runtime::set_default_algorithm(const std::string& algorithm_id
 ) {
     return set_default_algorithm_settings(
         default_processing_algorithm_settings(algorithm_id)
@@ -345,8 +344,8 @@ void processing_runtime::set_stream_processing_max_pixels(
     processing_max_pixels_by_stream.insert_or_assign(stream_name, *max_pixels);
 }
 
-std::optional<int> processing_runtime::stream_processing_max_pixels(
-    const std::string& stream_name
+std::optional<int>
+processing_runtime::stream_processing_max_pixels(const std::string& stream_name
 ) const {
     std::scoped_lock lock(processing_policy_mtx);
     const auto it = processing_max_pixels_by_stream.find(stream_name);
@@ -355,8 +354,7 @@ std::optional<int> processing_runtime::stream_processing_max_pixels(
         : std::optional<int> { it->second };
 }
 
-bool processing_runtime::clear_stream_algorithm(
-    const std::string& stream_name
+bool processing_runtime::clear_stream_algorithm(const std::string& stream_name
 ) {
     if (stream_name.empty()) {
         return false;
@@ -382,8 +380,8 @@ void processing_runtime::set_processed_frame_observer(
     processed_frame_observer = std::move(observer);
 }
 
-std::optional<processing_result> processing_runtime::latest_processing_result(
-    const std::string& stream_name
+std::optional<processing_result>
+processing_runtime::latest_processing_result(const std::string& stream_name
 ) const {
     return session_store_.latest_processing_result(stream_name);
 }
@@ -401,11 +399,11 @@ const virtual_camera* processing_runtime::preview_camera() const {
 }
 
 std::shared_ptr<processing_algorithm>
-processing_runtime::active_algorithm_for_stream(
-    const std::string& stream_name
+processing_runtime::active_algorithm_for_stream(const std::string& stream_name
 ) {
     return session_store_.active_algorithm_for_stream(
-        stream_name, [](const processing_algorithm_settings& settings) {
+        stream_name,
+        [](const processing_algorithm_settings& settings) {
             return make_configured_processing_algorithm(settings);
         }
     );

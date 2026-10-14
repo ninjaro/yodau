@@ -29,14 +29,12 @@ void main_window_tests::wave_configuration() {
     auto* profile = settings.findChild<line_profile_panel*>();
     auto* cell = board.active_cell();
     QVERIFY(profile && cell);
-    profile->set_line_profile(
-        line_profile {
-            .name = "demo",
-            .color = Qt::cyan,
-            .color_mode_id = "manual",
-            .closed = true,
-        }
-    );
+    profile->set_line_profile(line_profile {
+        .name = "demo",
+        .color = Qt::cyan,
+        .color_mode_id = "manual",
+        .closed = true,
+    });
     profile->findChild<QComboBox*>("line_wave_preset")->setCurrentIndex(3);
     const std::vector<QPointF> points { { 15, 20 }, { 85, 20 }, { 85, 70 } };
     cell->set_draft_points_pct(points);

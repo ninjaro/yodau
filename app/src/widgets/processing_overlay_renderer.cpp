@@ -335,8 +335,7 @@ void draw_baseline_event_bubble(
     }
 
     if (preset_id == QStringLiteral("debug")) {
-        QPen cross_pen(
-            color_with_alpha(color, static_cast<int>(160.0 * life_k))
+        QPen cross_pen(color_with_alpha(color, static_cast<int>(160.0 * life_k))
         );
         cross_pen.setWidthF(1.0);
         cross_pen.setStyle(Qt::DashLine);

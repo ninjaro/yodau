@@ -99,9 +99,9 @@ yodau::core::line_profile core_profile_from_line_editor(
 yodau::core::line_profile core_profile_from_template_settings(
     const QString& line_name, const template_apply_settings& settings_value
 ) {
-    const auto visual_width = static_cast<float>(
-        line_width_visual_value(settings_value.width_text)
-    );
+    const auto visual_width
+        = static_cast<float>(line_width_visual_value(settings_value.width_text)
+        );
     return yodau::core::make_line_profile(
         line_name.toStdString(), visual_width,
         interaction_width_value(settings_value.width_text, visual_width),
@@ -173,8 +173,7 @@ active_edit_actions::line_save_result active_edit_actions::save_active_line(
     try {
         const auto line_ptr = stream_mgr_->add_line(
             active_edit_actions_support::core_points_from_pct(pts),
-            result.profile.closed,
-            result.profile.name.toStdString()
+            result.profile.closed, result.profile.name.toStdString()
         );
 
         result.final_name = QString::fromStdString(line_ptr->name);
@@ -379,11 +378,9 @@ active_edit_actions::save_active_line_edit(
     }
 
     std::vector<QPointF> points;
-    points.reserve(
-        static_cast<std::vector<QPointF>::size_type>(
-            result.request.points_pct.size()
-        )
-    );
+    points.reserve(static_cast<std::vector<QPointF>::size_type>(
+        result.request.points_pct.size()
+    ));
     for (const QPointF& point_value : result.request.points_pct) {
         points.push_back(point_value);
     }
@@ -460,8 +457,8 @@ active_edit_actions::save_active_line_edit(
     }
 }
 
-QString
-active_edit_actions::points_str_from_pct(const std::vector<QPointF>& pts) {
+QString active_edit_actions::points_str_from_pct(const std::vector<QPointF>& pts
+) {
     QStringList parts;
     parts.reserve(static_cast<int>(pts.size()));
     for (const auto& p : pts) {

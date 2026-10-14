@@ -2,25 +2,25 @@
 cmake_minimum_required(VERSION 3.20)
 
 # Only the inner configure owns the consumer's package and target graph.
-if(NOT MANIFESTO_FACADE_INNER)
+if(NOT ECOSYSTEM_FACADE_INNER)
     project(yodau VERSION 1.0.0 LANGUAGES NONE)
     include(ExternalProject)
     if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
     endif()
-    string(SHA256 _manifesto_selection [=[[["monitor","https://github.com/ninjaro/peepbooth","master"],["packing","https://github.com/ninjaro/rothko","master"]]]=])
-    set(_manifesto_state "${CMAKE_CURRENT_BINARY_DIR}/.manifesto-facade/${_manifesto_selection}")
-    file(MAKE_DIRECTORY "${_manifesto_state}")
+    string(SHA256 _ecosystem_selection [=[[["monitor","https://github.com/ninjaro/peepbooth","master"],["packing","https://github.com/ninjaro/rothko","master"]]]=])
+    set(_ecosystem_state "${CMAKE_CURRENT_BINARY_DIR}/.ecosystem-facade/${_ecosystem_selection}")
+    file(MAKE_DIRECTORY "${_ecosystem_state}")
     foreach(name mvp mvp.exe)
-        if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-${name}.owned")
+        if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-${name}.owned")
             file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/${name}"
-                "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-${name}.owned")
+                "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-${name}.owned")
         endif()
     endforeach()
 
     # Preserve user cache values, including lists and package locations, without
     # shell/list re-interpretation or forwarding CMake's private build-tree state.
-    function(_manifesto_bracket result value)
+    function(_ecosystem_bracket result value)
         set(equal "=")
         string(FIND "${value}" "]${equal}]" found)
         while(NOT found EQUAL -1)
@@ -29,32 +29,32 @@ if(NOT MANIFESTO_FACADE_INNER)
         endwhile()
         set(${result} "[${equal}[${value}]${equal}]" PARENT_SCOPE)
     endfunction()
-    get_cmake_property(_manifesto_cache_variables CACHE_VARIABLES)
-    set(_manifesto_cache "")
-    foreach(key IN LISTS _manifesto_cache_variables)
+    get_cmake_property(_ecosystem_cache_variables CACHE_VARIABLES)
+    set(_ecosystem_cache "")
+    foreach(key IN LISTS _ecosystem_cache_variables)
         get_property(type CACHE "${key}" PROPERTY TYPE)
-        if(type MATCHES "^(INTERNAL|STATIC)$" OR key MATCHES "^MANIFESTO_FACADE_")
+        if(type MATCHES "^(INTERNAL|STATIC)$" OR key MATCHES "^ECOSYSTEM_FACADE_")
             continue()
         endif()
         if(type STREQUAL "UNINITIALIZED")
             set(type STRING)
         endif()
-        _manifesto_bracket(name "${key}")
-        _manifesto_bracket(value "${${key}}")
-        string(APPEND _manifesto_cache "set(${name} ${value} CACHE ${type} \"Forwarded by the facade\" FORCE)\n")
+        _ecosystem_bracket(name "${key}")
+        _ecosystem_bracket(value "${${key}}")
+        string(APPEND _ecosystem_cache "set(${name} ${value} CACHE ${type} \"Forwarded by the facade\" FORCE)\n")
     endforeach()
-    file(WRITE "${_manifesto_state}/cache.in" "${_manifesto_cache}")
-    configure_file("${_manifesto_state}/cache.in" "${_manifesto_state}/cache.cmake" COPYONLY)
+    file(WRITE "${_ecosystem_state}/cache.in" "${_ecosystem_cache}")
+    configure_file("${_ecosystem_state}/cache.in" "${_ecosystem_state}/cache.cmake" COPYONLY)
 
-    function(_manifesto_source package repository revision)
+    function(_ecosystem_source package repository revision)
         string(SHA256 identity "${package}\n${repository}\n${revision}")
-        if(identity IN_LIST MANIFESTO_FACADE_ANCESTRY)
+        if(identity IN_LIST ECOSYSTEM_FACADE_ANCESTRY)
             message(FATAL_ERROR "Cyclic facade provider selection: ${package}, ${repository} @ ${revision}")
         endif()
-        set(source "${_manifesto_state}/sources/${identity}")
-        set(acquire "_manifesto_source_${package}_${identity}")
+        set(source "${_ecosystem_state}/sources/${identity}")
+        set(acquire "_ecosystem_source_${package}_${identity}")
         ExternalProject_Add(${acquire}
-            PREFIX "${_manifesto_state}/acquire/${identity}"
+            PREFIX "${_ecosystem_state}/acquire/${identity}"
             SOURCE_DIR "${source}"
             GIT_REPOSITORY "${repository}"
             GIT_TAG "${revision}"
@@ -64,16 +64,16 @@ if(NOT MANIFESTO_FACADE_INNER)
             BUILD_COMMAND ""
             INSTALL_COMMAND ""
             EXCLUDE_FROM_ALL TRUE)
-        list(APPEND _manifesto_providers "${identity}")
-        set(_manifesto_providers "${_manifesto_providers}" PARENT_SCOPE)
-        set(_manifesto_package_${identity} "${package}" PARENT_SCOPE)
-        set(_manifesto_description_${identity} "Provider ${package}: ${repository} @ ${revision}" PARENT_SCOPE)
+        list(APPEND _ecosystem_providers "${identity}")
+        set(_ecosystem_providers "${_ecosystem_providers}" PARENT_SCOPE)
+        set(_ecosystem_package_${identity} "${package}" PARENT_SCOPE)
+        set(_ecosystem_description_${identity} "Provider ${package}: ${repository} @ ${revision}" PARENT_SCOPE)
     endfunction()
-    _manifesto_source([=[monitor]=] [=[https://github.com/ninjaro/peepbooth]=] [=[master]=])
-    _manifesto_source([=[packing]=] [=[https://github.com/ninjaro/rothko]=] [=[master]=])
+    _ecosystem_source([=[monitor]=] [=[https://github.com/ninjaro/peepbooth]=] [=[master]=])
+    _ecosystem_source([=[packing]=] [=[https://github.com/ninjaro/rothko]=] [=[master]=])
 
     # Validate the installed contract, not a provider's source/build layout.
-    file(WRITE "${_manifesto_state}/packages.cmake" [==[
+    file(WRITE "${_ecosystem_state}/packages.cmake" [==[
 include("${INPUTS}")
 function(bracket result value)
     set(equal "=")
@@ -104,92 +104,92 @@ configure_file("${OUTPUT}.in" "${OUTPUT}" COPYONLY)
 
     # Separate inner trees prevent imported package locations leaking from one
     # configuration into another when a multi-config visitor switches builds.
-    set(_manifesto_configurations "${CMAKE_CONFIGURATION_TYPES}")
-    if(NOT _manifesto_configurations)
-        set(_manifesto_configurations "${CMAKE_BUILD_TYPE}")
+    set(_ecosystem_configurations "${CMAKE_CONFIGURATION_TYPES}")
+    if(NOT _ecosystem_configurations)
+        set(_ecosystem_configurations "${CMAKE_BUILD_TYPE}")
     endif()
-    set(_manifesto_selected_targets "")
-    foreach(config IN LISTS _manifesto_configurations)
+    set(_ecosystem_selected_targets "")
+    foreach(config IN LISTS _ecosystem_configurations)
         string(SHA256 config_id "${config}")
-        set(inner "${_manifesto_state}/${config_id}/consumer")
-        set(target "_manifesto_consumer_${config_id}")
-        set(prefix "${_manifesto_state}/${config_id}/packages")
+        set(inner "${_ecosystem_state}/${config_id}/consumer")
+        set(target "_ecosystem_consumer_${config_id}")
+        set(prefix "${_ecosystem_state}/${config_id}/packages")
         set(providers "")
         set(packages "")
-        foreach(identity IN LISTS _manifesto_providers)
-            set(package "${_manifesto_package_${identity}}")
-            set(provider "_manifesto_provider_${package}_${identity}_${config_id}")
-            set(ancestry "${MANIFESTO_FACADE_ANCESTRY}")
+        foreach(identity IN LISTS _ecosystem_providers)
+            set(package "${_ecosystem_package_${identity}}")
+            set(provider "_ecosystem_provider_${package}_${identity}_${config_id}")
+            set(ancestry "${ECOSYSTEM_FACADE_ANCESTRY}")
             list(APPEND ancestry "${identity}")
-            _manifesto_bracket(ancestry "${ancestry}")
-            file(WRITE "${_manifesto_state}/${config_id}/${identity}-cache.in"
-                "${_manifesto_cache}\nset(MANIFESTO_FACADE_ANCESTRY ${ancestry} CACHE STRING \"Facade provider ancestry\" FORCE)\n")
-            configure_file("${_manifesto_state}/${config_id}/${identity}-cache.in"
-                "${_manifesto_state}/${config_id}/${identity}-cache.cmake" COPYONLY)
+            _ecosystem_bracket(ancestry "${ancestry}")
+            file(WRITE "${_ecosystem_state}/${config_id}/${identity}-cache.in"
+                "${_ecosystem_cache}\nset(ECOSYSTEM_FACADE_ANCESTRY ${ancestry} CACHE STRING \"Facade provider ancestry\" FORCE)\n")
+            configure_file("${_ecosystem_state}/${config_id}/${identity}-cache.in"
+                "${_ecosystem_state}/${config_id}/${identity}-cache.cmake" COPYONLY)
             # Match Marx preparation: static provider archives must also be
             # usable by shared consumers, including recursive provider facades.
             ExternalProject_Add(${provider}
-                PREFIX "${_manifesto_state}/${config_id}/provider-steps/${identity}"
-                SOURCE_DIR "${_manifesto_state}/sources/${identity}"
-                BINARY_DIR "${_manifesto_state}/${config_id}/providers/${identity}"
+                PREFIX "${_ecosystem_state}/${config_id}/provider-steps/${identity}"
+                SOURCE_DIR "${_ecosystem_state}/sources/${identity}"
+                BINARY_DIR "${_ecosystem_state}/${config_id}/providers/${identity}"
                 DOWNLOAD_COMMAND ""
                 UPDATE_COMMAND ""
-                DEPENDS "_manifesto_source_${package}_${identity}"
-                CMAKE_ARGS -C "${_manifesto_state}/${config_id}/${identity}-cache.cmake"
+                DEPENDS "_ecosystem_source_${package}_${identity}"
+                CMAKE_ARGS -C "${_ecosystem_state}/${config_id}/${identity}-cache.cmake"
                     "-DCMAKE_BUILD_TYPE:STRING=${config}"
                     "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
                     "-DCMAKE_INSTALL_PREFIX:PATH=${prefix}"
-                BUILD_COMMAND "${CMAKE_COMMAND}" -E echo "${_manifesto_description_${identity}} (build)"
+                BUILD_COMMAND "${CMAKE_COMMAND}" -E echo "${_ecosystem_description_${identity}} (build)"
                     COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --config "${config}"
                 BUILD_ALWAYS TRUE
-                INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo "${_manifesto_description_${identity}} (install)"
+                INSTALL_COMMAND "${CMAKE_COMMAND}" -E echo "${_ecosystem_description_${identity}} (install)"
                     COMMAND "${CMAKE_COMMAND}" --install <BINARY_DIR>
                         --config "${config}" --prefix "${prefix}"
                 EXCLUDE_FROM_ALL TRUE)
             ExternalProject_Add_Step(${provider} identify
-                COMMAND "${CMAKE_COMMAND}" -E echo "${_manifesto_description_${identity}} (configure)"
+                COMMAND "${CMAKE_COMMAND}" -E echo "${_ecosystem_description_${identity}} (configure)"
                 DEPENDEES update DEPENDERS configure)
-            ExternalProject_Add_StepDependencies(${provider} configure "${_manifesto_state}/${config_id}/${identity}-cache.cmake")
+            ExternalProject_Add_StepDependencies(${provider} configure "${_ecosystem_state}/${config_id}/${identity}-cache.cmake")
             list(APPEND providers "${provider}")
-            list(APPEND packages "${_manifesto_package_${identity}}")
+            list(APPEND packages "${_ecosystem_package_${identity}}")
         endforeach()
         # Script arguments carry lists through a cache file, not command argv.
-        _manifesto_bracket(package_names "${packages}")
-        _manifesto_bracket(previous_prefix "${CMAKE_PREFIX_PATH}")
-        file(WRITE "${_manifesto_state}/${config_id}/package-inputs.cmake"
+        _ecosystem_bracket(package_names "${packages}")
+        _ecosystem_bracket(previous_prefix "${CMAKE_PREFIX_PATH}")
+        file(WRITE "${_ecosystem_state}/${config_id}/package-inputs.cmake"
             "set(PACKAGES ${package_names})\nset(PREVIOUS_PREFIX ${previous_prefix})\n")
         ExternalProject_Add(${target}
             SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
             BINARY_DIR "${inner}"
-            PREFIX "${_manifesto_state}/${config_id}/steps"
+            PREFIX "${_ecosystem_state}/${config_id}/steps"
             DOWNLOAD_COMMAND ""
             UPDATE_COMMAND ""
             DEPENDS ${providers}
-            CMAKE_ARGS -C "${_manifesto_state}/cache.cmake"
-                -C "${_manifesto_state}/${config_id}/providers.cmake"
-                "-DMANIFESTO_FACADE_INNER:BOOL=ON"
+            CMAKE_ARGS -C "${_ecosystem_state}/cache.cmake"
+                -C "${_ecosystem_state}/${config_id}/providers.cmake"
+                "-DECOSYSTEM_FACADE_INNER:BOOL=ON"
                 "-DCMAKE_BUILD_TYPE:STRING=${config}"
             BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --config "${config}"
             BUILD_ALWAYS TRUE
             INSTALL_COMMAND ""
             EXCLUDE_FROM_ALL TRUE)
         ExternalProject_Add_Step(${target} packages
-            COMMAND "${CMAKE_COMMAND}" "-DINPUTS=${_manifesto_state}/${config_id}/package-inputs.cmake"
-                "-DPREFIX=${prefix}" "-DOUTPUT=${_manifesto_state}/${config_id}/providers.cmake"
-                -P "${_manifesto_state}/packages.cmake"
+            COMMAND "${CMAKE_COMMAND}" "-DINPUTS=${_ecosystem_state}/${config_id}/package-inputs.cmake"
+                "-DPREFIX=${prefix}" "-DOUTPUT=${_ecosystem_state}/${config_id}/providers.cmake"
+                -P "${_ecosystem_state}/packages.cmake"
             DEPENDEES update
             DEPENDERS configure
             ALWAYS TRUE)
-        ExternalProject_Add_StepDependencies(${target} configure "${_manifesto_state}/cache.cmake")
-        list(APPEND _manifesto_selected_targets "$<$<CONFIG:${config}>:${target}>")
+        ExternalProject_Add_StepDependencies(${target} configure "${_ecosystem_state}/cache.cmake")
+        list(APPEND _ecosystem_selected_targets "$<$<CONFIG:${config}>:${target}>")
     endforeach()
-    add_custom_target(_manifesto_facade_yodau ALL DEPENDS ${_manifesto_selected_targets})
+    add_custom_target(_ecosystem_facade_yodau ALL DEPENDS ${_ecosystem_selected_targets})
 
     # Follow the inner facade entry rather than its private executable name.
-    file(WRITE "${_manifesto_state}/entry.cmake" [==[
+    file(WRITE "${_ecosystem_state}/entry.cmake" [==[
 foreach(name mvp mvp.exe)
     set(destination "${OUTER}/${name}")
-    set(marker "${OUTER}/CMakeFiles/manifesto-${name}.owned")
+    set(marker "${OUTER}/CMakeFiles/ecosystem-${name}.owned")
     if(EXISTS "${marker}")
         file(REMOVE "${destination}" "${marker}")
     endif()
@@ -205,21 +205,21 @@ foreach(name mvp mvp.exe)
     endif()
 endforeach()
 ]==])
-    file(GENERATE OUTPUT "${_manifesto_state}/entry-$<CONFIG>.cmake"
-        CONTENT "string(SHA256 config_id \"$<CONFIG>\")\nset(INNER \"${_manifesto_state}/\${config_id}/consumer\")\nset(OUTER \"${CMAKE_CURRENT_BINARY_DIR}\")\ninclude(\"${_manifesto_state}/entry.cmake\")\n")
-    add_custom_command(TARGET _manifesto_facade_yodau POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -P "${_manifesto_state}/entry-$<CONFIG>.cmake"
+    file(GENERATE OUTPUT "${_ecosystem_state}/entry-$<CONFIG>.cmake"
+        CONTENT "string(SHA256 config_id \"$<CONFIG>\")\nset(INNER \"${_ecosystem_state}/\${config_id}/consumer\")\nset(OUTER \"${CMAKE_CURRENT_BINARY_DIR}\")\ninclude(\"${_ecosystem_state}/entry.cmake\")\n")
+    add_custom_command(TARGET _ecosystem_facade_yodau POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -P "${_ecosystem_state}/entry-$<CONFIG>.cmake"
         VERBATIM)
     set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
         "${CMAKE_CURRENT_BINARY_DIR}/mvp" "${CMAKE_CURRENT_BINARY_DIR}/mvp.exe"
-        "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-mvp.owned"
-        "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-mvp.exe.owned")
+        "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-mvp.owned"
+        "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-mvp.exe.owned")
 
-    file(WRITE "${_manifesto_state}/install.in" [==[
+    file(WRITE "${_ecosystem_state}/install.in" [==[
 string(SHA256 config_id "${CMAKE_INSTALL_CONFIG_NAME}")
 # Installing an outer library must also make its provider closure available to
 # another visitor. Each provider delegates recursively through its own facade.
-file(GLOB providers LIST_DIRECTORIES TRUE "@_manifesto_state@/${config_id}/providers/*")
+file(GLOB providers LIST_DIRECTORIES TRUE "@_ecosystem_state@/${config_id}/providers/*")
 foreach(provider IN LISTS providers)
     execute_process(COMMAND "${CMAKE_COMMAND}" --install "${provider}"
         --config "${CMAKE_INSTALL_CONFIG_NAME}" --prefix "${CMAKE_INSTALL_PREFIX}"
@@ -229,15 +229,15 @@ foreach(provider IN LISTS providers)
     endif()
 endforeach()
 execute_process(COMMAND "${CMAKE_COMMAND}" --install
-    "@_manifesto_state@/${config_id}/consumer"
+    "@_ecosystem_state@/${config_id}/consumer"
     --config "${CMAKE_INSTALL_CONFIG_NAME}" --prefix "${CMAKE_INSTALL_PREFIX}"
     RESULT_VARIABLE result)
 if(NOT result STREQUAL "0")
     message(FATAL_ERROR "Facade consumer installation failed: ${result}")
 endif()
 ]==])
-    configure_file("${_manifesto_state}/install.in" "${_manifesto_state}/install.cmake" @ONLY)
-    install(SCRIPT "${_manifesto_state}/install.cmake")
+    configure_file("${_ecosystem_state}/install.in" "${_ecosystem_state}/install.cmake" @ONLY)
+    install(SCRIPT "${_ecosystem_state}/install.cmake")
     return()
 endif()
 # This file is generated by `marx sync`. Do not edit by hand.
@@ -282,7 +282,9 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 
-add_library(ecosystem_kde_support INTERFACE)
+if (NOT TARGET ecosystem_kde_support)
+    add_library(ecosystem_kde_support INTERFACE)
+endif ()
 if (ECOSYSTEM_PROFILE_KDE)
     find_package(KF6ConfigWidgets CONFIG REQUIRED)
     find_package(KF6CoreAddons CONFIG REQUIRED)
@@ -296,13 +298,33 @@ if (ECOSYSTEM_PROFILE_KDE)
             KF6::WidgetsAddons
             KF6::XmlGui
     )
+    foreach (_ecosystem_support_property IN ITEMS INTERFACE_LINK_LIBRARIES INTERFACE_INCLUDE_DIRECTORIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+        get_target_property(_ecosystem_support_values ecosystem_kde_support ${_ecosystem_support_property})
+        if (_ecosystem_support_values)
+            list(REMOVE_DUPLICATES _ecosystem_support_values)
+            set_property(TARGET ecosystem_kde_support PROPERTY ${_ecosystem_support_property} "${_ecosystem_support_values}")
+        endif ()
+    endforeach ()
+    unset(_ecosystem_support_property)
+    unset(_ecosystem_support_values)
 endif ()
 
 find_package(OpenCV QUIET)
-add_library(ecosystem_optional_opencv INTERFACE)
+if (NOT TARGET ecosystem_optional_opencv)
+    add_library(ecosystem_optional_opencv INTERFACE)
+endif ()
 if (OpenCV_FOUND)
     target_link_libraries(ecosystem_optional_opencv INTERFACE ${OpenCV_LIBS})
     target_include_directories(ecosystem_optional_opencv INTERFACE ${OpenCV_INCLUDE_DIRS})
+    foreach (_ecosystem_support_property IN ITEMS INTERFACE_LINK_LIBRARIES INTERFACE_INCLUDE_DIRECTORIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+        get_target_property(_ecosystem_support_values ecosystem_optional_opencv ${_ecosystem_support_property})
+        if (_ecosystem_support_values)
+            list(REMOVE_DUPLICATES _ecosystem_support_values)
+            set_property(TARGET ecosystem_optional_opencv PROPERTY ${_ecosystem_support_property} "${_ecosystem_support_values}")
+        endif ()
+    endforeach ()
+    unset(_ecosystem_support_property)
+    unset(_ecosystem_support_values)
 endif ()
 
 function(ecosystem_apply_defaults target_name)
@@ -341,26 +363,290 @@ function(ecosystem_apply_defaults target_name)
         )
     endif ()
 endfunction()
+# Runtime ownership is independent of Git: reserved cache directories are never
+# payloads, while other authored/source-generated files keep their category paths.
+function(_ecosystem_asset_cache_directory path result)
+    if ("${path}" MATCHES [=[(^|/)(\.cache|\.[^/]*_cache)(/|$)]=])
+        set(${result} TRUE PARENT_SCOPE)
+    else ()
+        set(${result} FALSE PARENT_SCOPE)
+    endif ()
+endfunction()
+
+function(_ecosystem_asset_resolve project_root path directory result cached)
+    if (NOT EXISTS "${path}")
+        message(FATAL_ERROR "Missing runtime asset or dangling link: ${path}")
+    endif ()
+    get_filename_component(real_path "${path}" REALPATH)
+    file(RELATIVE_PATH relative_path "${project_root}" "${real_path}")
+    if (IS_ABSOLUTE "${relative_path}" OR relative_path MATCHES "^\\.\\.(/|$)")
+        message(FATAL_ERROR "Runtime asset escapes its project: ${path}")
+    endif ()
+    if (NOT directory)
+        get_filename_component(relative_path "${relative_path}" DIRECTORY)
+    endif ()
+    _ecosystem_asset_cache_directory("${relative_path}" is_cache)
+    set(${result} "${real_path}" PARENT_SCOPE)
+    set(${cached} "${is_cache}" PARENT_SCOPE)
+endfunction()
+
+function(_ecosystem_asset_walk project_root directory ancestors result)
+    _ecosystem_asset_resolve("${project_root}" "${directory}" TRUE real_directory cached)
+    if (cached)
+        set(${result} "" PARENT_SCOPE)
+        return()
+    endif ()
+    if (real_directory IN_LIST ancestors)
+        message(FATAL_ERROR "Cyclic runtime asset directory: ${directory}")
+    endif ()
+    list(APPEND ancestors "${real_directory}")
+    if (CMAKE_SCRIPT_MODE_FILE)
+        file(GLOB children LIST_DIRECTORIES TRUE "${directory}/*")
+    else ()
+        file(GLOB children LIST_DIRECTORIES TRUE CONFIGURE_DEPENDS "${directory}/*")
+    endif ()
+    set(files)
+    foreach (child IN LISTS children)
+        if (IS_DIRECTORY "${child}")
+            get_filename_component(name "${child}" NAME)
+            _ecosystem_asset_cache_directory("${name}" cached)
+            if (NOT cached)
+                _ecosystem_asset_walk("${project_root}" "${child}" "${ancestors}" nested)
+                list(APPEND files ${nested})
+            endif ()
+        else ()
+            _ecosystem_asset_resolve("${project_root}" "${child}" FALSE real_file cached)
+            if (NOT cached)
+                list(APPEND files "${child}")
+            endif ()
+        endif ()
+    endforeach ()
+    set(${result} "${files}" PARENT_SCOPE)
+endfunction()
+
+function(_ecosystem_runtime_asset_files asset_source result)
+    if (NOT EXISTS "${asset_source}" AND NOT IS_SYMLINK "${asset_source}")
+        set(${result} "" PARENT_SCOPE)
+        return()
+    endif ()
+    if (NOT IS_DIRECTORY "${asset_source}" OR IS_SYMLINK "${asset_source}")
+        message(FATAL_ERROR "Invalid runtime asset source: ${asset_source}")
+    endif ()
+    get_filename_component(project_root "${asset_source}/.." REALPATH)
+    get_filename_component(real_source "${asset_source}" REALPATH)
+    set(files)
+    set(allowed_categories brand reports dataset dumps sets templates)
+    set(categories ${allowed_categories})
+    if (ARGN)
+        set(categories ${ARGN})
+    endif ()
+    foreach (category IN LISTS categories)
+        if (NOT category IN_LIST allowed_categories)
+            message(FATAL_ERROR "Invalid runtime asset category: ${category}")
+        endif ()
+        if (IS_SYMLINK "${asset_source}/${category}")
+            message(FATAL_ERROR "Runtime asset category uses a symlink: ${category}")
+        endif ()
+        if (EXISTS "${asset_source}/${category}")
+            if (NOT IS_DIRECTORY "${asset_source}/${category}")
+                message(FATAL_ERROR "Runtime asset category is not a directory: ${category}")
+            endif ()
+            _ecosystem_asset_walk("${project_root}" "${asset_source}/${category}" "${real_source}" nested)
+            list(APPEND files ${nested})
+        endif ()
+    endforeach ()
+    list(REMOVE_DUPLICATES files)
+    list(SORT files)
+    set(${result} "${files}" PARENT_SCOPE)
+endfunction()
+
+# Retire only reserved cache directories previously staged by an older surface.
+# Never follow output directory aliases or remove similarly named regular files.
+function(_ecosystem_prune_asset_caches directory)
+    file(GLOB children LIST_DIRECTORIES TRUE "${directory}/*")
+    foreach (child IN LISTS children)
+        if (IS_DIRECTORY "${child}")
+            get_filename_component(name "${child}" NAME)
+            _ecosystem_asset_cache_directory("${name}" cached)
+            if (cached)
+                if (IS_SYMLINK "${child}")
+                    file(REMOVE "${child}")
+                else ()
+                    file(REMOVE_RECURSE "${child}")
+                endif ()
+            elseif (NOT IS_SYMLINK "${child}")
+                _ecosystem_prune_asset_caches("${child}")
+            endif ()
+        endif ()
+    endforeach ()
+endfunction()
+
 function(ecosystem_stage_assets target_name)
     file(GENERATE
-            OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/manifesto_assets_${target_name}_$<CONFIG>.cmake"
-            CONTENT [==[if (NOT IS_DIRECTORY "${asset_source}" OR IS_SYMLINK "${asset_source}")
+            OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ecosystem_assets_${target_name}_$<CONFIG>.cmake"
+            CONTENT [==[# Script mode has its own policy scope; it does not inherit the project policy.
+cmake_minimum_required(VERSION 3.20)
+# Runtime ownership is independent of Git: reserved cache directories are never
+# payloads, while other authored/source-generated files keep their category paths.
+function(_ecosystem_asset_cache_directory path result)
+    if ("${path}" MATCHES [=[(^|/)(\.cache|\.[^/]*_cache)(/|$)]=])
+        set(${result} TRUE PARENT_SCOPE)
+    else ()
+        set(${result} FALSE PARENT_SCOPE)
+    endif ()
+endfunction()
+
+function(_ecosystem_asset_resolve project_root path directory result cached)
+    if (NOT EXISTS "${path}")
+        message(FATAL_ERROR "Missing runtime asset or dangling link: ${path}")
+    endif ()
+    get_filename_component(real_path "${path}" REALPATH)
+    file(RELATIVE_PATH relative_path "${project_root}" "${real_path}")
+    if (IS_ABSOLUTE "${relative_path}" OR relative_path MATCHES "^\\.\\.(/|$)")
+        message(FATAL_ERROR "Runtime asset escapes its project: ${path}")
+    endif ()
+    if (NOT directory)
+        get_filename_component(relative_path "${relative_path}" DIRECTORY)
+    endif ()
+    _ecosystem_asset_cache_directory("${relative_path}" is_cache)
+    set(${result} "${real_path}" PARENT_SCOPE)
+    set(${cached} "${is_cache}" PARENT_SCOPE)
+endfunction()
+
+function(_ecosystem_asset_walk project_root directory ancestors result)
+    _ecosystem_asset_resolve("${project_root}" "${directory}" TRUE real_directory cached)
+    if (cached)
+        set(${result} "" PARENT_SCOPE)
+        return()
+    endif ()
+    if (real_directory IN_LIST ancestors)
+        message(FATAL_ERROR "Cyclic runtime asset directory: ${directory}")
+    endif ()
+    list(APPEND ancestors "${real_directory}")
+    if (CMAKE_SCRIPT_MODE_FILE)
+        file(GLOB children LIST_DIRECTORIES TRUE "${directory}/*")
+    else ()
+        file(GLOB children LIST_DIRECTORIES TRUE CONFIGURE_DEPENDS "${directory}/*")
+    endif ()
+    set(files)
+    foreach (child IN LISTS children)
+        if (IS_DIRECTORY "${child}")
+            get_filename_component(name "${child}" NAME)
+            _ecosystem_asset_cache_directory("${name}" cached)
+            if (NOT cached)
+                _ecosystem_asset_walk("${project_root}" "${child}" "${ancestors}" nested)
+                list(APPEND files ${nested})
+            endif ()
+        else ()
+            _ecosystem_asset_resolve("${project_root}" "${child}" FALSE real_file cached)
+            if (NOT cached)
+                list(APPEND files "${child}")
+            endif ()
+        endif ()
+    endforeach ()
+    set(${result} "${files}" PARENT_SCOPE)
+endfunction()
+
+function(_ecosystem_runtime_asset_files asset_source result)
+    if (NOT EXISTS "${asset_source}" AND NOT IS_SYMLINK "${asset_source}")
+        set(${result} "" PARENT_SCOPE)
+        return()
+    endif ()
+    if (NOT IS_DIRECTORY "${asset_source}" OR IS_SYMLINK "${asset_source}")
+        message(FATAL_ERROR "Invalid runtime asset source: ${asset_source}")
+    endif ()
+    get_filename_component(project_root "${asset_source}/.." REALPATH)
+    get_filename_component(real_source "${asset_source}" REALPATH)
+    set(files)
+    set(allowed_categories brand reports dataset dumps sets templates)
+    set(categories ${allowed_categories})
+    if (ARGN)
+        set(categories ${ARGN})
+    endif ()
+    foreach (category IN LISTS categories)
+        if (NOT category IN_LIST allowed_categories)
+            message(FATAL_ERROR "Invalid runtime asset category: ${category}")
+        endif ()
+        if (IS_SYMLINK "${asset_source}/${category}")
+            message(FATAL_ERROR "Runtime asset category uses a symlink: ${category}")
+        endif ()
+        if (EXISTS "${asset_source}/${category}")
+            if (NOT IS_DIRECTORY "${asset_source}/${category}")
+                message(FATAL_ERROR "Runtime asset category is not a directory: ${category}")
+            endif ()
+            _ecosystem_asset_walk("${project_root}" "${asset_source}/${category}" "${real_source}" nested)
+            list(APPEND files ${nested})
+        endif ()
+    endforeach ()
+    list(REMOVE_DUPLICATES files)
+    list(SORT files)
+    set(${result} "${files}" PARENT_SCOPE)
+endfunction()
+
+# Retire only reserved cache directories previously staged by an older surface.
+# Never follow output directory aliases or remove similarly named regular files.
+function(_ecosystem_prune_asset_caches directory)
+    file(GLOB children LIST_DIRECTORIES TRUE "${directory}/*")
+    foreach (child IN LISTS children)
+        if (IS_DIRECTORY "${child}")
+            get_filename_component(name "${child}" NAME)
+            _ecosystem_asset_cache_directory("${name}" cached)
+            if (cached)
+                if (IS_SYMLINK "${child}")
+                    file(REMOVE "${child}")
+                else ()
+                    file(REMOVE_RECURSE "${child}")
+                endif ()
+            elseif (NOT IS_SYMLINK "${child}")
+                _ecosystem_prune_asset_caches("${child}")
+            endif ()
+        endif ()
+    endforeach ()
+endfunction()
+
+if (NOT IS_DIRECTORY "${asset_source}" OR IS_SYMLINK "${asset_source}")
     message(FATAL_ERROR "Invalid runtime asset source: ${asset_source}")
 endif ()
 if (IS_SYMLINK "${asset_destination}" OR
         (EXISTS "${asset_destination}" AND NOT IS_DIRECTORY "${asset_destination}"))
     message(FATAL_ERROR "Invalid runtime asset destination: ${asset_destination}")
 endif ()
+# Executables beside one another share this output. configure_file replaces
+# destination files, so parallel post-build scripts must not copy or prune the
+# same tree concurrently. The process lock is destination-local and
+# lives beside the payload, not inside it; unrelated destinations stay parallel.
+get_filename_component(asset_destination "${asset_destination}" ABSOLUTE)
+set(asset_lock "${asset_destination}.lock")
+if (IS_SYMLINK "${asset_lock}" OR IS_DIRECTORY "${asset_lock}")
+    message(FATAL_ERROR "Invalid runtime asset staging lock: ${asset_lock}")
+endif ()
+file(LOCK "${asset_lock}" GUARD PROCESS)
 foreach (category IN ITEMS brand reports dataset dumps sets templates)
     if (IS_SYMLINK "${asset_source}/${category}" OR IS_SYMLINK "${asset_destination}/${category}")
         message(FATAL_ERROR "Runtime asset category uses a symlink: ${category}")
     endif ()
-    if (EXISTS "${asset_source}/${category}")
-        if (NOT IS_DIRECTORY "${asset_source}/${category}")
-            message(FATAL_ERROR "Runtime asset category is not a directory: ${category}")
-        endif ()
-        file(COPY "${asset_source}/${category}" DESTINATION "${asset_destination}")
+    if (IS_DIRECTORY "${asset_destination}/${category}")
+        _ecosystem_prune_asset_caches("${asset_destination}/${category}")
     endif ()
+endforeach ()
+_ecosystem_runtime_asset_files("${asset_source}" ecosystem_asset_files)
+foreach (source IN LISTS ecosystem_asset_files)
+    file(RELATIVE_PATH relative "${asset_source}" "${source}")
+    get_filename_component(parent "${relative}" DIRECTORY)
+    set(destination "${asset_destination}")
+    string(REPLACE "/" ";" parents "${parent}")
+    foreach (part IN LISTS parents)
+        set(destination "${destination}/${part}")
+        if (IS_SYMLINK "${destination}" OR
+                (EXISTS "${destination}" AND NOT IS_DIRECTORY "${destination}"))
+            message(FATAL_ERROR "Invalid runtime asset destination: ${destination}")
+        endif ()
+    endforeach ()
+    if (IS_SYMLINK "${asset_destination}/${relative}")
+        message(FATAL_ERROR "Runtime asset destination uses a symlink: ${relative}")
+    endif ()
+    # Materialize safe source links; the payload must not depend on source paths.
+    configure_file("${source}" "${asset_destination}/${relative}" COPYONLY)
 endforeach ()
 # Retire media staged by older facades without following a directory alias.
 if (IS_SYMLINK "${asset_destination}/showcase")
@@ -370,25 +656,22 @@ else ()
 endif ()
 ]==]
     )
+    # A new staging policy must take effect even if application sources did not
+    # change. Native Make/Ninja link rules depend on the generated script.
+    set_property(TARGET ${target_name} APPEND PROPERTY LINK_DEPENDS
+            "${CMAKE_CURRENT_BINARY_DIR}/ecosystem_assets_${target_name}_$<CONFIG>.cmake")
     add_custom_command(
             TARGET ${target_name} POST_BUILD
             COMMAND ${CMAKE_COMMAND}
             "-Dasset_source=${CMAKE_CURRENT_SOURCE_DIR}/assets"
             "-Dasset_destination=$<TARGET_FILE_DIR:${target_name}>/assets"
-            -P "${CMAKE_CURRENT_BINARY_DIR}/manifesto_assets_${target_name}_$<CONFIG>.cmake"
+            -P "${CMAKE_CURRENT_BINARY_DIR}/ecosystem_assets_${target_name}_$<CONFIG>.cmake"
             VERBATIM
     )
 endfunction()
 function(ecosystem_embed_assets target_name)
     if (COMMAND qt_add_resources)
-        set(ecosystem_asset_files)
-        foreach (category IN ITEMS brand reports dataset dumps sets templates)
-            file(GLOB_RECURSE ecosystem_category_files
-                    CONFIGURE_DEPENDS
-                    "${CMAKE_CURRENT_SOURCE_DIR}/assets/${category}/*"
-            )
-            list(APPEND ecosystem_asset_files ${ecosystem_category_files})
-        endforeach ()
+        _ecosystem_runtime_asset_files("${CMAKE_CURRENT_SOURCE_DIR}/assets" ecosystem_asset_files)
         if (ecosystem_asset_files)
             qt_add_resources(${target_name} "yodau_assets"
                     PREFIX "/yodau"
@@ -399,11 +682,16 @@ function(ecosystem_embed_assets target_name)
     endif ()
 endfunction()
 
-foreach (category IN ITEMS brand reports dataset dumps sets templates)
+_ecosystem_runtime_asset_files("${CMAKE_CURRENT_SOURCE_DIR}/assets" ecosystem_install_assets)
+foreach (source IN LISTS ecosystem_install_assets)
+    file(RELATIVE_PATH relative "${CMAKE_CURRENT_SOURCE_DIR}/assets" "${source}")
+    get_filename_component(parent "${relative}" DIRECTORY)
+    get_filename_component(name "${source}" NAME)
+    get_filename_component(real_source "${source}" REALPATH)
     install(
-            DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/${category}"
-            DESTINATION ${CMAKE_INSTALL_DATADIR}/yodau/assets
-            OPTIONAL
+            FILES "${real_source}"
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/yodau/assets/${parent}"
+            RENAME "${name}"
     )
 endforeach ()
 
@@ -1058,7 +1346,7 @@ target_compile_definitions(app__app
 
 if (ECOSYSTEM_PROFILE_ANDROID)
     if (Qt6_VERSION VERSION_LESS 6.7)
-        message(FATAL_ERROR "MANIFESTO Android packaging requires Qt 6.7 or newer for per-target APK directories")
+        message(FATAL_ERROR "Ecosystem Android packaging requires Qt 6.7 or newer for per-target APK directories")
     endif ()
     set(QT_USE_TARGET_ANDROID_BUILD_DIR ON CACHE BOOL "Keep Android application payloads separate" FORCE)
     if (COMMAND qt_policy)
@@ -1077,21 +1365,21 @@ ecosystem_stage_assets(app__app)
 # The visitor name is generated state; the selected target keeps its identity.
 # Retire a previous link/copy before a new selection can build at the same path.
 foreach(facade_name mvp mvp.exe)
-    if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-${facade_name}.owned")
+    if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-${facade_name}.owned")
         file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/${facade_name}"
-                    "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-${facade_name}.owned")
+                    "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-${facade_name}.owned")
     endif()
 endforeach()
 
-get_target_property(MANIFESTO_FACADE_TYPE app__app TYPE)
-if(MANIFESTO_FACADE_TYPE STREQUAL "EXECUTABLE" AND NOT ANDROID)
+get_target_property(ECOSYSTEM_FACADE_TYPE app__app TYPE)
+if(ECOSYSTEM_FACADE_TYPE STREQUAL "EXECUTABLE" AND NOT ANDROID)
     if(WIN32)
-        set(MANIFESTO_FACADE_NAME mvp.exe)
+        set(ECOSYSTEM_FACADE_NAME mvp.exe)
     else()
-        set(MANIFESTO_FACADE_NAME mvp)
+        set(ECOSYSTEM_FACADE_NAME mvp)
     endif()
     file(GENERATE
-        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-facade-$<CONFIG>.cmake"
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-facade-$<CONFIG>.cmake"
         CONTENT [=[
 set(source "$<TARGET_FILE:app__app>")
 set(destination "${FACADE_DIR}/${FACADE_NAME}")
@@ -1104,18 +1392,18 @@ else()
     file(RELATIVE_PATH relative "${FACADE_DIR}" "${source}")
     file(CREATE_LINK "${relative}" "${destination}" SYMBOLIC)
 endif()
-file(WRITE "${FACADE_DIR}/CMakeFiles/manifesto-${FACADE_NAME}.owned" "generated\n")
+file(WRITE "${FACADE_DIR}/CMakeFiles/ecosystem-${FACADE_NAME}.owned" "generated\n")
 ]=])
-    add_custom_target(_manifesto_visitor_facade_yodau ALL
+    add_custom_target(_ecosystem_visitor_facade_yodau ALL
         COMMAND "${CMAKE_COMMAND}"
             "-DFACADE_DIR=${CMAKE_CURRENT_BINARY_DIR}"
-            "-DFACADE_NAME=${MANIFESTO_FACADE_NAME}"
-            -P "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-facade-$<CONFIG>.cmake"
+            "-DFACADE_NAME=${ECOSYSTEM_FACADE_NAME}"
+            -P "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-facade-$<CONFIG>.cmake"
         DEPENDS app__app
         VERBATIM)
     set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/${MANIFESTO_FACADE_NAME}"
-        "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manifesto-${MANIFESTO_FACADE_NAME}.owned")
+        "${CMAKE_CURRENT_BINARY_DIR}/${ECOSYSTEM_FACADE_NAME}"
+        "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-${ECOSYSTEM_FACADE_NAME}.owned")
 endif()
 
 install(TARGETS app__app

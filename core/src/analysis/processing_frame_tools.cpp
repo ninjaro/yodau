@@ -334,7 +334,7 @@ bool open_video_capture_for_stream(
 
 video_capture_read_status read_video_capture_frame(
     const stream& stream_value, cv::VideoCapture& capture, cv::Mat& image,
-    const stop_token& stop_token
+    const stop_token& token
 ) {
     if (!capture.isOpened()) {
         return video_capture_read_status::finished;
@@ -342,7 +342,7 @@ video_capture_read_status read_video_capture_frame(
 
 #ifdef __linux__
     if (stream_value.get_type() == stream_type::local) {
-        if (stop_token.stop_requested()) {
+        if (token.stop_requested()) {
             return video_capture_read_status::finished;
         }
         std::vector<cv::VideoCapture> captures { capture };
@@ -351,7 +351,7 @@ video_capture_read_status read_video_capture_frame(
         if (!cv::VideoCapture::waitAny(captures, ready, wait_timeout_ns)) {
             return video_capture_read_status::wait_timeout;
         }
-        if (ready.empty() || stop_token.stop_requested()
+        if (ready.empty() || token.stop_requested()
             || !captures.front().retrieve(image) || image.empty()) {
             return video_capture_read_status::finished;
         }

@@ -16,14 +16,12 @@ using yodau::core::virtual_camera;
 
 #ifdef YODAU_OPENCV
 TEST(processing_runtime_test, keeps_default_and_per_stream_algorithm_choices) {
-    processing_runtime runtime(
-        processing_runtime_options {
-            .mode = render_mode::app_only,
-            .enable_virtual_camera = false,
-            .virtual_camera_device = {},
-            .algorithm_id = {},
-        }
-    );
+    processing_runtime runtime(processing_runtime_options {
+        .mode = render_mode::app_only,
+        .enable_virtual_camera = false,
+        .virtual_camera_device = {},
+        .algorithm_id = {},
+    });
 
     EXPECT_EQ(runtime.default_algorithm_id(), "motion_baseline");
     EXPECT_EQ(runtime.algorithm_id_for_stream("cam-a"), "motion_baseline");
@@ -47,14 +45,12 @@ TEST(processing_runtime_test, keeps_default_and_per_stream_algorithm_choices) {
 TEST(
     processing_runtime_test, processes_each_stream_with_its_selected_algorithm
 ) {
-    processing_runtime runtime(
-        processing_runtime_options {
-            .mode = render_mode::app_only,
-            .enable_virtual_camera = false,
-            .virtual_camera_device = {},
-            .algorithm_id = "spot_grid",
-        }
-    );
+    processing_runtime runtime(processing_runtime_options {
+        .mode = render_mode::app_only,
+        .enable_virtual_camera = false,
+        .virtual_camera_device = {},
+        .algorithm_id = "spot_grid",
+    });
 
     ASSERT_TRUE(runtime.set_stream_algorithm("cam-contour", "contour_mask"));
 
@@ -100,14 +96,12 @@ TEST(
 
 #ifdef YODAU_OPENCV
 TEST(processing_runtime_test, core_preview_router_publishes_rendered_frame) {
-    processing_runtime runtime(
-        processing_runtime_options {
-            .mode = render_mode::core_only,
-            .enable_virtual_camera = true,
-            .virtual_camera_device = {},
-            .algorithm_id = "spot_grid",
-        }
-    );
+    processing_runtime runtime(processing_runtime_options {
+        .mode = render_mode::core_only,
+        .enable_virtual_camera = true,
+        .virtual_camera_device = {},
+        .algorithm_id = "spot_grid",
+    });
 
     ASSERT_TRUE(runtime.has_virtual_camera());
 

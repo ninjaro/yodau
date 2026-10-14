@@ -83,7 +83,8 @@ namespace virtual_camera_support {
         }
 
         return std::ranges::all_of(
-            text.substr(prefix.size()), [](const char ch) {
+            text.substr(prefix.size()),
+            [](const char ch) {
                 return std::isdigit(static_cast<unsigned char>(ch)) != 0;
             }
         );
@@ -185,7 +186,8 @@ namespace virtual_camera_support {
 
         auto sort_paths = [&preferred_prefix](std::vector<std::string>& paths) {
             std::ranges::sort(
-                paths, [&](const std::string& lhs, const std::string& rhs) {
+                paths,
+                [&](const std::string& lhs, const std::string& rhs) {
                     const std::string lhs_name
                         = std::filesystem::path(lhs).filename().string();
                     const std::string rhs_name
@@ -561,8 +563,8 @@ void virtual_camera::release(const std::string& stream_name) {
     stop_sink(binding);
 }
 
-std::optional<frame>
-virtual_camera::latest_frame(const std::string& stream_name) const {
+std::optional<frame> virtual_camera::latest_frame(const std::string& stream_name
+) const {
     std::scoped_lock lock(mtx);
 
     const auto frame_it = latest_by_stream.find(stream_name);
@@ -661,9 +663,8 @@ virtual_camera::ensure_binding_locked(const std::string& stream_name) {
                 && virtual_camera_support::same_output_device(
                     binding->device_path, other_binding->device_path
                 )) {
-                binding->assignment_error
-                    = "explicit virtual camera device is "
-                      "already assigned to stream '"
+                binding->assignment_error = "explicit virtual camera device is "
+                                            "already assigned to stream '"
                     + other_stream_name + "'";
                 binding->device_path.clear();
                 break;
@@ -707,9 +708,9 @@ virtual_camera::ensure_binding_locked(const std::string& stream_name) {
         = "Linux virtual camera output is unavailable on this platform";
 #endif
 
-    binding->worker = stoppable_thread([binding](const stop_token& stop_token) {
+    binding->worker = stoppable_thread([binding](const stop_token& token) {
         try {
-            run_sink(binding, stop_token);
+            run_sink(binding, token);
         } catch (const std::exception& error) {
             std::scoped_lock lock(binding->mtx);
             binding->device_ready = false;
@@ -727,17 +728,17 @@ virtual_camera::ensure_binding_locked(const std::string& stream_name) {
 }
 
 void virtual_camera::run_sink(
-    const std::shared_ptr<sink_binding>& binding, const stop_token& stop_token
+    const std::shared_ptr<sink_binding>& binding, const stop_token& token
 ) {
-    while (!stop_token.stop_requested()) {
+    while (!token.stop_requested()) {
         std::shared_ptr<const frame> next_frame;
         {
             std::unique_lock lock(binding->mtx);
             binding->wake.wait(lock, [&] {
-                return stop_token.stop_requested()
+                return token.stop_requested()
                     || static_cast<bool>(binding->pending_frame);
             });
-            if (stop_token.stop_requested()) {
+            if (token.stop_requested()) {
                 break;
             }
             next_frame = std::move(binding->pending_frame);

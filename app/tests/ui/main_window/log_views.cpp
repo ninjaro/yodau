@@ -30,9 +30,9 @@ void main_window_tests::log_toolbar_filters_formats_and_actions() {
     );
     QSignalSpy save_logs_spy(&panel, &log_toolbar_panel::save_logs_requested);
 
-    auto* log_mode_combo = panel.findChild<QComboBox*>(
-        QStringLiteral("settings_log_mode_combo")
-    );
+    auto* log_mode_combo
+        = panel.findChild<QComboBox*>(QStringLiteral("settings_log_mode_combo")
+        );
     auto* area_filter_combo = panel.findChild<QComboBox*>(
         QStringLiteral("settings_log_area_filter_combo")
     );
@@ -84,47 +84,37 @@ void main_window_tests::log_toolbar_filters_formats_and_actions() {
     const QDateTime timestamp(
         QDate(2026, 3, 29), QTime(14, 0, 0, 0), QTimeZone::UTC
     );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::add, app_log_severity::debug,
-            QStringLiteral("tests"), QStringLiteral("debug add"),
-            QStringLiteral("cam-1"), QStringLiteral("hidden in release")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::add, app_log_severity::info,
-            QStringLiteral("tests"), QStringLiteral("info add"),
-            QStringLiteral("cam-1")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::active, app_log_severity::info,
-            QStringLiteral("core_event"), QStringLiteral("active info"),
-            QStringLiteral("cam-1"), QStringLiteral("cells=9"),
-            QStringLiteral("spot_grid"), QStringLiteral("north"),
-            QStringLiteral("motion"), QColor(QStringLiteral("#67c1ff"))
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::active, app_log_severity::error,
-            QStringLiteral("core_event"), QStringLiteral("active error"),
-            QStringLiteral("cam-2"), QStringLiteral("core=line=south"),
-            QStringLiteral("contour_mask"), QStringLiteral("south"),
-            QStringLiteral("tripwire"), QColor(QStringLiteral("#ff4d6d"))
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::streams, app_log_severity::warning,
-            QStringLiteral("grid_visibility"),
-            QStringLiteral("streams warning"), QStringLiteral("cam-2"),
-            QStringLiteral("roi window"), QString(), QStringLiteral("poly"),
-            QStringLiteral("roi"), QColor(QStringLiteral("#2a9d8f"))
-        )
-    );
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::add, app_log_severity::debug,
+        QStringLiteral("tests"), QStringLiteral("debug add"),
+        QStringLiteral("cam-1"), QStringLiteral("hidden in release")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::add, app_log_severity::info,
+        QStringLiteral("tests"), QStringLiteral("info add"),
+        QStringLiteral("cam-1")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::active, app_log_severity::info,
+        QStringLiteral("core_event"), QStringLiteral("active info"),
+        QStringLiteral("cam-1"), QStringLiteral("cells=9"),
+        QStringLiteral("spot_grid"), QStringLiteral("north"),
+        QStringLiteral("motion"), QColor(QStringLiteral("#67c1ff"))
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::active, app_log_severity::error,
+        QStringLiteral("core_event"), QStringLiteral("active error"),
+        QStringLiteral("cam-2"), QStringLiteral("core=line=south"),
+        QStringLiteral("contour_mask"), QStringLiteral("south"),
+        QStringLiteral("tripwire"), QColor(QStringLiteral("#ff4d6d"))
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::streams, app_log_severity::warning,
+        QStringLiteral("grid_visibility"), QStringLiteral("streams warning"),
+        QStringLiteral("cam-2"), QStringLiteral("roi window"), QString(),
+        QStringLiteral("poly"), QStringLiteral("roi"),
+        QColor(QStringLiteral("#2a9d8f"))
+    ));
 
     const QString add_release_text
         = panel.formatted_entries(app_log_area::add).join('\n');
@@ -177,16 +167,14 @@ void main_window_tests::log_toolbar_filters_formats_and_actions() {
     QVERIFY(active_error_report.contains(QStringLiteral("scope=all")));
     QVERIFY(active_error_report.contains(QStringLiteral("area_filter=active")));
     QVERIFY(active_error_report.contains(QStringLiteral("line=south")));
-    QVERIFY(
-        active_error_report.contains(QStringLiteral("algorithm=contour_mask"))
-    );
+    QVERIFY(active_error_report.contains(QStringLiteral("algorithm=contour_mask"
+    )));
 
     const QString active_error_summary
         = panel.compose_log_summary(std::nullopt);
     QVERIFY(active_error_summary.contains(QStringLiteral("entries=1")));
     QVERIFY(active_error_summary.contains(QStringLiteral("error=1")));
-    QVERIFY(
-        active_error_summary.contains(QStringLiteral("event_list=tripwire"))
+    QVERIFY(active_error_summary.contains(QStringLiteral("event_list=tripwire"))
     );
     QVERIFY(active_error_summary.contains(QStringLiteral("line_list=south")));
     QVERIFY(active_error_summary.contains(
@@ -420,14 +408,12 @@ void main_window_tests::log_bounds_and_incremental_updates() {
     QSignalSpy prune_spy(&buffer, &app_log_buffer::entries_pruned);
 
     for (int index = 0; index < 10; ++index) {
-        buffer.append(
-            main_window_tests_support::make_log_entry(
-                QDateTime::currentDateTime(), app_log_area::active,
-                app_log_severity::info, QStringLiteral("bounded"),
-                QStringLiteral("entry-%1").arg(index),
-                QStringLiteral("camera-%1").arg(index % 2)
-            )
-        );
+        buffer.append(main_window_tests_support::make_log_entry(
+            QDateTime::currentDateTime(), app_log_area::active,
+            app_log_severity::info, QStringLiteral("bounded"),
+            QStringLiteral("entry-%1").arg(index),
+            QStringLiteral("camera-%1").arg(index % 2)
+        ));
     }
 
     QCOMPARE(buffer.entries().size(), qsizetype(8));
@@ -474,8 +460,7 @@ void main_window_tests::feedback_log_details_and_motion_throttle() {
     );
     QCOMPARE(tripwire_feedback.tripwire_visual->strength, 0.5);
     QCOMPARE(tripwire_feedback.tripwire_visual->speed, 1.25);
-    QVERIFY(
-        tripwire_feedback.log_detail.contains(QStringLiteral("line=north"))
+    QVERIFY(tripwire_feedback.log_detail.contains(QStringLiteral("line=north"))
     );
     QVERIFY(tripwire_feedback.log_detail.contains(
         QStringLiteral("pos=(25.000,75.000)")

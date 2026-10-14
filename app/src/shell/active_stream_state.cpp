@@ -38,8 +38,8 @@ active_stream_state::set_active_stream(const QString& name) const {
     return result;
 }
 
-active_stream_state::settings_result active_stream_state::apply_stream_settings(
-    stream_settings settings_value
+active_stream_state::settings_result
+active_stream_state::apply_stream_settings(stream_settings settings_value
 ) const {
     settings_result result;
 

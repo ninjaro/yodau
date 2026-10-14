@@ -15,8 +15,8 @@ public:
     void remove_stream(const QString& stream_name);
     void set_stream_settings(stream_settings settings_value);
 
-    [[nodiscard]] stream_settings
-    settings_for(const QString& stream_name) const;
+    [[nodiscard]] stream_settings settings_for(const QString& stream_name
+    ) const;
     [[nodiscard]] QString algorithm_id_for(const QString& stream_name) const;
 
 private:

@@ -23,8 +23,7 @@ active_editor_panel::active_editor_panel(QWidget* parent)
     refresh_line_list();
 }
 
-void active_editor_panel::set_active_candidates(
-    const QStringList& names
+void active_editor_panel::set_active_candidates(const QStringList& names
 ) const {
     if (active_stream_panel_widget == nullptr) {
         return;
@@ -78,8 +77,7 @@ void active_editor_panel::add_template_candidate(const QString& name) const {
     update_tools();
 }
 
-void active_editor_panel::set_template_candidates(
-    const QStringList& names
+void active_editor_panel::set_template_candidates(const QStringList& names
 ) const {
     if (active_template_panel == nullptr) {
         return;

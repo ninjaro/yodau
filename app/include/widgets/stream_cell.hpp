@@ -185,8 +185,8 @@ private:
     /// Canonical frame percentages, before display rotation or fitting.
     [[nodiscard]] static QPointF clamp_pct(QPointF point_pct);
     [[nodiscard]] static QColor color_with_alpha(QColor color, int alpha);
-    [[nodiscard]] static QColor
-    contrasting_text_color(const QColor& background);
+    [[nodiscard]] static QColor contrasting_text_color(const QColor& background
+    );
     [[nodiscard]] static QColor line_color_for(
         const line_instance& line_value, int line_index, int line_count,
         const QImage& frame
@@ -237,8 +237,8 @@ private:
 
     [[nodiscard]] QPointF to_pct(const QPointF& pos_px) const;
     [[nodiscard]] QPointF to_px(const QPointF& pos_pct) const;
-    [[nodiscard]] std::optional<int>
-    line_edit_vertex_at(const QPointF& pos_px) const;
+    [[nodiscard]] std::optional<int> line_edit_vertex_at(const QPointF& pos_px
+    ) const;
     [[nodiscard]] std::optional<line_edit_segment_hit_info>
     line_edit_segment_hit(const QPointF& pos_px) const;
     void reset_line_edit_drag_state();

@@ -77,10 +77,10 @@ stream_manager::daemon_start_fn default_daemon_start_hook() {
 
     return [](const stream& stream_value,
               const std::function<void(frame&&)>& on_frame,
-              const stop_token& stop_token) {
+              const stop_token& token) {
         if (auto* algorithm = default_processing_hooks_support::
                 shared_default_algorithm_instance()) {
-            algorithm->daemon_start(stream_value, on_frame, stop_token);
+            algorithm->daemon_start(stream_value, on_frame, token);
         }
     };
 }

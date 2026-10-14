@@ -76,7 +76,9 @@ namespace {
                     + "': " + std::strerror(errno)
                 );
             }
-            struct stat source_stat {};
+
+            struct stat source_stat { };
+
             if (::fstat(source_fd, &source_stat) < 0) {
                 const std::string message = "cannot identify source camera '"
                     + source + "': " + std::strerror(errno);
@@ -124,7 +126,9 @@ namespace {
                         + std::string(std::strerror(errno))
                     );
                 }
-                struct stat lock_directory_status {};
+
+                struct stat lock_directory_status { };
+
                 if (::lstat(lock_directory.c_str(), &lock_directory_status) < 0
                     || !S_ISDIR(lock_directory_status.st_mode)
                     || lock_directory_status.st_uid != uid) {
@@ -227,8 +231,10 @@ namespace {
         }
 
 #ifdef __linux__
-        struct stat source_stat {};
-        struct stat output_stat {};
+        struct stat source_stat { };
+
+        struct stat output_stat { };
+
         if (::stat(source.c_str(), &source_stat) == 0
             && ::stat(output.c_str(), &output_stat) == 0
             && S_ISCHR(source_stat.st_mode) && S_ISCHR(output_stat.st_mode)) {
@@ -240,7 +246,8 @@ namespace {
 
     bool is_linux_character_device(const std::string& path) {
 #ifdef __linux__
-        struct stat status {};
+        struct stat status { };
+
         return ::stat(path.c_str(), &status) == 0 && S_ISCHR(status.st_mode);
 #else
         static_cast<void>(path);
@@ -329,14 +336,12 @@ int run_headless_daemon(
         auto source_lease = source_camera_lease::acquire(source, local_source);
         static_cast<void>(source_lease);
 
-        processing_runtime runtime(
-            processing_runtime_options {
-                .mode = render_mode::core_only,
-                .enable_virtual_camera = true,
-                .virtual_camera_device = output_device,
-                .algorithm_id = document.stream.algorithm.algorithm_id,
-            }
-        );
+        processing_runtime runtime(processing_runtime_options {
+            .mode = render_mode::core_only,
+            .enable_virtual_camera = true,
+            .virtual_camera_device = output_device,
+            .algorithm_id = document.stream.algorithm.algorithm_id,
+        });
         // Keep the manager after the runtime in construction order so it is
         // shut down first during exception unwinding. Its daemon callbacks may
         // still be executing code owned by the runtime.
@@ -458,9 +463,8 @@ int run_headless_daemon(
                 runtime_output_error.clear();
             } else if (!output_unhealthy_since.has_value()) {
                 output_unhealthy_since = now;
-            } else if (
-                now - *output_unhealthy_since >= std::chrono::seconds(2)
-            ) {
+            } else if (now - *output_unhealthy_since
+                       >= std::chrono::seconds(2)) {
                 break;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));

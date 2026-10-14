@@ -255,7 +255,8 @@ void log_toolbar_panel::build_ui() {
     state->setWordWrap(true);
     layout->addWidget(state);
     connect(
-        freeze_view_, &QCheckBox::toggled, this, [this, state](bool frozen) {
+        freeze_view_, &QCheckBox::toggled, this,
+        [this, state](bool frozen) {
             state->setText(
                 frozen ? tr("View frozen; collection and export remain live.")
                        : tr("Collection and export remain live.")

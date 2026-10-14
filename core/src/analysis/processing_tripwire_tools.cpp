@@ -181,13 +181,11 @@ std::vector<processing_tripwire_crossing> tripwire_crossings_for_motion(
             continue;
         }
 
-        crossings.push_back(
-            processing_tripwire_crossing {
-                .line_name = line_ptr_value->name,
-                .position_pct = hit_position,
-                .direction = direction,
-            }
-        );
+        crossings.push_back(processing_tripwire_crossing {
+            .line_name = line_ptr_value->name,
+            .position_pct = hit_position,
+            .direction = direction,
+        });
     }
 
     return crossings;
@@ -258,21 +256,19 @@ std::vector<processing_tripwire_crossing> tripwire_crossings_for_contour_line(
     std::vector<processing_tripwire_crossing> crossings;
     crossings.reserve(hit_positions_pct.size());
     for (const point& position : hit_positions_pct) {
-        crossings.push_back(
-            processing_tripwire_crossing {
-                .line_name = line_value.name,
-                .position_pct = position,
-                .direction = direction,
-                .strength = strength,
-            }
-        );
+        crossings.push_back(processing_tripwire_crossing {
+            .line_name = line_value.name,
+            .position_pct = position,
+            .direction = direction,
+            .strength = strength,
+        });
     }
 
     return crossings;
 }
 
-std::string
-tripwire_crossing_key(const processing_tripwire_crossing& crossing) {
+std::string tripwire_crossing_key(const processing_tripwire_crossing& crossing
+) {
     return crossing.line_name + "|" + crossing.direction;
 }
 

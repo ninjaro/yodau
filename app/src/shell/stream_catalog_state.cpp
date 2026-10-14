@@ -21,19 +21,17 @@ int normalized_manual_processing_pixels(const int pixels) {
 
 stream_settings
 stream_catalog_state::default_stream_settings(const QString& stream_name) {
-    return normalized_stream_settings(
-        stream_settings {
-            .stream_name = normalized_stream_name(stream_name),
-            .labels_enabled = true,
-            .algorithm_id = default_app_algorithm_id(),
-            .algorithm_preset
-            = default_algorithm_preset_id(default_app_algorithm_id()),
-        }
-    );
+    return normalized_stream_settings(stream_settings {
+        .stream_name = normalized_stream_name(stream_name),
+        .labels_enabled = true,
+        .algorithm_id = default_app_algorithm_id(),
+        .algorithm_preset
+        = default_algorithm_preset_id(default_app_algorithm_id()),
+    });
 }
 
-stream_settings stream_catalog_state::normalized_stream_settings(
-    stream_settings settings_value
+stream_settings
+stream_catalog_state::normalized_stream_settings(stream_settings settings_value
 ) {
     settings_value.stream_name
         = normalized_stream_name(settings_value.stream_name);
@@ -87,8 +85,8 @@ void stream_catalog_state::set_stream_settings(stream_settings settings_value) {
     settings_by_stream_[settings_value.stream_name] = std::move(settings_value);
 }
 
-stream_settings
-stream_catalog_state::settings_for(const QString& stream_name) const {
+stream_settings stream_catalog_state::settings_for(const QString& stream_name
+) const {
     const QString normalized_name = normalized_stream_name(stream_name);
     if (normalized_name.isEmpty()) {
         return default_stream_settings(QString());
@@ -100,12 +98,12 @@ stream_catalog_state::settings_for(const QString& stream_name) const {
         : it.value();
 }
 
-QString
-stream_catalog_state::algorithm_id_for(const QString& stream_name) const {
+QString stream_catalog_state::algorithm_id_for(const QString& stream_name
+) const {
     return settings_for(stream_name).algorithm_id;
 }
 
-QString
-stream_catalog_state::normalized_stream_name(const QString& stream_name) {
+QString stream_catalog_state::normalized_stream_name(const QString& stream_name
+) {
     return stream_catalog_state_support::trimmed_name(stream_name);
 }

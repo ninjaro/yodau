@@ -71,8 +71,7 @@ void main_window_tests::cell_negative_auto_masks_content() {
         255 - source_fill.blue()
     );
 
-    QVERIFY(
-        main_window_tests_support::color_close(rendered_fill, inverted_fill)
+    QVERIFY(main_window_tests_support::color_close(rendered_fill, inverted_fill)
     );
     QCOMPARE(
         rendered.pixelColor(outside_sample), frame.pixelColor(outside_sample)

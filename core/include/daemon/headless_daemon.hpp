@@ -20,8 +20,8 @@ struct headless_daemon_options {
 
 // Returns local paths unchanged and removes every potentially sensitive URL
 // component from remote capture sources.
-[[nodiscard]] std::string
-redact_capture_source_for_log(std::string_view source);
+[[nodiscard]] std::string redact_capture_source_for_log(std::string_view source
+);
 
 // Runs the core capture/processing/output pipeline in the calling thread. This
 // API deliberately has no Qt dependency and never creates a GUI application.

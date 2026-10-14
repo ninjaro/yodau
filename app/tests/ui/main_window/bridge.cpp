@@ -26,16 +26,14 @@ void main_window_tests::bridge_active_state_and_template_preview() {
     board.grid_mode()->add_stream(QStringLiteral("cam-2"));
     widget_bridge.sync_active_candidates();
 
-    edit_session.set_draft_line_profile(
-        line_profile {
-            .name = QStringLiteral(" north "),
-            .color = QColor(Qt::green),
-            .closed = true,
-            .width_text = QStringLiteral("string heavy"),
-            .length_text = QStringLiteral("long"),
-            .response_text = QStringLiteral("resonant"),
-        }
-    );
+    edit_session.set_draft_line_profile(line_profile {
+        .name = QStringLiteral(" north "),
+        .color = QColor(Qt::green),
+        .closed = true,
+        .width_text = QStringLiteral("string heavy"),
+        .length_text = QStringLiteral("long"),
+        .response_text = QStringLiteral("resonant"),
+    });
 
     edit_session.store_saved_line(
         QStringLiteral("cam-1"), QStringLiteral("north"),
@@ -47,15 +45,13 @@ void main_window_tests::bridge_active_state_and_template_preview() {
     );
 
     edit_session.set_drawing_new_mode(false);
-    edit_session.set_active_template_settings(
-        template_apply_settings {
-            .template_name = QStringLiteral("north"),
-            .color = QColor(Qt::yellow),
-            .width_text = QStringLiteral("thin"),
-            .length_text = QStringLiteral("long"),
-            .response_text = QStringLiteral("resonant"),
-        }
-    );
+    edit_session.set_active_template_settings(template_apply_settings {
+        .template_name = QStringLiteral("north"),
+        .color = QColor(Qt::yellow),
+        .width_text = QStringLiteral("thin"),
+        .length_text = QStringLiteral("long"),
+        .response_text = QStringLiteral("resonant"),
+    });
 
     const stream_settings active_settings {
         .stream_name = QStringLiteral("cam-1"),
@@ -93,9 +89,8 @@ void main_window_tests::bridge_active_state_and_template_preview() {
     QCOMPARE(static_cast<int>(active_cell->draft_points_pct().size()), 2);
     QCOMPARE(
         panel
-            .findChild<QComboBox*>(
-                QStringLiteral("settings_active_stream_combo")
-            )
+            .findChild<QComboBox*>(QStringLiteral("settings_active_stream_combo"
+            ))
             ->currentText(),
         QStringLiteral("cam-1")
     );
@@ -125,9 +120,8 @@ void main_window_tests::bridge_active_state_and_template_preview() {
     QVERIFY(board.active_cell() == nullptr);
     QVERIFY(
         panel
-            .findChild<QComboBox*>(
-                QStringLiteral("settings_active_stream_combo")
-            )
+            .findChild<QComboBox*>(QStringLiteral("settings_active_stream_combo"
+            ))
             ->currentText()
         != QStringLiteral("cam-1")
     );
@@ -139,25 +133,21 @@ void main_window_tests::bridge_syncs_editor_controls() {
     stream_widget_bridge widget_bridge(&board, &panel);
     active_edit_session edit_session;
 
-    edit_session.set_draft_line_profile(
-        line_profile {
-            .name = QStringLiteral(" north "),
-            .color = QColor(Qt::green),
-            .closed = true,
-            .width_text = QStringLiteral("string_heavy"),
-            .length_text = QStringLiteral("long"),
-            .response_text = QStringLiteral("resonant"),
-        }
-    );
-    edit_session.set_active_template_settings(
-        template_apply_settings {
-            .template_name = QStringLiteral("north"),
-            .color = QColor(Qt::yellow),
-            .width_text = QStringLiteral("thin"),
-            .length_text = QStringLiteral("short"),
-            .response_text = QStringLiteral("dry"),
-        }
-    );
+    edit_session.set_draft_line_profile(line_profile {
+        .name = QStringLiteral(" north "),
+        .color = QColor(Qt::green),
+        .closed = true,
+        .width_text = QStringLiteral("string_heavy"),
+        .length_text = QStringLiteral("long"),
+        .response_text = QStringLiteral("resonant"),
+    });
+    edit_session.set_active_template_settings(template_apply_settings {
+        .template_name = QStringLiteral("north"),
+        .color = QColor(Qt::yellow),
+        .width_text = QStringLiteral("thin"),
+        .length_text = QStringLiteral("short"),
+        .response_text = QStringLiteral("dry"),
+    });
 
     widget_bridge.initialize_editor_state(edit_session);
 
@@ -213,9 +203,9 @@ void main_window_tests::bridge_routes_grid_visibility() {
         QStringLiteral("cam-2"), QStringLiteral("url:rtsp://cam-2")
     );
 
-    auto* streams_list = panel.findChild<QTreeWidget*>(
-        QStringLiteral("settings_streams_list")
-    );
+    auto* streams_list
+        = panel.findChild<QTreeWidget*>(QStringLiteral("settings_streams_list")
+        );
     QVERIFY(streams_list != nullptr);
     QCOMPARE(streams_list->topLevelItemCount(), 2);
     QCOMPARE(streams_list->topLevelItem(0)->text(1), QStringLiteral("cam-1"));
@@ -281,9 +271,8 @@ void main_window_tests::bridge_routes_grid_visibility() {
     QCOMPARE(board.active_cell()->get_name(), QStringLiteral("cam-2"));
     QCOMPARE(
         panel
-            .findChild<QComboBox*>(
-                QStringLiteral("settings_active_stream_combo")
-            )
+            .findChild<QComboBox*>(QStringLiteral("settings_active_stream_combo"
+            ))
             ->currentText(),
         QStringLiteral("cam-2")
     );
@@ -297,9 +286,8 @@ void main_window_tests::bridge_routes_grid_visibility() {
     QVERIFY(board.active_cell() == nullptr);
     QVERIFY(
         panel
-            .findChild<QComboBox*>(
-                QStringLiteral("settings_active_stream_combo")
-            )
+            .findChild<QComboBox*>(QStringLiteral("settings_active_stream_combo"
+            ))
             ->currentText()
         != QStringLiteral("cam-2")
     );

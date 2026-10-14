@@ -318,8 +318,8 @@ void stream_cell::on_animation_tick() {
     update_animation_timer();
 
     if (!line_waves.isEmpty()
-        || (line_edit_preview_.has_value()
-            && line_edit_source_line_.has_value())) {
+        || (line_edit_preview_.has_value() && line_edit_source_line_.has_value()
+        )) {
         update();
     }
 }

@@ -167,9 +167,8 @@ void settings_panel::add_stream_entry(
     }
 }
 
-void settings_panel::set_stream_checked(
-    const QString& name, const bool checked
-) const {
+void settings_panel::set_stream_checked(const QString& name, const bool checked)
+    const {
     if (inventory_panel == nullptr) {
         return;
     }
@@ -204,12 +203,10 @@ void settings_panel::clear_stream_entries() {
 }
 
 void settings_panel::append_event(const QString& text) const {
-    append_log(
-        settings_panel_support::make_log_entry(
-            app_log_area::streams, app_log_severity::info,
-            QStringLiteral("settings_panel"), text
-        )
-    );
+    append_log(settings_panel_support::make_log_entry(
+        app_log_area::streams, app_log_severity::info,
+        QStringLiteral("settings_panel"), text
+    ));
 }
 
 void settings_panel::set_grid_scroll_direction_id(const QString& direction_id) {
@@ -286,12 +283,10 @@ void settings_panel::clear_add_inputs() const {
 }
 
 void settings_panel::append_add_log(const QString& text) const {
-    append_log(
-        settings_panel_support::make_log_entry(
-            app_log_area::add, app_log_severity::info,
-            QStringLiteral("settings_panel"), text
-        )
-    );
+    append_log(settings_panel_support::make_log_entry(
+        app_log_area::add, app_log_severity::info,
+        QStringLiteral("settings_panel"), text
+    ));
 }
 
 void settings_panel::set_active_candidates(const QStringList& names) const {
@@ -407,15 +402,13 @@ void settings_panel::set_active_lines(
     active_editor_panel_widget->set_active_lines(lines);
 }
 
-bool settings_panel::select_active_line_edit_point(
-    const int visible_index
+bool settings_panel::select_active_line_edit_point(const int visible_index
 ) const {
     return active_editor_panel_widget != nullptr
         && active_editor_panel_widget->select_line_edit_point(visible_index);
 }
 
-bool settings_panel::translate_active_line_edit_shape(
-    const QPointF& delta_pct
+bool settings_panel::translate_active_line_edit_shape(const QPointF& delta_pct
 ) const {
     return active_editor_panel_widget != nullptr
         && active_editor_panel_widget->translate_line_edit_shape(delta_pct);
@@ -430,8 +423,7 @@ bool settings_panel::move_active_line_edit_point(
         );
 }
 
-bool settings_panel::split_active_line_edit_point(
-    const int visible_index
+bool settings_panel::split_active_line_edit_point(const int visible_index
 ) const {
     return active_editor_panel_widget != nullptr
         && active_editor_panel_widget->split_line_edit_point(visible_index);
@@ -446,8 +438,7 @@ bool settings_panel::insert_active_line_point_after(
         );
 }
 
-bool settings_panel::delete_active_line_edit_point(
-    const int visible_index
+bool settings_panel::delete_active_line_edit_point(const int visible_index
 ) const {
     return active_editor_panel_widget != nullptr
         && active_editor_panel_widget->delete_line_edit_point(visible_index);
@@ -504,12 +495,10 @@ QColor settings_panel::active_template_preview_color() const {
 }
 
 void settings_panel::append_active_log(const QString& msg) const {
-    append_log(
-        settings_panel_support::make_log_entry(
-            app_log_area::active, app_log_severity::info,
-            QStringLiteral("settings_panel"), msg
-        )
-    );
+    append_log(settings_panel_support::make_log_entry(
+        app_log_area::active, app_log_severity::info,
+        QStringLiteral("settings_panel"), msg
+    ));
 }
 
 void settings_panel::clear_active_log() const { Q_UNUSED(this); }
@@ -615,8 +604,7 @@ QWidget* settings_panel::build_streams_tab() {
         ),
         tab
     );
-    summary_label->setObjectName(
-        QStringLiteral("settings_streams_intro_label")
+    summary_label->setObjectName(QStringLiteral("settings_streams_intro_label")
     );
     summary_label->setWordWrap(true);
     layout->addWidget(summary_label);
@@ -626,8 +614,7 @@ QWidget* settings_panel::build_streams_tab() {
     layout->addWidget(source_panel);
 
     auto* grid_preferences = new QGroupBox(tr("Grid layout"), tab);
-    grid_preferences->setObjectName(
-        QStringLiteral("settings_grid_layout_group")
+    grid_preferences->setObjectName(QStringLiteral("settings_grid_layout_group")
     );
     auto* grid_preferences_layout = new QFormLayout(grid_preferences);
 
@@ -709,23 +696,20 @@ QWidget* settings_panel::build_streams_tab() {
         inventory_panel, &stream_inventory_panel::show_stream_changed, this,
         [this](const QString& name, const bool show) {
             emit show_stream_changed(name, show);
-            append_log(
-                settings_panel_support::make_log_entry(
-                    app_log_area::streams, app_log_severity::info,
-                    QStringLiteral("settings_panel"),
-                    show ? QStringLiteral("stream shown in grid")
-                         : QStringLiteral("stream hidden from grid"),
-                    name
-                )
-            );
+            append_log(settings_panel_support::make_log_entry(
+                app_log_area::streams, app_log_severity::info,
+                QStringLiteral("settings_panel"),
+                show ? QStringLiteral("stream shown in grid")
+                     : QStringLiteral("stream hidden from grid"),
+                name
+            ));
         }
     );
     connect(
         grid_scroll_direction_combo_, &QComboBox::currentIndexChanged, this,
         [this] {
-            emit grid_scroll_direction_changed(
-                current_grid_scroll_direction_id()
-            );
+            emit grid_scroll_direction_changed(current_grid_scroll_direction_id(
+            ));
         }
     );
     connect(

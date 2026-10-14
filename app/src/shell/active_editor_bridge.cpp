@@ -61,11 +61,9 @@ std::optional<stream_cell::line_instance> active_line_edit_preview(
     // The edited geometry replaces the source points; appending would create
     // duplicate hit targets whose indices cannot be routed back to the editor.
     preview_line.pts_pct.clear();
-    preview_line.pts_pct.reserve(
-        static_cast<std::vector<QPointF>::size_type>(
-            edit_request->points_pct.size()
-        )
-    );
+    preview_line.pts_pct.reserve(static_cast<std::vector<QPointF>::size_type>(
+        edit_request->points_pct.size()
+    ));
     for (const QPointF& point_value : edit_request->points_pct) {
         preview_line.pts_pct.push_back(point_value);
     }

@@ -286,7 +286,8 @@ void main_window::setup_desktop_shell() {
 #else
     yodau::shell::setup_desktop_shell(
         *this,
-        { import_line_configuration_action, export_line_configuration_action,
+        { import_line_configuration_action,
+          export_line_configuration_action,
           presentation_menu,
           { settings_dock, line_dock, log_dock, processing_dock_ } },
         [this] { show_settings_panel(); }

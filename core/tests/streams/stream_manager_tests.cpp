@@ -89,13 +89,11 @@ TEST(stream_manager_test, processed_frame_sink_receives_frame_and_events) {
     mgr.set_frame_processor(
         &stream_manager_tests_support::processed_frame_probe::process
     );
-    mgr.set_processed_frame_sink(
-        std::bind_front(
-            &stream_manager_tests_support::processed_frame_probe::
-                on_processed_frame,
-            &probe
-        )
-    );
+    mgr.set_processed_frame_sink(std::bind_front(
+        &stream_manager_tests_support::processed_frame_probe::
+            on_processed_frame,
+        &probe
+    ));
 
     yodau::core::frame frame_value;
     frame_value.width = 320;
@@ -162,15 +160,13 @@ TEST(stream_manager_test, line_profile_is_stored_beside_geometry_line) {
     EXPECT_FLOAT_EQ(default_profile->effective_length, 1.0f);
     EXPECT_FLOAT_EQ(default_profile->damping, 0.5f);
 
-    mgr.set_line_profile(
-        line_profile {
-            .line_name = "north",
-            .visual_width = 6.0f,
-            .interaction_width = 0.0f,
-            .effective_length = 2.5f,
-            .damping = -1.0f,
-        }
-    );
+    mgr.set_line_profile(line_profile {
+        .line_name = "north",
+        .visual_width = 6.0f,
+        .interaction_width = 0.0f,
+        .effective_length = 2.5f,
+        .damping = -1.0f,
+    });
 
     const auto stored_profile = mgr.find_line_profile("north");
     ASSERT_TRUE(stored_profile.has_value());

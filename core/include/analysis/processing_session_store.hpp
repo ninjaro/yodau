@@ -17,8 +17,6 @@ class processing_session_store {
 public:
     using algorithm_factory = std::function<std::unique_ptr<
         processing_algorithm>(const processing_algorithm_settings& settings)>;
-    using legacy_algorithm_factory = std::function<
-        std::unique_ptr<processing_algorithm>(const std::string& algorithm_id)>;
 
     explicit processing_session_store(
         const std::string& default_algorithm_id = {}
@@ -29,8 +27,8 @@ public:
     processing_session_store& operator=(const processing_session_store&)
         = delete;
     processing_session_store(processing_session_store&& other) noexcept;
-    processing_session_store&
-    operator=(processing_session_store&& other) noexcept;
+    processing_session_store& operator=(processing_session_store&& other
+    ) noexcept;
 
     std::string default_algorithm_id() const;
     processing_algorithm_settings default_algorithm_settings() const;
@@ -58,9 +56,6 @@ public:
 
     std::shared_ptr<processing_algorithm> active_algorithm_for_stream(
         const std::string& stream_name, const algorithm_factory& factory
-    );
-    std::shared_ptr<processing_algorithm> active_algorithm_for_stream(
-        const std::string& stream_name, const legacy_algorithm_factory& factory
     );
 
     std::optional<processing_result>

@@ -1,7 +1,6 @@
 #ifndef YODAU_CORE_CONCURRENCY_STOPPABLE_THREAD_HPP
 #define YODAU_CORE_CONCURRENCY_STOPPABLE_THREAD_HPP
 
-
 #if defined(__ANDROID__)
 
 #include <atomic>
@@ -60,15 +59,13 @@ public:
     stoppable_thread() = default;
 
     template <typename Function, typename... Args>
-        requires(
-            !std::is_same_v<std::remove_cvref_t<Function>, stoppable_thread>
-        )
+        requires(!std::is_same_v<
+                 std::remove_cvref_t<Function>, stoppable_thread>)
     explicit stoppable_thread(Function&& function, Args&&... args) {
         const stop_token token = stop_source_.get_token();
-        if constexpr (
-            std::is_invocable_v<
-                std::decay_t<Function>, stop_token, std::decay_t<Args>...>
-        ) {
+        if constexpr (std::is_invocable_v<
+                          std::decay_t<Function>, stop_token,
+                          std::decay_t<Args>...>) {
             thread_ = std::thread(
                 std::forward<Function>(function), token,
                 std::forward<Args>(args)...

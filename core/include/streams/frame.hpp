@@ -71,8 +71,8 @@ frame_layout_error_message(const frame_layout_error error) noexcept {
     return "unknown frame layout error";
 }
 
-[[nodiscard]] constexpr std::size_t
-bytes_per_pixel(const pixel_format format) noexcept {
+[[nodiscard]] constexpr std::size_t bytes_per_pixel(const pixel_format format
+) noexcept {
     switch (format) {
     case pixel_format::gray8:
         return 1;

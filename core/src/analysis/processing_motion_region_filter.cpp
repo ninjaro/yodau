@@ -61,12 +61,10 @@ namespace processing_motion_region_filter_support {
                 continue;
             }
 
-            regions.push_back(
-                motion_region {
-                    .line_name = line_ptr_value->name,
-                    .polygon_pct = line_ptr_value->points,
-                }
-            );
+            regions.push_back(motion_region {
+                .line_name = line_ptr_value->name,
+                .polygon_pct = line_ptr_value->points,
+            });
         }
 
         return regions;
@@ -142,21 +140,17 @@ processing_result processing_motion_region_filter::apply(
     using namespace processing_motion_region_filter_support;
 
     const auto regions = regions_for_stream(stream_value);
-    result.metrics.push_back(
-        processing_metric {
-            .name = "motion_region_count",
-            .value = static_cast<double>(regions.size()),
-            .unit = "regions",
-        }
-    );
+    result.metrics.push_back(processing_metric {
+        .name = "motion_region_count",
+        .value = static_cast<double>(regions.size()),
+        .unit = "regions",
+    });
 
     if (regions.empty()) {
-        result.diagnostics.push_back(
-            processing_diagnostic {
-                .key = "motion_region_filter",
-                .value = "inactive",
-            }
-        );
+        result.diagnostics.push_back(processing_diagnostic {
+            .key = "motion_region_filter",
+            .value = "inactive",
+        });
         return result;
     }
 
@@ -231,42 +225,32 @@ processing_result processing_motion_region_filter::apply(
 
     result.events = std::move(filtered_events);
     result.overlays = std::move(filtered_overlays);
-    result.metrics.push_back(
-        processing_metric {
-            .name = "motion_region_matched_event_count",
-            .value = static_cast<double>(matched_event_count),
-            .unit = "events",
-        }
-    );
-    result.metrics.push_back(
-        processing_metric {
-            .name = "motion_region_dropped_event_count",
-            .value = static_cast<double>(dropped_event_count),
-            .unit = "events",
-        }
-    );
-    result.metrics.push_back(
-        processing_metric {
-            .name = "motion_region_roi_event_count",
-            .value = static_cast<double>(emitted_roi_event_count),
-            .unit = "events",
-        }
-    );
-    result.metrics.push_back(
-        processing_metric {
-            .name = "motion_region_dropped_overlay_count",
-            .value = static_cast<double>(dropped_overlay_count),
-            .unit = "overlays",
-        }
-    );
-    result.diagnostics.push_back(
-        processing_diagnostic {
-            .key = "motion_region_filter",
-            .value = dropped_event_count > 0 || emitted_roi_event_count > 0
-                ? "applied"
-                : "pass_through",
-        }
-    );
+    result.metrics.push_back(processing_metric {
+        .name = "motion_region_matched_event_count",
+        .value = static_cast<double>(matched_event_count),
+        .unit = "events",
+    });
+    result.metrics.push_back(processing_metric {
+        .name = "motion_region_dropped_event_count",
+        .value = static_cast<double>(dropped_event_count),
+        .unit = "events",
+    });
+    result.metrics.push_back(processing_metric {
+        .name = "motion_region_roi_event_count",
+        .value = static_cast<double>(emitted_roi_event_count),
+        .unit = "events",
+    });
+    result.metrics.push_back(processing_metric {
+        .name = "motion_region_dropped_overlay_count",
+        .value = static_cast<double>(dropped_overlay_count),
+        .unit = "overlays",
+    });
+    result.diagnostics.push_back(processing_diagnostic {
+        .key = "motion_region_filter",
+        .value = dropped_event_count > 0 || emitted_roi_event_count > 0
+            ? "applied"
+            : "pass_through",
+    });
 
     return result;
 }

@@ -278,10 +278,8 @@ void stream_cell::draw_hover_coords(QPainter& p) const {
         0, std::max(0, pixel_height - 1)
     );
 
-    const QString txt = QStringLiteral(
-                            "x %1%% | %2 px\n"
-                            "y %3%% | %4 px"
-    )
+    const QString txt = QStringLiteral("x %1%% | %2 px\n"
+                                       "y %3%% | %4 px")
                             .arg(hp.x(), 0, 'f', 1)
                             .arg(x_px)
                             .arg(hp.y(), 0, 'f', 1)

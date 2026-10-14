@@ -161,9 +161,9 @@ void main_window_tests::settings_emit_log_mode() {
     settings_panel panel;
 
     QSignalSpy log_mode_spy(&panel, &settings_panel::log_mode_changed);
-    auto* log_mode_combo = panel.findChild<QComboBox*>(
-        QStringLiteral("settings_log_mode_combo")
-    );
+    auto* log_mode_combo
+        = panel.findChild<QComboBox*>(QStringLiteral("settings_log_mode_combo")
+        );
 
     QVERIFY(log_mode_combo != nullptr);
     QCOMPARE(panel.log_mode(), app_log_mode::release);
@@ -190,16 +190,14 @@ void main_window_tests::settings_emit_log_mode() {
 void main_window_tests::settings_algorithm_presets() {
     settings_panel panel;
     panel.set_existing_names({ QStringLiteral("cam-1") });
-    panel.set_active_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral("cam-1"),
-            .labels_enabled = true,
-            .algorithm_id = QStringLiteral("motion_baseline"),
-            .algorithm_preset = QStringLiteral("balanced"),
-            .movement_display_mode = QStringLiteral("off"),
-            .algorithm_overlay_enabled = false,
-        }
-    );
+    panel.set_active_stream_settings(stream_settings {
+        .stream_name = QStringLiteral("cam-1"),
+        .labels_enabled = true,
+        .algorithm_id = QStringLiteral("motion_baseline"),
+        .algorithm_preset = QStringLiteral("balanced"),
+        .movement_display_mode = QStringLiteral("off"),
+        .algorithm_overlay_enabled = false,
+    });
 
     QSignalSpy stream_settings_spy(
         &panel, &settings_panel::active_stream_settings_changed
@@ -256,8 +254,7 @@ void main_window_tests::settings_algorithm_presets() {
         operator_profile_combo->currentData().toString(),
         QStringLiteral("custom")
     );
-    QVERIFY(
-        summary_label->text().contains(QStringLiteral("contours and masks"))
+    QVERIFY(summary_label->text().contains(QStringLiteral("contours and masks"))
     );
 
     const int debug_heavy_index

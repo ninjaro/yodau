@@ -206,16 +206,14 @@ void yodau::core::stream_manager::set_line_profile(line_profile profile_value) {
 }
 
 std::optional<yodau::core::line_profile>
-yodau::core::stream_manager::find_line_profile(
-    const std::string& line_name
+yodau::core::stream_manager::find_line_profile(const std::string& line_name
 ) const {
     std::scoped_lock lock(mtx);
     return lines.find_profile(line_name);
 }
 
 std::optional<yodau::core::tripwire_dir>
-yodau::core::stream_manager::find_line_direction(
-    const std::string& line_name
+yodau::core::stream_manager::find_line_direction(const std::string& line_name
 ) const {
     std::scoped_lock lock(mtx);
     return lines.find_direction(line_name);
@@ -321,8 +319,8 @@ std::vector<std::string> yodau::core::stream_manager::line_names() const {
     return lines.names();
 }
 
-std::vector<std::string> yodau::core::stream_manager::stream_lines(
-    const std::string& stream_name
+std::vector<std::string>
+yodau::core::stream_manager::stream_lines(const std::string& stream_name
 ) const {
     std::scoped_lock lock(mtx);
     const auto stream_ptr = streams.find(stream_name);
@@ -518,8 +516,7 @@ void yodau::core::stream_manager::stop_stream(const std::string& name) {
     }
 }
 
-bool yodau::core::stream_manager::is_stream_running(
-    const std::string& name
+bool yodau::core::stream_manager::is_stream_running(const std::string& name
 ) const {
     return daemon_runner.is_running(name);
 }

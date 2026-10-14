@@ -56,12 +56,12 @@ bool configuration_is_valid(
     }
 
     try {
-        static_cast<void>(yodau::core::decode_line_configuration_json(
-            std::string_view(
+        static_cast<void>(
+            yodau::core::decode_line_configuration_json(std::string_view(
                 configuration.constData(),
                 static_cast<size_t>(configuration.size())
-            )
-        ));
+            ))
+        );
         return true;
     } catch (const std::exception& error) {
         set_error(error_message, configuration_error_text(error));

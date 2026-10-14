@@ -25,16 +25,14 @@ void main_window_tests::editor_bridge_projection_and_preview() {
     board.grid_mode()->add_stream(QStringLiteral("cam-1"));
     board.grid_mode()->add_stream(QStringLiteral("cam-2"));
 
-    edit_session.set_draft_line_profile(
-        line_profile {
-            .name = QStringLiteral(" north "),
-            .color = QColor(Qt::green),
-            .closed = true,
-            .width_text = QStringLiteral("string_heavy"),
-            .length_text = QStringLiteral("long"),
-            .response_text = QStringLiteral("resonant"),
-        }
-    );
+    edit_session.set_draft_line_profile(line_profile {
+        .name = QStringLiteral(" north "),
+        .color = QColor(Qt::green),
+        .closed = true,
+        .width_text = QStringLiteral("string_heavy"),
+        .length_text = QStringLiteral("long"),
+        .response_text = QStringLiteral("resonant"),
+    });
     edit_session.store_saved_line(
         QStringLiteral("cam-1"), QStringLiteral("north"),
         {
@@ -44,15 +42,13 @@ void main_window_tests::editor_bridge_projection_and_preview() {
         true
     );
     edit_session.set_drawing_new_mode(false);
-    edit_session.set_active_template_settings(
-        template_apply_settings {
-            .template_name = QStringLiteral("north"),
-            .color = QColor(Qt::yellow),
-            .width_text = QStringLiteral("thin"),
-            .length_text = QStringLiteral("short"),
-            .response_text = QStringLiteral("dry"),
-        }
-    );
+    edit_session.set_active_template_settings(template_apply_settings {
+        .template_name = QStringLiteral("north"),
+        .color = QColor(Qt::yellow),
+        .width_text = QStringLiteral("thin"),
+        .length_text = QStringLiteral("short"),
+        .response_text = QStringLiteral("dry"),
+    });
 
     editor_bridge.sync_active_candidates();
     editor_bridge.add_template_candidate(QStringLiteral("north"));
@@ -112,9 +108,8 @@ void main_window_tests::editor_bridge_projection_and_preview() {
     QVERIFY(board.active_cell() == nullptr);
     QVERIFY(
         panel
-            .findChild<QComboBox*>(
-                QStringLiteral("settings_active_stream_combo")
-            )
+            .findChild<QComboBox*>(QStringLiteral("settings_active_stream_combo"
+            ))
             ->currentText()
         != QStringLiteral("cam-1")
     );
@@ -127,16 +122,14 @@ void main_window_tests::edit_controller_sync_and_reset() {
     active_edit_session edit_session;
     active_edit_controller edit_controller(edit_session, widget_bridge);
 
-    edit_session.set_draft_line_profile(
-        line_profile {
-            .name = QStringLiteral("north"),
-            .color = QColor(Qt::cyan),
-            .closed = true,
-            .width_text = QStringLiteral("string_light"),
-            .length_text = QStringLiteral("long"),
-            .response_text = QStringLiteral("resonant"),
-        }
-    );
+    edit_session.set_draft_line_profile(line_profile {
+        .name = QStringLiteral("north"),
+        .color = QColor(Qt::cyan),
+        .closed = true,
+        .width_text = QStringLiteral("string_light"),
+        .length_text = QStringLiteral("long"),
+        .response_text = QStringLiteral("resonant"),
+    });
     edit_session.store_saved_line(
         QStringLiteral("cam-1"), QStringLiteral("north"),
         {
@@ -168,16 +161,15 @@ void main_window_tests::edit_controller_sync_and_reset() {
     );
     widget_bridge.sync_active_persistent(QStringLiteral("cam-1"), edit_session);
 
-    const line_profile& line_value = edit_controller.apply_line_profile(
-        line_profile {
+    const line_profile& line_value
+        = edit_controller.apply_line_profile(line_profile {
             .name = QStringLiteral(" south "),
             .color = QColor(Qt::green),
             .closed = false,
             .width_text = QStringLiteral("string_heavy"),
             .length_text = QStringLiteral("short"),
             .response_text = QStringLiteral("dry"),
-        }
-    );
+        });
 
     QCOMPARE(line_value.name, QStringLiteral("south"));
     QCOMPARE(panel.current_active_line_profile().name, QStringLiteral("south"));
@@ -189,13 +181,11 @@ void main_window_tests::edit_controller_sync_and_reset() {
     QCOMPARE(board.active_cell()->draft_name(), QStringLiteral("south"));
     QCOMPARE(board.active_cell()->draft_color(), QColor(Qt::green));
 
-    board.active_cell()->set_draft_points_pct(
-        {
-            QPointF(1.0, 1.0),
-            QPointF(2.0, 2.0),
-            QPointF(3.0, 3.0),
-        }
-    );
+    board.active_cell()->set_draft_points_pct({
+        QPointF(1.0, 1.0),
+        QPointF(2.0, 2.0),
+        QPointF(3.0, 3.0),
+    });
     edit_controller.undo_last_draft_point();
     QCOMPARE(
         static_cast<int>(board.active_cell()->draft_points_pct().size()), 2
@@ -216,15 +206,13 @@ void main_window_tests::edit_controller_sync_and_reset() {
 
     edit_controller.set_drawing_new_mode(false);
     const template_apply_settings& template_value
-        = edit_controller.apply_template_settings(
-            template_apply_settings {
-                .template_name = QStringLiteral("north"),
-                .color = QColor(Qt::yellow),
-                .width_text = QStringLiteral("thin"),
-                .length_text = QStringLiteral("short"),
-                .response_text = QStringLiteral("dry"),
-            }
-        );
+        = edit_controller.apply_template_settings(template_apply_settings {
+            .template_name = QStringLiteral("north"),
+            .color = QColor(Qt::yellow),
+            .width_text = QStringLiteral("thin"),
+            .length_text = QStringLiteral("short"),
+            .response_text = QStringLiteral("dry"),
+        });
 
     QCOMPARE(template_value.template_name, QStringLiteral("north"));
     QCOMPARE(
@@ -247,17 +235,15 @@ void main_window_tests::edit_controller_sync_and_reset() {
 void main_window_tests::edit_session_draft_templates_and_lines() {
     active_edit_session session;
 
-    session.set_draft_line_profile(
-        line_profile {
-            .name = QStringLiteral(" north "),
-            .color = QColor(Qt::green),
-            .color_mode_id = QStringLiteral("manual"),
-            .closed = true,
-            .width_text = QStringLiteral("String Heavy"),
-            .length_text = QStringLiteral("long"),
-            .response_text = QStringLiteral("resonant"),
-        }
-    );
+    session.set_draft_line_profile(line_profile {
+        .name = QStringLiteral(" north "),
+        .color = QColor(Qt::green),
+        .color_mode_id = QStringLiteral("manual"),
+        .closed = true,
+        .width_text = QStringLiteral("String Heavy"),
+        .length_text = QStringLiteral("long"),
+        .response_text = QStringLiteral("resonant"),
+    });
 
     const line_profile& draft_profile = session.draft_line_profile();
     QCOMPARE(draft_profile.name, QStringLiteral("north"));

@@ -161,8 +161,8 @@ private:
     };
 
     [[nodiscard]] edit_snapshot edit_snapshot_now() const;
-    [[nodiscard]] bool
-    snapshot_matches_current(const edit_snapshot& snapshot) const;
+    [[nodiscard]] bool snapshot_matches_current(const edit_snapshot& snapshot
+    ) const;
 
     active_stream_panel* active_stream_panel_widget { nullptr };
     QGroupBox* status_box_ { nullptr };

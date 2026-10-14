@@ -35,12 +35,10 @@ void main_window_tests::file_lifecycle() {
     QTRY_COMPARE(f.player->playbackState(), QMediaPlayer::PausedState);
     f.board.set_application_active(false);
     f.cell->set_loop(true);
-    QVERIFY(
-        QMetaObject::invokeMethod(
-            f.cell, "on_media_status_changed",
-            Q_ARG(QMediaPlayer::MediaStatus, QMediaPlayer::EndOfMedia)
-        )
-    );
+    QVERIFY(QMetaObject::invokeMethod(
+        f.cell, "on_media_status_changed",
+        Q_ARG(QMediaPlayer::MediaStatus, QMediaPlayer::EndOfMedia)
+    ));
     f.board.set_application_active(true);
     QCOMPARE(f.player->playbackState(), QMediaPlayer::PausedState);
     f.board.set_application_active(false);
@@ -87,12 +85,10 @@ void main_window_tests::file_loop() {
     QTRY_VERIFY_WITH_TIMEOUT(f.player->position() < 1000, 3000);
     QCOMPARE(f.player->playbackState(), QMediaPlayer::PlayingState);
     f.board.set_application_active(false);
-    QVERIFY(
-        QMetaObject::invokeMethod(
-            f.cell, "on_media_status_changed",
-            Q_ARG(QMediaPlayer::MediaStatus, QMediaPlayer::EndOfMedia)
-        )
-    );
+    QVERIFY(QMetaObject::invokeMethod(
+        f.cell, "on_media_status_changed",
+        Q_ARG(QMediaPlayer::MediaStatus, QMediaPlayer::EndOfMedia)
+    ));
     QVERIFY(f.player->playbackState() != QMediaPlayer::PlayingState);
     f.board.set_application_active(true);
     QTRY_COMPARE(f.player->playbackState(), QMediaPlayer::PlayingState);

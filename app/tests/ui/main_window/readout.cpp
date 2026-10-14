@@ -88,8 +88,7 @@ void main_window_tests::processing_readout_states() {
     QVERIFY(text(view, "processing_result").contains("Stale"));
     sample.processing_enabled = false;
     update();
-    QVERIFY(
-        text(view, "processing_result").startsWith("Processing unavailable")
+    QVERIFY(text(view, "processing_result").startsWith("Processing unavailable")
     );
     sample.application_active = true;
     sample.processing_enabled = true;

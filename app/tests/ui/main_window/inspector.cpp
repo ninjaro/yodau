@@ -58,9 +58,9 @@ void main_window_tests::inspector_context() {
     );
     QVERIFY(editor.findChild<active_stream_panel*>()->isHidden());
 
-    auto* use_template = editor.findChild<QRadioButton*>(
-        "settings_active_mode_template_radio"
-    );
+    auto* use_template
+        = editor.findChild<QRadioButton*>("settings_active_mode_template_radio"
+        );
     QVERIFY(use_template);
     use_template->setFocus(Qt::TabFocusReason);
     QTest::keyClick(use_template, Qt::Key_Space);
@@ -73,10 +73,8 @@ void main_window_tests::inspector_context() {
     editor.set_template_candidates({});
     QVERIFY(context->text().contains("No templates available"));
 
-    editor.set_active_lines(
-        { stream_cell::line_instance { .template_name = "north",
-                                       .pts_pct = { { 10, 20 }, { 80, 70 } } } }
-    );
+    editor.set_active_lines({ stream_cell::line_instance {
+        .template_name = "north", .pts_pct = { { 10, 20 }, { 80, 70 } } } });
     tabs->setCurrentIndex(1);
     QVERIFY(context->text().contains("Saved geometry"));
     tabs->setCurrentIndex(2);
@@ -121,20 +119,17 @@ void main_window_tests::inspector_state() {
     active_editor_panel editor;
     editor.set_active_candidates({ "one" });
     editor.set_active_current("one");
-    editor.set_line_profile(
-        line_profile {
-            .name = "draft", .closed = true, .width_text = "string_heavy" }
-    );
-    auto* advanced = editor.findChild<QCheckBox*>(
-        "settings_active_line_advanced_checkbox"
-    );
+    editor.set_line_profile(line_profile {
+        .name = "draft", .closed = true, .width_text = "string_heavy" });
+    auto* advanced
+        = editor.findChild<QCheckBox*>("settings_active_line_advanced_checkbox"
+        );
     advanced->setChecked(true);
-    editor.set_active_lines(
-        { stream_cell::line_instance { .template_name = "north",
-                                       .closed = true,
-                                       .width_text = "string_heavy",
-                                       .pts_pct = { { 10, 20 }, { 80, 70 } } } }
-    );
+    editor.set_active_lines({ stream_cell::line_instance {
+        .template_name = "north",
+        .closed = true,
+        .width_text = "string_heavy",
+        .pts_pct = { { 10, 20 }, { 80, 70 } } } });
     auto* tabs = editor.findChild<QTabWidget*>("settings_active_editor_tabs");
     auto* target
         = editor.findChild<QComboBox*>("settings_active_edit_line_combo");

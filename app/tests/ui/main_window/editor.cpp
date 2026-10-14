@@ -294,9 +294,9 @@ void main_window_tests::editor_edit_tab_and_signals() {
     auto* line_edit_table = panel.findChild<QTableWidget*>(
         QStringLiteral("settings_active_edit_points_table")
     );
-    auto* line_edit_name = panel.findChild<QLineEdit*>(
-        QStringLiteral("active_edit_new_name_edit")
-    );
+    auto* line_edit_name
+        = panel.findChild<QLineEdit*>(QStringLiteral("active_edit_new_name_edit"
+        ));
     auto* line_edit_save_button = panel.findChild<QPushButton*>(
         QStringLiteral("settings_active_edit_save_button")
     );
@@ -337,8 +337,7 @@ void main_window_tests::editor_edit_tab_and_signals() {
     QCOMPARE(line_edit_table->item(1, 2)->text(), QStringLiteral("50.00"));
     QCOMPARE(line_edit_table->item(2, 3)->text(), QStringLiteral("25.00"));
     QCOMPARE(line_edit_name->text(), QStringLiteral("north_edit"));
-    QVERIFY(
-        line_edit_summary->text().contains(QStringLiteral("keeping 3 of 3"))
+    QVERIFY(line_edit_summary->text().contains(QStringLiteral("keeping 3 of 3"))
     );
 
     line_edit_table->item(1, 0)->setCheckState(Qt::Unchecked);
@@ -348,8 +347,7 @@ void main_window_tests::editor_edit_tab_and_signals() {
         const auto request = qvariant_cast<line_edit_request>(args.at(0));
         QCOMPARE(request.points_pct.size(), 2);
     }
-    QVERIFY(
-        line_edit_summary->text().contains(QStringLiteral("keeping 2 of 3"))
+    QVERIFY(line_edit_summary->text().contains(QStringLiteral("keeping 2 of 3"))
     );
 
     line_edit_name->setText(QStringLiteral("north_variant"));
@@ -516,21 +514,15 @@ void main_window_tests::editor_rotates_preview() {
         const auto args = preview_spy.takeFirst();
         const auto request = qvariant_cast<line_edit_request>(args.at(0));
         QCOMPARE(request.points_pct.size(), 3);
-        QVERIFY(
-            main_window_tests_support::point_close(
-                request.points_pct.at(0), QPointF(60.0, 50.0)
-            )
-        );
-        QVERIFY(
-            main_window_tests_support::point_close(
-                request.points_pct.at(1), QPointF(50.0, 50.0)
-            )
-        );
-        QVERIFY(
-            main_window_tests_support::point_close(
-                request.points_pct.at(2), QPointF(40.0, 50.0)
-            )
-        );
+        QVERIFY(main_window_tests_support::point_close(
+            request.points_pct.at(0), QPointF(60.0, 50.0)
+        ));
+        QVERIFY(main_window_tests_support::point_close(
+            request.points_pct.at(1), QPointF(50.0, 50.0)
+        ));
+        QVERIFY(main_window_tests_support::point_close(
+            request.points_pct.at(2), QPointF(40.0, 50.0)
+        ));
     }
 
     QVERIFY(panel.select_line_edit_point(1));
@@ -540,21 +532,15 @@ void main_window_tests::editor_rotates_preview() {
         const auto args = preview_spy.takeFirst();
         const auto request = qvariant_cast<line_edit_request>(args.at(0));
         QCOMPARE(request.points_pct.size(), 3);
-        QVERIFY(
-            main_window_tests_support::point_close(
-                request.points_pct.at(0), QPointF(50.0, 60.0)
-            )
-        );
-        QVERIFY(
-            main_window_tests_support::point_close(
-                request.points_pct.at(1), QPointF(50.0, 50.0)
-            )
-        );
-        QVERIFY(
-            main_window_tests_support::point_close(
-                request.points_pct.at(2), QPointF(50.0, 40.0)
-            )
-        );
+        QVERIFY(main_window_tests_support::point_close(
+            request.points_pct.at(0), QPointF(50.0, 60.0)
+        ));
+        QVERIFY(main_window_tests_support::point_close(
+            request.points_pct.at(1), QPointF(50.0, 50.0)
+        ));
+        QVERIFY(main_window_tests_support::point_close(
+            request.points_pct.at(2), QPointF(50.0, 40.0)
+        ));
     }
 }
 

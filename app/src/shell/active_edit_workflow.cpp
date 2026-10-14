@@ -50,8 +50,8 @@ QString line_added_detail(const active_edit_actions::line_save_result& result) {
         ));
 }
 
-QString
-template_settings_detail(const template_apply_settings& settings_value) {
+QString template_settings_detail(const template_apply_settings& settings_value
+) {
     return QStringLiteral("template=%1 color=%2 %3")
         .arg(settings_value.template_name)
         .arg(settings_value.color.name())
@@ -61,8 +61,8 @@ template_settings_detail(const template_apply_settings& settings_value) {
         ));
 }
 
-QString template_applied_detail(
-    const active_edit_actions::template_apply_result& result
+QString
+template_applied_detail(const active_edit_actions::template_apply_result& result
 ) {
     return QStringLiteral("%1 %2")
         .arg(result.settings.template_name)
@@ -89,8 +89,8 @@ QString line_edit_preview_detail(const line_edit_request& request) {
         .arg(request.points_pct.size());
 }
 
-QString line_edit_saved_detail(
-    const active_edit_actions::line_edit_save_result& result
+QString
+line_edit_saved_detail(const active_edit_actions::line_edit_save_result& result
 ) {
     return QStringLiteral("source=%1 saved=%2 points=%3")
         .arg(result.request.source_line_name)

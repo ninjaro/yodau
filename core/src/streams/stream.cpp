@@ -55,8 +55,8 @@ yodau::core::stream& yodau::core::stream::operator=(stream&& other) noexcept {
     return *this;
 }
 
-yodau::core::stream_type
-yodau::core::stream::identify(const std::string& path) {
+yodau::core::stream_type yodau::core::stream::identify(const std::string& path
+) {
     if (path.rfind("/dev/video", 0) == 0) {
         return stream_type::local;
     }
@@ -99,9 +99,8 @@ yodau::core::stream_type yodau::core::stream::get_type() const { return type; }
 
 bool yodau::core::stream::is_looping() const { return loop; }
 
-void yodau::core::stream::dump(
-    std::ostream& out, const bool connections
-) const {
+void yodau::core::stream::dump(std::ostream& out, const bool connections)
+    const {
     out << "Stream(name=" << name << ", path=" << path
         << ", type=" << type_name(type)
         << ", loop=" << (loop ? "true" : "false")

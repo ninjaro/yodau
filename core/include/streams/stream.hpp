@@ -42,8 +42,8 @@ public:
     );
     void disconnect_line(const std::string& line_name);
     void set_line_profile(line_profile profile_value);
-    std::optional<line_profile>
-    find_line_profile(const std::string& line_name) const;
+    std::optional<line_profile> find_line_profile(const std::string& line_name
+    ) const;
     std::vector<std::string> line_names() const;
     std::vector<line_ptr> lines_snapshot() const;
 

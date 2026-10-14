@@ -114,12 +114,10 @@ void main_window_tests::grid_order_plans() {
             sizes[static_cast<std::size_t>(index)], QImage::Format_RGB32
         );
         image.fill(Qt::black);
-        QVERIFY(
-            QMetaObject::invokeMethod(
-                cell, "on_frame_changed", Qt::DirectConnection,
-                Q_ARG(QVideoFrame, QVideoFrame(image))
-            )
-        );
+        QVERIFY(QMetaObject::invokeMethod(
+            cell, "on_frame_changed", Qt::DirectConnection,
+            Q_ARG(QVideoFrame, QVideoFrame(image))
+        ));
         cell->set_quarter_turns(index % 2);
         cell->initialize_manual_short_side(160.0 + index * 32);
     }
@@ -170,33 +168,31 @@ void main_window_tests::grid_order_plans() {
             std::vector<packing::ordered_slot> items;
             for (const auto& name : order) {
                 const auto* cell = grid.peek_stream_cell(name);
-                items.push_back(
-                    { .aspect = cell->source_frame_aspect(),
-                      .rotated = cell->quarter_turns() % 2 != 0 }
-                );
+                items.push_back({ .aspect = cell->source_frame_aspect(),
+                                  .rotated = cell->quarter_turns() % 2 != 0 });
             }
             if (preserve) {
-                expected = packing::layout_ordered_slots(
-                               {
-                                   .viewport = viewport,
-                                   .items = items,
-                                   .policy = policy,
-                                   .minimum_short_side = 160,
-                                   .spacing = 6,
-                               }
-                )
-                               .rectangles;
+                expected
+                    = packing::layout_ordered_slots({
+                                                        .viewport = viewport,
+                                                        .items = items,
+                                                        .policy = policy,
+                                                        .minimum_short_side
+                                                        = 160,
+                                                        .spacing = 6,
+                                                    })
+                          .rectangles;
             } else {
-                expected = packing::layout_free_order_slots(
-                               {
-                                   .viewport = viewport,
-                                   .items = items,
-                                   .policy = policy,
-                                   .minimum_short_side = 160,
-                                   .spacing = 6,
-                               }
-                )
-                               .rectangles;
+                expected
+                    = packing::layout_free_order_slots({
+                                                           .viewport = viewport,
+                                                           .items = items,
+                                                           .policy = policy,
+                                                           .minimum_short_side
+                                                           = 160,
+                                                           .spacing = 6,
+                                                       })
+                          .rectangles;
             }
         }
         if (expected.size() != static_cast<std::size_t>(order.size())) {

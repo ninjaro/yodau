@@ -39,24 +39,22 @@ TEST(portable_motion_baseline_test, portable_motion_and_tripwire_crossings) {
     EXPECT_TRUE(algorithm->process_frame(source, dark).events.empty());
     const processing_result left_result
         = algorithm->process_frame(source, left);
-    EXPECT_TRUE(
-        std::ranges::any_of(
-            left_result.events, [](const yodau::core::event& event_value) {
-                return event_value.kind == yodau::core::event_kind::motion;
-            }
-        )
-    );
+    EXPECT_TRUE(std::ranges::any_of(
+        left_result.events,
+        [](const yodau::core::event& event_value) {
+            return event_value.kind == yodau::core::event_kind::motion;
+        }
+    ));
 
     const processing_result crossing_result
         = algorithm->process_frame(source, right);
-    EXPECT_TRUE(
-        std::ranges::any_of(
-            crossing_result.events, [](const yodau::core::event& event_value) {
-                return event_value.kind == yodau::core::event_kind::tripwire
-                    && event_value.line_name == "entry";
-            }
-        )
-    );
+    EXPECT_TRUE(std::ranges::any_of(
+        crossing_result.events,
+        [](const yodau::core::event& event_value) {
+            return event_value.kind == yodau::core::event_kind::tripwire
+                && event_value.line_name == "entry";
+        }
+    ));
     EXPECT_EQ(
         stream_manager_tests_support::diagnostic_value(
             crossing_result, "processing_backend"
@@ -73,14 +71,12 @@ TEST(portable_motion_baseline_test, portable_motion_and_tripwire_crossings) {
 
 #ifdef YODAU_OPENCV
 TEST(processing_runtime_test, resets_on_frame_resize) {
-    processing_runtime runtime(
-        processing_runtime_options {
-            .mode = render_mode::app_only,
-            .enable_virtual_camera = false,
-            .virtual_camera_device = {},
-            .algorithm_id = "motion_baseline",
-        }
-    );
+    processing_runtime runtime(processing_runtime_options {
+        .mode = render_mode::app_only,
+        .enable_virtual_camera = false,
+        .virtual_camera_device = {},
+        .algorithm_id = "motion_baseline",
+    });
 
     const auto frame_processor = runtime.frame_processor_hook();
     ASSERT_TRUE(static_cast<bool>(frame_processor));

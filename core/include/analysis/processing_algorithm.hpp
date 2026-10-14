@@ -68,9 +68,9 @@ public:
     }
 
     // The by-value API lets stateful overrides move configuration into storage.
-    virtual void configure(
-        processing_algorithm_configuration
-            configuration // NOLINT(performance-unnecessary-value-param)
+    virtual void
+    configure(processing_algorithm_configuration
+                  configuration // NOLINT(performance-unnecessary-value-param)
     ) {
         (void)configuration;
     }
@@ -82,7 +82,8 @@ public:
     ) = 0;
 
     virtual processing_result
-    process_frame(const stream& stream_value, const frame& frame_value) = 0;
+    process_frame(const stream& stream_value, const frame& frame_value)
+        = 0;
 };
 
 inline processing_metric make_processing_metric(
@@ -163,8 +164,8 @@ public:
         return entries_.contains(normalized_algorithm_id(algorithm_id));
     }
 
-    [[nodiscard]] std::optional<entry>
-    find(const std::string& algorithm_id) const {
+    [[nodiscard]] std::optional<entry> find(const std::string& algorithm_id
+    ) const {
         const auto it = entries_.find(normalized_algorithm_id(algorithm_id));
         return it == entries_.end() ? std::nullopt
                                     : std::optional<entry>(it->second);

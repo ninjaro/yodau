@@ -108,9 +108,8 @@ void main_window_tests::processing_readout_observations() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     auto* second_cell = board.active_cell();
-    second_cell->set_source(
-        QUrl::fromLocalFile(directory.filePath("missing.mp4"))
-    );
+    second_cell->set_source(QUrl::fromLocalFile(directory.filePath("missing.mp4"
+    )));
     QTRY_VERIFY(
         controller.active_processing_sample().source_status.startsWith(
             "Source error"

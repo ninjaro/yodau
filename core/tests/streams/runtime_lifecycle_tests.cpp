@@ -54,8 +54,8 @@ TEST(
     );
     const auto daemon = [](const yodau::core::stream&,
                            const std::function<void(yodau::core::frame&&)>&,
-                           const std::stop_token&) { };
-    const auto push = [](const std::string&, yodau::core::frame&&) { };
+                           const std::stop_token&) {};
+    const auto push = [](const std::string&, yodau::core::frame&&) {};
 
     ASSERT_TRUE(runner.start("source", stream_ptr, daemon, push));
     ASSERT_TRUE(wait_until([&runner] { return !runner.is_running("source"); }));
@@ -80,7 +80,7 @@ TEST(stream_daemon_runner_test, exceptions_are_contained_and_reported) {
            const std::stop_token&) {
             throw std::runtime_error("capture failed");
         },
-        [](const std::string&, yodau::core::frame&&) { }
+        [](const std::string&, yodau::core::frame&&) {}
     ));
     ASSERT_TRUE(wait_until([&runner] { return !runner.is_running("source"); }));
 
@@ -96,7 +96,7 @@ TEST(stream_manager_test, naturally_completed_daemon_deactivates_and_restarts) {
     manager.set_daemon_start_hook(
         [](const yodau::core::stream&,
            const std::function<void(yodau::core::frame&&)>&,
-           const std::stop_token&) { }
+           const std::stop_token&) {}
     );
 
     manager.start_stream("source");
@@ -232,7 +232,8 @@ TEST(virtual_camera_test, conflict_error_survives_worker_completion) {
         EXPECT_EQ(snapshots[1].stream_name, "second");
         EXPECT_EQ(
             snapshots[1].last_error,
-            "explicit virtual camera device is already assigned to stream 'first'"
+            "explicit virtual camera device is already assigned to stream "
+            "'first'"
         );
         EXPECT_TRUE(snapshots[1].device_path.empty());
         EXPECT_FALSE(snapshots[1].device_ready);
@@ -266,8 +267,8 @@ TEST(virtual_camera_test, conflict_rejection_is_stable_until_release) {
     // observes assignment rejection before this sink can complete any work.
     camera.publish("second", invalid);
     const auto rejected = camera.frames()[1];
-    const std::string conflict
-        = "explicit virtual camera device is already assigned to stream 'first'";
+    const std::string conflict = "explicit virtual camera device is already "
+                                 "assigned to stream 'first'";
     EXPECT_EQ(rejected.last_error, conflict);
     EXPECT_EQ(rejected.update_count, 0U);
     EXPECT_EQ(rejected.dropped_frame_count, 1U);
@@ -328,8 +329,7 @@ TEST(virtual_camera_test, independent_output_assignments_remain_independent) {
         return first.frames()[1].dropped_frame_count == 1U;
     }));
     EXPECT_NE(
-        first.frames()[1].last_error.find("already assigned"),
-        std::string::npos
+        first.frames()[1].last_error.find("already assigned"), std::string::npos
     );
     first.release("rejected");
     first.release("owner");
@@ -488,8 +488,7 @@ TEST(processing_runtime_test, hot_unplug_releases_per_stream_state) {
         = yodau::core::default_processing_algorithm_descriptors();
     ASSERT_FALSE(algorithms.empty());
     const std::string alternate_algorithm = algorithms.back().id;
-    ASSERT_TRUE(
-        runtime.set_stream_algorithm("Rear camera", alternate_algorithm)
+    ASSERT_TRUE(runtime.set_stream_algorithm("Rear camera", alternate_algorithm)
     );
 
     camera_present = false;
@@ -497,8 +496,7 @@ TEST(processing_runtime_test, hot_unplug_releases_per_stream_state) {
 
     EXPECT_FALSE(manager.find_stream("Rear camera"));
     EXPECT_TRUE(manager.detected_local_stream_names().empty());
-    EXPECT_FALSE(
-        runtime.stream_processing_max_pixels("Rear camera").has_value()
+    EXPECT_FALSE(runtime.stream_processing_max_pixels("Rear camera").has_value()
     );
     EXPECT_FALSE(runtime.stream_algorithm_overrides().contains("Rear camera"));
     manager.shutdown();

@@ -32,13 +32,10 @@ void apply_grid_stream_binding(
         const QUrl candidate(binding.path);
         if (candidate.isLocalFile()) {
             cell->set_source(QUrl::fromLocalFile(candidate.toLocalFile()));
-        } else if (
-            candidate.isValid()
-            && candidate.scheme().compare(
-                   QStringLiteral("content"), Qt::CaseInsensitive
-               )
-                == 0
-        ) {
+        } else if (candidate.isValid()
+                   && candidate.scheme().compare(
+                          QStringLiteral("content"), Qt::CaseInsensitive
+                      ) == 0) {
             cell->set_source(candidate);
         } else {
             cell->set_source(QUrl::fromLocalFile(binding.path));
@@ -182,8 +179,7 @@ void stream_widget_bridge::sync_active_candidates() const {
     editor_bridge_.sync_active_candidates();
 }
 
-void stream_widget_bridge::sync_visible_log_mode(
-    const app_log_mode mode
+void stream_widget_bridge::sync_visible_log_mode(const app_log_mode mode
 ) const {
     if (grid_ != nullptr) {
         for (const QString& name : grid_->stream_names()) {

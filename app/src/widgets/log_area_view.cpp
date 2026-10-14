@@ -160,7 +160,8 @@ log_area_view::log_area_view(
     setReadOnly(true);
     log_highlighter_ = new log_entry_highlighter(this);
     connect(
-        verticalScrollBar(), &QAbstractSlider::actionTriggered, this, [this] {
+        verticalScrollBar(), &QAbstractSlider::actionTriggered, this,
+        [this] {
             if (log_toolbar_widget != nullptr
                 && verticalScrollBar()->sliderPosition()
                     < verticalScrollBar()->maximum()) {
@@ -273,8 +274,7 @@ const QVector<app_log_entry>& log_area_view::visible_entries() const {
 
 app_log_mode log_area_view::active_mode() const { return display_mode_; }
 
-void log_area_view::set_visible_entries(
-    const QVector<app_log_entry>& entries
+void log_area_view::set_visible_entries(const QVector<app_log_entry>& entries
 ) const {
     visible_entries_ = entries;
 

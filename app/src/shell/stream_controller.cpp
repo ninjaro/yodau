@@ -210,14 +210,12 @@ stream_controller::stream_controller(
     QObject* parent
 )
     : QObject(parent)
-    , core_runtime(
-          yodau::core::processing_runtime_options {
-              .mode = yodau::core::render_mode::app_only,
-              .enable_virtual_camera = false,
-              .virtual_camera_device = {},
-              .algorithm_id = default_app_algorithm_id().toStdString(),
-          }
-      )
+    , core_runtime(yodau::core::processing_runtime_options {
+          .mode = yodau::core::render_mode::app_only,
+          .enable_virtual_camera = false,
+          .virtual_camera_device = {},
+          .algorithm_id = default_app_algorithm_id().toStdString(),
+      })
     , stream_mgr(mgr)
     , settings(panel)
     , main_zone(zone)
@@ -260,8 +258,7 @@ stream_controller::stream_controller(
                 const yodau::core::processing_result& result
             ) {
                 auto overlays
-                    = stream_controller_support::app_overlays_from_result(
-                        result
+                    = stream_controller_support::app_overlays_from_result(result
                     );
                 const QString stream_name
                     = QString::fromStdString(stream_value.get_name());
@@ -420,8 +417,8 @@ void stream_controller::handle_core_event(const QString& text) {
     );
 }
 
-stream_settings
-stream_controller::settings_for_stream(const QString& name) const {
+stream_settings stream_controller::settings_for_stream(const QString& name
+) const {
     return catalog_state.settings_for(name);
 }
 
@@ -454,8 +451,7 @@ void stream_controller::on_active_stream_settings_changed(
     sync_core_stream_algorithm(stream_name, algorithm_id, preset_id);
 }
 
-void stream_controller::on_stream_settings_selection_changed(
-    const QString& name
+void stream_controller::on_stream_settings_selection_changed(const QString& name
 ) {
     if (settings == nullptr) {
         return;
@@ -480,8 +476,7 @@ void stream_controller::on_active_line_profile_changed(
     );
 }
 
-void stream_controller::on_active_line_save_requested(
-    line_profile profile_value
+void stream_controller::on_active_line_save_requested(line_profile profile_value
 ) {
     apply_active_edit_result(
         edit_workflow.save_active_line(std::move(profile_value))
@@ -496,14 +491,12 @@ void stream_controller::on_active_line_enabled_changed(
     );
 }
 
-void stream_controller::on_active_line_detach_requested(
-    const QString& line_name
+void stream_controller::on_active_line_detach_requested(const QString& line_name
 ) {
     apply_active_edit_result(edit_workflow.detach_active_line(line_name));
 }
 
-void stream_controller::on_line_edit_preview_changed(
-    line_edit_request request
+void stream_controller::on_line_edit_preview_changed(line_edit_request request
 ) {
     apply_active_edit_result(
         edit_workflow.apply_line_edit_preview(std::move(request))

@@ -263,9 +263,9 @@ processing_preview_router::processing_preview_router(
 
 processing_preview_router::~processing_preview_router() = default;
 
-processing_preview_router::processing_preview_router(
-    processing_preview_router&&
-) noexcept = default;
+processing_preview_router::
+    processing_preview_router(processing_preview_router&&) noexcept
+    = default;
 
 processing_preview_router&
 processing_preview_router::operator=(processing_preview_router&&) noexcept

@@ -45,11 +45,9 @@ void line_profile_panel::build_wave_controls(QVBoxLayout* layout) {
     controls->setContentsMargins(0, 0, 0, 0);
 
     const auto hint = new QLabel(
-        str_label(
-            "Synthetic hit on a sample path, not live geometry or audio. "
-            "Presets change the existing width / span / damping fields. "
-            "Automatic colours use a representative colour here."
-        ),
+        str_label("Synthetic hit on a sample path, not live geometry or audio. "
+                  "Presets change the existing width / span / damping fields. "
+                  "Automatic colours use a representative colour here."),
         wave_controls_
     );
     hint->setWordWrap(true);
@@ -77,8 +75,7 @@ void line_profile_panel::build_wave_controls(QVBoxLayout* layout) {
     controls->addWidget(wave_age_label_);
     wave_age_ = new QSlider(Qt::Horizontal, wave_controls_);
     wave_age_->setObjectName(QStringLiteral("line_wave_age"));
-    wave_age_->setAccessibleName(
-        str_label("Synthetic hit age in milliseconds")
+    wave_age_->setAccessibleName(str_label("Synthetic hit age in milliseconds")
     );
     wave_age_->setRange(0, int(line_wave_renderer::pulse_ttl_ms));
     wave_age_->setValue(200);
@@ -108,7 +105,8 @@ void line_profile_panel::build_wave_controls(QVBoxLayout* layout) {
         }
     });
     connect(
-        wave_preset_, &QComboBox::currentIndexChanged, this, [this](int index) {
+        wave_preset_, &QComboBox::currentIndexChanged, this,
+        [this](int index) {
             if (index <= 0 || index > int(std::size(presets))) {
                 return;
             }

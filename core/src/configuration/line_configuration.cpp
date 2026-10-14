@@ -12,121 +12,126 @@
 namespace yodau::core {
 namespace {
 
-constexpr std::size_t maximum_lines { 4096U };
-constexpr std::size_t maximum_points_per_line { 16384U };
-constexpr std::size_t maximum_total_points { 100000U };
+    constexpr std::size_t maximum_lines { 4096U };
+    constexpr std::size_t maximum_points_per_line { 16384U };
+    constexpr std::size_t maximum_total_points { 100000U };
 
-[[noreturn]] void fail(const std::string& message) {
-    throw line_configuration_error(message);
-}
-
-bool has_control_character(const std::string_view text) {
-    return std::ranges::any_of(text, [](const unsigned char value) {
-        return value < 0x20U || value == 0x7fU;
-    });
-}
-
-void validate_text(
-    const std::string& value, const std::string& location,
-    const std::size_t maximum_size, const bool allow_empty = false
-) {
-    if ((!allow_empty && value.empty()) || value.size() > maximum_size
-        || has_control_character(value)) {
-        fail(
-            location + " must be " + (allow_empty ? "a" : "a non-empty")
-            + " printable string of at most " + std::to_string(maximum_size)
-            + " bytes"
-        );
-    }
-}
-
-void validate_canonical_name(
-    const std::string& value, const std::string& location
-) {
-    if (!value.empty()
-        && (std::isspace(static_cast<unsigned char>(value.front())) != 0
-            || std::isspace(static_cast<unsigned char>(value.back())) != 0)) {
-        fail(location + " must not have leading or trailing whitespace");
-    }
-}
-
-bool valid_color(const std::string& value) {
-    if ((value.size() != 7U && value.size() != 9U) || value.front() != '#') {
-        return false;
-    }
-    return std::ranges::all_of(value.substr(1), [](const unsigned char ch) {
-        return std::isxdigit(ch) != 0;
-    });
-}
-
-void validate_parameter_value(
-    const processing_parameter_descriptor& descriptor,
-    const processing_algorithm_parameter_value& value,
-    const std::string& location
-) {
-    switch (descriptor.kind) {
-    case processing_parameter_kind::boolean:
-        if (!std::holds_alternative<bool>(value)) {
-            fail(location + " must be a boolean");
-        }
-        break;
-    case processing_parameter_kind::integer:
-        if (!std::holds_alternative<std::int64_t>(value)) {
-            fail(location + " must be an integer");
-        }
-        break;
-    case processing_parameter_kind::real:
-        if (!std::holds_alternative<double>(value)
-            && !std::holds_alternative<std::int64_t>(value)) {
-            fail(location + " must be a number");
-        }
-        break;
-    case processing_parameter_kind::text:
-        if (!std::holds_alternative<std::string>(value)) {
-            fail(location + " must be a string");
-        }
-        break;
+    [[noreturn]] void fail(const std::string& message) {
+        throw line_configuration_error(message);
     }
 
-    std::optional<double> numeric;
-    if (const auto* integer = std::get_if<std::int64_t>(&value)) {
-        numeric = static_cast<double>(*integer);
-    } else if (const auto* real = std::get_if<double>(&value)) {
-        if (!std::isfinite(*real)) {
-            fail(location + " must be finite");
-        }
-        numeric = *real;
-    } else if (const auto* text = std::get_if<std::string>(&value)) {
-        validate_text(*text, location, 1024U, true);
-        if (!descriptor.allowed_values.empty()
-            && std::ranges::find(descriptor.allowed_values, *text)
-                == descriptor.allowed_values.end()) {
-            fail(location + " contains an unsupported value '" + *text + "'");
+    bool has_control_character(const std::string_view text) {
+        return std::ranges::any_of(text, [](const unsigned char value) {
+            return value < 0x20U || value == 0x7fU;
+        });
+    }
+
+    void validate_text(
+        const std::string& value, const std::string& location,
+        const std::size_t maximum_size, const bool allow_empty = false
+    ) {
+        if ((!allow_empty && value.empty()) || value.size() > maximum_size
+            || has_control_character(value)) {
+            fail(
+                location + " must be " + (allow_empty ? "a" : "a non-empty")
+                + " printable string of at most " + std::to_string(maximum_size)
+                + " bytes"
+            );
         }
     }
 
-    if (numeric.has_value() && descriptor.min_value.has_value()
-        && *numeric < *descriptor.min_value) {
-        fail(location + " is below the supported minimum");
+    void validate_canonical_name(
+        const std::string& value, const std::string& location
+    ) {
+        if (!value.empty()
+            && (std::isspace(static_cast<unsigned char>(value.front())) != 0
+                || std::isspace(static_cast<unsigned char>(value.back())) != 0
+            )) {
+            fail(location + " must not have leading or trailing whitespace");
+        }
     }
-    if (numeric.has_value() && descriptor.max_value.has_value()
-        && *numeric > *descriptor.max_value) {
-        fail(location + " is above the supported maximum");
-    }
-}
 
-bool same_geometry(const line& existing, const configured_line& configured) {
-    if (existing.closed != configured.closed
-        || existing.points.size() != configured.points.size()) {
-        return false;
-    }
-    for (std::size_t index = 0; index < existing.points.size(); ++index) {
-        if (!existing.points[index].compare(configured.points[index])) {
+    bool valid_color(const std::string& value) {
+        if ((value.size() != 7U && value.size() != 9U)
+            || value.front() != '#') {
             return false;
         }
+        return std::ranges::all_of(value.substr(1), [](const unsigned char ch) {
+            return std::isxdigit(ch) != 0;
+        });
     }
-    return true;
-}
+
+    void validate_parameter_value(
+        const processing_parameter_descriptor& descriptor,
+        const processing_algorithm_parameter_value& value,
+        const std::string& location
+    ) {
+        switch (descriptor.kind) {
+        case processing_parameter_kind::boolean:
+            if (!std::holds_alternative<bool>(value)) {
+                fail(location + " must be a boolean");
+            }
+            break;
+        case processing_parameter_kind::integer:
+            if (!std::holds_alternative<std::int64_t>(value)) {
+                fail(location + " must be an integer");
+            }
+            break;
+        case processing_parameter_kind::real:
+            if (!std::holds_alternative<double>(value)
+                && !std::holds_alternative<std::int64_t>(value)) {
+                fail(location + " must be a number");
+            }
+            break;
+        case processing_parameter_kind::text:
+            if (!std::holds_alternative<std::string>(value)) {
+                fail(location + " must be a string");
+            }
+            break;
+        }
+
+        std::optional<double> numeric;
+        if (const auto* integer = std::get_if<std::int64_t>(&value)) {
+            numeric = static_cast<double>(*integer);
+        } else if (const auto* real = std::get_if<double>(&value)) {
+            if (!std::isfinite(*real)) {
+                fail(location + " must be finite");
+            }
+            numeric = *real;
+        } else if (const auto* text = std::get_if<std::string>(&value)) {
+            validate_text(*text, location, 1024U, true);
+            if (!descriptor.allowed_values.empty()
+                && std::ranges::find(descriptor.allowed_values, *text)
+                    == descriptor.allowed_values.end()) {
+                fail(
+                    location + " contains an unsupported value '" + *text + "'"
+                );
+            }
+        }
+
+        if (numeric.has_value() && descriptor.min_value.has_value()
+            && *numeric < *descriptor.min_value) {
+            fail(location + " is below the supported minimum");
+        }
+        if (numeric.has_value() && descriptor.max_value.has_value()
+            && *numeric > *descriptor.max_value) {
+            fail(location + " is above the supported maximum");
+        }
+    }
+
+    bool
+    same_geometry(const line& existing, const configured_line& configured) {
+        if (existing.closed != configured.closed
+            || existing.points.size() != configured.points.size()) {
+            return false;
+        }
+        for (std::size_t index = 0; index < existing.points.size(); ++index) {
+            if (!existing.points[index].compare(configured.points[index])) {
+                return false;
+            }
+        }
+        return true;
+    }
 
 } // namespace
 
@@ -199,10 +204,8 @@ void validate_line_configuration(const line_configuration_document& document) {
     }
     if (stream_value.manual_processing_pixels < 16 * 16
         || stream_value.manual_processing_pixels > 7680 * 4320) {
-        fail(
-            "stream.display.manual_processing_pixels is outside supported "
-            "bounds"
-        );
+        fail("stream.display.manual_processing_pixels is outside supported "
+             "bounds");
     }
 
     const auto descriptor = processing_algorithm_descriptor_for(
@@ -319,8 +322,8 @@ line_configuration_apply_result apply_line_configuration(
     validate_canonical_name(stream_name, "resolved stream name");
     validate_text(source, "resolved source", 4096U);
     validate_text(source_type, "resolved stream type", 16U);
-    if (source_type != "local" && source_type != "file"
-        && source_type != "rtsp" && source_type != "http") {
+    if (source_type != "local" && source_type != "file" && source_type != "rtsp"
+        && source_type != "http") {
         fail("resolved stream type must be local, file, rtsp, or http");
     }
     validate_text(output_path, "resolved virtual camera path", 4096U, true);
@@ -347,7 +350,8 @@ line_configuration_apply_result apply_line_configuration(
             continue;
         }
         const bool used_by_other_stream = std::ranges::any_of(
-            stream_names, [&](const std::string& candidate_stream) {
+            stream_names,
+            [&](const std::string& candidate_stream) {
                 if (candidate_stream == stream_name) {
                     return false;
                 }

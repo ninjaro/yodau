@@ -98,9 +98,8 @@ void active_editor_panel::refresh_line_edit_table() {
 
     if (line_edit_points_pct_.empty() && !line_value->pts_pct.empty()) {
         reset_edit_points();
-    } else if (
-        line_edit_point_enabled_.size() != line_edit_points_pct_.size()
-    ) {
+    } else if (line_edit_point_enabled_.size()
+               != line_edit_points_pct_.size()) {
         line_edit_point_enabled_.assign(line_edit_points_pct_.size(), true);
     }
 

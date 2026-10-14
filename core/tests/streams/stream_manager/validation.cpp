@@ -107,23 +107,18 @@ TEST(frame_layout_test, rejects_huge_layout_without_allocating_its_extent) {
 }
 
 TEST(geometry_validation_test, accepts_boundary_open_and_closed_lines) {
-    EXPECT_NO_THROW(
-        yodau::core::validate_line_geometry(
-            std::vector<point> { point { 0.0f, 0.0f },
-                                 point { 100.0f, 100.0f } },
-            "boundary", false
-        )
-    );
-    EXPECT_NO_THROW(
-        yodau::core::validate_line_geometry(
-            std::vector<point> {
-                point { 0.0f, 0.0f },
-                point { 100.0f, 0.0f },
-                point { 0.0f, 100.0f },
-            },
-            "region", true
-        )
-    );
+    EXPECT_NO_THROW(yodau::core::validate_line_geometry(
+        std::vector<point> { point { 0.0f, 0.0f }, point { 100.0f, 100.0f } },
+        "boundary", false
+    ));
+    EXPECT_NO_THROW(yodau::core::validate_line_geometry(
+        std::vector<point> {
+            point { 0.0f, 0.0f },
+            point { 100.0f, 0.0f },
+            point { 0.0f, 100.0f },
+        },
+        "region", true
+    ));
 }
 
 TEST(geometry_validation_test, reports_invalid_coordinate_and_shape_fields) {

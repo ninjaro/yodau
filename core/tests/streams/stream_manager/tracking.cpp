@@ -16,14 +16,12 @@ using yodau::core::stream;
 
 #ifdef YODAU_OPENCV
 TEST(processing_runtime_test, persistent_tracks_emit_motion) {
-    processing_runtime runtime(
-        processing_runtime_options {
-            .mode = render_mode::app_only,
-            .enable_virtual_camera = false,
-            .virtual_camera_device = {},
-            .algorithm_id = "centroid_track",
-        }
-    );
+    processing_runtime runtime(processing_runtime_options {
+        .mode = render_mode::app_only,
+        .enable_virtual_camera = false,
+        .virtual_camera_device = {},
+        .algorithm_id = "centroid_track",
+    });
 
     const auto frame_processor = runtime.frame_processor_hook();
     ASSERT_TRUE(static_cast<bool>(frame_processor));
@@ -85,14 +83,12 @@ TEST(processing_runtime_test, persistent_tracks_emit_motion) {
 
 #ifdef YODAU_OPENCV
 TEST(processing_runtime_test, regions_filter_motion_and_match_roi) {
-    processing_runtime runtime(
-        processing_runtime_options {
-            .mode = render_mode::app_only,
-            .enable_virtual_camera = false,
-            .virtual_camera_device = {},
-            .algorithm_id = "contour_mask",
-        }
-    );
+    processing_runtime runtime(processing_runtime_options {
+        .mode = render_mode::app_only,
+        .enable_virtual_camera = false,
+        .virtual_camera_device = {},
+        .algorithm_id = "contour_mask",
+    });
 
     const auto frame_processor = runtime.frame_processor_hook();
     ASSERT_TRUE(static_cast<bool>(frame_processor));

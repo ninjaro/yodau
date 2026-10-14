@@ -80,8 +80,8 @@ background_model_kind_from_id(std::string_view value) {
     return processing_background_model_kind::frame_delta;
 }
 
-std::string processing_background_model_kind_id(
-    const processing_background_model_kind kind
+std::string
+processing_background_model_kind_id(const processing_background_model_kind kind
 ) {
     if (kind == processing_background_model_kind::mog2) {
         return "mog2";

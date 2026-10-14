@@ -91,10 +91,9 @@ void active_editor_panel::refresh_inspector() const {
     }
     QString text;
     if (!active) {
-        text = tr(
-            "Geometry inspector\nActivate a visible stream from the pool. "
-            "Stream management remains in the Streams dock."
-        );
+        text
+            = tr("Geometry inspector\nActivate a visible stream from the pool. "
+                 "Stream management remains in the Streams dock.");
     } else {
         const auto stream
             = active_stream_panel_widget->current_stream_settings().stream_name;

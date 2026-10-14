@@ -33,14 +33,12 @@ std::string normalized_algorithm_command(const std::string& text) {
 } // namespace yodau::core::cli_client_support
 
 yodau::core::cli_client::cli_client(yodau::core::stream_manager& mgr)
-    : core_runtime(
-          processing_runtime_options {
-              .mode = render_mode::core_only,
-              .enable_virtual_camera = true,
-              .virtual_camera_device = {},
-              .algorithm_id = default_processing_algorithm_id(),
-          }
-      )
+    : core_runtime(processing_runtime_options {
+          .mode = render_mode::core_only,
+          .enable_virtual_camera = true,
+          .virtual_camera_device = {},
+          .algorithm_id = default_processing_algorithm_id(),
+      })
     , stream_mgr(mgr) {
     core_runtime.attach(stream_mgr);
     stream_mgr.set_event_batch_sink(
@@ -404,8 +402,7 @@ void yodau::core::cli_client::cmd_list_lines(
     }
 }
 
-void yodau::core::cli_client::cmd_add_line(
-    const std::vector<std::string>& args
+void yodau::core::cli_client::cmd_add_line(const std::vector<std::string>& args
 ) {
     const std::string cmd = "add-line";
     cxxopts::Options options("add-line", "Add a new line to a stream");
@@ -520,8 +517,7 @@ void yodau::core::cli_client::cmd_add_line(
     }
 }
 
-void yodau::core::cli_client::cmd_set_line(
-    const std::vector<std::string>& args
+void yodau::core::cli_client::cmd_set_line(const std::vector<std::string>& args
 ) {
     const std::string cmd = "set-line";
     cxxopts::Options options("set-line", "Set a new line to a stream");
@@ -778,8 +774,7 @@ void yodau::core::cli_client::cmd_set_log_mode(
     }
 }
 
-void yodau::core::cli_client::cmd_show_log(
-    const std::vector<std::string>& args
+void yodau::core::cli_client::cmd_show_log(const std::vector<std::string>& args
 ) {
     const std::string cmd = "show-log";
     cxxopts::Options options(cmd, "Show CLI log history");
@@ -882,8 +877,7 @@ void yodau::core::cli_client::cmd_show_log(
     }
 }
 
-void yodau::core::cli_client::cmd_clear_log(
-    const std::vector<std::string>& args
+void yodau::core::cli_client::cmd_clear_log(const std::vector<std::string>& args
 ) {
     const std::string cmd = "clear-log";
     cxxopts::Options options(cmd, "Clear CLI log history");

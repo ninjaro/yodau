@@ -144,7 +144,7 @@ TEST(video_capture_test, daemon_reports_capture_open_failure_without_path) {
 
     try {
         yodau::core::opencv_client::daemon_start(
-            source, [](yodau::core::frame&&) { }, stop_source.get_token()
+            source, [](yodau::core::frame&&) {}, stop_source.get_token()
         );
         FAIL() << "expected the unavailable capture source to fail";
     } catch (const std::runtime_error& error) {

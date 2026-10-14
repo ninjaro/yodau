@@ -142,8 +142,8 @@ format_cli_timestamp(const std::chrono::system_clock::time_point timestamp) {
     return buffer;
 }
 
-inline std::string format_cli_timestamp_debug(
-    const std::chrono::system_clock::time_point timestamp
+inline std::string
+format_cli_timestamp_debug(const std::chrono::system_clock::time_point timestamp
 ) {
     const std::tm local_time = cli_log_local_time(timestamp);
     char buffer[16] {};

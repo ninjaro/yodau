@@ -243,9 +243,8 @@ void main_window_tests::pool_preference_is_independent() {
     );
     QSettings unwritable(directory.path(), QSettings::IniFormat);
     QVERIFY(!save_pool_side(unwritable, pool_side::left));
-    QVERIFY(
-        !unwritable.contains(QStringLiteral("desktop/presentation/pool_side"))
-    );
+    QVERIFY(!unwritable.contains(QStringLiteral("desktop/presentation/pool_side"
+    )));
     unwritable.setValue(
         QStringLiteral("desktop/presentation/pool_side"),
         QStringLiteral("right")

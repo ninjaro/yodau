@@ -228,8 +228,7 @@ void stream_cell::clear_draft() {
     update();
 }
 
-void stream_cell::set_persistent_lines(
-    const std::vector<line_instance>& lines
+void stream_cell::set_persistent_lines(const std::vector<line_instance>& lines
 ) {
     persistent_lines = lines;
     line_highlights.clear();

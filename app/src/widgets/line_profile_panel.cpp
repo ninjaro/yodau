@@ -300,9 +300,8 @@ void line_profile_panel::build_ui() {
     width_combo->setToolTip(str_label(
         "Thickness affects both the line stroke and the existing wave style."
     ));
-    width_combo->setObjectName(
-        QStringLiteral("settings_active_line_width_combo")
-    );
+    width_combo->setObjectName(QStringLiteral("settings_active_line_width_combo"
+    ));
     line_profile_panel_support::populate_combo(
         width_combo, suggested_line_width_texts()
     );
@@ -351,15 +350,13 @@ void line_profile_panel::build_ui() {
     layout->addWidget(summary_label);
 
     undo_button = new QPushButton(str_label("undo point"), this);
-    undo_button->setObjectName(
-        QStringLiteral("settings_active_line_undo_button")
-    );
+    undo_button->setObjectName(QStringLiteral("settings_active_line_undo_button"
+    ));
     layout->addWidget(undo_button);
 
     save_button = new QPushButton(str_label("add line"), this);
-    save_button->setObjectName(
-        QStringLiteral("settings_active_line_save_button")
-    );
+    save_button->setObjectName(QStringLiteral("settings_active_line_save_button"
+    ));
     layout->addWidget(save_button);
 
     connect(
@@ -494,14 +491,12 @@ void line_profile_panel::refresh_parameter_mode_labels() {
     const QString mode_id = current_parameter_mode_id();
 
     if (width_label != nullptr) {
-        width_label->setText(
-            str_label("%1").arg(line_width_label_text(mode_id))
+        width_label->setText(str_label("%1").arg(line_width_label_text(mode_id))
         );
     }
     if (length_label != nullptr) {
-        length_label->setText(
-            str_label("%1").arg(line_length_label_text(mode_id))
-        );
+        length_label->setText(str_label("%1").arg(line_length_label_text(mode_id
+        )));
     }
     if (response_label != nullptr) {
         response_label->setText(
@@ -509,9 +504,8 @@ void line_profile_panel::refresh_parameter_mode_labels() {
         );
     }
     if (parameter_mode_hint_label != nullptr) {
-        parameter_mode_hint_label->setText(
-            line_parameter_mode_hint_text(mode_id)
-        );
+        parameter_mode_hint_label->setText(line_parameter_mode_hint_text(mode_id
+        ));
     }
 }
 

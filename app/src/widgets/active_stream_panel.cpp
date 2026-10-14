@@ -59,8 +59,7 @@ active_stream_panel::active_stream_panel(
     refresh_panel_state();
 }
 
-void active_stream_panel::set_active_candidates(
-    const QStringList& names
+void active_stream_panel::set_active_candidates(const QStringList& names
 ) const {
     if (active_combo == nullptr) {
         return;
@@ -388,9 +387,8 @@ void active_stream_panel::build_ui() {
 
     active_labels_cb
         = new QCheckBox(str_label("line name labels"), active_stream_box);
-    active_labels_cb->setObjectName(
-        object_name(QStringLiteral("labels_checkbox"))
-    );
+    active_labels_cb->setObjectName(object_name(QStringLiteral("labels_checkbox"
+    )));
     active_labels_cb->setChecked(true);
     active_labels_cb->setToolTip(QStringLiteral(
         "Show or hide saved line names on top of the stream preview. "

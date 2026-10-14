@@ -32,7 +32,8 @@ namespace {
         for (const auto& [key, ignored] : value.items()) {
             static_cast<void>(ignored);
             if (std::ranges::none_of(
-                    allowed, [&key](const std::string_view candidate) {
+                    allowed,
+                    [&key](const std::string_view candidate) {
                         return candidate == key;
                     }
                 )) {
@@ -68,8 +69,8 @@ namespace {
         }
     }
 
-    json
-    parameter_value_json(const processing_algorithm_parameter_value& value) {
+    json parameter_value_json(const processing_algorithm_parameter_value& value
+    ) {
         return std::visit([](const auto& item) -> json { return item; }, value);
     }
 
@@ -336,9 +337,8 @@ namespace {
 
 } // namespace
 
-std::string encode_line_configuration_json(
-    const line_configuration_document& document
-) {
+std::string
+encode_line_configuration_json(const line_configuration_document& document) {
     validate_line_configuration(document);
     json lines = json::array();
     for (const configured_line& line_value : document.lines) {
@@ -367,9 +367,7 @@ decode_line_configuration_json(const std::string_view contents) {
 
     try {
         const json root = json::parse(contents.begin(), contents.end());
-        require_exact_keys(
-            root, { "format", "stream", "lines" }, "root"
-        );
+        require_exact_keys(root, { "format", "stream", "lines" }, "root");
         if (required_value<std::string>(root, "format", "root")
             != line_configuration_format) {
             fail("root.format is not a yodau line configuration");

@@ -20,12 +20,12 @@
 namespace yodau::core {
 namespace {
 
-[[noreturn]] void fail(const std::string& message) {
-    throw line_configuration_error(message);
-}
+    [[noreturn]] void fail(const std::string& message) {
+        throw line_configuration_error(message);
+    }
 
-    std::filesystem::path
-    temporary_path_for(const std::filesystem::path& target) {
+    std::filesystem::path temporary_path_for(const std::filesystem::path& target
+    ) {
         static std::atomic_uint64_t sequence { 0U };
         const auto tick
             = std::chrono::steady_clock::now().time_since_epoch().count();

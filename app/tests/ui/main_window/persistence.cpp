@@ -69,9 +69,8 @@ void main_window_tests::window_state_round_trip() {
     QMainWindow restored_plain_window;
     auto* restored_plain_dock
         = new QDockWidget(QStringLiteral("Streams"), &restored_plain_window);
-    restored_plain_dock->setObjectName(
-        QStringLiteral("main_window_streams_dock")
-    );
+    restored_plain_dock->setObjectName(QStringLiteral("main_window_streams_dock"
+    ));
     restored_plain_window.addDockWidget(
         Qt::RightDockWidgetArea, restored_plain_dock
     );
@@ -106,8 +105,10 @@ void main_window_tests::window_state_round_trip() {
         environment.insert(
             QStringLiteral("XDG_%1_%2")
                 .arg(QString::fromLatin1(name))
-                .arg(qstrcmp(name, "RUNTIME") == 0 ? QStringLiteral("DIR")
-                                                   : QStringLiteral("HOME")),
+                .arg(
+                    qstrcmp(name, "RUNTIME") == 0 ? QStringLiteral("DIR")
+                                                  : QStringLiteral("HOME")
+                ),
             directory
         );
     }
@@ -126,9 +127,7 @@ void main_window_tests::window_state_round_trip() {
     QCOMPARE(child.exitStatus(), QProcess::NormalExit);
     QVERIFY2(child.exitCode() == 0, output.constData());
     QSettings application_settings(
-        temporary_directory.filePath(
-            QStringLiteral("CONFIG/yodau/yodau.conf")
-        ),
+        temporary_directory.filePath(QStringLiteral("CONFIG/yodau/yodau.conf")),
         QSettings::IniFormat
     );
     QVERIFY(!application_settings

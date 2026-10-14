@@ -49,15 +49,14 @@ void main_window_tests::active_stream_selection_and_settings() {
     QVERIFY(board.active_cell() != nullptr);
     QCOMPARE(board.active_cell()->get_name(), QStringLiteral("cam-2"));
 
-    const auto updated_cam2 = active_streams.apply_stream_settings(
-        stream_settings {
+    const auto updated_cam2
+        = active_streams.apply_stream_settings(stream_settings {
             .stream_name = QStringLiteral(" cam-2 "),
             .labels_enabled = false,
             .algorithm_id = QStringLiteral("contour mask"),
             .algorithm_preset = QStringLiteral("mask_heavy"),
             .algorithm_overlay_enabled = true,
-        }
-    );
+        });
 
     QCOMPARE(
         updated_cam2.outcome_value,
@@ -88,16 +87,15 @@ void main_window_tests::active_stream_selection_and_settings() {
         QStringLiteral("contour_mask")
     );
 
-    const auto preset_update = active_streams.apply_stream_settings(
-        stream_settings {
+    const auto preset_update
+        = active_streams.apply_stream_settings(stream_settings {
             .stream_name = QStringLiteral("cam-2"),
             .labels_enabled = false,
             .algorithm_id = QStringLiteral("contour mask"),
             .algorithm_preset = QStringLiteral("balanced"),
             .movement_display_mode = QStringLiteral("off"),
             .algorithm_overlay_enabled = false,
-        }
-    );
+        });
 
     QCOMPARE(
         preset_update.outcome_value,
@@ -114,8 +112,8 @@ void main_window_tests::active_stream_selection_and_settings() {
     );
     QVERIFY(!preset_update.settings.algorithm_overlay_enabled);
 
-    const auto processing_update = active_streams.apply_stream_settings(
-        stream_settings {
+    const auto processing_update
+        = active_streams.apply_stream_settings(stream_settings {
             .stream_name = QStringLiteral("cam-2"),
             .labels_enabled = false,
             .algorithm_id = QStringLiteral("contour mask"),
@@ -126,8 +124,7 @@ void main_window_tests::active_stream_selection_and_settings() {
             .manual_display_fps = 21,
             .manual_core_fps = 8,
             .manual_processing_pixels = 640 * 360,
-        }
-    );
+        });
 
     QCOMPARE(
         processing_update.outcome_value,
@@ -141,15 +138,14 @@ void main_window_tests::active_stream_selection_and_settings() {
     QCOMPARE(processing_update.settings.manual_core_fps, 8);
     QCOMPARE(processing_update.settings.manual_processing_pixels, 640 * 360);
 
-    const auto updated_cam1 = active_streams.apply_stream_settings(
-        stream_settings {
+    const auto updated_cam1
+        = active_streams.apply_stream_settings(stream_settings {
             .stream_name = QStringLiteral("cam-1"),
             .labels_enabled = false,
             .algorithm_id = QStringLiteral("spot_grid"),
             .algorithm_preset = QStringLiteral("dense"),
             .algorithm_overlay_enabled = true,
-        }
-    );
+        });
 
     QCOMPARE(
         updated_cam1.outcome_value,
@@ -177,9 +173,8 @@ void main_window_tests::active_stream_selection_and_settings() {
     QVERIFY(board.active_cell() == nullptr);
     QVERIFY(
         panel
-            .findChild<QComboBox*>(
-                QStringLiteral("settings_active_stream_combo")
-            )
+            .findChild<QComboBox*>(QStringLiteral("settings_active_stream_combo"
+            ))
             ->currentText()
         != QStringLiteral("cam-1")
     );
@@ -199,15 +194,13 @@ void main_window_tests::stream_workflow_logs_and_follow_up() {
 
     catalog_state.ensure_stream(QStringLiteral("cam-1"));
     catalog_state.ensure_stream(QStringLiteral("cam-2"));
-    catalog_state.set_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral("cam-2"),
-            .labels_enabled = true,
-            .algorithm_id = QStringLiteral("contour mask"),
-            .algorithm_preset = QStringLiteral("mask_heavy"),
-            .algorithm_overlay_enabled = true,
-        }
-    );
+    catalog_state.set_stream_settings(stream_settings {
+        .stream_name = QStringLiteral("cam-2"),
+        .labels_enabled = true,
+        .algorithm_id = QStringLiteral("contour mask"),
+        .algorithm_preset = QStringLiteral("mask_heavy"),
+        .algorithm_overlay_enabled = true,
+    });
 
     auto* cam1_tile = widget_bridge.show_stream_in_grid(
         QStringLiteral("cam-1"),
@@ -239,15 +232,13 @@ void main_window_tests::stream_workflow_logs_and_follow_up() {
     QVERIFY(selected_cam2.refresh_fps);
     QCOMPARE(route_state.active_stream_name(), QStringLiteral("cam-2"));
 
-    const auto updated_cam2 = workflow.apply_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral("cam-2"),
-            .labels_enabled = false,
-            .algorithm_id = QStringLiteral("contour mask"),
-            .algorithm_preset = QStringLiteral("mask_heavy"),
-            .algorithm_overlay_enabled = true,
-        }
-    );
+    const auto updated_cam2 = workflow.apply_stream_settings(stream_settings {
+        .stream_name = QStringLiteral("cam-2"),
+        .labels_enabled = false,
+        .algorithm_id = QStringLiteral("contour mask"),
+        .algorithm_preset = QStringLiteral("mask_heavy"),
+        .algorithm_overlay_enabled = true,
+    });
 
     QCOMPARE(updated_cam2.entries.size(), 1);
     QCOMPARE(
@@ -257,16 +248,14 @@ void main_window_tests::stream_workflow_logs_and_follow_up() {
     QCOMPARE(updated_cam2.entries.front().stream_name, QStringLiteral("cam-2"));
     QVERIFY(!updated_cam2.refresh_fps);
 
-    const auto preset_update = workflow.apply_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral("cam-2"),
-            .labels_enabled = false,
-            .algorithm_id = QStringLiteral("contour mask"),
-            .algorithm_preset = QStringLiteral("balanced"),
-            .movement_display_mode = QStringLiteral("off"),
-            .algorithm_overlay_enabled = false,
-        }
-    );
+    const auto preset_update = workflow.apply_stream_settings(stream_settings {
+        .stream_name = QStringLiteral("cam-2"),
+        .labels_enabled = false,
+        .algorithm_id = QStringLiteral("contour mask"),
+        .algorithm_preset = QStringLiteral("balanced"),
+        .movement_display_mode = QStringLiteral("off"),
+        .algorithm_overlay_enabled = false,
+    });
 
     QCOMPARE(preset_update.entries.size(), 1);
     QCOMPARE(
@@ -284,16 +273,15 @@ void main_window_tests::stream_workflow_logs_and_follow_up() {
     ));
     QVERIFY(!preset_update.refresh_fps);
 
-    const auto algorithm_update = workflow.apply_stream_settings(
-        stream_settings {
+    const auto algorithm_update
+        = workflow.apply_stream_settings(stream_settings {
             .stream_name = QStringLiteral("cam-2"),
             .labels_enabled = false,
             .algorithm_id = QStringLiteral("spot_grid"),
             .algorithm_preset = QStringLiteral("dense"),
             .movement_display_mode = QStringLiteral("off"),
             .algorithm_overlay_enabled = false,
-        }
-    );
+        });
 
     QCOMPARE(algorithm_update.entries.size(), 1);
     QCOMPARE(
@@ -313,8 +301,8 @@ void main_window_tests::stream_workflow_logs_and_follow_up() {
     );
     QVERIFY(!algorithm_update.refresh_fps);
 
-    const auto processing_update = workflow.apply_stream_settings(
-        stream_settings {
+    const auto processing_update
+        = workflow.apply_stream_settings(stream_settings {
             .stream_name = QStringLiteral("cam-2"),
             .labels_enabled = false,
             .algorithm_id = QStringLiteral("spot_grid"),
@@ -325,8 +313,7 @@ void main_window_tests::stream_workflow_logs_and_follow_up() {
             .manual_display_fps = 18,
             .manual_core_fps = 9,
             .manual_processing_pixels = 320 * 180,
-        }
-    );
+        });
 
     QCOMPARE(processing_update.entries.size(), 1);
     QCOMPARE(
@@ -338,15 +325,13 @@ void main_window_tests::stream_workflow_logs_and_follow_up() {
     ));
     QVERIFY(processing_update.refresh_fps);
 
-    const auto updated_cam1 = workflow.apply_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral("cam-1"),
-            .labels_enabled = false,
-            .algorithm_id = QStringLiteral("spot_grid"),
-            .algorithm_preset = QStringLiteral("dense"),
-            .algorithm_overlay_enabled = true,
-        }
-    );
+    const auto updated_cam1 = workflow.apply_stream_settings(stream_settings {
+        .stream_name = QStringLiteral("cam-1"),
+        .labels_enabled = false,
+        .algorithm_id = QStringLiteral("spot_grid"),
+        .algorithm_preset = QStringLiteral("dense"),
+        .algorithm_overlay_enabled = true,
+    });
 
     QCOMPARE(updated_cam1.entries.size(), 2);
     QCOMPARE(

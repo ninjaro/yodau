@@ -1,0 +1,302 @@
+name: Setup Ecosystem
+description: Build Marx and Engels from the reviewed checkout or an explicitly selected tooling repository.
+
+inputs:
+  bootstrap:
+    description: Use checkout for self-tests, or repository for a separate tooling checkout.
+    required: false
+    default: repository
+  source-path:
+    description: Relative directory containing the tooling CMakeLists.txt, manifest.json and assets/templates.
+    required: false
+    default: '.'
+  ecosystem-repository:
+    description: GitHub repository that contains the ecosystem project.
+    required: false
+    default: ''
+  ecosystem-ref:
+    description: Git ref to use for the ecosystem checkout.
+    required: false
+    default: ''
+  build-parallelism:
+    description: Parallelism limit for building the ecosystem tool.
+    required: false
+    default: '2'
+  install-docs:
+    description: Install optional Sphinx presentation dependencies in an isolated Python environment.
+    required: false
+    default: 'false'
+  install-project-deps:
+    description: Install project build/test dependencies; cheap repository/format checks need only tooling dependencies.
+    required: false
+    default: 'true'
+  sphinx-theme-package:
+    description: Python package name for the selected Sphinx theme.
+    required: false
+    default: 'sphinx-rtd-theme'
+
+outputs:
+  ecosystem-source-root:
+    description: Path to the checked out ecosystem source tree.
+    value: ${{ steps.paths.outputs.ecosystem-source-root }}
+  ecosystem-build-root:
+    description: Path to the ecosystem debug build tree.
+    value: ${{ steps.paths.outputs.ecosystem-build-root }}
+  marx-binary:
+    description: Path to the built Marx executable.
+    value: ${{ steps.paths.outputs.marx-binary }}
+  engels-binary:
+    description: Path to the built Engels executable.
+    value: ${{ steps.paths.outputs.engels-binary }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set ecosystem paths
+      id: paths
+      shell: bash
+      env:
+        BOOTSTRAP: ${{ inputs.bootstrap }}
+        SOURCE_PATH: ${{ inputs.source-path }}
+        TOOL_REPOSITORY: ${{ inputs.ecosystem-repository }}
+        TOOL_REF: ${{ inputs.ecosystem-ref }}
+        BUILD_PARALLELISM: ${{ inputs.build-parallelism }}
+      run: |
+        report_root="${GITHUB_WORKSPACE:-$PWD}/.ecosystem/github/reports/00-toolchain"
+        mkdir -p "$report_root"
+        cp "${BASH_SOURCE[0]}" "$report_root/paths-command.sh"
+        exec > >(tee "$report_root/paths.log") 2>&1
+        trap 'result=$?; printf "paths\t%s\n" "$result" >> "$report_root/steps.tsv"' EXIT
+        case "$BOOTSTRAP" in
+          checkout)
+            if [ -n "$TOOL_REPOSITORY" ] || [ -n "$TOOL_REF" ]; then
+              echo '::error::checkout bootstrap builds the reviewed revision; omit repository and ref.'
+              exit 1
+            fi
+            checkout_root="$GITHUB_WORKSPACE"
+            ;;
+          repository)
+            if [ -z "$TOOL_REPOSITORY" ] || [ -z "$TOOL_REF" ]; then
+              echo '::error::Set ecosystem_repository and ecosystem_ref in ecosystem.github.vars.json, then run marx sync. Use ecosystem_bootstrap=checkout only for tooling self-tests.'
+              exit 1
+            fi
+            checkout_root="$GITHUB_WORKSPACE/.ecosystem/tooling/source"
+            ;;
+          *) echo '::error::bootstrap must be checkout or repository.'; exit 1 ;;
+        esac
+        case "/$SOURCE_PATH/" in
+          //*|*/../*|*$'\n'*|*$'\r'*) echo '::error::source-path must stay within the checkout.'; exit 1 ;;
+        esac
+        if [ -z "$SOURCE_PATH" ] || [[ ! "$BUILD_PARALLELISM" =~ ^[1-9][0-9]*$ ]]; then
+          echo '::error::source-path is required and build-parallelism must be a positive integer.'
+          exit 1
+        fi
+        build_root="$GITHUB_WORKSPACE/.ecosystem/tooling/build/debug"
+        echo "ecosystem-checkout-root=$checkout_root" >> "$GITHUB_OUTPUT"
+        echo "ecosystem-source-root=$checkout_root/$SOURCE_PATH" >> "$GITHUB_OUTPUT"
+        echo "ecosystem-build-root=$build_root" >> "$GITHUB_OUTPUT"
+        echo "marx-binary=$build_root/marx" >> "$GITHUB_OUTPUT"
+        echo "engels-binary=$build_root/engels" >> "$GITHUB_OUTPUT"
+        # aqt commands (including version/cache lookup) otherwise create a log
+        # in the checkout, invalidating strict change/evidence provenance.
+        python3 - "$report_root" <<'PY'
+        import pathlib, sys
+        root = pathlib.Path(sys.argv[1])
+        (root / "aqt-logging.ini").write_text("""[loggers]
+        keys=root,aqt
+        [logger_root]
+        level=NOTSET
+        handlers=console
+        [logger_aqt]
+        level=DEBUG
+        handlers=console,file
+        propagate=0
+        qualname=aqt
+        [handlers]
+        keys=console,file
+        [handler_console]
+        class=StreamHandler
+        level=INFO
+        formatter=brief
+        args=(sys.stderr,)
+        [handler_file]
+        class=FileHandler
+        level=DEBUG
+        formatter=verbose
+        args=""" + repr((str(root / "aqtinstall.log"), "a")) + """
+        [formatters]
+        keys=brief,verbose
+        [formatter_brief]
+        format=%(levelname)-8s: %(message)s
+        [formatter_verbose]
+        format=%(asctime)s - %(name)s - %(levelname)s - %(module)s %(thread)d %(message)s
+        """)
+        PY
+        echo "aqt-log-config=$report_root/aqt-logging.ini" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout ecosystem tool
+      if: ${{ inputs.bootstrap == 'repository' }}
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.ecosystem-repository }}
+        ref: ${{ inputs.ecosystem-ref }}
+        path: .ecosystem/tooling/source
+        persist-credentials: false
+
+    - name: Restore compiler cache
+      uses: actions/cache/restore@v4
+      with:
+        path: .ecosystem/cache/ccache
+        key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-ccache-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-ecosystem-ccache-v1-
+
+    - name: Install Qt 6
+      if: ${{ inputs.install-project-deps == 'true' }}
+      uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730
+      env:
+        LOG_CFG: ${{ steps.paths.outputs.aqt-log-config }}
+      with:
+        version: '6.8.*'
+        target: 'desktop'
+        modules: 'qtmultimedia'
+        install-deps: 'true'
+        cache: 'true'
+
+    - name: Install shared native dependencies
+      shell: bash
+      run: |
+        report_root="${GITHUB_WORKSPACE:-$PWD}/.ecosystem/github/reports/00-toolchain"
+        mkdir -p "$report_root"
+        cp "${BASH_SOURCE[0]}" "$report_root/native-dependencies-command.sh"
+        exec > >(tee "$report_root/native-dependencies.log") 2>&1
+        trap 'result=$?; printf "native-dependencies\t%s\n" "$result" >> "$report_root/steps.tsv"' EXIT
+        packages=(
+          clang
+          ccache
+          clang-format
+          cmake
+          ninja-build
+          pkg-config
+          libclang-dev
+          llvm-dev
+          libcxxopts-dev
+        )
+        if [ "${{ inputs.install-project-deps }}" = "true" ]; then
+          packages+=(
+            clang-tidy
+            default-jdk
+            libopencv-dev
+            libgtest-dev
+            libbenchmark-dev
+          )
+        fi
+        if [ "${{ inputs.install-project-deps }}" = "true" ] || [ "${{ inputs.install-docs }}" = "true" ]; then
+          packages+=(doxygen graphviz)
+        fi
+        if [ "${{ inputs.install-docs }}" = "true" ]; then
+          packages+=(
+            python3-venv
+            poppler-utils
+            ffmpeg
+          )
+        fi
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends "${packages[@]}"
+
+    - name: Configure compiler cache
+      shell: bash
+      run: |
+        cache="$GITHUB_WORKSPACE/.ecosystem/cache/ccache"
+        mkdir -p "$cache"
+        # Preprocessor mode observes newly appearing and system headers too.
+        # Never cache CodeQL's traced compilation (the workflow disables it).
+        {
+          echo "CCACHE_DIR=$cache"
+          echo 'CCACHE_COMPILERCHECK=content'
+          echo 'CCACHE_NODIRECT=1'
+          echo 'CCACHE_NODEPEND=1'
+          echo 'CCACHE_SLOPPINESS='
+          echo 'CCACHE_MAXSIZE=500M'
+          echo 'CMAKE_C_COMPILER_LAUNCHER=ccache'
+          echo 'CMAKE_CXX_COMPILER_LAUNCHER=ccache'
+          libraries=$(ldd "$(command -v clang++)" | awk '/=> \// {print $3}' | paste -sd:)
+          echo "CCACHE_EXTRAFILES=$libraries"
+        } >> "$GITHUB_ENV"
+
+    # Ubuntu 24.04 supplies JSON 3.11; the tooling requires 3.12.
+    - name: Checkout declared JSON prerequisite
+      uses: actions/checkout@v4
+      with:
+        repository: nlohmann/json
+        ref: v3.12.0
+        path: .ecosystem/tooling/dependencies/json
+        persist-credentials: false
+
+    - name: Install declared JSON prerequisite
+      shell: bash
+      run: |
+        report_root="${GITHUB_WORKSPACE:-$PWD}/.ecosystem/github/reports/00-toolchain"
+        mkdir -p "$report_root"
+        cp "${BASH_SOURCE[0]}" "$report_root/json-command.sh"
+        exec > >(tee "$report_root/json.log") 2>&1
+        trap 'result=$?; printf "json\t%s\n" "$result" >> "$report_root/steps.tsv"' EXIT
+        prefix="$GITHUB_WORKSPACE/.ecosystem/tooling/prefix"
+        cmake -S .ecosystem/tooling/dependencies/json -B .ecosystem/tooling/dependencies/json-build -DJSON_BuildTests=OFF -DCMAKE_INSTALL_PREFIX="$prefix"
+        cmake --install .ecosystem/tooling/dependencies/json-build
+        echo "CMAKE_PREFIX_PATH=$prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}" >> "$GITHUB_ENV"
+
+    - name: Install Sphinx dependencies
+      if: ${{ inputs.install-docs == 'true' }}
+      shell: bash
+      run: |
+        report_root="${GITHUB_WORKSPACE:-$PWD}/.ecosystem/github/reports/00-toolchain"
+        mkdir -p "$report_root"
+        cp "${BASH_SOURCE[0]}" "$report_root/sphinx-command.sh"
+        exec > >(tee "$report_root/sphinx.log") 2>&1
+        trap 'result=$?; printf "sphinx\t%s\n" "$result" >> "$report_root/steps.tsv"' EXIT
+        docs_env="$GITHUB_WORKSPACE/.ecosystem/tooling/docs-venv"
+        python3 -m venv "$docs_env"
+        "$docs_env/bin/python" -m pip install sphinx breathe myst-parser "${{ inputs.sphinx-theme-package }}"
+        echo "$docs_env/bin" >> "$GITHUB_PATH"
+
+    - name: Build Marx and Engels
+      id: bootstrap_build
+      shell: bash
+      env:
+        CC: clang
+        CXX: clang++
+        CHECKOUT_ROOT: ${{ steps.paths.outputs.ecosystem-checkout-root }}
+        SOURCE_ROOT: ${{ steps.paths.outputs.ecosystem-source-root }}
+        BUILD_ROOT: ${{ steps.paths.outputs.ecosystem-build-root }}
+        BUILD_PARALLELISM: ${{ inputs.build-parallelism }}
+      run: |
+        report_root="${GITHUB_WORKSPACE:-$PWD}/.ecosystem/github/reports/00-toolchain"
+        mkdir -p "$report_root"
+        cp "${BASH_SOURCE[0]}" "$report_root/build-command.sh"
+        exec > >(tee "$report_root/build.log") 2>&1
+        trap 'result=$?; printf "build\t%s\n" "$result" >> "$report_root/steps.tsv"' EXIT
+        checkout_root="$(realpath -e "$CHECKOUT_ROOT")"
+        source_root="$(realpath -e "$SOURCE_ROOT")"
+        case "$source_root/" in
+          "$checkout_root/"*) ;;
+          *) echo '::error::Tooling source-path resolves outside its checkout.'; exit 1 ;;
+        esac
+        if [ ! -f "$source_root/CMakeLists.txt" ] || [ ! -f "$source_root/manifest.json" ] || [ ! -d "$source_root/assets/templates" ]; then
+          echo '::error::Tooling source-path must contain CMakeLists.txt, manifest.json and assets/templates.'
+          exit 1
+        fi
+        cmake -S "$source_root" -B "$BUILD_ROOT" -DCMAKE_BUILD_TYPE=Debug -DECOSYSTEM_BUILD_TESTS=OFF
+        cmake -E rm -f "$BUILD_ROOT/marx" "$BUILD_ROOT/engels"
+        cmake --build "$BUILD_ROOT" --parallel "$BUILD_PARALLELISM"
+        if [ ! -x "$BUILD_ROOT/marx" ] || [ ! -x "$BUILD_ROOT/engels" ]; then
+          echo '::error::Selected tooling revision must build both marx and engels at the build root.'
+          exit 1
+        fi
+
+    - name: Save bootstrap compiler cache
+      if: ${{ steps.bootstrap_build.outcome == 'success' && github.event_name != 'pull_request' }}
+      continue-on-error: true
+      uses: actions/cache/save@v4
+      with:
+        path: .ecosystem/cache/ccache
+        key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-ccache-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-bootstrap

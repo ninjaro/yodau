@@ -96,19 +96,15 @@ inline bool draw(
     painter.drawPolyline(wave_poly);
 
     QColor wave_color = line_color.lighter(125);
-    wave_color.setAlpha(
-        std::clamp(
-            static_cast<int>(208.0 + (style.amplitude_k - 1.0) * 36.0), 160, 245
-        )
-    );
+    wave_color.setAlpha(std::clamp(
+        static_cast<int>(208.0 + (style.amplitude_k - 1.0) * 36.0), 160, 245
+    ));
     QPen wave_pen(wave_color);
-    wave_pen.setWidthF(
-        std::max(
-            1.8,
-            line_width_visual_value(width_text)
-                * (0.52 + (style.spread_k - 1.0) * 0.18)
-        )
-    );
+    wave_pen.setWidthF(std::max(
+        1.8,
+        line_width_visual_value(width_text)
+            * (0.52 + (style.spread_k - 1.0) * 0.18)
+    ));
     painter.setPen(wave_pen);
     painter.drawPolyline(wave_poly);
     return true;

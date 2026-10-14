@@ -56,8 +56,8 @@ processing_session_store::default_algorithm_settings() const {
     return default_algorithm_settings_;
 }
 
-std::string processing_session_store::algorithm_id_for_stream(
-    const std::string& stream_name
+std::string
+processing_session_store::algorithm_id_for_stream(const std::string& stream_name
 ) const {
     std::scoped_lock lock(algorithms_mtx_);
     return resolved_settings_for_stream_locked(stream_name).algorithm_id;
@@ -224,21 +224,6 @@ processing_session_store::active_algorithm_for_stream(
     active_algorithms_by_stream_[stream_name] = shared_algorithm;
     active_settings_by_stream_[stream_name] = resolved_settings;
     return shared_algorithm;
-}
-
-std::shared_ptr<processing_algorithm>
-processing_session_store::active_algorithm_for_stream(
-    const std::string& stream_name, const legacy_algorithm_factory& factory
-) {
-    if (!factory) {
-        return {};
-    }
-
-    return active_algorithm_for_stream(
-        stream_name, [&factory](const processing_algorithm_settings& settings) {
-            return factory(settings.algorithm_id);
-        }
-    );
 }
 
 std::optional<processing_result>

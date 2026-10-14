@@ -153,10 +153,9 @@ void main_window_tests::inventory_order_drop() {
     } else if (target == QStringLiteral("self")) {
         position = list->visualItemRect(item).center();
         expected = before;
-    } else if (
-        target == QStringLiteral("copy") || target == QStringLiteral("foreign")
-        || target == QStringLiteral("cancel")
-    ) {
+    } else if (target == QStringLiteral("copy")
+               || target == QStringLiteral("foreign")
+               || target == QStringLiteral("cancel")) {
         expected = before;
     }
     QWidget foreign;

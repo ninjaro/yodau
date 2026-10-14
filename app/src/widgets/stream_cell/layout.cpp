@@ -159,8 +159,7 @@ void stream_cell::update_icon() {
         focus_btn->setAccessibleName(
             tr("Return %1 to the stream grid").arg(name)
         );
-        focus_btn->setAccessibleDescription(
-            tr("Leave the enlarged stream view")
+        focus_btn->setAccessibleDescription(tr("Leave the enlarged stream view")
         );
         focus_btn->setIcon(icon_loader::title_bar_restore_icon());
     } else {
@@ -175,8 +174,7 @@ void stream_cell::update_icon() {
 
 void stream_cell::update_display_controls() {
     if (rotate_btn != nullptr) {
-        rotate_btn->setText(
-            QStringLiteral("%1\u00b0").arg(quarter_turns_ * 90)
+        rotate_btn->setText(QStringLiteral("%1\u00b0").arg(quarter_turns_ * 90)
         );
         rotate_btn->setToolTip(
             tr("Current rotation: %1 degrees. Rotate clockwise by 90 degrees.")
@@ -225,9 +223,8 @@ void stream_cell::update_accessible_description() {
                               .arg(enabled_line_count(persistent_lines)));
     }
     if (!processing_overlays.empty()) {
-        details.push_back(
-            tr("%1 processing overlays")
-                .arg(static_cast<int>(processing_overlays.size()))
+        details.push_back(tr("%1 processing overlays")
+                              .arg(static_cast<int>(processing_overlays.size()))
         );
     }
     if (!events.isEmpty()) {

@@ -534,14 +534,12 @@ void template_apply_panel::refresh_parameter_mode_labels() {
     const QString mode_id = current_parameter_mode_id();
 
     if (width_label != nullptr) {
-        width_label->setText(
-            str_label("%1").arg(line_width_label_text(mode_id))
+        width_label->setText(str_label("%1").arg(line_width_label_text(mode_id))
         );
     }
     if (length_label != nullptr) {
-        length_label->setText(
-            str_label("%1").arg(line_length_label_text(mode_id))
-        );
+        length_label->setText(str_label("%1").arg(line_length_label_text(mode_id
+        )));
     }
     if (response_label != nullptr) {
         response_label->setText(
@@ -549,9 +547,8 @@ void template_apply_panel::refresh_parameter_mode_labels() {
         );
     }
     if (parameter_mode_hint_label != nullptr) {
-        parameter_mode_hint_label->setText(
-            line_parameter_mode_hint_text(mode_id)
-        );
+        parameter_mode_hint_label->setText(line_parameter_mode_hint_text(mode_id
+        ));
     }
 }
 

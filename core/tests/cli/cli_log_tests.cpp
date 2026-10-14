@@ -9,16 +9,12 @@ TEST(cli_log_test, release_mode_hides_debug_entries) {
     entry.severity = yodau::core::cli_log_severity::debug;
     entry.message = "motion detected";
 
-    EXPECT_FALSE(
-        yodau::core::cli_log_entry_visible(
-            yodau::core::cli_log_mode::release, entry
-        )
-    );
-    EXPECT_TRUE(
-        yodau::core::cli_log_entry_visible(
-            yodau::core::cli_log_mode::debug, entry
-        )
-    );
+    EXPECT_FALSE(yodau::core::cli_log_entry_visible(
+        yodau::core::cli_log_mode::release, entry
+    ));
+    EXPECT_TRUE(yodau::core::cli_log_entry_visible(
+        yodau::core::cli_log_mode::debug, entry
+    ));
 }
 
 TEST(cli_log_test, debug_format_includes_scope_and_detail) {
@@ -77,48 +73,36 @@ TEST(cli_log_test, filters_severity_stream_line_event_algorithm_and_subsystem) {
     filter.event_type = "info";
     filter.subsystem = "stream_add";
 
-    EXPECT_TRUE(
-        yodau::core::cli_log_entry_matches(
-            yodau::core::cli_log_mode::release, entry, filter
-        )
-    );
+    EXPECT_TRUE(yodau::core::cli_log_entry_matches(
+        yodau::core::cli_log_mode::release, entry, filter
+    ));
 
     filter.stream_name = "cam-b";
-    EXPECT_FALSE(
-        yodau::core::cli_log_entry_matches(
-            yodau::core::cli_log_mode::release, entry, filter
-        )
-    );
+    EXPECT_FALSE(yodau::core::cli_log_entry_matches(
+        yodau::core::cli_log_mode::release, entry, filter
+    ));
 
     filter.stream_name = "cam-a";
     filter.severity = yodau::core::cli_log_severity::warning;
-    EXPECT_FALSE(
-        yodau::core::cli_log_entry_matches(
-            yodau::core::cli_log_mode::release, entry, filter
-        )
-    );
+    EXPECT_FALSE(yodau::core::cli_log_entry_matches(
+        yodau::core::cli_log_mode::release, entry, filter
+    ));
 
     filter.severity = yodau::core::cli_log_severity::error;
     filter.line_name = "south";
-    EXPECT_FALSE(
-        yodau::core::cli_log_entry_matches(
-            yodau::core::cli_log_mode::release, entry, filter
-        )
-    );
+    EXPECT_FALSE(yodau::core::cli_log_entry_matches(
+        yodau::core::cli_log_mode::release, entry, filter
+    ));
 
     filter.line_name = "north";
     filter.algorithm_id = "motion_baseline";
-    EXPECT_FALSE(
-        yodau::core::cli_log_entry_matches(
-            yodau::core::cli_log_mode::release, entry, filter
-        )
-    );
+    EXPECT_FALSE(yodau::core::cli_log_entry_matches(
+        yodau::core::cli_log_mode::release, entry, filter
+    ));
 
     filter.algorithm_id = "spot_grid";
     filter.event_type = "tripwire";
-    EXPECT_FALSE(
-        yodau::core::cli_log_entry_matches(
-            yodau::core::cli_log_mode::release, entry, filter
-        )
-    );
+    EXPECT_FALSE(yodau::core::cli_log_entry_matches(
+        yodau::core::cli_log_mode::release, entry, filter
+    ));
 }

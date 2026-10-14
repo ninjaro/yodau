@@ -37,8 +37,7 @@ void main_window_tests::log_filters_area_and_mode() {
     QCOMPARE(panel.log_mode(), app_log_mode::release);
     QCOMPARE(log_mode_combo->currentIndex(), 0);
     QVERIFY(
-        panel.findChild<QPlainTextEdit*>(
-            QStringLiteral("settings_add_log_view")
+        panel.findChild<QPlainTextEdit*>(QStringLiteral("settings_add_log_view")
         )
         == nullptr
     );
@@ -58,34 +57,26 @@ void main_window_tests::log_filters_area_and_mode() {
     const QDateTime timestamp(
         QDate(2026, 3, 29), QTime(12, 0, 0, 0), QTimeZone::UTC
     );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::add, app_log_severity::debug,
-            QStringLiteral("tests"), QStringLiteral("debug add"),
-            QStringLiteral("cam-1"), QStringLiteral("ignored in release")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::add, app_log_severity::info,
-            QStringLiteral("tests"), QStringLiteral("info add"),
-            QStringLiteral("cam-1"), QStringLiteral("path=/tmp/a.mp4")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::streams, app_log_severity::warning,
-            QStringLiteral("tests"), QStringLiteral("streams warning"),
-            QStringLiteral("cam-2")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::active, app_log_severity::error,
-            QStringLiteral("tests"), QStringLiteral("active error"),
-            QStringLiteral("cam-3")
-        )
-    );
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::add, app_log_severity::debug,
+        QStringLiteral("tests"), QStringLiteral("debug add"),
+        QStringLiteral("cam-1"), QStringLiteral("ignored in release")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::add, app_log_severity::info,
+        QStringLiteral("tests"), QStringLiteral("info add"),
+        QStringLiteral("cam-1"), QStringLiteral("path=/tmp/a.mp4")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::streams, app_log_severity::warning,
+        QStringLiteral("tests"), QStringLiteral("streams warning"),
+        QStringLiteral("cam-2")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::active, app_log_severity::error,
+        QStringLiteral("tests"), QStringLiteral("active error"),
+        QStringLiteral("cam-3")
+    ));
 
     const QString add_release_text = add_log_view.toPlainText();
     QVERIFY(add_release_text.contains(QStringLiteral("info add")));
@@ -107,8 +98,7 @@ void main_window_tests::log_filters_area_and_mode() {
     QVERIFY(add_debug_text.contains(QStringLiteral("debug add")));
     QVERIFY(add_debug_text.contains(QStringLiteral("area=add")));
     QVERIFY(add_debug_text.contains(QStringLiteral("subsystem=tests")));
-    QVERIFY(
-        add_debug_text.contains(QStringLiteral("detail=ignored in release"))
+    QVERIFY(add_debug_text.contains(QStringLiteral("detail=ignored in release"))
     );
 }
 
@@ -156,45 +146,35 @@ void main_window_tests::log_filters_severity_stream_and_subsystem() {
     const QDateTime timestamp(
         QDate(2026, 3, 29), QTime(13, 0, 0, 0), QTimeZone::UTC
     );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::add, app_log_severity::debug,
-            QStringLiteral("settings_panel"), QStringLiteral("debug add"),
-            QStringLiteral("cam-1")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::add, app_log_severity::info,
-            QStringLiteral("settings_panel"), QStringLiteral("info add"),
-            QStringLiteral("cam-1")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::streams, app_log_severity::warning,
-            QStringLiteral("grid_visibility"), QStringLiteral("grid warning"),
-            QStringLiteral("cam-2")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::active, app_log_severity::info,
-            QStringLiteral("core_event"), QStringLiteral("active info"),
-            QStringLiteral("cam-1"), QStringLiteral("cells=9"),
-            QStringLiteral("spot_grid"), QStringLiteral("north"),
-            QStringLiteral("motion")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::active, app_log_severity::error,
-            QStringLiteral("core_event"), QStringLiteral("active error"),
-            QStringLiteral("cam-3"), QStringLiteral("line=south"),
-            QStringLiteral("contour_mask"), QStringLiteral("south"),
-            QStringLiteral("tripwire")
-        )
-    );
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::add, app_log_severity::debug,
+        QStringLiteral("settings_panel"), QStringLiteral("debug add"),
+        QStringLiteral("cam-1")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::add, app_log_severity::info,
+        QStringLiteral("settings_panel"), QStringLiteral("info add"),
+        QStringLiteral("cam-1")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::streams, app_log_severity::warning,
+        QStringLiteral("grid_visibility"), QStringLiteral("grid warning"),
+        QStringLiteral("cam-2")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::active, app_log_severity::info,
+        QStringLiteral("core_event"), QStringLiteral("active info"),
+        QStringLiteral("cam-1"), QStringLiteral("cells=9"),
+        QStringLiteral("spot_grid"), QStringLiteral("north"),
+        QStringLiteral("motion")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::active, app_log_severity::error,
+        QStringLiteral("core_event"), QStringLiteral("active error"),
+        QStringLiteral("cam-3"), QStringLiteral("line=south"),
+        QStringLiteral("contour_mask"), QStringLiteral("south"),
+        QStringLiteral("tripwire")
+    ));
 
     const int cam1_index
         = stream_filter_combo->findData(QStringLiteral("cam-1"));
@@ -238,21 +218,18 @@ void main_window_tests::log_filters_severity_stream_and_subsystem() {
     subsystem_filter_combo->setCurrentIndex(core_event_index);
 
     QVERIFY(add_log_view.toPlainText().isEmpty());
-    QVERIFY(
-        active_log_view.toPlainText().contains(QStringLiteral("active info"))
-    );
+    QVERIFY(active_log_view.toPlainText().contains(QStringLiteral("active info")
+    ));
 
     stream_filter_combo->setCurrentIndex(0);
     line_filter_combo->setCurrentIndex(0);
     algorithm_filter_combo->setCurrentIndex(0);
     severity_filter_combo->setCurrentIndex(error_index);
 
-    QVERIFY(
-        active_log_view.toPlainText().contains(QStringLiteral("active error"))
-    );
-    QVERIFY(
-        !active_log_view.toPlainText().contains(QStringLiteral("active info"))
-    );
+    QVERIFY(active_log_view.toPlainText().contains(QStringLiteral("active error"
+    )));
+    QVERIFY(!active_log_view.toPlainText().contains(QStringLiteral("active info"
+    )));
     QVERIFY(streams_log_view.toPlainText().isEmpty());
 
     subsystem_filter_combo->setCurrentIndex(0);
@@ -271,9 +248,9 @@ void main_window_tests::log_exports_filtered_report() {
 
     panel.set_log_buffer(&buffer);
 
-    auto* log_mode_combo = panel.findChild<QComboBox*>(
-        QStringLiteral("settings_log_mode_combo")
-    );
+    auto* log_mode_combo
+        = panel.findChild<QComboBox*>(QStringLiteral("settings_log_mode_combo")
+        );
     auto* area_filter_combo = panel.findChild<QComboBox*>(
         QStringLiteral("settings_log_area_filter_combo")
     );
@@ -284,31 +261,24 @@ void main_window_tests::log_exports_filtered_report() {
     const QDateTime timestamp(
         QDate(2026, 3, 29), QTime(14, 15, 16, 17), QTimeZone::UTC
     );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::active, app_log_severity::debug,
-            QStringLiteral("core_event"), QStringLiteral("motion detected"),
-            QStringLiteral("cam-1"), QStringLiteral("cells=9"),
-            QStringLiteral("spot_grid")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::active, app_log_severity::info,
-            QStringLiteral("stream_settings"),
-            QStringLiteral("algorithm preference updated"),
-            QStringLiteral("cam-1"),
-            QStringLiteral("core runtime uses contour_mask"),
-            QStringLiteral("contour_mask")
-        )
-    );
-    buffer.append(
-        main_window_tests_support::make_log_entry(
-            timestamp, app_log_area::streams, app_log_severity::info,
-            QStringLiteral("grid_visibility"),
-            QStringLiteral("stream shown in grid"), QStringLiteral("cam-2")
-        )
-    );
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::active, app_log_severity::debug,
+        QStringLiteral("core_event"), QStringLiteral("motion detected"),
+        QStringLiteral("cam-1"), QStringLiteral("cells=9"),
+        QStringLiteral("spot_grid")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::active, app_log_severity::info,
+        QStringLiteral("stream_settings"),
+        QStringLiteral("algorithm preference updated"), QStringLiteral("cam-1"),
+        QStringLiteral("core runtime uses contour_mask"),
+        QStringLiteral("contour_mask")
+    ));
+    buffer.append(main_window_tests_support::make_log_entry(
+        timestamp, app_log_area::streams, app_log_severity::info,
+        QStringLiteral("grid_visibility"),
+        QStringLiteral("stream shown in grid"), QStringLiteral("cam-2")
+    ));
 
     log_mode_combo->setCurrentIndex(1);
     const int active_area_index

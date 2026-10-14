@@ -155,12 +155,13 @@ void file_transport::set_stream(stream_cell* cell) {
         watch(&QMediaPlayer::seekableChanged);
         watch(&QMediaPlayer::mediaStatusChanged);
         watch(&QMediaPlayer::errorOccurred);
-        connections_.push_back(
-            connect(player, &QMediaPlayer::sourceChanged, this, [this] {
+        connections_.push_back(connect(
+            player, &QMediaPlayer::sourceChanged, this,
+            [this] {
                 cancel_seek();
                 refresh();
-            })
-        );
+            }
+        ));
         connections_.push_back(connect(
             cell_, &QObject::destroyed, this, [this] { set_stream(nullptr); }
         ));
@@ -188,11 +189,9 @@ qint64 file_transport::seek_position(int step) const {
     if (step >= seek_steps) {
         return duration;
     }
-    return qint64(
-        std::llround(
-            static_cast<long double>(std::max(0, step)) * duration / seek_steps
-        )
-    );
+    return qint64(std::llround(
+        static_cast<long double>(std::max(0, step)) * duration / seek_steps
+    ));
 }
 
 void file_transport::show_time(qint64 position) {
@@ -278,10 +277,8 @@ void file_transport::refresh() {
     QString text;
     if (!player->isAvailable()) {
         text = tr("File decoder unavailable");
-    } else if (
-        player->error() != QMediaPlayer::NoError
-        || player->mediaStatus() == QMediaPlayer::InvalidMedia
-    ) {
+    } else if (player->error() != QMediaPlayer::NoError
+               || player->mediaStatus() == QMediaPlayer::InvalidMedia) {
         text = tr("File unavailable: %1").arg(player->errorString());
     } else if (!cell_->application_active()) {
         text = tr("Playback suspended while the application is inactive");
@@ -291,10 +288,8 @@ void file_transport::refresh() {
         text = tr("Waiting for file media");
     } else if (player->mediaStatus() == QMediaPlayer::EndOfMedia) {
         text = tr("Finished");
-    } else if (
-        player->mediaStatus() == QMediaPlayer::StalledMedia
-        || player->mediaStatus() == QMediaPlayer::BufferingMedia
-    ) {
+    } else if (player->mediaStatus() == QMediaPlayer::StalledMedia
+               || player->mediaStatus() == QMediaPlayer::BufferingMedia) {
         text = tr("Buffering file…");
     } else if (player->playbackState() == QMediaPlayer::PlayingState) {
         text = tr("Playing");

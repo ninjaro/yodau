@@ -113,7 +113,8 @@ TEST(line_configuration_test, atomic_file_round_trip_uses_shared_loader) {
     EXPECT_EQ(yodau::core::load_line_configuration_file(path), expected);
 
 #ifdef __unix__
-    struct stat status {};
+    struct stat status { };
+
     ASSERT_EQ(::stat(path.c_str(), &status), 0);
     EXPECT_EQ(status.st_mode & 0777, 0600);
 #endif

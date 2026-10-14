@@ -122,8 +122,8 @@ const QVector<app_log_entry>& app_log_buffer::entries() const {
     return entry_list;
 }
 
-QVector<app_log_entry>
-app_log_buffer::entries_for_area(const app_log_area area) const {
+QVector<app_log_entry> app_log_buffer::entries_for_area(const app_log_area area
+) const {
     QVector<app_log_entry> filtered_entries;
     filtered_entries.reserve(entry_list.size());
 

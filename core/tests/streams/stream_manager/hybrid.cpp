@@ -20,14 +20,12 @@ using yodau::core::stream;
 
 #ifdef YODAU_OPENCV
 TEST(processing_runtime_test, hybrid_auto_chooses_delegate_by_scene_shape) {
-    processing_runtime runtime(
-        processing_runtime_options {
-            .mode = render_mode::app_only,
-            .enable_virtual_camera = false,
-            .virtual_camera_device = {},
-            .algorithm_id = "hybrid_auto",
-        }
-    );
+    processing_runtime runtime(processing_runtime_options {
+        .mode = render_mode::app_only,
+        .enable_virtual_camera = false,
+        .virtual_camera_device = {},
+        .algorithm_id = "hybrid_auto",
+    });
 
     const auto available_algorithm_ids
         = processing_runtime::available_algorithm_ids();

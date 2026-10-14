@@ -16,8 +16,7 @@ void active_edit_controller::initialize_editor_state() const {
     widget_bridge_.initialize_editor_state(edit_session_);
 }
 
-void active_edit_controller::set_drawing_new_mode(
-    const bool drawing_new
+void active_edit_controller::set_drawing_new_mode(const bool drawing_new
 ) const {
     edit_session_.set_drawing_new_mode(drawing_new);
 
@@ -90,8 +89,8 @@ const template_apply_settings& active_edit_controller::apply_template_settings(
     return edit_session_.active_template_settings();
 }
 
-line_edit_request active_edit_controller::apply_line_edit_preview(
-    line_edit_request request
+line_edit_request
+active_edit_controller::apply_line_edit_preview(line_edit_request request
 ) const {
     edit_session_.set_active_line_edit(std::move(request));
 
@@ -116,8 +115,7 @@ void active_edit_controller::clear_line_edit_preview() const {
     }
 }
 
-void active_edit_controller::reset_after_line_saved(
-    const QString& final_name
+void active_edit_controller::reset_after_line_saved(const QString& final_name
 ) const {
     if (auto* cell = widget_bridge_.active_cell()) {
         cell->clear_draft();

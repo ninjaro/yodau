@@ -28,9 +28,7 @@ public:
     void remove_existing_name(const QString& name);
 
     void set_local_sources(const QStringList& sources) const;
-    void set_local_sources(
-        const QList<local_source_descriptor>& sources
-    ) const;
+    void set_local_sources(const QList<local_source_descriptor>& sources) const;
     void clear_inputs() const;
 
 signals:

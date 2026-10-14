@@ -71,12 +71,10 @@ QPointF stream_cell::display_to_canonical(const QPointF& point_px) const {
         return {};
     }
 
-    const QPointF display_pct = clamp_pct(
-        {
-            (point_px.x() - frame_rect.left()) / frame_rect.width() * 100.0,
-            (point_px.y() - frame_rect.top()) / frame_rect.height() * 100.0,
-        }
-    );
+    const QPointF display_pct = clamp_pct({
+        (point_px.x() - frame_rect.left()) / frame_rect.width() * 100.0,
+        (point_px.y() - frame_rect.top()) / frame_rect.height() * 100.0,
+    });
 
     switch (quarter_turns_) {
     case 1:
@@ -90,8 +88,8 @@ QPointF stream_cell::display_to_canonical(const QPointF& point_px) const {
     }
 }
 
-std::vector<QPointF> stream_cell::display_points_pct(
-    const std::vector<QPointF>& canonical_points
+std::vector<QPointF>
+stream_cell::display_points_pct(const std::vector<QPointF>& canonical_points
 ) const {
     std::vector<QPointF> result;
     result.reserve(canonical_points.size());

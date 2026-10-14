@@ -70,8 +70,8 @@ std::string normalized_processing_algorithm_id(std::string_view algorithm_id);
 
 std::string processing_algorithm_display_name(std::string_view algorithm_id);
 
-std::string
-processing_algorithm_default_preset_id(std::string_view algorithm_id);
+std::string processing_algorithm_default_preset_id(std::string_view algorithm_id
+);
 
 processing_algorithm_configuration
 processing_algorithm_default_configuration(std::string_view algorithm_id);
@@ -88,8 +88,8 @@ processing_algorithm_configuration processing_algorithm_preset_configuration(
 processing_algorithm_settings
 default_processing_algorithm_settings(std::string_view algorithm_id);
 
-processing_algorithm_settings normalized_processing_algorithm_settings(
-    processing_algorithm_settings settings
+processing_algorithm_settings
+normalized_processing_algorithm_settings(processing_algorithm_settings settings
 );
 
 processing_algorithm_configuration processing_algorithm_settings_configuration(

@@ -18,8 +18,7 @@ void stream_controller::append_log_entry(app_log_entry entry) const {
     }
 }
 
-void stream_controller::append_log_entries(
-    const QVector<app_log_entry>& entries
+void stream_controller::append_log_entries(const QVector<app_log_entry>& entries
 ) const {
     for (const app_log_entry& entry : entries) {
         append_log_entry(entry);

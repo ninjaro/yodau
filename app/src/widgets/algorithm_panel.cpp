@@ -72,8 +72,7 @@ algorithm_panel::algorithm_panel(QString object_prefix, QWidget* parent)
     set_stream_settings(stream_settings {});
 }
 
-void algorithm_panel::set_stream_settings(
-    const stream_settings& settings_value
+void algorithm_panel::set_stream_settings(const stream_settings& settings_value
 ) {
     current_settings = normalized_settings(settings_value);
 
@@ -164,9 +163,8 @@ void algorithm_panel::build_ui() {
     form_ = new QFormLayout();
 
     algorithm_combo = new QComboBox(this);
-    algorithm_combo->setObjectName(
-        object_name(QStringLiteral("algorithm_combo"))
-    );
+    algorithm_combo->setObjectName(object_name(QStringLiteral("algorithm_combo")
+    ));
     algorithm_panel_support::populate_algorithm_combo(algorithm_combo);
     form_->addRow(str_label("algorithm"), algorithm_combo);
 

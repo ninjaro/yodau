@@ -154,8 +154,8 @@ void main_window_tests::canvas_tools_shell() {
         QSettings::setPath(
             QSettings::IniFormat, QSettings::UserScope, directory.path()
         );
-        lines->toggleViewAction()
-            ->trigger(); // The original dock remains reachable.
+        lines->toggleViewAction()->trigger(
+        ); // The original dock remains reachable.
         QVERIFY(!lines->isHidden());
 #endif
     }

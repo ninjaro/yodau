@@ -139,11 +139,10 @@ void main_window_tests::controller_configuration_round_trip() {
         controller.export_line_configuration_data(&exported_data, &error),
         qPrintable(error)
     );
-    const auto exported_from_data = yodau::core::decode_line_configuration_json(
-        std::string_view(
+    const auto exported_from_data
+        = yodau::core::decode_line_configuration_json(std::string_view(
             exported_data.constData(), static_cast<size_t>(exported_data.size())
-        )
-    );
+        ));
     QVERIFY(exported_from_data == exported);
 
     stream_manager data_manager;

@@ -62,10 +62,10 @@ public:
         const std::string& points, bool closed, const std::string& name
     );
     void set_line_profile(line_profile profile_value);
-    std::optional<line_profile>
-    find_line_profile(const std::string& line_name) const;
-    std::optional<tripwire_dir>
-    find_line_direction(const std::string& line_name) const;
+    std::optional<line_profile> find_line_profile(const std::string& line_name
+    ) const;
+    std::optional<tripwire_dir> find_line_direction(const std::string& line_name
+    ) const;
     std::shared_ptr<const line> find_line(const std::string& line_name) const;
     void set_stream_line_profile(
         const std::string& stream_name, line_profile profile_value

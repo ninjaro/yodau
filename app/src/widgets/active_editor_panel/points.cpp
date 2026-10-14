@@ -86,16 +86,14 @@ QPointF wire_centroid_pct(
             = static_cast<std::vector<int>::size_type>(index - 1);
         const auto current_row_index
             = static_cast<std::vector<int>::size_type>(index);
-        const QPointF a = points_pct.at(
-            static_cast<std::vector<QPointF>::size_type>(
+        const QPointF a
+            = points_pct.at(static_cast<std::vector<QPointF>::size_type>(
                 rows.at(previous_row_index)
-            )
-        );
-        const QPointF b = points_pct.at(
-            static_cast<std::vector<QPointF>::size_type>(
+            ));
+        const QPointF b
+            = points_pct.at(static_cast<std::vector<QPointF>::size_type>(
                 rows.at(current_row_index)
-            )
-        );
+            ));
         accumulate_segment(a, b);
     }
 
@@ -218,9 +216,9 @@ bool active_editor_panel::split_line_edit_point(const int visible_index) {
         return false;
     }
 
-    const int row = visible_rows.at(
-        static_cast<std::vector<int>::size_type>(visible_index)
-    );
+    const int row
+        = visible_rows.at(static_cast<std::vector<int>::size_type>(visible_index
+        ));
     if (row < 0 || row >= static_cast<int>(line_edit_points_pct_.size())) {
         return false;
     }

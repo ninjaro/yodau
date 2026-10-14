@@ -61,7 +61,8 @@ inline yodau::core::frame make_gray_frame(
         for (int x = bright_left; x < bright_right; ++x) {
             frame_value.data
                 [static_cast<size_t>(y) * static_cast<size_t>(width)
-                 + static_cast<size_t>(x)] = 255;
+                 + static_cast<size_t>(x)]
+                = 255;
         }
     }
 

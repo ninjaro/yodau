@@ -17,12 +17,10 @@ core_points_from_app(const std::vector<QPointF>& points) {
     std::vector<yodau::core::point> converted;
     converted.reserve(points.size());
     for (const QPointF& point_value : points) {
-        converted.push_back(
-            yodau::core::point {
-                .x = static_cast<float>(point_value.x()),
-                .y = static_cast<float>(point_value.y()),
-            }
-        );
+        converted.push_back(yodau::core::point {
+            .x = static_cast<float>(point_value.x()),
+            .y = static_cast<float>(point_value.y()),
+        });
     }
     return converted;
 }
@@ -246,11 +244,10 @@ bool stream_controller::import_line_configuration_data(
     QString* imported_stream_name
 ) {
     try {
-        const auto document = yodau::core::decode_line_configuration_json(
-            std::string_view(
+        const auto document
+            = yodau::core::decode_line_configuration_json(std::string_view(
                 contents.constData(), static_cast<size_t>(contents.size())
-            )
-        );
+            ));
         return apply_line_configuration_document(
             document, error_message, imported_stream_name
         );
@@ -366,10 +363,9 @@ bool stream_controller::apply_line_configuration_document(
             widget_bridge.apply_active_stream(
                 stream_name, imported_settings, edit_session
             );
-        } else if (
-            auto* tile
-            = widget_bridge.tile_for_stream_name(stream_name, route_state)
-        ) {
+        } else if (auto* tile = widget_bridge.tile_for_stream_name(
+                       stream_name, route_state
+                   )) {
             tile->set_persistent_lines(edit_session.stream_lines(stream_name));
         }
         widget_bridge.sync_active_candidates();

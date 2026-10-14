@@ -27,8 +27,7 @@ void stream_event_dispatcher::set_event_sink(stream_event_sink_fn fn) {
     event_sink_ = std::move(fn);
 }
 
-void stream_event_dispatcher::set_event_batch_sink(
-    stream_event_batch_sink_fn fn
+void stream_event_dispatcher::set_event_batch_sink(stream_event_batch_sink_fn fn
 ) {
     event_batch_sink_ = std::move(fn);
 }

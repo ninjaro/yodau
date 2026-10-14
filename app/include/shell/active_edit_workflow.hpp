@@ -29,20 +29,20 @@ public:
         active_edit_actions& edit_actions
     );
 
-    [[nodiscard]] transition_result
-    set_drawing_new_mode(bool drawing_new) const;
+    [[nodiscard]] transition_result set_drawing_new_mode(bool drawing_new
+    ) const;
     [[nodiscard]] transition_result
     apply_line_profile(line_profile profile_value) const;
-    [[nodiscard]] transition_result
-    save_active_line(line_profile profile_value) const;
+    [[nodiscard]] transition_result save_active_line(line_profile profile_value
+    ) const;
     [[nodiscard]] transition_result
     apply_template_settings(template_apply_settings settings_value) const;
     [[nodiscard]] transition_result
     apply_active_template(template_apply_settings settings_value) const;
     [[nodiscard]] transition_result
     set_active_line_enabled(const QString& line_name, bool enabled) const;
-    [[nodiscard]] transition_result
-    detach_active_line(const QString& line_name) const;
+    [[nodiscard]] transition_result detach_active_line(const QString& line_name
+    ) const;
     [[nodiscard]] transition_result
     apply_line_edit_preview(line_edit_request request) const;
     [[nodiscard]] transition_result clear_line_edit_preview() const;

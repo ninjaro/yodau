@@ -56,15 +56,13 @@ build_path_geometry(const std::vector<QPointF>& pts_pct, const bool closed) {
             continue;
         }
 
-        geometry.segments.push_back(
-            path_segment {
-                .index = static_cast<int>(geometry.segments.size()),
-                .a_pct = a_pct,
-                .b_pct = b_pct,
-                .start_pos = geometry.total_length,
-                .length = length,
-            }
-        );
+        geometry.segments.push_back(path_segment {
+            .index = static_cast<int>(geometry.segments.size()),
+            .a_pct = a_pct,
+            .b_pct = b_pct,
+            .start_pos = geometry.total_length,
+            .length = length,
+        });
         geometry.total_length += length;
     }
 
@@ -74,15 +72,13 @@ build_path_geometry(const std::vector<QPointF>& pts_pct, const bool closed) {
         const double length = point_distance_pct(a_pct, b_pct);
 
         if (length > 0.0) {
-            geometry.segments.push_back(
-                path_segment {
-                    .index = static_cast<int>(geometry.segments.size()),
-                    .a_pct = a_pct,
-                    .b_pct = b_pct,
-                    .start_pos = geometry.total_length,
-                    .length = length,
-                }
-            );
+            geometry.segments.push_back(path_segment {
+                .index = static_cast<int>(geometry.segments.size()),
+                .a_pct = a_pct,
+                .b_pct = b_pct,
+                .start_pos = geometry.total_length,
+                .length = length,
+            });
             geometry.total_length += length;
         }
     }

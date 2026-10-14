@@ -222,8 +222,7 @@ void active_editor_panel::refresh_canvas_tools() const {
     const auto tool = current_canvas_tool();
     const bool editing = tool == canvas_tool::edit;
     const QSignalBlocker tool_block(canvas_.tool);
-    canvas_.tool->setCurrentIndex(
-        canvas_.tool->findData(static_cast<int>(tool))
+    canvas_.tool->setCurrentIndex(canvas_.tool->findData(static_cast<int>(tool))
     );
     canvas_.tool->setEnabled(active);
     auto* modes = static_cast<QStandardItemModel*>(canvas_.tool->model());

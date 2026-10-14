@@ -21,7 +21,13 @@
 *.app
 *.qm
 .ecosystem/
-/manifesto.local.json
+# Optional generated project-root configuration; never repository inputs.
+/.clang-format
+/.clang-tidy
+# Reserved transient resource-cache directories (also excluded from payloads).
+**/.cache/
+**/.*_cache/
+/ecosystem.local.json
 build*/
 cmake-build*/
 cov/
@@ -35,3 +41,6 @@ Doxyfile
 compile_commands.json
 CMakeLists.txt.user
 CMakeLists.txt.user.*
+
+# Reproducible agent screenshots/simulations; authored assets stay trackable.
+/assets/dumps/test/.agent_cache/

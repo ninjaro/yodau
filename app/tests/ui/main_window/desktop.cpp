@@ -83,8 +83,7 @@ void main_window_tests::pool_menu_restores_choice() {
         bool reachable = false;
         for (auto* action : window.menuBar()->actions()) {
             if (action->menu()
-                && action->menu()->actions().contains(
-                    presentation->menuAction()
+                && action->menu()->actions().contains(presentation->menuAction()
                 )) {
                 reachable = true;
             }
@@ -92,9 +91,8 @@ void main_window_tests::pool_menu_restores_choice() {
         QVERIFY(reachable);
 #ifdef KC_KDE
         QCOMPARE(
-            window.actionCollection()->action(
-                QStringLiteral("view_presentation")
-            ),
+            window.actionCollection()->action(QStringLiteral("view_presentation"
+            )),
             presentation->menuAction()
         );
 #endif
@@ -113,12 +111,12 @@ void main_window_tests::pool_menu_restores_choice() {
         QSettings saved;
         saved.setFallbacksEnabled(false);
         QVERIFY(!yodau::shell::load_desktop_presentation(saved));
-        auto* canvas = window.findChild<QAction*>(
-            QStringLiteral("desktop_preset_canvas")
-        );
-        auto* reset = window.findChild<QAction*>(
-            QStringLiteral("desktop_preset_reset")
-        );
+        auto* canvas
+            = window.findChild<QAction*>(QStringLiteral("desktop_preset_canvas")
+            );
+        auto* reset
+            = window.findChild<QAction*>(QStringLiteral("desktop_preset_reset")
+            );
         QVERIFY(canvas && reset);
         canvas->trigger();
         reset->trigger();
@@ -150,9 +148,9 @@ void main_window_tests::pool_menu_restores_choice() {
                 }
             }
         });
-        auto* right = restored.findChild<QAction*>(
-            QStringLiteral("desktop_pool_right")
-        );
+        auto* right
+            = restored.findChild<QAction*>(QStringLiteral("desktop_pool_right")
+            );
         right->trigger();
         QCOMPARE(warnings, 1);
         QCOMPARE(board->current_pool_side(), pool_side::left);
@@ -231,9 +229,8 @@ void main_window_tests::desktop_preserves_layout_overrides() {
     apply_desktop_presentation(value, docks);
     QVERIFY(logs->isHidden());
     QVERIFY(save_desktop_presentation(settings, value));
-    QVERIFY(
-        !settings.contains(QStringLiteral("desktop/presentation/panels/logs"))
-    );
+    QVERIFY(!settings.contains(QStringLiteral("desktop/presentation/panels/logs"
+    )));
     value.preset = desktop_preset::classic;
     apply_desktop_presentation(value, docks);
     for (auto* dock : docks) {
@@ -305,9 +302,8 @@ void main_window_tests::window_shell_and_shared_workflows() {
             != nullptr
         );
         QVERIFY(
-            window.findChild<QDockWidget*>(
-                QStringLiteral("main_window_log_dock")
-            )
+            window.findChild<QDockWidget*>(QStringLiteral("main_window_log_dock"
+            ))
             != nullptr
         );
 #else
@@ -318,8 +314,7 @@ void main_window_tests::window_shell_and_shared_workflows() {
             != nullptr
         );
         QVERIFY(
-            window.findChild<QScrollArea*>(
-                QStringLiteral("mobile_lines_scroll")
+            window.findChild<QScrollArea*>(QStringLiteral("mobile_lines_scroll")
             )
             != nullptr
         );
@@ -355,9 +350,8 @@ void main_window_tests::window_shell_and_shared_workflows() {
             != nullptr
         );
         QVERIFY(
-            window.actionCollection()->action(
-                QStringLiteral("options_configure")
-            )
+            window.actionCollection()->action(QStringLiteral("options_configure"
+            ))
             != nullptr
         );
 #else
@@ -367,8 +361,7 @@ void main_window_tests::window_shell_and_shared_workflows() {
             != nullptr
         );
         QVERIFY(
-            window.findChild<QAction*>(
-                QStringLiteral("main_preferences_action")
+            window.findChild<QAction*>(QStringLiteral("main_preferences_action")
             )
             != nullptr
         );
@@ -380,9 +373,8 @@ void main_window_tests::window_shell_and_shared_workflows() {
 #endif
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
         QVERIFY(
-            window.findChild<QToolBar*>(
-                QStringLiteral("mobile_document_toolbar")
-            )
+            window.findChild<QToolBar*>(QStringLiteral("mobile_document_toolbar"
+            ))
             != nullptr
         );
         QVERIFY(
@@ -427,8 +419,7 @@ void main_window_tests::window_grid_preferences() {
         QSettings::IniFormat, QSettings::UserScope, temporary_directory.path()
     );
     QCoreApplication::setOrganizationName(QStringLiteral("yodau"));
-    QCoreApplication::setApplicationName(
-        QStringLiteral("grid-preference-tests")
+    QCoreApplication::setApplicationName(QStringLiteral("grid-preference-tests")
     );
 
     {
@@ -445,9 +436,8 @@ void main_window_tests::window_grid_preferences() {
         QVERIFY(direction != nullptr);
         QVERIFY(sizing != nullptr);
         QVERIFY(preserve != nullptr);
-        direction->setCurrentIndex(
-            direction->findData(QStringLiteral("vertical"))
-        );
+        direction->setCurrentIndex(direction->findData(QStringLiteral("vertical"
+        )));
         sizing->setCurrentIndex(sizing->findData(QStringLiteral("fixed")));
         preserve->setChecked(true);
         QSettings().sync();

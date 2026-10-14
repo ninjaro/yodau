@@ -50,7 +50,8 @@ void active_editor_panel::build_ui() {
     );
     connect(
         active_stream_panel_widget, &active_stream_panel::edit_mode_changed,
-        this, [this](const bool drawing_new) {
+        this,
+        [this](const bool drawing_new) {
             update_tools();
             emit edit_mode_changed(drawing_new);
         }
@@ -121,13 +122,11 @@ void active_editor_panel::build_ui() {
     lines_layout->addWidget(line_summary_label);
 
     line_list_widget = new QTreeWidget(lines_tab);
-    line_list_widget->setObjectName(
-        QStringLiteral("settings_active_lines_list")
+    line_list_widget->setObjectName(QStringLiteral("settings_active_lines_list")
     );
     line_list_widget->setColumnCount(3);
-    line_list_widget->setHeaderLabels(
-        { str_label("on"), str_label("line"), str_label("profile") }
-    );
+    line_list_widget->setHeaderLabels({ str_label("on"), str_label("line"),
+                                        str_label("profile") });
     line_list_widget->header()->setSectionResizeMode(
         0, QHeaderView::ResizeToContents
     );
@@ -186,20 +185,16 @@ void active_editor_panel::build_ui() {
         QStringLiteral("settings_active_edit_points_table")
     );
     line_edit_points_table_->setColumnCount(4);
-    line_edit_points_table_->setSelectionBehavior(
-        QAbstractItemView::SelectRows
+    line_edit_points_table_->setSelectionBehavior(QAbstractItemView::SelectRows
     );
-    line_edit_points_table_->setSelectionMode(
-        QAbstractItemView::SingleSelection
+    line_edit_points_table_->setSelectionMode(QAbstractItemView::SingleSelection
     );
-    line_edit_points_table_->setHorizontalHeaderLabels(
-        {
-            str_label("use"),
-            str_label("index"),
-            str_label("x %"),
-            str_label("y %"),
-        }
-    );
+    line_edit_points_table_->setHorizontalHeaderLabels({
+        str_label("use"),
+        str_label("index"),
+        str_label("x %"),
+        str_label("y %"),
+    });
     line_edit_points_table_->horizontalHeader()->setSectionResizeMode(
         0, QHeaderView::ResizeToContents
     );

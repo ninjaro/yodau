@@ -84,7 +84,8 @@ struct fixture {
         );
         QObject::connect(
             &settings, &settings_panel::active_line_edit_preview_changed,
-            &settings, [this](line_edit_request request) {
+            &settings,
+            [this](line_edit_request request) {
                 static_cast<void>(controller.apply_line_edit_preview(request));
             }
         );
@@ -161,9 +162,8 @@ void main_window_tests::canvas_tools_controls() {
         = f.editor->findChild<QTabWidget*>("settings_active_editor_tabs");
     tabs->setCurrentIndex(0); // Old dock controls update the strip too.
     QCOMPARE(tool->currentIndex(), 1);
-    f.settings.set_active_line_profile(
-        line_profile { .name = "from dock", .closed = true }
-    );
+    f.settings.set_active_line_profile(line_profile { .name = "from dock",
+                                                      .closed = true });
     QCOMPARE(name->text(), QStringLiteral("from dock"));
     QVERIFY(f.control<QCheckBox>("canvas_closed")->isChecked());
     name->setFocus();
@@ -382,8 +382,7 @@ void main_window_tests::canvas_tools_context() {
     QVERIFY(!modes->item(2)->isEnabled());
     static_cast<void>(f.streams.set_active_stream({}));
     QVERIFY(!tool->isEnabled());
-    QVERIFY(
-        !f.tools->isVisible()
+    QVERIFY(!f.tools->isVisible()
     ); // Active container is hidden, not user intent.
     QCOMPARE(f.board.grid_mode()->layout_cell_count(), 2);
 #endif

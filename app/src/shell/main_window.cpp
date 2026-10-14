@@ -413,8 +413,8 @@ void main_window::persist_mobile_session() {
     QByteArray contents;
     QString error;
     if (app_stream_controller == nullptr
-        || app_stream_controller->active_configuration_stream_name()
-               .isEmpty()) {
+        || app_stream_controller->active_configuration_stream_name().isEmpty(
+        )) {
         static_cast<void>(yodau::shell::clear_mobile_configuration(
             mobile_settings,
             yodau::shell::default_mobile_session_configuration_path(), page
@@ -438,8 +438,7 @@ void main_window::persist_mobile_session() {
 #endif
 }
 
-void main_window::on_application_state_changed(
-    const Qt::ApplicationState state
+void main_window::on_application_state_changed(const Qt::ApplicationState state
 ) {
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
     const bool application_active = state == Qt::ApplicationActive;

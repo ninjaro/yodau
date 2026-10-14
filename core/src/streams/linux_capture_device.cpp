@@ -159,7 +159,8 @@ std::vector<std::string> yodau::core::list_linux_capture_device_candidates(
     }
 
     std::ranges::sort(
-        paths, [](const std::string& lhs, const std::string& rhs) {
+        paths,
+        [](const std::string& lhs, const std::string& rhs) {
             const std::string lhs_name
                 = std::filesystem::path(lhs).filename().string();
             const std::string rhs_name

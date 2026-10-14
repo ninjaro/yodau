@@ -49,8 +49,8 @@ namespace {
             return configuration_;
         }
 
-        void
-        configure(processing_algorithm_configuration configuration) override {
+        void configure(processing_algorithm_configuration configuration
+        ) override {
             configuration_ = completed_processing_configuration(
                 algorithm_id(), std::move(configuration)
             );
@@ -249,14 +249,12 @@ namespace {
             std::vector<detection> detections;
             detections.reserve(motion_candidates.size());
             for (const auto& candidate : motion_candidates) {
-                detections.push_back(
-                    detection {
-                        .center_pct = candidate.center_pct,
-                        .area_px2 = candidate.area_px2,
-                        .confidence = candidate.confidence,
-                        .class_id = candidate.class_id,
-                    }
-                );
+                detections.push_back(detection {
+                    .center_pct = candidate.center_pct,
+                    .area_px2 = candidate.area_px2,
+                    .confidence = candidate.confidence,
+                    .class_id = candidate.class_id,
+                });
             }
 
             std::sort(
@@ -304,16 +302,14 @@ namespace {
                         * 0.003;
                     const double confidence_bonus
                         = std::clamp(detected.confidence, 0.0, 1.0) * 0.02;
-                    match_candidates.push_back(
-                        track_match_candidate {
-                            .track_index = track_index,
-                            .detection_index = detection_index,
-                            .distance_pct = distance,
-                            .gate_radius_pct = prediction.gate_radius_pct,
-                            .assignment_cost = normalized_distance + area_cost
-                                + stale_cost - age_bonus - confidence_bonus,
-                        }
-                    );
+                    match_candidates.push_back(track_match_candidate {
+                        .track_index = track_index,
+                        .detection_index = detection_index,
+                        .distance_pct = distance,
+                        .gate_radius_pct = prediction.gate_radius_pct,
+                        .assignment_cost = normalized_distance + area_cost
+                            + stale_cost - age_bonus - confidence_bonus,
+                    });
                 }
             }
 
@@ -354,15 +350,13 @@ namespace {
                 const auto& detected = detections[candidate.detection_index];
                 auto& track = state.tracks[candidate.track_index];
                 const point previous_center = track.center_pct;
-                matched_updates.push_back(
-                    matched_track_update {
-                        .track_index = candidate.track_index,
-                        .previous_center = previous_center,
-                        .current_center = detected.center_pct,
-                        .age_frames = track.age_frames + 1,
-                        .area_px2 = detected.area_px2,
-                    }
-                );
+                matched_updates.push_back(matched_track_update {
+                    .track_index = candidate.track_index,
+                    .previous_center = previous_center,
+                    .current_center = detected.center_pct,
+                    .age_frames = track.age_frames + 1,
+                    .area_px2 = detected.area_px2,
+                });
 
                 track.center_pct = detected.center_pct;
                 track.velocity_pct = smoothed_velocity(
@@ -852,21 +846,19 @@ namespace {
                 const double gate_radius_pct = std::clamp(
                     base_match_radius_pct * gap_multiplier, 1.0, 100.0
                 );
-                predictions.push_back(
-                    track_prediction {
-                        .center_pct = predicted,
-                        .flow_count = flow_count,
-                        .velocity_projected = velocity_projected,
-                        .gate_radius_pct = gate_radius_pct,
-                    }
-                );
+                predictions.push_back(track_prediction {
+                    .center_pct = predicted,
+                    .flow_count = flow_count,
+                    .velocity_projected = velocity_projected,
+                    .gate_radius_pct = gate_radius_pct,
+                });
             }
 
             return predictions;
         }
 
-        static size_t predicted_track_count(
-            const std::vector<track_prediction>& predictions
+        static size_t
+        predicted_track_count(const std::vector<track_prediction>& predictions
         ) {
             return static_cast<size_t>(std::count_if(
                 predictions.begin(), predictions.end(),

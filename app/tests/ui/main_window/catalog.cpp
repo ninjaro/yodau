@@ -46,19 +46,17 @@ void main_window_tests::catalog_settings_and_local_sources() {
         QStringLiteral("motion_baseline")
     );
 
-    catalog_state.set_stream_settings(
-        stream_settings {
-            .stream_name = QStringLiteral(" cam-1 "),
-            .labels_enabled = false,
-            .algorithm_id = QStringLiteral("contour mask"),
-            .algorithm_preset = QStringLiteral("debug"),
-            .algorithm_overlay_enabled = true,
-            .manual_processing_policy_enabled = true,
-            .manual_display_fps = 37,
-            .manual_core_fps = 11,
-            .manual_processing_pixels = 640 * 360,
-        }
-    );
+    catalog_state.set_stream_settings(stream_settings {
+        .stream_name = QStringLiteral(" cam-1 "),
+        .labels_enabled = false,
+        .algorithm_id = QStringLiteral("contour mask"),
+        .algorithm_preset = QStringLiteral("debug"),
+        .algorithm_overlay_enabled = true,
+        .manual_processing_policy_enabled = true,
+        .manual_display_fps = 37,
+        .manual_core_fps = 11,
+        .manual_processing_pixels = 640 * 360,
+    });
 
     const stream_settings saved_settings
         = catalog_state.settings_for(QStringLiteral("cam-1"));
@@ -93,9 +91,9 @@ void main_window_tests::catalog_seed_add_and_local_sources() {
     stream_mgr.add_stream("/tmp/cam-1.mp4", "cam-1", "file", true);
     workflow.seed_from_core();
 
-    auto* streams_list = panel.findChild<QTreeWidget*>(
-        QStringLiteral("settings_streams_list")
-    );
+    auto* streams_list
+        = panel.findChild<QTreeWidget*>(QStringLiteral("settings_streams_list")
+        );
     QVERIFY(streams_list != nullptr);
     auto stream_row_for_name = [streams_list](const QString& name) -> int {
         for (int row = 0; row < streams_list->topLevelItemCount(); row += 1) {
@@ -157,11 +155,9 @@ void main_window_tests::catalog_seed_add_and_local_sources() {
         local_result.entries.front().message,
         QStringLiteral("local source inventory refreshed")
     );
-    QVERIFY(
-        local_result.entries.front().detail.contains(QStringLiteral("core="))
-    );
-    QVERIFY(
-        local_result.entries.front().detail.contains(QStringLiteral("qt="))
+    QVERIFY(local_result.entries.front().detail.contains(QStringLiteral("core=")
+    ));
+    QVERIFY(local_result.entries.front().detail.contains(QStringLiteral("qt="))
     );
     QVERIFY(!local_result.refresh_fps);
 

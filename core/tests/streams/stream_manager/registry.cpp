@@ -63,13 +63,11 @@ public:
         (void)frame_value;
 
         processing_result result;
-        result.metrics.push_back(
-            processing_metric {
-                .name = "stream_name_size",
-                .value = static_cast<double>(stream_value.get_name().size()),
-                .unit = "chars",
-            }
-        );
+        result.metrics.push_back(processing_metric {
+            .name = "stream_name_size",
+            .value = static_cast<double>(stream_value.get_name().size()),
+            .unit = "chars",
+        });
         return result;
     }
 
@@ -117,8 +115,8 @@ private:
 TEST(processing_algorithm_registry_test, registry_creates_named_algorithm) {
     processing_algorithm_registry registry;
 
-    EXPECT_TRUE(registry.register_algorithm(
-        processing_algorithm_registry::entry {
+    EXPECT_TRUE(
+        registry.register_algorithm(processing_algorithm_registry::entry {
             .algorithm_id = "dummy",
             .display_name = "dummy algorithm",
             .create =
@@ -126,10 +124,10 @@ TEST(processing_algorithm_registry_test, registry_creates_named_algorithm) {
                     return std::make_unique<stream_manager_tests_support::
                                                 dummy_processing_algorithm>();
                 },
-        }
-    ));
-    EXPECT_FALSE(registry.register_algorithm(
-        processing_algorithm_registry::entry {
+        })
+    );
+    EXPECT_FALSE(
+        registry.register_algorithm(processing_algorithm_registry::entry {
             .algorithm_id = "dummy",
             .display_name = "dummy duplicate",
             .create =
@@ -137,8 +135,8 @@ TEST(processing_algorithm_registry_test, registry_creates_named_algorithm) {
                     return std::make_unique<stream_manager_tests_support::
                                                 dummy_processing_algorithm>();
                 },
-        }
-    ));
+        })
+    );
 
     const std::vector<std::string> ids = registry.algorithm_ids();
     ASSERT_EQ(ids.size(), 1u);
@@ -167,11 +165,11 @@ TEST(processing_algorithm_registry_test, registry_creates_named_algorithm) {
 TEST(processing_session_store_test, session_overrides_cache_and_results) {
     processing_session_store store("spot_grid");
 
-    const processing_session_store::legacy_algorithm_factory factory
-        = [](const std::string& algorithm_id) {
+    const processing_session_store::algorithm_factory factory
+        = [](const yodau::core::processing_algorithm_settings& settings) {
               return std::make_unique<
                   stream_manager_tests_support::named_processing_algorithm>(
-                  algorithm_id
+                  settings.algorithm_id
               );
           };
 
@@ -201,8 +199,7 @@ TEST(processing_session_store_test, session_overrides_cache_and_results) {
     EXPECT_EQ(store.stream_algorithm_overrides().at("cam-b"), "contour_mask");
 
     processing_result override_result;
-    override_result.diagnostics.push_back(
-        { .key = "stream", .value = "cam-b" }
+    override_result.diagnostics.push_back({ .key = "stream", .value = "cam-b" }
     );
     store.store_latest_processing_result("cam-b", override_result);
     ASSERT_TRUE(store.latest_processing_result("cam-b").has_value());

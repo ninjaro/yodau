@@ -109,9 +109,9 @@ stream_cell::line_instance active_edit_session::store_applied_template_line(
     }
 
     stream_cell::line_instance inst;
-    inst.template_name = active_edit_session_support::trimmed_name(
-        settings_value.template_name
-    );
+    inst.template_name
+        = active_edit_session_support::trimmed_name(settings_value.template_name
+        );
     inst.color = settings_value.color;
     inst.color_mode_id = settings_value.color_mode_id;
     inst.enabled = true;
@@ -254,8 +254,8 @@ active_edit_session::stream_lines(const QString& stream_name) const {
     return it == per_stream_lines_.cend() ? empty_lines : it.value();
 }
 
-QSet<QString> active_edit_session::used_template_names_for_stream(
-    const QString& stream_name
+QSet<QString>
+active_edit_session::used_template_names_for_stream(const QString& stream_name
 ) const {
     QSet<QString> used;
 
@@ -269,8 +269,8 @@ QSet<QString> active_edit_session::used_template_names_for_stream(
     return used;
 }
 
-QStringList active_edit_session::template_candidates_excluding(
-    const QSet<QString>& used
+QStringList
+active_edit_session::template_candidates_excluding(const QSet<QString>& used
 ) const {
     QStringList candidates;
     candidates.reserve(templates_.size());
@@ -302,9 +302,9 @@ active_edit_session::normalized_line_profile(line_profile profile_value) {
 template_apply_settings active_edit_session::normalized_template_settings(
     template_apply_settings settings_value
 ) {
-    settings_value.template_name = active_edit_session_support::trimmed_name(
-        settings_value.template_name
-    );
+    settings_value.template_name
+        = active_edit_session_support::trimmed_name(settings_value.template_name
+        );
     settings_value.color_mode_id
         = normalized_line_color_mode_id(settings_value.color_mode_id);
     settings_value.width_text
