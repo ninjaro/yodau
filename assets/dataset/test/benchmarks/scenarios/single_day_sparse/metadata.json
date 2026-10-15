@@ -1,0 +1,23 @@
+{
+  "scenario_id": "single_day_sparse",
+  "dataset_revision": "stage0-placeholder-2026-03-30",
+  "source_mode": "synthetic_placeholder",
+  "source_provenance": "Harness-generated synthetic replay until a recorded day clip is checked in.",
+  "recording_status": "placeholder",
+  "frame_rate": 30,
+  "duration_seconds": 4.0,
+  "stream_count": 1,
+  "lines_per_stream": 2,
+  "line_density": "sparse",
+  "motion_level": "low",
+  "lighting": "stable",
+  "camera": "static",
+  "tags": [
+    "static-camera",
+    "sparse-line"
+  ],
+  "expected_event_notes": [
+    "One synthetic object drifts across two tripwire lines.",
+    "Used for benchmark harness smoke runs before recorded datasets exist."
+  ]
+}

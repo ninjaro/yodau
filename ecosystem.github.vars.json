@@ -1,0 +1,9 @@
+{
+  "ecosystem_repository": "ninjaro/ecosystem",
+  "ecosystem_ref": "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914",
+  "ecosystem_bootstrap": "repository",
+  "ecosystem_source_path": ".",
+  "ecosystem_build_parallelism": "2",
+  "sphinx_theme": "sphinx_rtd_theme",
+  "sphinx_theme_package": "sphinx-rtd-theme"
+}

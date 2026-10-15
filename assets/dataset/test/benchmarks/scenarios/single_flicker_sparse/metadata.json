@@ -1,0 +1,24 @@
+{
+  "scenario_id": "single_flicker_sparse",
+  "dataset_revision": "stage0-placeholder-2026-03-30",
+  "source_mode": "synthetic_placeholder",
+  "source_provenance": "Harness-generated synthetic replay until a recorded flicker-heavy clip is checked in.",
+  "recording_status": "placeholder",
+  "frame_rate": 30,
+  "duration_seconds": 4.0,
+  "stream_count": 1,
+  "lines_per_stream": 2,
+  "line_density": "sparse",
+  "motion_level": "medium",
+  "lighting": "unstable",
+  "camera": "static",
+  "tags": [
+    "static-camera",
+    "flicker-heavy",
+    "sparse-line"
+  ],
+  "expected_event_notes": [
+    "Lighting oscillation is synthetic and deterministic.",
+    "Used to reserve a robustness slot before recorded flicker footage exists."
+  ]
+}

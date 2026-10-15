@@ -1,0 +1,23 @@
+{
+  "scenario_id": "crowded_dense_grid",
+  "dataset_revision": "stage0-placeholder-2026-03-30",
+  "source_mode": "synthetic_placeholder",
+  "source_provenance": "Harness-generated synthetic replay until a crowded dense-line clip is checked in.",
+  "recording_status": "placeholder",
+  "frame_rate": 30,
+  "duration_seconds": 4.0,
+  "stream_count": 1,
+  "lines_per_stream": 8,
+  "line_density": "dense",
+  "motion_level": "high",
+  "lighting": "stable",
+  "camera": "static",
+  "tags": [
+    "crowded-motion",
+    "dense-line"
+  ],
+  "expected_event_notes": [
+    "Six synthetic moving objects stress contour and overlay counts.",
+    "Acts as the region-explosion placeholder before a recorded crowded clip exists."
+  ]
+}

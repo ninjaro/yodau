@@ -1,0 +1,23 @@
+{
+  "scenario_id": "multi4_day_mixed",
+  "dataset_revision": "stage0-placeholder-2026-03-30",
+  "source_mode": "synthetic_placeholder",
+  "source_provenance": "Harness-generated synthetic replay until a four-stream mixed workload set is recorded.",
+  "recording_status": "placeholder",
+  "frame_rate": 30,
+  "duration_seconds": 3.0,
+  "stream_count": 4,
+  "lines_per_stream": 4,
+  "line_density": "mixed",
+  "motion_level": "mixed",
+  "lighting": "stable",
+  "camera": "mixed",
+  "tags": [
+    "multi-stream",
+    "mixed-load"
+  ],
+  "expected_event_notes": [
+    "Synthetic stream offsets intentionally differ so every stream does not align perfectly.",
+    "Acts as the first scaling placeholder."
+  ]
+}

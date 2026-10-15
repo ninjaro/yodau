@@ -1,0 +1,23 @@
+{
+  "scenario_id": "multi9_day_mixed",
+  "dataset_revision": "stage0-placeholder-2026-03-30",
+  "source_mode": "synthetic_placeholder",
+  "source_provenance": "Harness-generated synthetic replay until a nine-stream mixed workload set is recorded.",
+  "recording_status": "placeholder",
+  "frame_rate": 30,
+  "duration_seconds": 2.0,
+  "stream_count": 9,
+  "lines_per_stream": 3,
+  "line_density": "mixed",
+  "motion_level": "mixed",
+  "lighting": "stable",
+  "camera": "mixed",
+  "tags": [
+    "multi-stream",
+    "heavy-load"
+  ],
+  "expected_event_notes": [
+    "Synthetic streams share the same fixture family but use per-stream offsets.",
+    "Acts as the heavier scaling placeholder before recorded multi-stream sets exist."
+  ]
+}

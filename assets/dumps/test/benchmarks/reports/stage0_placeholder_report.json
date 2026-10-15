@@ -1,0 +1,63 @@
+{
+  "report_id": "stage0_placeholder_2026-03-30",
+  "status": "placeholder",
+  "benchmark_date": "2026-03-30",
+  "git_revision": "working_tree_placeholder",
+  "hardware_profile_id": "dev_laptop_cpu",
+  "dataset_revision": "stage0-placeholder-2026-03-30",
+  "settings_profile": "default",
+  "notes": [
+    "This file reserves the raw output shape before real metric capture lands.",
+    "Replace null metrics with recorded values from the executable replay harness."
+  ],
+  "results": [
+    {
+      "algorithm_id": "motion_baseline",
+      "scenario_id": "single_day_sparse",
+      "stream_count": 1,
+      "line_count": 2,
+      "grid_cell_count": null,
+      "avg_fps": null,
+      "p95_latency_ms": null,
+      "cpu_percent": null,
+      "rss_mb": null,
+      "false_positive_count": null,
+      "missed_event_count": null,
+      "hardware_profile_id": "dev_laptop_cpu",
+      "dataset_revision": "stage0-placeholder-2026-03-30",
+      "notes": "Placeholder row reserved for the first baseline capture."
+    },
+    {
+      "algorithm_id": "spot_grid",
+      "scenario_id": "single_day_sparse",
+      "stream_count": 1,
+      "line_count": 2,
+      "grid_cell_count": null,
+      "avg_fps": null,
+      "p95_latency_ms": null,
+      "cpu_percent": null,
+      "rss_mb": null,
+      "false_positive_count": null,
+      "missed_event_count": null,
+      "hardware_profile_id": "dev_laptop_cpu",
+      "dataset_revision": "stage0-placeholder-2026-03-30",
+      "notes": "Placeholder row reserved for the first spot-grid capture."
+    },
+    {
+      "algorithm_id": "contour_mask",
+      "scenario_id": "single_day_sparse",
+      "stream_count": 1,
+      "line_count": 2,
+      "grid_cell_count": null,
+      "avg_fps": null,
+      "p95_latency_ms": null,
+      "cpu_percent": null,
+      "rss_mb": null,
+      "false_positive_count": null,
+      "missed_event_count": null,
+      "hardware_profile_id": "dev_laptop_cpu",
+      "dataset_revision": "stage0-placeholder-2026-03-30",
+      "notes": "Placeholder row reserved for the first contour-mask capture."
+    }
+  ]
+}

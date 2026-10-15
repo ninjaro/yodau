@@ -1,0 +1,18 @@
+{
+  "hardware_profile_id": "dev_laptop_cpu",
+  "status": "recorded",
+  "captured_on": "2026-03-30",
+  "cpu_model": "Intel(R) Core(TM) Ultra 7 155H",
+  "logical_cores": 22,
+  "ram_gib": 15,
+  "os_kernel": "Linux 6.18.12-1-MANJARO x86_64 GNU/Linux",
+  "compiler": "g++ (GCC) 15.2.1 20260209",
+  "build_type": "Debug",
+  "opencv_version": "4.13.0",
+  "benchmark_version": "1.9.5",
+  "source_mode": "synthetic_placeholder",
+  "notes": [
+    "Initial Stage 0 capture record for the local developer machine.",
+    "Later reports should replace synthetic placeholder runs with recorded clips."
+  ]
+}
