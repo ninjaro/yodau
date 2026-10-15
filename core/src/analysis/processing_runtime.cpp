@@ -18,6 +18,14 @@ namespace {
     std::unique_ptr<processing_algorithm> make_configured_processing_algorithm(
         const processing_algorithm_settings& settings
     ) {
+        if (!settings.algorithm_id.empty()
+            && (!processing_algorithm_descriptor_for(settings.algorithm_id)
+                || (!settings.preset_id.empty()
+                    && !processing_preset_descriptor_for(
+                        settings.algorithm_id, settings.preset_id
+                    )))) {
+            return {};
+        }
         const processing_algorithm_settings normalized_settings
             = normalized_processing_algorithm_settings(settings);
         if (normalized_settings.algorithm_id.empty()) {
@@ -259,6 +267,10 @@ processing_runtime::stream_algorithm_setting_overrides() const {
 
 bool processing_runtime::set_default_algorithm(const std::string& algorithm_id
 ) {
+    if (!algorithm_id.empty()
+        && !processing_algorithm_descriptor_for(algorithm_id)) {
+        return false;
+    }
     return set_default_algorithm_settings(
         default_processing_algorithm_settings(algorithm_id)
     );
@@ -267,7 +279,6 @@ bool processing_runtime::set_default_algorithm(const std::string& algorithm_id
 bool processing_runtime::set_default_algorithm_settings(
     processing_algorithm_settings settings
 ) {
-    settings = normalized_processing_algorithm_settings(std::move(settings));
     auto algorithm = make_configured_processing_algorithm(settings);
     if (!algorithm) {
         return false;
@@ -285,7 +296,9 @@ bool processing_runtime::set_stream_algorithm(
     const std::string& stream_name, const std::string& algorithm_id,
     const std::string& preset_id
 ) {
-    if (stream_name.empty()) {
+    if (stream_name.empty()
+        || (!algorithm_id.empty()
+            && !processing_algorithm_descriptor_for(algorithm_id))) {
         return false;
     }
 
@@ -304,7 +317,6 @@ bool processing_runtime::set_stream_algorithm_settings(
         return false;
     }
 
-    settings = normalized_processing_algorithm_settings(std::move(settings));
     auto algorithm = make_configured_processing_algorithm(settings);
     if (!algorithm) {
         return false;

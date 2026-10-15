@@ -26,7 +26,7 @@ fields remain in the same document for lossless Qt round trips; the headless
 publisher currently renders deterministic line colors and labels rather than
 reproducing the desktop theme.
 
-Exports are strict, versioned JSON. On Unix, the desktop app writes them
+Exports are strict, versionless JSON. On Unix, the desktop app writes them
 atomically with mode `0600`. A network source URL may contain credentials, so
 treat the file as a secret, do not commit it, and retain owner-only permissions
 when copying it. Daemon logs redact URL user information and query values.

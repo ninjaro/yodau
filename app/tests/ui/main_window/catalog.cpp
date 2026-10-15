@@ -50,7 +50,7 @@ void main_window_tests::catalog_settings_and_local_sources() {
         .stream_name = QStringLiteral(" cam-1 "),
         .labels_enabled = false,
         .algorithm_id = QStringLiteral("contour mask"),
-        .algorithm_preset = QStringLiteral("debug"),
+        .algorithm_preset = QStringLiteral("mask_heavy"),
         .algorithm_overlay_enabled = true,
         .manual_processing_policy_enabled = true,
         .manual_display_fps = 37,

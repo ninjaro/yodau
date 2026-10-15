@@ -58,7 +58,7 @@ function resolve({context, root = process.cwd()}) {
   const event = ['push', 'pull_request', 'workflow_dispatch', 'schedule'].includes(context.eventName)
     ? context.eventName : 'unsupported';
   const payload = context.payload || {};
-  const result = {schema: 1, event, event_commit: commit(context.sha), checkout: null,
+  const result = {event, event_commit: commit(context.sha), checkout: null,
     base: null, head: null, comparison_base: null, complete: false,
     reason: 'unsupported-event', changes: [], paths: []};
   // Manual and scheduled runs have no trusted delta, even with a full checkout.
@@ -156,7 +156,7 @@ function inspect({root = process.cwd(), binary}) {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const result = JSON.parse(output);
-  requireValue(result?.schema === 1 && typeof result.project === 'string'
+  requireValue(result && !Object.hasOwn(result, 'schema') && typeof result.project === 'string'
     && typeof result.delta_validated === 'boolean'
     && ['full', 'affected', 'presentation', 'none'].includes(result.classification)
     && ['full', 'repository'].includes(result.execution?.codeql),

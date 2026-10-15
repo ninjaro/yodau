@@ -260,7 +260,7 @@ void main_window_tests::desktop_shell_menus_and_shortcuts() {
     // Retain the object names and Qt state tag used by both desktop profiles.
     window.addToolBar(Qt::LeftToolBarArea, toolbar);
     fixture.docks[2]->hide();
-    const auto layout = window.saveState(1);
+    const auto layout = window.saveState();
     QTemporaryDir state_directory;
     QVERIFY(state_directory.isValid());
     QSettings saved_state(

@@ -57,7 +57,7 @@ void main_window_tests::bridge_active_state_and_template_preview() {
         .stream_name = QStringLiteral("cam-1"),
         .labels_enabled = false,
         .algorithm_id = QStringLiteral("contour mask"),
-        .algorithm_preset = QStringLiteral("debug"),
+        .algorithm_preset = QStringLiteral("mask_heavy"),
         .algorithm_overlay_enabled = true,
     };
 

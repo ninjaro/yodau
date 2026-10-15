@@ -17,15 +17,15 @@ void main_window_tests::settings_normalize_algorithm_and_width() {
         QStringLiteral("contour_mask")
     );
     QCOMPARE(
-        normalized_app_algorithm_id(QStringLiteral("spots")),
+        normalized_app_algorithm_id(QStringLiteral("spot_grid")),
         QStringLiteral("spot_grid")
     );
     QCOMPARE(
-        normalized_app_algorithm_id(QStringLiteral("auto")),
+        normalized_app_algorithm_id(QStringLiteral("hybrid_auto")),
         QStringLiteral("hybrid_auto")
     );
     QCOMPARE(
-        normalized_app_algorithm_id(QStringLiteral("tracking")),
+        normalized_app_algorithm_id(QStringLiteral("centroid_track")),
         QStringLiteral("centroid_track")
     );
     QCOMPARE(
@@ -38,13 +38,13 @@ void main_window_tests::settings_normalize_algorithm_and_width() {
     );
     QCOMPARE(
         normalized_algorithm_preset_id(
-            QStringLiteral("hybrid_auto"), QStringLiteral("simple")
+            QStringLiteral("hybrid_auto"), QStringLiteral("load_guard")
         ),
         QStringLiteral("load_guard")
     );
     QCOMPARE(
         normalized_algorithm_preset_id(
-            QStringLiteral("contour_mask"), QStringLiteral("debug")
+            QStringLiteral("contour_mask"), QStringLiteral("mask_heavy")
         ),
         QStringLiteral("mask_heavy")
     );
@@ -54,7 +54,7 @@ void main_window_tests::settings_normalize_algorithm_and_width() {
     );
     QCOMPARE(
         normalized_algorithm_preset_id(
-            QStringLiteral("centroid_track"), QStringLiteral("debug")
+            QStringLiteral("centroid_track"), QStringLiteral("persistent")
         ),
         QStringLiteral("persistent")
     );

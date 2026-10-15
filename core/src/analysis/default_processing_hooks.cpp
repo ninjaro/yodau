@@ -18,7 +18,9 @@ namespace default_processing_hooks_support {
 
     std::string
     normalized_requested_algorithm_id(const std::string& algorithm_id) {
-        return normalized_processing_algorithm_id(algorithm_id);
+        const auto descriptor
+            = processing_algorithm_descriptor_for(algorithm_id);
+        return descriptor ? descriptor->id : std::string {};
     }
 
     processing_algorithm_registry::entry registry_entry(
@@ -122,18 +124,12 @@ make_processing_algorithm(const std::string& algorithm_id) {
             algorithm_id
         );
 
-    if (!requested_algorithm_id.empty()) {
-        if (auto algorithm = registry.create(requested_algorithm_id)) {
-            return algorithm;
-        }
+    if (!algorithm_id.empty()) {
+        return requested_algorithm_id.empty()
+            ? nullptr
+            : registry.create(requested_algorithm_id);
     }
-
-    const std::string fallback_algorithm_id = default_processing_algorithm_id();
-    if (fallback_algorithm_id.empty()) {
-        return {};
-    }
-
-    return registry.create(fallback_algorithm_id);
+    return registry.create(default_processing_algorithm_id());
 }
 
 } // namespace yodau::core

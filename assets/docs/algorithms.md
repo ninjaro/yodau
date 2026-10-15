@@ -15,7 +15,8 @@ Algorithm selection is scoped by stream:
 - the runtime has one default algorithm;
 - each stream may override that default;
 - a stream override can be reset to the default;
-- aliases such as `auto`, `adaptive`, and `hybrid` normalize to `hybrid_auto`.
+- algorithm and preset identifiers come from the current catalogue; historical
+  synonyms such as algorithm `auto` or preset `basic` are not accepted.
 
 ## Implemented Algorithms
 
@@ -90,8 +91,11 @@ available.
 
 ## Configuration
 
-Configuration values are currently string keyed. Presets and aliases are
-normalized by callers before they reach the runtime. Algorithm options should
+Configuration values are currently string keyed. Callers select current preset
+identifiers before they reach the runtime. Operator profiles select the catalogue's
+first, default or last preset; they do not introduce alternate preset identifiers.
+An explicitly unavailable or unknown algorithm is rejected rather than replaced
+with the default. Algorithm options should
 remain narrow, documented, and stable enough for the CLI, app, and benchmarks
 to use the same ids.
 

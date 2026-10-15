@@ -111,7 +111,7 @@ TEST(processing_runtime_test, hybrid_auto_chooses_delegate_by_scene_shape) {
 
 #ifdef YODAU_OPENCV
 TEST(processing_algorithm_registry_test, hybrid_auto_can_force_low_cost_guard) {
-    auto algorithm = yodau::core::make_processing_algorithm("auto");
+    auto algorithm = yodau::core::make_processing_algorithm("hybrid_auto");
     ASSERT_TRUE(algorithm);
 
     processing_algorithm_configuration configuration

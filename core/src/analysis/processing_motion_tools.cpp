@@ -63,7 +63,7 @@ cv::Mat binary_motion_mask(
     return binary_mask;
 }
 
-cv::Mat legacy_frame_delta_motion_mask(
+cv::Mat frame_delta_motion_mask(
     const cv::Mat& previous_gray, const cv::Mat& current_gray,
     const int diff_threshold, const int erode_iterations,
     const int dilate_iterations
@@ -137,7 +137,7 @@ active_motion_grid_cells(const cv::Mat& grid_mask, const grid_dims& grid) {
     return active_cell_indices;
 }
 
-double legacy_impact_speed(
+double calculate_impact_speed(
     const point& previous_center, const point& current_center,
     const double motion_ratio, const double min_ratio
 ) {

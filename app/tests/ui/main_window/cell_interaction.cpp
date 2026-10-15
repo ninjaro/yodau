@@ -24,8 +24,8 @@ void main_window_tests::cell_stream_settings() {
     cell.set_stream_settings(stream_settings {
         .stream_name = QStringLiteral("cam-7"),
         .labels_enabled = true,
-        .algorithm_id = QStringLiteral("contour"),
-        .algorithm_preset = QStringLiteral("debug"),
+        .algorithm_id = QStringLiteral("contour_mask"),
+        .algorithm_preset = QStringLiteral("mask_heavy"),
         .algorithm_overlay_enabled = true,
         .manual_processing_policy_enabled = true,
         .manual_display_fps = 17,

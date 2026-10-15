@@ -442,15 +442,19 @@ stream_settings apply_operator_profile(
         return settings_value;
     }
 
-    const QString preset_alias = normalized_profile == QStringLiteral("simple")
-        ? QStringLiteral("simple")
-        : (normalized_profile == QStringLiteral("debug_heavy")
-               ? QStringLiteral("debug")
-               : QStringLiteral("balanced"));
-
-    settings_value.algorithm_preset = normalized_algorithm_preset_id(
-        settings_value.algorithm_id, preset_alias
+    const auto presets = yodau::core::processing_algorithm_preset_ids(
+        settings_value.algorithm_id.toStdString()
     );
+    if (!presets.empty()) {
+        const auto preset = normalized_profile == QStringLiteral("simple")
+            ? presets.front()
+            : normalized_profile == QStringLiteral("debug_heavy")
+            ? presets.back()
+            : yodau::core::processing_algorithm_default_preset_id(
+                  settings_value.algorithm_id.toStdString()
+              );
+        settings_value.algorithm_preset = QString::fromStdString(preset);
+    }
     settings_value.movement_display_mode
         = normalized_profile == QStringLiteral("simple")
         ? QStringLiteral("off")

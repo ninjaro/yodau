@@ -25,11 +25,17 @@ TEST(processing_runtime_test, keeps_default_and_per_stream_algorithm_choices) {
 
     EXPECT_EQ(runtime.default_algorithm_id(), "motion_baseline");
     EXPECT_EQ(runtime.algorithm_id_for_stream("cam-a"), "motion_baseline");
-    EXPECT_TRUE(runtime.set_default_algorithm("spot"));
+    EXPECT_FALSE(runtime.set_default_algorithm("spot"));
+    EXPECT_EQ(runtime.default_algorithm_id(), "motion_baseline");
+    EXPECT_TRUE(runtime.set_default_algorithm("spot_grid"));
     EXPECT_EQ(runtime.default_algorithm_id(), "spot_grid");
     EXPECT_EQ(runtime.algorithm_id_for_stream("cam-a"), "spot_grid");
 
-    EXPECT_TRUE(runtime.set_stream_algorithm("cam-b", "contour"));
+    EXPECT_FALSE(runtime.set_stream_algorithm("cam-b", "contour"));
+    EXPECT_FALSE(runtime.set_stream_algorithm("cam-b", "contour_mask", "debug")
+    );
+    EXPECT_TRUE(runtime.stream_algorithm_overrides().empty());
+    EXPECT_TRUE(runtime.set_stream_algorithm("cam-b", "contour_mask"));
     EXPECT_EQ(runtime.algorithm_id_for_stream("cam-b"), "contour_mask");
 
     const auto overrides = runtime.stream_algorithm_overrides();

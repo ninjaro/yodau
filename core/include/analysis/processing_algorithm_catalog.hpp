@@ -16,7 +16,6 @@ namespace yodau::core {
 struct processing_preset_descriptor {
     std::string id;
     std::string display_name;
-    std::vector<std::string> aliases;
     std::unordered_map<std::string, std::string> configuration_values;
 };
 
@@ -40,7 +39,6 @@ struct processing_parameter_descriptor {
 struct processing_algorithm_descriptor {
     std::string id;
     std::string display_name;
-    std::vector<std::string> aliases;
     std::string default_preset_id;
     std::vector<processing_preset_descriptor> presets;
     std::vector<processing_parameter_descriptor> parameters;

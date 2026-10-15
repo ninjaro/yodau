@@ -348,7 +348,7 @@ not application schema negotiation; restore rejects invalid Qt payloads.
 Stream and line data do not depend on the selected shell:
 
 - both profiles call the same `stream_controller` import/export methods;
-- `.yodau.json` remains the strict versioned line-configuration format shared
+- `.yodau.json` remains the strict versionless line-configuration format shared
   with `yodau-daemon`;
 - algorithm, source/output, appearance, geometry, and line-profile fields are
   unchanged;

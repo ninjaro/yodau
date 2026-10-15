@@ -1,7 +1,7 @@
 # Android application
 
 The Android build uses the same stream controller, processing logic, and
-versioned `.yodau.json` line-configuration format as the Qt and KDE desktop
+versionless `.yodau.json` line-configuration format as the Qt and KDE desktop
 builds. Its shell is adapted for touch rather than desktop docks.
 
 When an Android OpenCV package is not supplied, the app registers a bounded

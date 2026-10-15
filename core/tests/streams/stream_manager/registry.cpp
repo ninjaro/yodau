@@ -222,6 +222,21 @@ TEST(processing_session_store_test, session_overrides_cache_and_results) {
     EXPECT_FALSE(store.latest_processing_result("cam-b").has_value());
 }
 
+TEST(
+    processing_algorithm_registry_test, obsolete_identifiers_are_not_converted
+) {
+    EXPECT_FALSE(yodau::core::processing_algorithm_descriptor_for("auto"));
+    EXPECT_FALSE(yodau::core::processing_algorithm_descriptor_for("track"));
+    EXPECT_FALSE(yodau::core::make_processing_algorithm("auto"));
+    EXPECT_FALSE(yodau::core::make_processing_algorithm("unknown"));
+    EXPECT_FALSE(
+        yodau::core::processing_preset_descriptor_for("hybrid_auto", "simple")
+    );
+    EXPECT_FALSE(
+        yodau::core::processing_preset_descriptor_for("contour_mask", "debug")
+    );
+}
+
 #ifdef YODAU_OPENCV
 TEST(
     processing_algorithm_registry_test, default_registry_exposes_motion_baseline
@@ -253,13 +268,13 @@ TEST(
     EXPECT_EQ(contour_mask_algorithm->display_name(), "contour mask");
 
     auto centroid_track_algorithm
-        = yodau::core::make_processing_algorithm("track");
+        = yodau::core::make_processing_algorithm("centroid_track");
     ASSERT_TRUE(centroid_track_algorithm);
     EXPECT_EQ(centroid_track_algorithm->algorithm_id(), "centroid_track");
     EXPECT_EQ(centroid_track_algorithm->display_name(), "centroid track");
 
     auto hybrid_auto_algorithm
-        = yodau::core::make_processing_algorithm("hybrid");
+        = yodau::core::make_processing_algorithm("hybrid_auto");
     ASSERT_TRUE(hybrid_auto_algorithm);
     EXPECT_EQ(hybrid_auto_algorithm->algorithm_id(), "hybrid_auto");
     EXPECT_EQ(hybrid_auto_algorithm->display_name(), "hybrid auto");

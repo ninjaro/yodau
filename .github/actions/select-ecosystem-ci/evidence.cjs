@@ -17,7 +17,7 @@ const maxBytes = 256 * 1024 * 1024;
 const hash = data => crypto.createHash('sha256').update(data).digest('hex');
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 function validRuntime(value) {
-  return value?.schema === 1 && value.known === true && typeof value.image === 'string'
+  return value && !Object.hasOwn(value, 'schema') && value.known === true && typeof value.image === 'string'
     && typeof value.node === 'string' && typeof value.architecture === 'string'
     && value.build_environment && typeof value.build_environment === 'object' && !Array.isArray(value.build_environment)
     && /^[a-f0-9]{64}$/.test(value.dependencies || '')
@@ -61,9 +61,9 @@ function runtimeIdentity(root) {
       'CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH', 'SDKROOT', 'COMPILER_PATH', 'GCC_EXEC_PREFIX',
       'LIBRARY_PATH', 'LD_LIBRARY_PATH', 'LD_PRELOAD', 'LANG', 'LC_ALL', 'TZ', 'SOURCE_DATE_EPOCH']
       .map(name => [name, process.env[name] || null]));
-    return {schema: 1, known: true, image: process.env.ImageVersion, node: process.version,
+    return {known: true, image: process.env.ImageVersion, node: process.version,
       architecture: process.arch, tools, configuration, build_environment, dependencies: hash(packages + JSON.stringify(sdk))};
-  } catch (error) { return {schema: 1, known: false, reason: error.message}; }
+  } catch (error) { return {known: false, reason: error.message}; }
 }
 function requireValue(ok, message) { if (!ok) throw new Error(message); }
 function git(root, ...args) {
@@ -121,7 +121,7 @@ function changeFile(kind) { return `github/selection/${kind}.json`; }
 // ran. Even a presentation-only delta still needs every full stage in this schema.
 function validateChange(selection, receipt) {
   const {input, report} = selection || {};
-  requireValue(selection?.schema === 1 && input?.schema === 1 && report?.schema === 1
+  requireValue(selection && input && report && [selection, input, report].every(value => !Object.hasOwn(value, 'schema'))
     && input.event === receipt.event && input.event_commit === receipt.tested_commit
     && typeof input.complete === 'boolean' && Array.isArray(input.paths) && Array.isArray(input.changes)
     && report.project === receipt.policy.project && typeof report.delta_validated === 'boolean'
@@ -156,7 +156,7 @@ function readChange(root, context, binary, receipt) {
   const report = JSON.parse(readFile(root, '.ecosystem/github/classification.json', true));
   requireValue(equal(input, changes.resolve({context, root})), 'Event delta changed after acquisition');
   requireValue(equal(report, changes.inspect({root, binary})), 'Native classification changed after selection');
-  const selection = {schema: 1, input, report};
+  const selection = {input, report};
   validateChange(selection, receipt);
   return selection;
 }
@@ -231,7 +231,7 @@ async function presentation({context, core, root = process.cwd(), env = process.
   requireCleanCheckout(root);
   const attempt = Number(env.GITHUB_RUN_ATTEMPT);
   requireValue(Number.isSafeInteger(attempt) && attempt > 0, 'Missing Pages attempt');
-  const receipt = {schema: 1, kind: 'pages',
+  const receipt = {kind: 'pages',
     repository: {id: context.payload.repository.id, name: `${context.repo.owner}/${context.repo.repo}`},
     run_id: context.runId, run_attempt: attempt, tested_commit: tested,
     tested_tree: git(root, 'rev-parse', 'HEAD^{tree}'),
@@ -280,7 +280,7 @@ async function record({github, context, core, root = process.cwd(), env = proces
   requireValue(run.head_sha === tested || run.head_sha === pr?.head.sha, 'Run does not identify the tested commit');
   const tree = git(root, 'rev-parse', 'HEAD^{tree}');
   const receipt = {
-    schema: delta ? 1 : 4, kind: delta ? 'codeql-delta' : kind,
+    kind: delta ? 'codeql-delta' : kind,
     environment: runtime,
     repository: {id: context.payload.repository.id, name: `${context.repo.owner}/${context.repo.repo}`},
     run_id: run.id, run_attempt: attempt, workflow_id: run.workflow_id, workflow: run.path, event: run.event,
@@ -408,7 +408,7 @@ async function verifiedRun({api, run, kind, repository, context, tree, config, t
   const allowed = ['receipt.json', ...fileNames(kind, 'passed')];
   execFileSync('python3', ['-c', unpackProgram, archive, directory, JSON.stringify(allowed)], {stdio: 'pipe'});
   const receipt = JSON.parse(readFile(directory, 'receipt.json', true));
-  requireValue(receipt.schema === 4 && receipt.environment?.schema === 1 && receipt.kind === kind && receipt.repository?.id === repository.id
+  requireValue(!Object.hasOwn(receipt, 'schema') && receipt.environment && !Object.hasOwn(receipt.environment, 'schema') && receipt.kind === kind && receipt.repository?.id === repository.id
     && receipt.repository.name === `${context.repo.owner}/${context.repo.repo}` && receipt.run_id === run.id
     && receipt.run_attempt === run.run_attempt && receipt.workflow_id === run.workflow_id
     && receipt.workflow === run.path && receipt.event === run.event && receipt.run_head === run.head_sha
@@ -558,7 +558,7 @@ async function publicationPair({github, context, root, temporary, runtime}) {
       'Source evidence changed before publication');
   }
   await currentDefault(api, context);
-  const source = {schema: 1, repository_id: repository.id, commit: context.sha, tree,
+  const source = {repository_id: repository.id, commit: context.sha, tree,
     pushes, checks: pair.checks.source, codeql: pair.codeql.source};
   return {pair, source};
 }
@@ -569,7 +569,7 @@ async function publication({github, context, core, root = process.cwd(), runtime
     const {pair, source} = await publicationPair({github, context, root, temporary, runtime});
     const directory = safePath(root, '.ecosystem/github/presentation');
     requireValue(!fs.existsSync(directory), 'Presentation destination already exists');
-    const receipt = {schema: 2, kind: 'publication', repository: pair.checks.receipt.repository,
+    const receipt = {kind: 'publication', repository: pair.checks.receipt.repository,
       tested_commit: context.sha, tested_tree: source.tree, policy: pair.checks.receipt.policy,
       coverage: pair.checks.receipt.coverage, verification: source, files: {}};
     let total = 0;
@@ -642,7 +642,7 @@ async function select({github, context, core, root = process.cwd(), env = proces
   try {
     const {pair, tree, pr} = await reusablePair({github, context, root, temporary, runtime});
     requireValue(kinds[env.EVIDENCE_KIND], 'Unknown evidence consumer');
-    const source = {schema: 1, repository_id: context.payload.repository.id, commit: context.sha,
+    const source = {repository_id: context.payload.repository.id, commit: context.sha,
       tree, pr, checks: pair.checks.source, codeql: pair.codeql.source};
     const selected = pair[env.EVIDENCE_KIND];
     const directory = safePath(root, `.ecosystem/github/reuse/${env.EVIDENCE_KIND}`);

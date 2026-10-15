@@ -280,6 +280,6 @@ void main_window_tests::log_native_scroll() {
     QCOMPARE(scroll->value(), 0);
     QCOMPARE(view.visible_entries().size(), 81);
 #else
-    QSKIP("Legacy Android scroll behavior only");
+    QSKIP("Android-only scroll behavior");
 #endif
 }

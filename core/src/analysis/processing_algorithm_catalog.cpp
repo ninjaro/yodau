@@ -52,25 +52,6 @@ namespace {
         };
     }
 
-    bool token_matches(
-        const std::string& normalized, const std::string& id,
-        const std::vector<std::string>& aliases
-    ) {
-        if (normalized == id) {
-            return true;
-        }
-
-        return std::ranges::any_of(
-            aliases,
-            [&normalized](const std::string& alias) {
-                return normalized
-                    == processing_algorithm_registry::normalized_algorithm_id(
-                           alias
-                    );
-            }
-        );
-    }
-
     const processing_algorithm_descriptor*
     descriptor_ptr_for(std::string_view algorithm_id) {
         const std::string normalized
@@ -80,7 +61,7 @@ namespace {
 
         for (const auto& descriptor :
              default_processing_algorithm_descriptors()) {
-            if (token_matches(normalized, descriptor.id, descriptor.aliases)) {
+            if (normalized == descriptor.id) {
                 return &descriptor;
             }
         }
@@ -117,7 +98,7 @@ namespace {
             = processing_algorithm_registry::normalized_algorithm_id(preset_id);
 
         for (const auto& preset : descriptor.presets) {
-            if (token_matches(normalized, preset.id, preset.aliases)) {
+            if (normalized == preset.id) {
                 return &preset;
             }
         }
@@ -180,25 +161,21 @@ default_processing_algorithm_descriptors() {
         processing_algorithm_descriptor {
             .id = std::string(motion_baseline),
             .display_name = "motion baseline",
-            .aliases = { "default", "baseline", "motion" },
             .default_preset_id = "balanced",
             .presets = {
                 processing_preset_descriptor {
                     .id = "simple",
                     .display_name = "simple",
-                    .aliases = { "basic" },
                     .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "balanced",
                     .display_name = "balanced",
-                    .aliases = { "default" },
                     .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "debug",
                     .display_name = "debug",
-                    .aliases = { "debug_heavy" },
                     .configuration_values = {},
                 },
             },
@@ -215,13 +192,11 @@ default_processing_algorithm_descriptors() {
         processing_algorithm_descriptor {
             .id = std::string(hybrid_auto),
             .display_name = "hybrid auto",
-            .aliases = { "hybrid", "auto", "adaptive" },
             .default_preset_id = "adaptive",
             .presets = {
                 processing_preset_descriptor {
                     .id = "load_guard",
                     .display_name = "load guard",
-                    .aliases = { "simple", "basic" },
                     .configuration_values = {
                         { "probe_grid_cols", "10" },
                         { "probe_grid_rows", "10" },
@@ -235,13 +210,11 @@ default_processing_algorithm_descriptors() {
                 processing_preset_descriptor {
                     .id = "adaptive",
                     .display_name = "adaptive",
-                    .aliases = { "balanced", "default" },
                     .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "tripwire_bias",
                     .display_name = "tripwire bias",
-                    .aliases = { "debug", "debug_heavy" },
                     .configuration_values = {
                         { "diff_threshold", "20" },
                         { "calm_motion_permille", "12" },
@@ -288,13 +261,11 @@ default_processing_algorithm_descriptors() {
         processing_algorithm_descriptor {
             .id = std::string(spot_grid),
             .display_name = "spot grid",
-            .aliases = { "spot", "spots" },
             .default_preset_id = "balanced",
             .presets = {
                 processing_preset_descriptor {
                     .id = "coarse",
                     .display_name = "coarse",
-                    .aliases = { "simple", "basic" },
                     .configuration_values = {
                         { "grid_cols", "8" },
                         { "grid_rows", "8" },
@@ -307,13 +278,11 @@ default_processing_algorithm_descriptors() {
                 processing_preset_descriptor {
                     .id = "balanced",
                     .display_name = "balanced",
-                    .aliases = { "default" },
                     .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "dense",
                     .display_name = "dense",
-                    .aliases = { "debug", "debug_heavy" },
                     .configuration_values = {
                         { "grid_cols", "20" },
                         { "grid_rows", "20" },
@@ -351,13 +320,11 @@ default_processing_algorithm_descriptors() {
         processing_algorithm_descriptor {
             .id = std::string(contour_mask),
             .display_name = "contour mask",
-            .aliases = { "contour", "contours", "mask" },
             .default_preset_id = "balanced",
             .presets = {
                 processing_preset_descriptor {
                     .id = "outline",
                     .display_name = "outline",
-                    .aliases = { "simple", "basic" },
                     .configuration_values = {
                         { "diff_threshold", "34" },
                         { "background_model", "frame_delta" },
@@ -371,13 +338,11 @@ default_processing_algorithm_descriptors() {
                 processing_preset_descriptor {
                     .id = "balanced",
                     .display_name = "balanced",
-                    .aliases = { "default" },
                     .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "mask_heavy",
                     .display_name = "mask heavy",
-                    .aliases = { "debug", "debug_heavy" },
                     .configuration_values = {
                         { "diff_threshold", "18" },
                         { "background_model", "mog2" },
@@ -454,15 +419,11 @@ default_processing_algorithm_descriptors() {
         processing_algorithm_descriptor {
             .id = std::string(centroid_track),
             .display_name = "centroid track",
-            .aliases = {
-                "track", "tracks", "tracker", "tracking", "centroid",
-            },
             .default_preset_id = "balanced",
             .presets = {
                 processing_preset_descriptor {
                     .id = "fast_match",
                     .display_name = "fast match",
-                    .aliases = { "simple", "basic" },
                     .configuration_values = {
                         { "diff_threshold", "30" },
                         { "background_model", "frame_delta" },
@@ -483,13 +444,11 @@ default_processing_algorithm_descriptors() {
                 processing_preset_descriptor {
                     .id = "balanced",
                     .display_name = "balanced",
-                    .aliases = { "default" },
                     .configuration_values = {},
                 },
                 processing_preset_descriptor {
                     .id = "persistent",
                     .display_name = "persistent",
-                    .aliases = { "debug", "debug_heavy" },
                     .configuration_values = {
                         { "diff_threshold", "20" },
                         { "background_model", "mog2" },

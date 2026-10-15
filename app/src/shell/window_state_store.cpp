@@ -13,10 +13,6 @@ constexpr auto layout_key = "desktop/main_window/layout";
 constexpr auto pool_side_key = "desktop/presentation/pool_side";
 constexpr auto canvas_tools_key = "desktop/presentation/canvas_tools";
 constexpr auto context_inspector_key = "desktop/presentation/context_inspector";
-// QMainWindow requires the same application-defined tag when restoring its
-// opaque saveState payload. This is format identity for the active Qt API,
-// not compatibility negotiation.
-constexpr int qt_state_format_tag = 1;
 
 QString settings_error_text(const QSettings::Status status) {
     switch (status) {
@@ -227,7 +223,7 @@ bool save_main_window_state(
 ) {
     set_error(error_message, {});
     settings.setValue(geometry_key, window.saveGeometry());
-    settings.setValue(layout_key, window.saveState(qt_state_format_tag));
+    settings.setValue(layout_key, window.saveState());
     settings.sync();
 
     const QString error = settings_error_text(settings.status());
@@ -255,8 +251,7 @@ bool restore_main_window_state(
     }
 
     const bool geometry_restored = window.restoreGeometry(geometry);
-    const bool layout_restored
-        = window.restoreState(layout, qt_state_format_tag);
+    const bool layout_restored = window.restoreState(layout);
     if (!geometry_restored || !layout_restored) {
         set_error(
             error_message,

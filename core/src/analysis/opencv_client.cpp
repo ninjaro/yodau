@@ -230,8 +230,7 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
         return out;
     }
 
-    const cv::Mat diff
-        = legacy_frame_delta_motion_mask(prev_gray, gray, 25, 1, 2);
+    const cv::Mat diff = frame_delta_motion_mask(prev_gray, gray, 25, 1, 2);
 
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(
@@ -314,7 +313,7 @@ opencv_client::motion_processor(const stream& s, const frame& f) {
     double impact_speed = 1.0;
     if (has_prev) {
         impact_speed
-            = legacy_impact_speed(prev_pos, cur_pos_pct, ratio, min_ratio);
+            = calculate_impact_speed(prev_pos, cur_pos_pct, ratio, min_ratio);
     }
 
     auto lines = s.lines_snapshot();

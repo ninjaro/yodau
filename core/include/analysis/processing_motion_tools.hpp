@@ -27,7 +27,7 @@ cv::Mat binary_motion_mask(
     int diff_threshold, int blur_kernel, int morph_kernel
 );
 
-cv::Mat legacy_frame_delta_motion_mask(
+cv::Mat frame_delta_motion_mask(
     const cv::Mat& previous_gray, const cv::Mat& current_gray,
     int diff_threshold, int erode_iterations, int dilate_iterations
 );
@@ -41,7 +41,7 @@ cv::Mat downsample_motion_mask_to_grid(
 std::vector<int>
 active_motion_grid_cells(const cv::Mat& grid_mask, const grid_dims& grid);
 
-double legacy_impact_speed(
+double calculate_impact_speed(
     const point& previous_center, const point& current_center,
     double motion_ratio, double min_ratio
 );
