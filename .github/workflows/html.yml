@@ -32,7 +32,7 @@ jobs:
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -40,7 +40,7 @@ jobs:
       - name: Select automatic publication evidence
         if: ${{ github.event_name == 'workflow_run' }}
         id: automatic
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             await require('./.github/actions/select-manifesto-ci/evidence.cjs').publication({github, context, core});
@@ -83,7 +83,7 @@ jobs:
       - name: Select current presentation reports
         if: ${{ github.event_name == 'workflow_dispatch' && steps.repository.outputs.status == 'passed' && (steps.coverage.outputs.status == 'passed' || steps.coverage.outputs.status == 'skipped') }}
         id: presentation
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           REPOSITORY_OUTCOME: ${{ steps.repository.outcome }}
           REPOSITORY_STATUS: ${{ steps.repository.outputs.status }}
@@ -111,7 +111,7 @@ jobs:
       - name: Revalidate automatic publication evidence
         if: ${{ github.event_name == 'workflow_run' && steps.docs.outputs.status == 'passed' }}
         id: revalidation
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           PUBLICATION_SOURCE: ${{ steps.automatic.outputs.source }}
         with:
@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: ${{ success() && steps.publication.outcome == 'success' && (steps.automatic.outputs.coverage == 'passed' || steps.coverage.outputs.status == 'passed') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-yodau
           path: .ecosystem/github/presentation/reports/coverage.json
@@ -197,14 +197,14 @@ jobs:
 
       - name: Upload Pages artifact
         if: ${{ success() && steps.publication.outcome == 'success' }}
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: .ecosystem/sphinx/html
 
       - name: Confirm current publication revision
         if: ${{ success() && steps.publication.outcome == 'success' }}
         id: current
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             await require('./.github/actions/select-manifesto-ci/evidence.cjs').checkPublicationTip({github, context});
@@ -212,7 +212,7 @@ jobs:
       - name: Upload Pages reports
         if: ${{ always() }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-reports-yodau-pages
           path: |
@@ -244,24 +244,24 @@ jobs:
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.build.outputs.commit }}
           persist-credentials: false
 
       - name: Revalidate deployment source
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           PUBLICATION_SOURCE: ${{ needs.build.outputs.source }}
         with:
           script: |
             await require('./.github/actions/select-manifesto-ci/evidence.cjs').revalidatePublication({github, context});
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
   report:
     runs-on: ubuntu-24.04
@@ -270,11 +270,11 @@ jobs:
       - deploy
     if: ${{ always() && needs.build.result != 'skipped' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download Pages report artifacts
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: ci-reports-yodau-pages
           path: .ecosystem
