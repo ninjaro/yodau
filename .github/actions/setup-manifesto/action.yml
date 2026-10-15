@@ -95,7 +95,7 @@ runs:
 
     - name: Checkout manifesto tool
       if: ${{ inputs.bootstrap == 'repository' }}
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         repository: ${{ inputs.manifesto-repository }}
         ref: ${{ inputs.manifesto-ref }}
@@ -149,7 +149,7 @@ runs:
 
     # Ubuntu 24.04 supplies JSON 3.11; the tooling requires 3.12.
     - name: Checkout declared JSON prerequisite
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         repository: nlohmann/json
         ref: v3.12.0
