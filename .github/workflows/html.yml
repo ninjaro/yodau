@@ -37,8 +37,7 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Select automatic publication evidence
-        if: ${{ github.event_name == 'workflow_run' }}
+      - name: Select verified publication evidence
         id: automatic
         uses: actions/github-script@v7
         with:
@@ -46,7 +45,7 @@ jobs:
             await require('./.github/actions/select-ecosystem-ci/evidence.cjs').publication({github, context, core});
 
       - name: Setup ecosystem tool
-        if: ${{ github.event_name == 'workflow_dispatch' || steps.automatic.outputs.ready == 'true' }}
+        if: ${{ steps.automatic.outputs.ready == 'true' }}
         id: ecosystem
         uses: ./.github/actions/setup-ecosystem
         with:
@@ -59,7 +58,7 @@ jobs:
           sphinx-theme-package: sphinx-rtd-theme
 
       - name: Verify generated tracked surfaces
-        if: ${{ github.event_name == 'workflow_dispatch' || steps.automatic.outputs.ready == 'true' }}
+        if: ${{ steps.automatic.outputs.ready == 'true' }}
         id: repository
         uses: ./.github/actions/run-ecosystem-stage
         with:
@@ -69,37 +68,11 @@ jobs:
             "${{ steps.ecosystem.outputs.engels-binary }}" check repo
           skipped-exit-codes: ''
 
-      - name: Run coverage when supported
-        if: ${{ github.event_name == 'workflow_dispatch' && steps.repository.outputs.status == 'passed' }}
-        id: coverage
-        uses: ./.github/actions/run-ecosystem-stage
-        with:
-          stage-id: 02-coverage-check
-          stage-label: Coverage check
-          shell-command: |
-            "${{ steps.ecosystem.outputs.engels-binary }}" check coverage
-          skipped-exit-codes: 3
-
-      - name: Select current presentation reports
-        if: ${{ github.event_name == 'workflow_dispatch' && steps.repository.outputs.status == 'passed' && (steps.coverage.outputs.status == 'passed' || steps.coverage.outputs.status == 'skipped') }}
-        id: presentation
-        uses: actions/github-script@v7
-        env:
-          REPOSITORY_OUTCOME: ${{ steps.repository.outcome }}
-          REPOSITORY_STATUS: ${{ steps.repository.outputs.status }}
-          REPOSITORY_EXIT_CODE: ${{ steps.repository.outputs.exit-code }}
-          COVERAGE_OUTCOME: ${{ steps.coverage.outcome }}
-          COVERAGE_STATUS: ${{ steps.coverage.outputs.status }}
-          COVERAGE_EXIT_CODE: ${{ steps.coverage.outputs.exit-code }}
-        with:
-          script: |
-            await require('./.github/actions/select-ecosystem-ci/evidence.cjs').presentation({context, core});
-
       - name: Generate docs site
-        if: ${{ steps.repository.outputs.status == 'passed' && ((steps.presentation.outcome == 'success' && steps.presentation.outputs.directory != '') || steps.automatic.outputs.ready == 'true') }}
+        if: ${{ steps.repository.outputs.status == 'passed' && steps.automatic.outputs.ready == 'true' }}
         id: docs
         env:
-          ECOSYSTEM_SPHINX_EVIDENCE: ${{ steps.automatic.outputs.directory || steps.presentation.outputs.directory }}
+          ECOSYSTEM_SPHINX_EVIDENCE: ${{ steps.automatic.outputs.directory }}
         uses: ./.github/actions/run-ecosystem-stage
         with:
           stage-id: 03-docs-build
@@ -108,8 +81,8 @@ jobs:
             "${{ steps.ecosystem.outputs.engels-binary }}" check sphinx --theme sphinx_rtd_theme
           skipped-exit-codes: ''
 
-      - name: Revalidate automatic publication evidence
-        if: ${{ github.event_name == 'workflow_run' && steps.docs.outputs.status == 'passed' }}
+      - name: Revalidate publication evidence
+        if: ${{ steps.docs.outputs.status == 'passed' }}
         id: revalidation
         uses: actions/github-script@v7
         env:
@@ -128,17 +101,18 @@ jobs:
           REPOSITORY_OUTCOME: ${{ steps.repository.outcome }}
           REPOSITORY_STATUS: ${{ steps.repository.outputs.status }}
           REPOSITORY_EXIT_CODE: ${{ steps.repository.outputs.exit-code }}
-          COVERAGE_OUTCOME: ${{ steps.coverage.outcome }}
-          COVERAGE_STATUS: ${{ steps.automatic.outputs.coverage || steps.coverage.outputs.status }}
-          COVERAGE_EXIT_CODE: ${{ steps.coverage.outputs.exit-code }}
+          COVERAGE_STATUS: ${{ steps.automatic.outputs.coverage }}
           DOCS_OUTCOME: ${{ steps.docs.outcome }}
           DOCS_STATUS: ${{ steps.docs.outputs.status }}
           DOCS_EXIT_CODE: ${{ steps.docs.outputs.exit-code }}
-          PRESENTATION_OUTCOME: ${{ steps.presentation.outcome }}
         shell: bash
         run: |
+          case "$EVENT_NAME" in
+            workflow_dispatch|workflow_run) ;;
+            *) echo '::error::Unsupported publication event.'; exit 1 ;;
+          esac
           require_result() {
-            local stage="$1" outcome="$2" status="$3" code="$4" optional="${5:-false}"
+            local stage="$1" outcome="$2" status="$3" code="$4"
             if [ "$outcome" != success ] || [ ! -s ".ecosystem/github/reports/$stage/summary.md" ] || [ ! -f ".ecosystem/github/reports/$stage/output.log" ]; then
               echo "::error::Incomplete Pages prerequisite: $stage. See the stage report and setup logs."
               return 1
@@ -146,38 +120,24 @@ jobs:
             if [ "$status" = passed ] && [ "$code" = 0 ]; then
               return 0
             fi
-            if [ "$optional" = true ] && [ "$status" = skipped ] && [ "$code" = 3 ]; then
-              return 0
-            fi
             echo "::error::Failed Pages prerequisite: $stage ($status, exit $code)."
             return 1
           }
           require_result 01-tracked-surface "$REPOSITORY_OUTCOME" "$REPOSITORY_STATUS" "$REPOSITORY_EXIT_CODE"
-          if [ "$EVENT_NAME" = workflow_dispatch ]; then
-            require_result 02-coverage-check "$COVERAGE_OUTCOME" "$COVERAGE_STATUS" "$COVERAGE_EXIT_CODE" true
-            if [ "$PRESENTATION_OUTCOME" != success ]; then
-              echo '::error::Manual presentation evidence was not selected.'
-              exit 1
-            fi
-          elif [ "$EVENT_NAME" = workflow_run ]; then
-            if [ "$AUTOMATIC_READY" != true ] || [ "$REVALIDATION_OUTCOME" != success ]; then
-              echo '::error::Automatic verification evidence is missing or changed.'
-              exit 1
-            fi
-          else
-            echo '::error::Unsupported publication event.'
+          if [ "$AUTOMATIC_READY" != true ] || [ "$REVALIDATION_OUTCOME" != success ]; then
+            echo '::error::Successful exact-commit Checks and CodeQL evidence is missing or changed.'
             exit 1
           fi
           require_result 03-docs-build "$DOCS_OUTCOME" "$DOCS_STATUS" "$DOCS_EXIT_CODE"
-          if [ ! -s .ecosystem/github/presentation/receipt.json ] || [ ! -s .ecosystem/sphinx/html/_ecosystem/index.html ]; then
-            echo '::error::Current presentation evidence or composed results page is missing.'
+          if [ ! -s .ecosystem/github/presentation/receipt.json ] || [ ! -s .ecosystem/sphinx/html/_ecosystem/coverage/index.html ]; then
+            echo '::error::Verified publication evidence or generated presentation is missing.'
             exit 1
           fi
           if [ "$COVERAGE_STATUS" != passed ] && [ "$COVERAGE_STATUS" != skipped ]; then
             echo '::error::Coverage result is incomplete.'
             exit 1
           fi
-          if [ "$COVERAGE_STATUS" = passed ] && [ ! -s .ecosystem/github/presentation/reports/coverage.json ]; then
+          if [ "$COVERAGE_STATUS" = passed ] && { [ ! -s .ecosystem/github/presentation/reports/coverage.json ] || [ ! -s .ecosystem/github/presentation/reports/coverage.zip ]; }; then
             echo '::error::Successful coverage has no report.'
             exit 1
           fi
@@ -185,15 +145,6 @@ jobs:
             echo '::error::Documentation publication is incomplete; refusing to upload stale or recovery output.'
             exit 1
           fi
-
-      - name: Upload coverage artifact
-        if: ${{ success() && steps.publication.outcome == 'success' && (steps.automatic.outputs.coverage == 'passed' || steps.coverage.outputs.status == 'passed') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-yodau
-          path: .ecosystem/github/presentation/reports/coverage.json
-          include-hidden-files: true
-          if-no-files-found: error
 
       - name: Upload Pages artifact
         if: ${{ success() && steps.publication.outcome == 'success' }}
@@ -217,7 +168,7 @@ jobs:
           name: ci-reports-yodau-pages
           path: |
             .ecosystem/github/reports
-            .ecosystem/github/presentation
+            .ecosystem/github/presentation/receipt.json
             .ecosystem/reports/coverage.log
             .ecosystem/sphinx/sphinx.log
             .ecosystem/doxygen/doxygen.log

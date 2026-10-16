@@ -62,6 +62,9 @@ private:
     void refresh_desktop_preset_actions();
     void choose_pool_side(pool_side side);
     void refresh_pool_actions();
+    void choose_desktop_chrome(yodau::shell::desktop_chrome chrome);
+    void apply_desktop_chrome(yodau::shell::desktop_chrome chrome);
+    QActionGroup* chrome_actions_ = nullptr;
     std::optional<yodau::shell::desktop_presentation> desktop_presentation_;
     QActionGroup* desktop_preset_actions_ = nullptr;
     QActionGroup* pool_side_actions_ = nullptr;

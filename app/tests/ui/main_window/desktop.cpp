@@ -165,6 +165,109 @@ void main_window_tests::pool_menu_restores_choice() {
 #endif
 }
 
+void main_window_tests::window_style_restores_choice() {
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    QSKIP("Window style actions are desktop-only");
+#else
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto old_organization = QCoreApplication::organizationName();
+    const auto old_application = QCoreApplication::applicationName();
+    const auto old_format = QSettings::defaultFormat();
+    const auto old_path
+        = QFileInfo(QSettings(
+                        QSettings::IniFormat, QSettings::UserScope,
+                        QStringLiteral("yodau_path_probe")
+                    )
+                        .fileName())
+              .path();
+    const auto restore_identity = qScopeGuard([&] {
+        QCoreApplication::setOrganizationName(old_organization);
+        QCoreApplication::setApplicationName(old_application);
+        QSettings::setDefaultFormat(old_format);
+        QSettings::setPath(
+            QSettings::IniFormat, QSettings::UserScope, old_path
+        );
+    });
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(
+        QSettings::IniFormat, QSettings::UserScope, directory.path()
+    );
+    QCoreApplication::setOrganizationName(QStringLiteral("yodau"));
+    QCoreApplication::setApplicationName(QStringLiteral("chrome-tests"));
+    {
+        QSettings unknown;
+        unknown.setValue(
+            QStringLiteral("desktop/presentation/chrome"),
+            QStringLiteral("future")
+        );
+        QCOMPARE(
+            yodau::shell::load_desktop_chrome(unknown),
+            yodau::shell::desktop_chrome::native
+        );
+        unknown.remove(QStringLiteral("desktop/presentation/chrome"));
+    }
+    {
+        main_window window;
+        auto* native
+            = window.findChild<QAction*>(QStringLiteral("desktop_chrome_native")
+            );
+        auto* slate
+            = window.findChild<QAction*>(QStringLiteral("desktop_chrome_slate")
+            );
+        auto* menu
+            = window.findChild<QMenu*>(QStringLiteral("desktop_chrome_menu"));
+        auto* presentation = window.findChild<QMenu*>(
+            QStringLiteral("desktop_presentation_menu")
+        );
+        QVERIFY(native && slate && menu && presentation);
+        QVERIFY(presentation->actions().contains(menu->menuAction()));
+        QVERIFY(native->isChecked() && !slate->isChecked());
+        QVERIFY(window.styleSheet().isEmpty());
+        auto* lines = window.findChild<QDockWidget*>(
+            QStringLiteral("main_window_line_dock")
+        );
+        auto* board = window.findChild<stream_board*>();
+        QVERIFY(lines && board);
+        lines->hide();
+        const auto side = board->current_pool_side();
+        slate->trigger();
+        QVERIFY(slate->isChecked() && !native->isChecked());
+        QVERIFY(window.styleSheet().contains(QStringLiteral("#3daee9")));
+        // Material only: no dock visibility, pool side or preset opt-in.
+        QVERIFY(lines->isHidden());
+        QCOMPARE(board->current_pool_side(), side);
+        QSettings saved;
+        QCOMPARE(
+            saved.value(QStringLiteral("desktop/presentation/chrome"))
+                .toString(),
+            QStringLiteral("slate")
+        );
+        QVERIFY(!yodau::shell::load_desktop_presentation(saved));
+    }
+    {
+        main_window restored;
+        auto* native = restored.findChild<QAction*>(
+            QStringLiteral("desktop_chrome_native")
+        );
+        auto* slate
+            = restored.findChild<QAction*>(QStringLiteral("desktop_chrome_slate"
+            ));
+        QVERIFY(native && slate);
+        QVERIFY(slate->isChecked());
+        QVERIFY(!restored.styleSheet().isEmpty());
+        native->trigger();
+        QVERIFY(native->isChecked());
+        QVERIFY(restored.styleSheet().isEmpty());
+        QSettings saved;
+        QCOMPARE(
+            yodau::shell::load_desktop_chrome(saved),
+            yodau::shell::desktop_chrome::native
+        );
+    }
+#endif
+}
+
 void main_window_tests::desktop_preserves_layout_overrides() {
     using namespace yodau::shell;
     QTemporaryDir directory;

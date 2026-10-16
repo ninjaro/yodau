@@ -227,6 +227,7 @@ jobs:
             .ecosystem/github/reports
             .ecosystem/github/changes.json
             .ecosystem/reports
+            !.ecosystem/reports/coverage.zip
           include-hidden-files: true
           if-no-files-found: warn
 

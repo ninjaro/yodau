@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDockWidget>
+#include <QEvent>
 #include <QIcon>
 #include <QKeySequence>
 #include <QLabel>
@@ -20,12 +21,45 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSettings>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
+namespace {
+
+// Keeps a vertically scrolling dock as wide as its content's current minimum,
+// including after a style sheet changes control metrics.
+class scroll_width_follower final : public QObject {
+public:
+    explicit scroll_width_follower(QScrollArea* scroll)
+        : QObject(scroll)
+        , scroll_(scroll) { }
+
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        if (event->type() == QEvent::LayoutRequest
+            || event->type() == QEvent::Show) {
+            auto* content = scroll_->widget();
+            if (watched == content && content != nullptr) {
+                scroll_->setMinimumWidth(
+                    content->minimumSizeHint().width()
+                    + scroll_->verticalScrollBar()->sizeHint().width()
+                );
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QScrollArea* scroll_;
+};
+
+} // namespace
+#endif
 
 void main_window::setup_platform_layout() {
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
@@ -177,7 +211,17 @@ void main_window::setup_platform_layout() {
     setCentralWidget(main_zone);
 
     settings_dock->setObjectName(QStringLiteral("main_window_streams_dock"));
-    settings_dock->setWidget(settings);
+    // A short window must scroll the source/grid/inventory forms instead of
+    // squeezing their group boxes below their minimum height.
+    auto* settings_scroll = new QScrollArea(settings_dock);
+    settings_scroll->setObjectName(QStringLiteral("main_window_streams_scroll")
+    );
+    settings_scroll->setWidgetResizable(true);
+    settings_scroll->setFrameShape(QFrame::NoFrame);
+    settings_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    settings_scroll->setWidget(settings);
+    settings->installEventFilter(new scroll_width_follower(settings_scroll));
+    settings_dock->setWidget(settings_scroll);
     settings_dock->setAllowedAreas(
         Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea
     );
@@ -362,6 +406,31 @@ QMenu* main_window::setup_desktop_presentation_menu() {
     );
     add_side(tr("&Left"), pool_side::left, QStringLiteral("desktop_pool_left"));
     refresh_pool_actions();
+    auto* chrome_menu = menu->addMenu(tr("Window &style"));
+    chrome_menu->setObjectName(QStringLiteral("desktop_chrome_menu"));
+    chrome_actions_ = new QActionGroup(chrome_menu);
+    const auto add_chrome
+        = [this, chrome_menu](
+              const QString& label, yodau::shell::desktop_chrome chrome,
+              const QString& name
+          ) {
+              auto* action = chrome_menu->addAction(label);
+              action->setObjectName(name);
+              action->setCheckable(true);
+              action->setData(static_cast<int>(chrome));
+              chrome_actions_->addAction(action);
+              connect(action, &QAction::triggered, this, [this, chrome] {
+                  choose_desktop_chrome(chrome);
+              });
+          };
+    add_chrome(
+        tr("&Native"), yodau::shell::desktop_chrome::native,
+        QStringLiteral("desktop_chrome_native")
+    );
+    add_chrome(
+        tr("&Slate"), yodau::shell::desktop_chrome::slate,
+        QStringLiteral("desktop_chrome_slate")
+    );
     menu->addSeparator();
     for (auto* dock : { settings_dock, line_dock, log_dock }) {
         if (dock != nullptr) {
@@ -399,6 +468,35 @@ void main_window::choose_pool_side(const pool_side side) {
     }
     main_zone->set_pool_side(side);
     refresh_pool_actions();
+}
+
+void main_window::choose_desktop_chrome(
+    const yodau::shell::desktop_chrome chrome
+) {
+    QSettings app_preferences;
+    if (!yodau::shell::save_desktop_chrome(app_preferences, chrome)) {
+        QMessageBox::warning(
+            this, tr("Window style"),
+            tr("Could not save the window style setting.")
+        );
+        apply_desktop_chrome(yodau::shell::load_desktop_chrome(app_preferences)
+        );
+        return;
+    }
+    apply_desktop_chrome(chrome);
+}
+
+void main_window::apply_desktop_chrome(const yodau::shell::desktop_chrome chrome
+) {
+    // Presentation only: docks, pool, streams and processing are untouched.
+    setStyleSheet(yodau::shell::desktop_chrome_style_sheet(chrome));
+
+    if (chrome_actions_ == nullptr) {
+        return;
+    }
+    for (auto* action : chrome_actions_->actions()) {
+        action->setChecked(action->data().toInt() == static_cast<int>(chrome));
+    }
 }
 
 void main_window::refresh_desktop_preset_actions() {

@@ -1,6 +1,9 @@
 #ifndef YODAU_APP_SHELL_DESKTOP_SHELL_HPP
 #define YODAU_APP_SHELL_DESKTOP_SHELL_HPP
 
+#include "shell/window_state_store.hpp"
+
+#include <QString>
 #include <array>
 #include <functional>
 
@@ -24,6 +27,9 @@ void setup_desktop_shell(
     QMainWindow& window, const desktop_shell_actions& actions,
     const std::function<void()>& show_settings
 );
+
+// Window-wide style sheet for a chrome choice; empty for the native style.
+[[nodiscard]] QString desktop_chrome_style_sheet(desktop_chrome chrome);
 
 } // namespace yodau::shell
 

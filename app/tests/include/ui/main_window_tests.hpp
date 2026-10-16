@@ -85,6 +85,7 @@ private slots:
     void pool_changes_preserve_cells();
     void pool_preference_is_independent();
     void pool_menu_restores_choice();
+    void window_style_restores_choice();
     void window_grid_preferences();
     void inventory_entries_and_visibility();
     void source_modes_validation_and_requests();

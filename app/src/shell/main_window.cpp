@@ -102,6 +102,7 @@ main_window::main_window(QWidget* parent)
         );
     }
     refresh_desktop_preset_actions();
+    apply_desktop_chrome(yodau::shell::load_desktop_chrome(desktop_settings));
 #endif
 }
 

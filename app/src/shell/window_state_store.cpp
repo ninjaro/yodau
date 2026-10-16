@@ -13,6 +13,7 @@ constexpr auto layout_key = "desktop/main_window/layout";
 constexpr auto pool_side_key = "desktop/presentation/pool_side";
 constexpr auto canvas_tools_key = "desktop/presentation/canvas_tools";
 constexpr auto context_inspector_key = "desktop/presentation/context_inspector";
+constexpr auto chrome_key = "desktop/presentation/chrome";
 
 QString settings_error_text(const QSettings::Status status) {
     switch (status) {
@@ -95,6 +96,32 @@ bool save_canvas_tools(QSettings& settings, const bool shown) {
         settings.setValue(canvas_tools_key, previous);
     } else {
         settings.remove(canvas_tools_key);
+    }
+    return false;
+}
+
+desktop_chrome load_desktop_chrome(QSettings& settings) {
+    return settings.value(chrome_key).toString() == QStringLiteral("slate")
+        ? desktop_chrome::slate
+        : desktop_chrome::native;
+}
+
+bool save_desktop_chrome(QSettings& settings, const desktop_chrome value) {
+    const bool existed = settings.contains(chrome_key);
+    const auto previous = settings.value(chrome_key);
+    settings.setValue(
+        chrome_key,
+        value == desktop_chrome::slate ? QStringLiteral("slate")
+                                       : QStringLiteral("native")
+    );
+    settings.sync();
+    if (settings.status() == QSettings::NoError) {
+        return true;
+    }
+    if (existed) {
+        settings.setValue(chrome_key, previous);
+    } else {
+        settings.remove(chrome_key);
     }
     return false;
 }

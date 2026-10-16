@@ -4,11 +4,13 @@
 #include <QAction>
 #include <QCoreApplication>
 #include <QDockWidget>
+#include <QFontDatabase>
 #include <QKeySequence>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QStringList>
 #include <QToolBar>
 
 #ifdef KC_KDE
@@ -49,9 +51,102 @@ void collect_menu_actions(
 }
 #endif
 
+QString first_installed(const QStringList& wanted, const QString& fallback) {
+    const QStringList available = QFontDatabase::families();
+    for (const QString& family : wanted)
+        if (available.contains(family, Qt::CaseInsensitive))
+            return family;
+    return fallback;
+}
+
+// Slate material of `docs/prototypes/Yodau UI.dc.html`: Breeze-dark
+// surfaces, one blue accent for selection and DejaVu-style monospace labels.
+constexpr auto slate_style_sheet = R"(
+QMainWindow, QDialog { background: #232629; color: #eff0f1; }
+QMainWindow::separator { background: #31363b; width: 4px; height: 4px; }
+QMainWindow::separator:hover { background: #3daee9; }
+QMenuBar { background: #232629; color: #eff0f1; border-bottom: 1px solid #31363b; }
+QMenuBar::item { padding: 4px 9px; background: transparent; }
+QMenuBar::item:selected { background: #31363b; }
+QMenu { background: #26292c; color: #eff0f1; border: 1px solid #4d5359; padding: 4px; }
+QMenu::item { padding: 5px 24px 5px 24px; border-radius: 2px; }
+QMenu::item:selected { background: #3daee9; color: #12191d; }
+QMenu::item:disabled { color: #7f8c8d; }
+QMenu::separator { height: 1px; background: #3b4045; margin: 4px 6px; }
+QToolBar { background: #232629; border: none; border-bottom: 1px solid #31363b; padding: 4px 8px; spacing: 4px; }
+QToolBar QToolButton { background: #3b4045; color: #eff0f1; border: 1px solid #4d5359; border-radius: 2px; padding: 4px 10px; }
+QToolBar QToolButton:hover { border-color: #3daee9; }
+QToolBar QToolButton:checked { background: #3daee9; color: #12191d; border-color: #3daee9; }
+QDockWidget { color: #a7abae; }
+QDockWidget::title { background: #2a2e32; padding: 6px 8px; border-bottom: 1px solid #31363b; text-align: left; }
+QDockWidget > QWidget { background: #232629; }
+QStatusBar { background: #232629; color: #a7abae; border-top: 1px solid #31363b; }
+QLabel { color: #eff0f1; background: transparent; }
+QGroupBox { background: #2a2e32; color: #eff0f1; border: 1px solid #4d5359; border-radius: 2px; margin-top: 16px; padding-top: 4px; }
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 8px; padding: 0px 2px; color: #7f8c8d; font-family: "$mono$"; font-size: 11px; }
+QPushButton { background: #3b4045; color: #eff0f1; border: 1px solid #4d5359; border-radius: 2px; padding: 5px 10px; }
+QPushButton:hover { border-color: #3daee9; }
+QPushButton:focus { border-color: #74c0fc; }
+QPushButton:pressed, QPushButton:checked { background: #3daee9; color: #12191d; border-color: #3daee9; }
+QPushButton:disabled { background: #2a2e32; color: #5d666c; border-color: #3b4045; }
+QToolButton { background: transparent; color: #eff0f1; border: 1px solid transparent; border-radius: 2px; padding: 3px; }
+QToolButton:hover { border-color: #4d5359; }
+QToolButton:checked { background: #3daee9; color: #12191d; }
+QLineEdit, QComboBox, QAbstractSpinBox, QPlainTextEdit, QTextEdit { background: #232629; color: #eff0f1; border: 1px solid #4d5359; border-radius: 2px; padding: 4px 6px; selection-background-color: #3daee9; selection-color: #12191d; }
+QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus { border-color: #3daee9; }
+QLineEdit:disabled, QComboBox:disabled, QAbstractSpinBox:disabled { color: #7f8c8d; border-color: #3b4045; }
+QComboBox QAbstractItemView { background: #26292c; color: #eff0f1; border: 1px solid #4d5359; selection-background-color: #3daee9; selection-color: #12191d; outline: none; }
+QPlainTextEdit, QTextEdit, QTextBrowser { background: #12191d; border-color: #3b4045; font-family: "$mono$"; }
+QCheckBox, QRadioButton { color: #eff0f1; background: transparent; padding-right: 6px; }
+QCheckBox::indicator, QRadioButton::indicator { width: 13px; height: 13px; border: 1px solid #4d5359; background: #232629; }
+QCheckBox::indicator { border-radius: 2px; }
+QRadioButton::indicator { border-radius: 7px; }
+QCheckBox::indicator:checked, QRadioButton::indicator:checked { background: #3daee9; border-color: #3daee9; }
+QCheckBox::indicator:hover, QRadioButton::indicator:hover { border-color: #3daee9; }
+QCheckBox:focus, QRadioButton:focus { color: #74c0fc; }
+QTabWidget::pane { border: 1px solid #3b4045; background: #232629; top: -1px; }
+QTabBar::tab { background: transparent; color: #a7abae; padding: 6px 14px; border: none; border-top: 2px solid transparent; }
+QTabBar::tab:selected { background: #2a2e32; color: #eff0f1; border-top: 2px solid #3daee9; }
+QTabBar::tab:hover { color: #eff0f1; }
+QHeaderView::section { background: #2a2e32; color: #7f8c8d; border: none; border-bottom: 1px solid #3b4045; border-right: 1px solid #31363b; padding: 4px 6px; font-family: "$mono$"; font-size: 11px; }
+QTableCornerButton::section { background: #2a2e32; border: none; }
+QTableView, QListView, QTreeView { background: #232629; alternate-background-color: #26292c; color: #eff0f1; gridline-color: #31363b; border: 1px solid #3b4045; selection-background-color: #2e3a44; selection-color: #eff0f1; outline: none; }
+QScrollArea { background: transparent; border: none; }
+QDockWidget QScrollArea > QWidget, QDockWidget QScrollArea > QWidget > QWidget { background: #232629; }
+QScrollBar:vertical { background: #232629; width: 10px; margin: 0px; }
+QScrollBar:horizontal { background: #232629; height: 10px; margin: 0px; }
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background: #4d5359; border-radius: 2px; min-height: 24px; min-width: 24px; }
+QScrollBar::handle:hover { background: #3daee9; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0px; height: 0px; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+QSlider::groove:horizontal { height: 4px; background: #4d5359; border-radius: 2px; }
+QSlider::sub-page:horizontal { background: #3daee9; border-radius: 2px; }
+QSlider::handle:horizontal { background: #eff0f1; border: 2px solid #3daee9; width: 10px; height: 10px; margin: -5px 0px; border-radius: 7px; }
+QProgressBar { background: #232629; border: 1px solid #3b4045; border-radius: 2px; color: #eff0f1; text-align: center; }
+QProgressBar::chunk { background: #2a9d8f; }
+QSplitter::handle { background: #31363b; }
+QToolTip { background: #26292c; color: #eff0f1; border: 1px solid #3daee9; padding: 4px; }
+QScrollArea#stream_grid_scroll_area > QWidget, QScrollArea#stream_grid_scroll_area > QWidget > QWidget { background: #1b1e20; }
+stream_cell { background: #12191d; color: #dce1de; }
+)";
+
 } // namespace
 
 namespace yodau::shell {
+
+QString desktop_chrome_style_sheet(const desktop_chrome chrome) {
+    if (chrome != desktop_chrome::slate)
+        return {};
+    static const QString mono = first_installed(
+        { QStringLiteral("DejaVu Sans Mono"), QStringLiteral("JetBrains Mono"),
+          QStringLiteral("SF Mono"), QStringLiteral("Menlo"),
+          QStringLiteral("Cascadia Mono"), QStringLiteral("Consolas"),
+          QStringLiteral("Noto Sans Mono") },
+        QFontDatabase::systemFont(QFontDatabase::FixedFont).family()
+    );
+    return QString::fromLatin1(slate_style_sheet)
+        .replace(QStringLiteral("$mono$"), mono);
+}
 
 void setup_desktop_shell(
     QMainWindow& window, const desktop_shell_actions& shell,

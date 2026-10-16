@@ -141,6 +141,27 @@ and checked action. Qt/KDE share this preference; Android neither restores nor
 writes it and retains its current touch workflow. Automatic attachment remains
 outside this implemented surface; neither placement nor thumbnail sizing adds a splitter.
 
+## Window style
+
+**View → Desktop presentation → Window style** offers **Native** and **Slate**
+in both Qt and KDE. Slate is the material of the
+desktop proposal: Breeze-dark surfaces (`#232629` panels, `#2a2e32` group
+boxes and dock titles, `#4d5359` borders), a single `#3daee9` accent for
+selection, checked toggles and focus, monospace column headers and group
+titles, `#12191d` log and stream backgrounds and a darker pool. It restyles
+the existing menus, toolbar, docks, forms, tables, transport and log view.
+
+Like pool placement it is independent of Classic/Canvas and panel reset: it
+never shows, hides, moves or recreates a dock, cell or player, and it does not
+change processing, line data or overlay colours. Only an explicit choice writes
+`desktop/presentation/chrome` as `native` or `slate`. Missing or unknown values
+start Native without write-back, and a save failure is reported while the
+previous style stays live. Android creates no Window style menu.
+
+The Streams dock now scrolls its source, grid and inventory forms when the
+window is short, instead of squeezing their group boxes below their minimum
+height. Its minimum width is unchanged.
+
 ## Thumbnail sizing
 
 In fixed grid sizing mode, drag an inactive thumbnail's bottom-right grip to

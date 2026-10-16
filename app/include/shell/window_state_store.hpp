@@ -13,6 +13,8 @@ enum class pool_side;
 namespace yodau::shell {
 
 enum class desktop_preset { classic, canvas };
+// Window material only; panels, layout and processing are unaffected.
+enum class desktop_chrome { native, slate };
 enum class desktop_panel { streams, editor, logs };
 
 // Independent of dock presets, grid policy and daemon configuration.
@@ -22,6 +24,10 @@ enum class desktop_panel { streams, editor, logs };
 [[nodiscard]] bool save_canvas_tools(QSettings& settings, bool shown);
 [[nodiscard]] bool load_context_inspector(QSettings& settings);
 [[nodiscard]] bool save_context_inspector(QSettings& settings, bool enabled);
+// Missing or unknown values keep the native platform style.
+[[nodiscard]] desktop_chrome load_desktop_chrome(QSettings& settings);
+[[nodiscard]] bool
+save_desktop_chrome(QSettings& settings, desktop_chrome value);
 
 struct desktop_presentation {
     desktop_preset preset = desktop_preset::classic;

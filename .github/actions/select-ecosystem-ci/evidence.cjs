@@ -111,7 +111,7 @@ function fileNames(kind, coverage, scope = 'full') {
   const names = stages.flatMap(stage =>
     ['summary.md', 'output.log'].map(file => `github/reports/${stage}/${file}`));
   if (kind === 'codeql') names.push('github/reports/03-codeql-analysis/summary.md');
-  if (kind === 'checks' && coverage === 'passed') names.push('reports/coverage.json');
+  if (kind === 'checks' && coverage === 'passed') names.push('reports/coverage.json', 'reports/coverage.zip');
   names.push(changeFile(kind));
   return names.sort();
 }
@@ -218,31 +218,6 @@ function writeBundle(root, receipt, destination, names) {
   fs.writeFileSync(path.join(destination, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n', {flag: 'wx'});
 }
 
-// Manual Pages records only its own successful repository/coverage prerequisites.
-// This kind cannot authorize cross-run reuse or claim full Checks/CodeQL success.
-async function presentation({context, core, root = process.cwd(), env = process.env}) {
-  requireValue(context.eventName === 'workflow_dispatch'
-    && context.ref === 'refs/heads/' + context.payload.repository.default_branch,
-  'Manual Pages evidence requires a default-branch dispatch');
-  successful(env, 'REPOSITORY');
-  const coverage = successful(env, 'COVERAGE', true);
-  const tested = git(root, 'rev-parse', 'HEAD');
-  requireValue(tested === context.sha, 'Checkout is not the event revision');
-  requireCleanCheckout(root);
-  const attempt = Number(env.GITHUB_RUN_ATTEMPT);
-  requireValue(Number.isSafeInteger(attempt) && attempt > 0, 'Missing Pages attempt');
-  const receipt = {kind: 'pages',
-    repository: {id: context.payload.repository.id, name: `${context.repo.owner}/${context.repo.repo}`},
-    run_id: context.runId, run_attempt: attempt, tested_commit: tested,
-    tested_tree: git(root, 'rev-parse', 'HEAD^{tree}'),
-    policy: {project: JSON.parse(readFile(root, 'manifest.json', true)).id}, coverage, files: {}};
-  const names = ['01-tracked-surface', '02-coverage-check'].flatMap(stage =>
-    ['summary.md', 'output.log'].map(file => `github/reports/${stage}/${file}`));
-  if (coverage === 'passed') names.push('reports/coverage.json');
-  const destination = safePath(root, '.ecosystem/github/presentation');
-  writeBundle(root, receipt, destination, names.sort());
-  core.setOutput('directory', destination);
-}
 
 async function record({github, context, core, root = process.cwd(), env = process.env, runtime = runtimeIdentity(root)}) {
   const kind = env.EVIDENCE_KIND;
@@ -438,7 +413,7 @@ async function verifiedRun({api, run, kind, repository, context, tree, config, t
   const names = fileNames(kind, receipt.coverage);
   requireValue(equal(Object.keys(receipt.files).sort(), names), 'Receipt has missing or unexpected reports');
   // The allowlist permits optional coverage; reject an unreceipted stale file too.
-  requireValue(receipt.coverage === 'passed' || !fs.existsSync(path.join(directory, 'reports/coverage.json')),
+  requireValue(receipt.coverage === 'passed' || ['reports/coverage.json', 'reports/coverage.zip'].every(name => !fs.existsSync(path.join(directory, name))),
     'Unreceipted coverage report');
   for (const file of names) {
     const bytes = readFile(directory, file, !file.endsWith('/output.log'));
@@ -509,9 +484,11 @@ async function latestPush(api, kind, context) {
 async function publicationPair({github, context, root, temporary, runtime}) {
   const trigger = context.payload.workflow_run;
   const triggerKind = Object.keys(kinds).find(kind => trigger && workflowMatches(trigger, kind));
-  requireValue(context.eventName === 'workflow_run' && triggerKind
+  requireValue((context.eventName === 'workflow_run' && triggerKind
     && pushMatches(trigger, triggerKind, context) && trigger.status === 'completed'
-    && trigger.conclusion === 'success', 'Not a successful default-branch push completion');
+    && trigger.conclusion === 'success') || (context.eventName === 'workflow_dispatch'
+    && context.ref === 'refs/heads/' + context.payload.repository.default_branch),
+  'Publication requires a successful default-branch completion or dispatch');
   const api = apiFor(github, context);
   await currentDefault(api, context);
   const {tree, config} = checkedCheckout(root, context);
@@ -591,6 +568,7 @@ async function publication({github, context, core, root = process.cwd(), runtime
     core.setOutput('ready', 'true');
     core.info('Publication evidence is ready for default-branch revision ' + context.sha);
   } catch (error) {
+    if (context.eventName === 'workflow_dispatch') throw error;
     core.notice('Publication deferred: ' + error.message);
   } finally {
     fs.rmSync(temporary, {recursive: true, force: true});
@@ -600,7 +578,6 @@ async function revalidatePublication({github, context, root = process.cwd(), env
   const api = apiFor(github, context);
   await currentDefault(api, context);
   requireValue(git(root, 'rev-parse', 'HEAD') === context.sha, 'Deployment checkout differs');
-  if (context.eventName === 'workflow_dispatch') return;
   const expected = JSON.parse(env.PUBLICATION_SOURCE || 'null');
   requireValue(expected?.commit === context.sha, 'Publication source is missing');
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'ecosystem-revalidate-'));
@@ -672,6 +649,6 @@ async function select({github, context, core, root = process.cwd(), env = proces
   }
 }
 
-module.exports = {record, presentation, select, requiredScope, publication, revalidatePublication, reusablePair, policy, fileNames, artifactName, hash,
+module.exports = {record, select, requiredScope, publication, revalidatePublication, reusablePair, policy, fileNames, artifactName, hash,
   runtimeIdentity,
   checkPublicationTip: ({github, context}) => currentDefault(apiFor(github, context), context)};

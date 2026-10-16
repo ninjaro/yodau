@@ -190,7 +190,8 @@ qint64 file_transport::seek_position(int step) const {
         return duration;
     }
     return qint64(std::llround(
-        static_cast<long double>(std::max(0, step)) * duration / seek_steps
+        static_cast<long double>(std::max(0, step))
+        * static_cast<long double>(duration) / seek_steps
     ));
 }
 
