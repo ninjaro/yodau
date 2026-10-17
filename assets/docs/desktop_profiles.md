@@ -144,12 +144,17 @@ outside this implemented surface; neither placement nor thumbnail sizing adds a 
 ## Window style
 
 **View → Desktop presentation → Window style** offers **Native** and **Slate**
-in both Qt and KDE. Slate is the material of the
-desktop proposal: Breeze-dark surfaces (`#232629` panels, `#2a2e32` group
-boxes and dock titles, `#4d5359` borders), a single `#3daee9` accent for
-selection, checked toggles and focus, monospace column headers and group
-titles, `#12191d` log and stream backgrounds and a darker pool. It restyles
-the existing menus, toolbar, docks, forms, tables, transport and log view.
+in both Qt and KDE. Slate is the material of the desktop proposal's `1a`
+shell: a `#2a2e32` window with `#31363b` docks and `#2f3439` menu and dock
+toggle bars, group boxes outlined in `#4d5359` with their titles centred on
+the border, tabs drawn as raised tabs, `#232629` inputs, log and stream
+frames, ring radio buttons and a single `#3daee9` accent for selection,
+checked boxes, pressed buttons and focus. Dock toggles stay grey (checked ones
+lighter) and dock close buttons sit at the right of the title. Text uses Noto
+Sans and figures DejaVu Sans Mono, as in the prototype; both ship as Latin
+subsets under `assets/brand/fonts/` (OFL and the DejaVu/Bitstream licence
+alongside) and installed copies take precedence. It restyles the existing
+menus, toolbar, docks, forms, tables, transport and log view.
 
 Like pool placement it is independent of Classic/Canvas and panel reset: it
 never shows, hides, moves or recreates a dock, cell or player, and it does not
