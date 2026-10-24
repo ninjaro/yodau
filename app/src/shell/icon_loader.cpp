@@ -1,21 +1,12 @@
 #include "shell/icon_loader.hpp"
 
+#include <shared_ui/qt/icons.hpp>
+
 QIcon icon_loader::themed(
     const std::initializer_list<const char*> names,
     const QStyle::StandardPixmap fallback
 ) {
-
-#if !(defined(KC_ANDROID) || defined(Q_OS_ANDROID))
-    for (auto name : names) {
-        QIcon ico = QIcon::fromTheme(QString::fromLatin1(name));
-        if (!ico.isNull()) {
-            return ico;
-        }
-    }
-#else
-    Q_UNUSED(names);
-#endif
-    return QApplication::style()->standardIcon(fallback);
+    return shared_ui::qt::themed_icon(names, fallback);
 }
 
 QIcon icon_loader::title_bar_close_icon() {

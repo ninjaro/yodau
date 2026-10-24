@@ -285,13 +285,27 @@ runs:
           echo '::error::Tooling source-path must contain CMakeLists.txt, manifest.json and assets/templates.'
           exit 1
         fi
-        cmake -S "$source_root" -B "$BUILD_ROOT" -DCMAKE_BUILD_TYPE=Debug -DECOSYSTEM_BUILD_TESTS=OFF
+        # The tracked root is exclusively the Marx visitor. The bootstrapped
+        # actor generates/builds Engels through its ignored developer source.
         cmake -E rm -f "$BUILD_ROOT/marx" "$BUILD_ROOT/engels"
+        cmake -S "$source_root" -B "$BUILD_ROOT" -DCMAKE_BUILD_TYPE=Debug
         cmake --build "$BUILD_ROOT" --parallel "$BUILD_PARALLELISM"
-        if [ ! -x "$BUILD_ROOT/marx" ] || [ ! -x "$BUILD_ROOT/engels" ]; then
-          echo '::error::Selected tooling revision must build both marx and engels at the build root.'
+        if [ ! -x "$BUILD_ROOT/marx" ]; then
+          echo '::error::Selected tooling revision must build both marx and engels: visitor Marx is missing.'
           exit 1
         fi
+        actor_build="$source_root/.ecosystem/build/project/desktop/debug/default"
+        cmake -E rm -f "$actor_build/engels"
+        (
+          cd "$source_root"
+          CMAKE_BUILD_PARALLEL_LEVEL="$BUILD_PARALLELISM" "$BUILD_ROOT/marx" build debug engels:engels
+        )
+        # This is the actor's documented desktop Debug/default build layout.
+        if [ ! -f "$source_root/.ecosystem/source/CMakeLists.txt" ] || [ ! -x "$actor_build/engels" ]; then
+          echo '::error::Selected tooling revision must build both marx and engels through the actor-owned developer graph.'
+          exit 1
+        fi
+        cmake -E copy_if_different "$actor_build/engels" "$BUILD_ROOT/engels"
 
     - name: Save bootstrap compiler cache
       if: ${{ steps.bootstrap_build.outcome == 'success' && github.event_name != 'pull_request' }}

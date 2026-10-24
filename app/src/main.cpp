@@ -28,10 +28,12 @@ int main(int argc, char* argv[]) {
         QString::fromLatin1(ECOSYSTEM_PROJECT_VERSION)
     );
     QGuiApplication::setApplicationDisplayName(str_label("yodau"));
-    app.setWindowIcon(QIcon::fromTheme(
-        QStringLiteral("org.ninjaro.yodau"),
-        QIcon(QStringLiteral(":/yodau/brand/bug.svg"))
-    ));
+    QGuiApplication::setWindowIcon(
+        QIcon::fromTheme(
+            QStringLiteral("org.ninjaro.yodau"),
+            QIcon(QStringLiteral(":/yodau/brand/bug.svg"))
+        )
+    );
     QCommandLineParser parser;
 
 #ifdef KC_KDE

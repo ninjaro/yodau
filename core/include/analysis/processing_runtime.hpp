@@ -5,6 +5,7 @@
 #include "analysis/processing_session_store.hpp"
 #include "streams/stream_manager.hpp"
 
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -139,6 +140,7 @@ private:
     processed_frame_observer_fn processed_frame_observer;
     mutable std::mutex processing_policy_mtx;
     std::unordered_map<std::string, int> processing_max_pixels_by_stream;
+    std::atomic_flag monitoring_overlap_reported_ {};
 };
 
 }

@@ -1,0 +1,15 @@
+list-streams
+add-stream /home/yarro/Videos/BigBuckBunny.mp4
+add-stream /home/yarro/Videos/ElephantsDream.mp4
+list-streams
+start-stream video0
+start-stream video1
+start-stream stream_1
+start-stream stream_0
+stop-stream stream_1
+list-streams
+stop-stream video0
+stop-stream stream_0
+stop-stream video1
+list-streams
+q

@@ -96,6 +96,20 @@
       "name": "packing_core"
     },
     {
+      "id": "shared_ui:qt",
+      "kind": "static_lib",
+      "owns": [],
+      "packages": {
+        "external_project": {
+          "repository": "https://github.com/ninjaro/shared_ui",
+          "revision": "HEAD",
+          "package": "shared_ui",
+          "artifact": "qt:qt"
+        }
+      },
+      "name": "shared_ui_qt"
+    },
+    {
       "id": "core:core",
       "kind": "static_lib",
       "name": "yodau_core",
@@ -213,7 +227,8 @@
         "core:core",
         "configuration_io:io",
         "watchdog_qt:qt",
-        "packing_library:core"
+        "packing_library:core",
+        "shared_ui:qt"
       ],
       "packages": {
         "qt": [

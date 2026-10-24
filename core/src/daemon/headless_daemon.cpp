@@ -77,7 +77,7 @@ namespace {
                 );
             }
 
-            struct stat source_stat { };
+            struct stat source_stat {};
 
             if (::fstat(source_fd, &source_stat) < 0) {
                 const std::string message = "cannot identify source camera '"
@@ -127,7 +127,7 @@ namespace {
                     );
                 }
 
-                struct stat lock_directory_status { };
+                struct stat lock_directory_status {};
 
                 if (::lstat(lock_directory.c_str(), &lock_directory_status) < 0
                     || !S_ISDIR(lock_directory_status.st_mode)
@@ -231,9 +231,9 @@ namespace {
         }
 
 #ifdef __linux__
-        struct stat source_stat { };
+        struct stat source_stat {};
 
-        struct stat output_stat { };
+        struct stat output_stat {};
 
         if (::stat(source.c_str(), &source_stat) == 0
             && ::stat(output.c_str(), &output_stat) == 0
@@ -246,7 +246,7 @@ namespace {
 
     bool is_linux_character_device(const std::string& path) {
 #ifdef __linux__
-        struct stat status { };
+        struct stat status {};
 
         return ::stat(path.c_str(), &status) == 0 && S_ISCHR(status.st_mode);
 #else
@@ -277,6 +277,13 @@ int run_headless_daemon(
         return 2;
     }
 
+    auto progress = monitor::expect_progress(monitor::channel::main);
+    if constexpr (monitor::instrumentation_enabled) {
+        if (monitor::process_available() && !progress.valid()) {
+            errors << "yodau: main progress monitoring unavailable for an "
+                      "overlapping headless supervisor\n";
+        }
+    }
     try {
         const line_configuration_document document
             = load_line_configuration_file(options.configuration_path);
@@ -336,12 +343,14 @@ int run_headless_daemon(
         auto source_lease = source_camera_lease::acquire(source, local_source);
         static_cast<void>(source_lease);
 
-        processing_runtime runtime(processing_runtime_options {
-            .mode = render_mode::core_only,
-            .enable_virtual_camera = true,
-            .virtual_camera_device = output_device,
-            .algorithm_id = document.stream.algorithm.algorithm_id,
-        });
+        processing_runtime runtime(
+            processing_runtime_options {
+                .mode = render_mode::core_only,
+                .enable_virtual_camera = true,
+                .virtual_camera_device = output_device,
+                .algorithm_id = document.stream.algorithm.algorithm_id,
+            }
+        );
         // Keep the manager after the runtime in construction order so it is
         // shut down first during exception unwinding. Its daemon callbacks may
         // still be executing code owned by the runtime.
@@ -384,7 +393,6 @@ int run_headless_daemon(
         while (!stop_token.stop_requested()
                && manager.is_stream_running(applied.stream_name)
                && std::chrono::steady_clock::now() < output_deadline) {
-            monitor::heartbeat(monitor::channel::main);
             if (const virtual_camera* camera = runtime.preview_camera()) {
                 const auto cameras = camera->frames();
                 const auto info = std::ranges::find(
@@ -396,6 +404,7 @@ int run_headless_daemon(
                     output_error = info->last_error;
                 }
             }
+            progress.heartbeat();
             if (output_ready) {
                 break;
             }
@@ -418,7 +427,9 @@ int run_headless_daemon(
                 + (output_error.empty() ? std::string {} : ": " + output_error)
             );
         }
-        monitor::record_breadcrumb(monitor::event::output_ready);
+        if (output_ready) {
+            monitor::record_breadcrumb(monitor::event::output_ready);
+        }
 
         if (!stop_token.stop_requested() && source_lease.is_capture_device()) {
             const linux_capture_exclusivity_result exclusivity
@@ -439,7 +450,6 @@ int run_headless_daemon(
         std::string runtime_output_error;
         while (!stop_token.stop_requested()
                && manager.is_stream_running(applied.stream_name)) {
-            monitor::heartbeat(monitor::channel::main);
             bool runtime_output_ready = false;
             if (const virtual_camera* camera = runtime.preview_camera()) {
                 const auto cameras = camera->frames();
@@ -456,6 +466,7 @@ int run_headless_daemon(
             } else {
                 runtime_output_error = "virtual camera publisher disappeared";
             }
+            progress.heartbeat();
 
             const auto now = std::chrono::steady_clock::now();
             if (runtime_output_ready) {
@@ -463,8 +474,9 @@ int run_headless_daemon(
                 runtime_output_error.clear();
             } else if (!output_unhealthy_since.has_value()) {
                 output_unhealthy_since = now;
-            } else if (now - *output_unhealthy_since
-                       >= std::chrono::seconds(2)) {
+            } else if (
+                now - *output_unhealthy_since >= std::chrono::seconds(2)
+            ) {
                 break;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));

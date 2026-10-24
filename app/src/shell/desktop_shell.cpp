@@ -13,6 +13,9 @@
 #include <QStringList>
 #include <QToolBar>
 
+#include <shared_ui/qt/fonts.hpp>
+#include <shared_ui/qt/style_sheet.hpp>
+
 #ifdef KC_KDE
 #include <KActionCollection>
 #include <KCommandBar>
@@ -53,27 +56,17 @@ void collect_menu_actions(
 
 // The prototype's faces (Noto Sans, DejaVu Sans Mono) ship as Latin subsets
 // for platforms without KDE's defaults; installed copies still win.
-void register_slate_fonts() {
-    static bool registered = false;
-    if (registered)
-        return;
-    registered = true;
+QString slate_family(
+    const QStringList& wanted, const QFontDatabase::SystemFont fallback
+) {
+    QStringList paths;
     for (const char* name :
          { "NotoSans-Regular", "NotoSans-Medium", "NotoSans-Bold",
            "DejaVuSansMono", "DejaVuSansMono-Bold" })
-        QFontDatabase::addApplicationFont(
-            QStringLiteral(":/yodau/brand/fonts/%1.ttf")
-                .arg(QLatin1String(name))
-        );
-}
-
-QString first_installed(const QStringList& wanted, const QString& fallback) {
-    register_slate_fonts();
-    const QStringList available = QFontDatabase::families();
-    for (const QString& family : wanted)
-        if (available.contains(family, Qt::CaseInsensitive))
-            return family;
-    return fallback;
+        paths.append(QStringLiteral(":/yodau/brand/fonts/%1.ttf")
+                         .arg(QLatin1String(name)));
+    shared_ui::qt::register_fonts(paths);
+    return shared_ui::qt::first_family(wanted, fallback);
 }
 
 // Slate material of `docs/prototypes/Yodau UI.dc.html`: Breeze-dark
@@ -159,20 +152,21 @@ namespace yodau::shell {
 QString desktop_chrome_style_sheet(const desktop_chrome chrome) {
     if (chrome != desktop_chrome::slate)
         return {};
-    static const QString mono = first_installed(
+    static const QString mono = slate_family(
         { QStringLiteral("DejaVu Sans Mono"), QStringLiteral("JetBrains Mono"),
           QStringLiteral("SF Mono"), QStringLiteral("Menlo"),
           QStringLiteral("Cascadia Mono"), QStringLiteral("Consolas"),
           QStringLiteral("Noto Sans Mono") },
-        QFontDatabase::systemFont(QFontDatabase::FixedFont).family()
+        QFontDatabase::FixedFont
     );
-    static const QString ui = first_installed(
+    static const QString ui = slate_family(
         { QStringLiteral("Noto Sans"), QStringLiteral("DejaVu Sans") },
-        QFontDatabase::systemFont(QFontDatabase::GeneralFont).family()
+        QFontDatabase::GeneralFont
     );
-    return QString::fromLatin1(slate_style_sheet)
-        .replace(QStringLiteral("$mono$"), mono)
-        .replace(QStringLiteral("$ui$"), ui);
+    return shared_ui::qt::apply_style_tokens(
+        QString::fromLatin1(slate_style_sheet),
+        { { QStringLiteral("mono"), mono }, { QStringLiteral("ui"), ui } }
+    );
 }
 
 void setup_desktop_shell(

@@ -8,7 +8,7 @@ if(NOT ECOSYSTEM_FACADE_INNER)
     if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
     endif()
-    string(SHA256 _ecosystem_selection [=[[["monitor","https://github.com/ninjaro/peepbooth","master"],["packing","https://github.com/ninjaro/rothko","master"]]]=])
+    string(SHA256 _ecosystem_selection [=[[["monitor","https://github.com/ninjaro/peepbooth","master",["monitor::watchdog_client__client","monitor::watchdog_qt__qt"]],["packing","https://github.com/ninjaro/rothko","master",["packing::library__core"]],["shared_ui","https://github.com/ninjaro/shared_ui","HEAD",["shared_ui::qt__qt"]]]]=])
     set(_ecosystem_state "${CMAKE_CURRENT_BINARY_DIR}/.ecosystem-facade/${_ecosystem_selection}")
     file(MAKE_DIRECTORY "${_ecosystem_state}")
     foreach(name mvp mvp.exe)
@@ -46,8 +46,59 @@ if(NOT ECOSYSTEM_FACADE_INNER)
     file(WRITE "${_ecosystem_state}/cache.in" "${_ecosystem_cache}")
     configure_file("${_ecosystem_state}/cache.in" "${_ecosystem_state}/cache.cmake" COPYONLY)
 
+    # Package discovery happens in a separate compiler-enabled configure. Qt and
+    # other imported targets must not leak into this LANGUAGES NONE outer graph.
+    file(WRITE "${_ecosystem_state}/probe/CMakeLists.txt" [==[
+cmake_minimum_required(VERSION 3.20)
+project(facade_sdk_probe LANGUAGES C CXX)
+include("${SELECTION}")
+find_package(${PACKAGE} CONFIG QUIET)
+if(${PACKAGE}_FOUND)
+    foreach(target IN LISTS TARGETS)
+        if(NOT TARGET "${target}")
+            message(FATAL_ERROR "Installed SDK ${PACKAGE} does not export ${target}; install the required SDK or prepare it with Marx")
+        endif()
+    endforeach()
+    file(WRITE "${RESULT}" "${${PACKAGE}_DIR}")
+else()
+    file(WRITE "${RESULT}" "")
+endif()
+]==])
+    set(_ecosystem_installed_cache "")
     function(_ecosystem_source package repository revision)
         string(SHA256 identity "${package}\n${repository}\n${revision}")
+        _ecosystem_bracket(package_value "${package}")
+        _ecosystem_bracket(target_values "${ARGN}")
+        set(selection "${_ecosystem_state}/probe/${identity}-selection.cmake")
+        file(WRITE "${selection}" "set(PACKAGE ${package_value})\nset(TARGETS ${target_values})\n")
+        set(result "${_ecosystem_state}/probe/${identity}-result.txt")
+        # Reconfigure the probe on every outer configure; missing or changed
+        # installed SDK evidence must never reuse an earlier selection.
+        file(REMOVE "${result}")
+        set(generator_args -G "${CMAKE_GENERATOR}")
+        if(CMAKE_GENERATOR_PLATFORM)
+            list(APPEND generator_args -A "${CMAKE_GENERATOR_PLATFORM}")
+        endif()
+        if(CMAKE_GENERATOR_TOOLSET)
+            list(APPEND generator_args -T "${CMAKE_GENERATOR_TOOLSET}")
+        endif()
+        execute_process(COMMAND "${CMAKE_COMMAND}" ${generator_args}
+            -S "${_ecosystem_state}/probe" -B "${_ecosystem_state}/probe/${identity}"
+            -C "${_ecosystem_state}/cache.cmake" "-DSELECTION:FILEPATH=${selection}"
+            "-DRESULT:FILEPATH=${result}" "-D${package}_DIR:PATH=${${package}_DIR}"
+            RESULT_VARIABLE status OUTPUT_VARIABLE output ERROR_VARIABLE errors)
+        if(NOT status STREQUAL "0" OR NOT EXISTS "${result}")
+            message(FATAL_ERROR "Installed provider probe failed for ${package}: ${status}\n${output}\n${errors}")
+        endif()
+        file(READ "${result}" directory)
+        if(NOT directory STREQUAL "")
+            _ecosystem_bracket(directory "${directory}")
+            string(APPEND _ecosystem_installed_cache
+                "set(${package}_DIR ${directory} CACHE PATH \"Selected installed SDK\" FORCE)\n")
+            set(_ecosystem_installed_cache "${_ecosystem_installed_cache}" PARENT_SCOPE)
+            message(STATUS "Facade provider ${package}: installed SDK")
+            return()
+        endif()
         if(identity IN_LIST ECOSYSTEM_FACADE_ANCESTRY)
             message(FATAL_ERROR "Cyclic facade provider selection: ${package}, ${repository} @ ${revision}")
         endif()
@@ -69,8 +120,9 @@ if(NOT ECOSYSTEM_FACADE_INNER)
         set(_ecosystem_package_${identity} "${package}" PARENT_SCOPE)
         set(_ecosystem_description_${identity} "Provider ${package}: ${repository} @ ${revision}" PARENT_SCOPE)
     endfunction()
-    _ecosystem_source([=[monitor]=] [=[https://github.com/ninjaro/peepbooth]=] [=[master]=])
-    _ecosystem_source([=[packing]=] [=[https://github.com/ninjaro/rothko]=] [=[master]=])
+    _ecosystem_source([=[monitor]=] [=[https://github.com/ninjaro/peepbooth]=] [=[master]=] [=[monitor::watchdog_client__client]=] [=[monitor::watchdog_qt__qt]=])
+    _ecosystem_source([=[packing]=] [=[https://github.com/ninjaro/rothko]=] [=[master]=] [=[packing::library__core]=])
+    _ecosystem_source([=[shared_ui]=] [=[https://github.com/ninjaro/shared_ui]=] [=[HEAD]=] [=[shared_ui::qt__qt]=])
 
     # Validate the installed contract, not a provider's source/build layout.
     file(WRITE "${_ecosystem_state}/packages.cmake" [==[
@@ -84,12 +136,12 @@ function(bracket result value)
     endwhile()
     set(${result} "[${equal}[${value}]${equal}]" PARENT_SCOPE)
 endfunction()
-set(contents "")
+set(contents "${INSTALLED_CACHE}")
 foreach(package IN LISTS PACKAGES)
     file(GLOB_RECURSE configs "${PREFIX}/${package}Config.cmake")
     list(LENGTH configs count)
     if(NOT count EQUAL 1)
-        message(FATAL_ERROR "Provider ${package} must install exactly one ${package}Config.cmake under ${PREFIX}; found ${count}")
+        message(FATAL_ERROR "Provider ${package} must install exactly one ${package}Config.cmake under ${PREFIX}; found ${count}. Plain CMake acquires only facade exports; non-facade exports require an installed SDK or Marx preparation.")
     endif()
     list(GET configs 0 config)
     get_filename_component(directory "${config}" DIRECTORY)
@@ -116,6 +168,7 @@ configure_file("${OUTPUT}.in" "${OUTPUT}" COPYONLY)
         set(prefix "${_ecosystem_state}/${config_id}/packages")
         set(providers "")
         set(packages "")
+        set(provider_builds "")
         foreach(identity IN LISTS _ecosystem_providers)
             set(package "${_ecosystem_package_${identity}}")
             set(provider "_ecosystem_provider_${package}_${identity}_${config_id}")
@@ -150,14 +203,19 @@ configure_file("${OUTPUT}.in" "${OUTPUT}" COPYONLY)
                 COMMAND "${CMAKE_COMMAND}" -E echo "${_ecosystem_description_${identity}} (configure)"
                 DEPENDEES update DEPENDERS configure)
             ExternalProject_Add_StepDependencies(${provider} configure "${_ecosystem_state}/${config_id}/${identity}-cache.cmake")
+            list(APPEND provider_builds "${_ecosystem_state}/${config_id}/providers/${identity}")
             list(APPEND providers "${provider}")
             list(APPEND packages "${_ecosystem_package_${identity}}")
         endforeach()
         # Script arguments carry lists through a cache file, not command argv.
+        _ecosystem_bracket(selected_installed "${_ecosystem_installed_cache}")
         _ecosystem_bracket(package_names "${packages}")
         _ecosystem_bracket(previous_prefix "${CMAKE_PREFIX_PATH}")
         file(WRITE "${_ecosystem_state}/${config_id}/package-inputs.cmake"
-            "set(PACKAGES ${package_names})\nset(PREVIOUS_PREFIX ${previous_prefix})\n")
+            "set(PACKAGES ${package_names})\nset(PREVIOUS_PREFIX ${previous_prefix})\nset(INSTALLED_CACHE ${selected_installed})\n")
+        _ecosystem_bracket(selected_builds "${provider_builds}")
+        file(WRITE "${_ecosystem_state}/${config_id}/install-providers.cmake"
+            "set(providers ${selected_builds})\n")
         ExternalProject_Add(${target}
             SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
             BINARY_DIR "${inner}"
@@ -219,7 +277,7 @@ endforeach()
 string(SHA256 config_id "${CMAKE_INSTALL_CONFIG_NAME}")
 # Installing an outer library must also make its provider closure available to
 # another visitor. Each provider delegates recursively through its own facade.
-file(GLOB providers LIST_DIRECTORIES TRUE "@_ecosystem_state@/${config_id}/providers/*")
+include("@_ecosystem_state@/${config_id}/install-providers.cmake")
 foreach(provider IN LISTS providers)
     execute_process(COMMAND "${CMAKE_COMMAND}" --install "${provider}"
         --config "${CMAKE_INSTALL_CONFIG_NAME}" --prefix "${CMAKE_INSTALL_PREFIX}"
@@ -251,6 +309,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if (CMAKE_CXX_STANDARD EQUAL 26 AND CMAKE_VERSION VERSION_LESS 3.25)
+    message(FATAL_ERROR "Ecosystem experimental C++26 requires CMake 3.25 or newer.")
+endif ()
+if (NOT "cxx_std_23" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+    message(FATAL_ERROR "Ecosystem requires C++23; ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} does not advertise it. Select a supported compiler or change manifest.cpp_standard after checking project requirements.")
+endif ()
+if (CMAKE_CXX_STANDARD EQUAL 26)
+    message(WARNING "Ecosystem: C++26 is experimental; compiler and standard-library feature support must be verified by the project.")
+endif ()
+set(ECOSYSTEM_RESOLVED_CXX_STANDARD ${CMAKE_CXX_STANDARD} CACHE INTERNAL "Resolved C++ standard" FORCE)
+set(ECOSYSTEM_RESOLVED_CXX_COMPILER "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}" CACHE INTERNAL "Resolved C++ compiler" FORCE)
+
 include(GNUInstallDirs)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -276,6 +346,7 @@ find_package(Qt6 6.0 CONFIG REQUIRED COMPONENTS
         MultimediaWidgets
         Widgets
 )
+set(ECOSYSTEM_RESOLVED_QT_VERSION "${Qt6_VERSION}" CACHE INTERNAL "Resolved Qt version" FORCE)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -920,7 +991,6 @@ set(YODAU_CORE_CORE_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/stream_processed_frame_router.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/stream_registry.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/virtual_camera.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/core/tests/streams/stream_manager/frames.hpp
 )
 set(YODAU_CORE_CORE_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/analysis/centroid_track_algorithm.cpp
@@ -1202,21 +1272,27 @@ set(YODAU_APP_APP_RUNTIME_SOURCES
 )
 find_package(monitor CONFIG REQUIRED)
 if (NOT TARGET monitor::watchdog_client__client)
-    message(FATAL_ERROR "Package monitor does not export monitor::watchdog_client__client")
+    message(FATAL_ERROR "Package monitor does not export monitor::watchdog_client__client; non-facade exports require an installed SDK or Marx preparation")
 endif ()
 add_library(watchdog_client__client ALIAS monitor::watchdog_client__client)
 
 find_package(monitor CONFIG REQUIRED)
 if (NOT TARGET monitor::watchdog_qt__qt)
-    message(FATAL_ERROR "Package monitor does not export monitor::watchdog_qt__qt")
+    message(FATAL_ERROR "Package monitor does not export monitor::watchdog_qt__qt; non-facade exports require an installed SDK or Marx preparation")
 endif ()
 add_library(watchdog_qt__qt ALIAS monitor::watchdog_qt__qt)
 
 find_package(packing CONFIG REQUIRED)
 if (NOT TARGET packing::library__core)
-    message(FATAL_ERROR "Package packing does not export packing::library__core")
+    message(FATAL_ERROR "Package packing does not export packing::library__core; non-facade exports require an installed SDK or Marx preparation")
 endif ()
 add_library(packing_library__core ALIAS packing::library__core)
+
+find_package(shared_ui CONFIG REQUIRED)
+if (NOT TARGET shared_ui::qt__qt)
+    message(FATAL_ERROR "Package shared_ui does not export shared_ui::qt__qt; non-facade exports require an installed SDK or Marx preparation")
+endif ()
+add_library(shared_ui__qt ALIAS shared_ui::qt__qt)
 
 add_library(core__core STATIC
     ${YODAU_CORE_CORE_HEADERS}
@@ -1227,7 +1303,6 @@ target_compile_features(core__core PUBLIC cxx_std_23)
 
 target_include_directories(core__core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/core/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/benchmarks/include
 )
 
 target_link_libraries(core__core PUBLIC
@@ -1258,7 +1333,6 @@ target_compile_features(configuration_io__io PUBLIC cxx_std_23)
 
 target_include_directories(configuration_io__io PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/core/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/benchmarks/include
 )
 
 target_link_libraries(configuration_io__io PUBLIC
@@ -1285,7 +1359,6 @@ target_compile_features(app__ui PUBLIC cxx_std_23)
 
 target_include_directories(app__ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/app/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/tests/include
 )
 
 target_link_libraries(app__ui PUBLIC
@@ -1298,6 +1371,7 @@ target_link_libraries(app__ui PUBLIC
     configuration_io__io
     watchdog_qt__qt
     packing_library__core
+    shared_ui__qt
 )
 
 target_compile_definitions(app__ui PUBLIC $<$<BOOL:${ECOSYSTEM_PROFILE_KDE}>:KC_KDE>)
@@ -1321,7 +1395,6 @@ target_compile_features(app__app PRIVATE cxx_std_23)
 
 target_include_directories(app__app PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/app/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/tests/include
 )
 
 target_link_libraries(app__app PRIVATE

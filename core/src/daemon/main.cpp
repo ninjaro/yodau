@@ -56,7 +56,6 @@ int main(int argc, char** argv) {
         }
 
         static_cast<void>(monitor::start_process("yodau-daemon"));
-        monitor::set_channel_active(monitor::channel::main, true);
 
         yodau::core::headless_daemon_options daemon_options;
         daemon_options.configuration_path = parsed["config"].as<std::string>();
@@ -92,7 +91,6 @@ int main(int argc, char** argv) {
             daemon_options, stop_source.get_token(), std::cout, std::cerr
         );
         signal_watcher.request_stop();
-        monitor::set_channel_active(monitor::channel::main, false);
         return result;
     } catch (const cxxopts::exceptions::exception& error) {
         std::cerr << "invalid arguments: " << error.what() << '\n'
