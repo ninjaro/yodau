@@ -29,7 +29,6 @@ void setup_desktop_shell(
 );
 
 // Window-wide style sheet for a chrome choice; empty for the native style.
-[[nodiscard]] QString desktop_chrome_style_sheet(desktop_chrome chrome);
 
 } // namespace yodau::shell
 

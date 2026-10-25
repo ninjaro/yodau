@@ -8,6 +8,35 @@ application model.
 The profiles preserve the same processing, actions and persistence contracts.
 Proposal layouts do not redefine those boundaries.
 
+## Material ownership
+
+Native and Slate are presentation choices over the same workspace and processing
+model. Appearance owns Slate's palette, fonts and nested control/dock styling;
+the host assigns canvas/viewport roles and retains all workspace policy. Scopes
+are window-local, so previews can select another material independently. Native
+restores the actual Qt/KDE palette and style. Shared fonts and control assets
+come from the provider's `share/shared_ui/assets` data (or embedded provider
+resources); custom SDK prefixes must expose their shared data to Qt.
+
+## Shared secondary presentation
+
+Stream cells supply six host-owned actions to Appearance's `action_group`:
+size decrease/increase, rotate, Fit/Stretch, Enlarge/Restore and Close. Existing
+button object names, tooltips, accessible names/descriptions and keyboard
+operations remain. The shared toolbar arranges and styles the controls; a
+small desktop cell keeps every command reachable through its overflow menu.
+The Android branch explicitly keeps inline controls and 48px touch targets;
+native Qt branch fixtures are not Android device acceptance.
+
+Appearance's `settings_section` presents source-name validation and the
+processing-budget form. The host retains uniqueness checks, source discovery,
+manual/automatic processing state, legal ranges and bindings. Errors follow
+material colours and clear without destroying the field's original help or
+style. Conditional rows hide their captions and errors together. Native uses
+the active Qt/KDE style and compact processing fields; no stream or processing
+policy is implemented in Appearance. Source mode/file-choice groups and the
+algorithm-specific form remain host components.
+
 ## Plain Qt profile
 
 The default profile uses `QMainWindow` and Qt Widgets only. It provides a small
@@ -344,6 +373,12 @@ but says **Rate pending**; **No sample** means no corresponding arrival yet.
 failure. Paused/ended/low-rate sources may legitimately be stale; suspended
 sources and unavailable processing have separate labels. Input and result
 ages are independent, and old results can predate the current settings.
+
+The values are grouped as **Active stream**, **GUI observations** and
+**Effective policy**. A missing observation shows a dash with its reason; an
+input or result path older than three seconds gets a dashed edge besides its
+**Stale** text. Values wrap and can be selected and copied with the mouse or
+keyboard. **Window style** also restyles these sections (Native or Slate).
 
 It follows the canvas's active stream, not the configured-source selector in
 Streams. Returning to the pool clears the readout. No CPU/RAM percentages,

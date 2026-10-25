@@ -30,7 +30,11 @@
 #include <vector>
 
 class QLabel;
-class QPushButton;
+class QAction;
+
+namespace shared_ui::qt {
+class action_group;
+}
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
@@ -185,8 +189,8 @@ private:
     /// Canonical frame percentages, before display rotation or fitting.
     [[nodiscard]] static QPointF clamp_pct(QPointF point_pct);
     [[nodiscard]] static QColor color_with_alpha(QColor color, int alpha);
-    [[nodiscard]] static QColor contrasting_text_color(const QColor& background
-    );
+    [[nodiscard]] static QColor
+    contrasting_text_color(const QColor& background);
     [[nodiscard]] static QColor line_color_for(
         const line_instance& line_value, int line_index, int line_count,
         const QImage& frame
@@ -237,8 +241,8 @@ private:
 
     [[nodiscard]] QPointF to_pct(const QPointF& pos_px) const;
     [[nodiscard]] QPointF to_px(const QPointF& pos_pct) const;
-    [[nodiscard]] std::optional<int> line_edit_vertex_at(const QPointF& pos_px
-    ) const;
+    [[nodiscard]] std::optional<int>
+    line_edit_vertex_at(const QPointF& pos_px) const;
     [[nodiscard]] std::optional<line_edit_segment_hit_info>
     line_edit_segment_hit(const QPointF& pos_px) const;
     void reset_line_edit_drag_state();
@@ -287,12 +291,13 @@ private:
     friend class file_transport;
     QString name;
 
-    QPushButton* close_btn { nullptr };
-    QPushButton* focus_btn { nullptr };
-    QPushButton* rotate_btn { nullptr };
-    QPushButton* aspect_mode_btn { nullptr };
-    QPushButton* manual_size_decrease_btn { nullptr };
-    QPushButton* manual_size_increase_btn { nullptr };
+    shared_ui::qt::action_group* display_actions { nullptr };
+    QAction* close_action { nullptr };
+    QAction* focus_action { nullptr };
+    QAction* rotate_action { nullptr };
+    QAction* aspect_mode_action { nullptr };
+    QAction* manual_size_decrease_action { nullptr };
+    QAction* manual_size_increase_action { nullptr };
     QLabel* name_label { nullptr };
 
     bool active { false };

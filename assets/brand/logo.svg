@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Yodau icon">
+<rect width="128" height="128" rx="24" fill="#16121F"/>
+<g fill="none" stroke="#C3BFEC" stroke-width="4" opacity=".85"><path d="M17 38 Q7 65 17 91"/><path d="M111 37 Q121 65 111 91"/></g>
+<path d="M8 65 20 65 M108 65 120 65" stroke="#C8EF88" stroke-width="3"/>
+<g transform="translate(0,0) rotate(-7 64 64)"><g fill="none" stroke="#FF82AE" stroke-linecap="round" stroke-width="4.2"><path d="M58 35 Q45 19 30 12 Q23 9 16 11"/><path d="M70 35 Q83 17 99 12 Q104 11 112 13"/></g><g fill="none" stroke="#FF82AE" stroke-linecap="square" stroke-linejoin="miter" stroke-width="5.5">
+      <path d="M47 51 28 44 17 27"/><path d="M81 52 100 44 113 29"/>
+      <path d="M44 70 25 76 15 91"/><path d="M84 70 101 77 113 94"/>
+      <path d="M49 88 37 104 30 117"/><path d="M79 87 93 103 101 117"/>
+    </g><path fill="#FF82AE" d="M64 34 C82 34 91 47 90 67 C90 90 80 108 65 116 Q64 117 63 116 C47 107 38 90 38 67 C37 47 46 34 64 34 Z"/>
+    <path fill="#16121F" d="M64 49 C68 63 68 86 64 109 C60 86 60 63 64 49 Z"/>
+    <path fill="#16121F" d="M45 51 Q64 43 83 51 Q77 37 64 38 Q51 37 45 51 Z"/>
+    <path fill="#16121F" d="M44 73 Q44 91 57 105 Q47 83 48 68 Z" opacity=".62"/>
+    <path fill="#16121F" d="M84 73 Q84 91 71 105 Q81 83 80 68 Z" opacity=".62"/></g>
+<path d="M20 18 H36" stroke="#C8EF88" stroke-width="4"/><path d="M94 112 H108" stroke="#C8EF88" stroke-width="4"/>
+</svg>

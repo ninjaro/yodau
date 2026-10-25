@@ -1,12 +1,13 @@
 #include "widgets/stream_cell.hpp"
 
+#include <QAbstractButton>
 #include <QLineF>
 #include <QMouseEvent>
-#include <QPushButton>
 #include <QWheelEvent>
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <shared_ui/qt/action_group.hpp>
 
 namespace stream_cell_support {
 
@@ -63,9 +64,8 @@ QPointF nearest_segment_point(
 
 void stream_cell::mousePressEvent(QMouseEvent* event) {
     auto* child = childAt(event->pos());
-    if (child == close_btn || child == focus_btn || child == rotate_btn
-        || child == aspect_mode_btn || child == manual_size_decrease_btn
-        || child == manual_size_increase_btn) {
+    if (qobject_cast<QAbstractButton*>(child) && display_actions
+        && display_actions->isAncestorOf(child)) {
         QWidget::mousePressEvent(event);
         return;
     }
@@ -133,9 +133,8 @@ void stream_cell::mouseReleaseEvent(QMouseEvent* event) {
 
 void stream_cell::mouseDoubleClickEvent(QMouseEvent* event) {
     auto* child = childAt(event->pos());
-    if (child == close_btn || child == focus_btn || child == rotate_btn
-        || child == aspect_mode_btn || child == manual_size_decrease_btn
-        || child == manual_size_increase_btn) {
+    if (qobject_cast<QAbstractButton*>(child) && display_actions
+        && display_actions->isAncestorOf(child)) {
         QWidget::mouseDoubleClickEvent(event);
         return;
     }
@@ -194,10 +193,11 @@ void stream_cell::mouseMoveEvent(QMouseEvent* event) {
                     line_edit_interaction_.update_press_origin(
                         current_pct, event->pos()
                     );
-                } else if (line_edit_interaction_.current_drag_mode()
-                               == line_edit_interaction::drag_mode::point
-                           && line_edit_interaction_.pressed_vertex().has_value(
-                           )) {
+                } else if (
+                    line_edit_interaction_.current_drag_mode()
+                        == line_edit_interaction::drag_mode::point
+                    && line_edit_interaction_.pressed_vertex().has_value()
+                ) {
                     line_edit_interaction_.set_selected_vertex(
                         line_edit_interaction_.pressed_vertex()
                     );
@@ -273,8 +273,8 @@ void stream_cell::keyPressEvent(QKeyEvent* event) {
             return;
         }
 
-        if ((event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace
-            )
+        if ((event->key() == Qt::Key_Delete
+             || event->key() == Qt::Key_Backspace)
             && line_edit_interaction_.selected_vertex().has_value()) {
             setFocus();
             emit line_edit_point_delete_requested(
@@ -448,8 +448,8 @@ void stream_cell::wheelEvent(QWheelEvent* event) {
     QWidget::wheelEvent(event);
 }
 
-std::optional<int> stream_cell::line_edit_vertex_at(const QPointF& pos_px
-) const {
+std::optional<int>
+stream_cell::line_edit_vertex_at(const QPointF& pos_px) const {
     if (!line_edit_preview_.has_value()) {
         return std::nullopt;
     }

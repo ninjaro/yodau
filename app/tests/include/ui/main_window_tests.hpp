@@ -67,6 +67,7 @@ private slots:
     void log_native_scroll();
     void processing_readout_states();
     void processing_readout_lifetime();
+    static void processing_readout_preserves_selection_during_refresh();
     void processing_readout_layout_data();
     void processing_readout_layout();
     void processing_readout_observations();
@@ -126,6 +127,7 @@ private slots:
     void mobile_state_round_trip_and_validation();
     void log_bounds_and_incremental_updates();
     void cell_keyboard_and_accessibility();
+    static void cell_shared_actions();
 };
 
 #endif // YODAU_APP_MAIN_WINDOW_TESTS_HPP

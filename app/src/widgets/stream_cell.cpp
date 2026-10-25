@@ -1,20 +1,19 @@
 #include "widgets/stream_cell.hpp"
+#include <shared_ui/qt/presentation.hpp>
 
 #include <QLabel>
-#include <QPushButton>
 #include <algorithm>
 #include <cmath>
 
 stream_cell::stream_cell(const QString& stream_name, QWidget* parent)
     : QWidget(parent)
     , name(stream_name)
-    , close_btn(nullptr)
-    , focus_btn(nullptr)
     , name_label(nullptr)
     , player(nullptr)
     , sink(nullptr)
     , camera(nullptr)
     , session(nullptr) {
+    shared_ui::qt::set_presentation_role(*this, QStringLiteral("viewport"));
     stream_settings_value.stream_name = stream_name;
     stream_settings_value.algorithm_id = default_app_algorithm_id();
     stream_settings_value.algorithm_preset
@@ -228,7 +227,8 @@ void stream_cell::clear_draft() {
     update();
 }
 
-void stream_cell::set_persistent_lines(const std::vector<line_instance>& lines
+void stream_cell::set_persistent_lines(
+    const std::vector<line_instance>& lines
 ) {
     persistent_lines = lines;
     line_highlights.clear();

@@ -113,6 +113,29 @@ void main_window_tests::processing_readout_shell() {
             QCOMPARE(board->active_cell(), cell);
             QCOMPARE(board->grid_mode()->peek_stream_cell("two"), thumbnail);
         }
+        // The shared sections follow the window style as an Appearance
+        // material; the dock, its visibility and the bound stream stay.
+        auto* readout = qobject_cast<processing_readout*>(dock->widget());
+        QVERIFY(readout && readout->sections().size() == 3);
+        for (const auto& [name, material] :
+             { std::pair { "desktop_chrome_slate",
+                           shared_ui::qt::material::slate },
+               std::pair { "desktop_chrome_native",
+                           shared_ui::qt::material::system } }) {
+            auto* chrome = window.findChild<QAction*>(name);
+            QVERIFY(chrome);
+            chrome->trigger();
+            for (auto* section : readout->sections()) {
+                QCOMPARE(section->presentation_material(), material);
+                QCOMPARE(
+                    section->variant(), shared_ui::qt::readout_variant::list
+                );
+            }
+            QVERIFY(dock->isVisible() && timer->isActive());
+            QCOMPARE(board->active_cell(), cell);
+        }
+        // Diagnostics stay in the dock, never on the stream cells.
+        QVERIFY(board->findChildren<shared_ui::qt::readout_group*>().isEmpty());
         dock->close();
         QVERIFY(dock->isHidden() && !action->isChecked() && !timer->isActive());
         action->trigger();

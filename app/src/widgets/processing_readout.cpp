@@ -1,7 +1,5 @@
 #include "widgets/processing_readout.hpp"
 
-#include <QFormLayout>
-#include <QGroupBox>
 #include <QHideEvent>
 #include <QLabel>
 #include <QScrollArea>
@@ -13,13 +11,10 @@
 
 namespace {
 
-constexpr qint64 stale_after_ms = 3000;
+using shared_ui::qt::readout_freshness;
+using shared_ui::qt::readout_item;
 
-void set_text(QLabel* label, const QString& text) {
-    if (label->text() != text) {
-        label->setText(text);
-    }
-}
+constexpr qint64 stale_after_ms = 3000;
 
 QString rate_text(double fps) {
     return std::isfinite(fps) && fps > 0.0
@@ -34,9 +29,6 @@ QString size_text(int width, int height) {
 }
 
 QString sample_text(qint64 age_ms) {
-    if (age_ms < 0) {
-        return processing_readout::tr("No sample");
-    }
     const auto age = processing_readout::tr("%1 s since GUI delivery")
                          .arg(static_cast<double>(age_ms) / 1000.0, 0, 'f', 1);
     return (age_ms >= stale_after_ms ? processing_readout::tr("Stale — %1")
@@ -44,7 +36,132 @@ QString sample_text(qint64 age_ms) {
         .arg(age);
 }
 
+readout_item value(const QString& label, const QString& text) {
+    readout_item item;
+    item.label = label;
+    item.value = text;
+    return item;
+}
+
+readout_item missing(const QString& label, const QString& reason) {
+    readout_item item;
+    item.label = label;
+    item.detail = reason;
+    item.available = false;
+    return item;
+}
+
+// One GUI-delivery path: its own age decides its freshness; the other path
+// and a retained summary never refresh it.
+readout_item delivery(
+    const QString& label, qint64 age_ms, double fps, int width, int height
+) {
+    auto item = value(
+        label,
+        processing_readout::tr("%1\n%2\n%3")
+            .arg(sample_text(age_ms), rate_text(fps), size_text(width, height))
+    );
+    item.freshness = age_ms >= stale_after_ms ? readout_freshness::stale
+                                              : readout_freshness::live;
+    return item;
+}
+
 } // namespace
+
+QList<QList<readout_item>>
+processing_readout_items(const processing_sample& sample) {
+    const auto& metrics = sample.metrics;
+    const bool present = !sample.stream_name.isEmpty();
+    const auto no_stream = processing_readout::tr("No active stream");
+    const auto no_sample = processing_readout::tr("No sample");
+    QList<readout_item> stream {
+        present ? value(processing_readout::tr("Target"), sample.stream_name)
+                : missing(processing_readout::tr("Target"), no_stream),
+        present
+            ? value(
+                  processing_readout::tr("Source state"), sample.source_status
+              )
+            : missing(
+                  processing_readout::tr("Source state"),
+                  processing_readout::tr(
+                      "Activate a visible stream to inspect it."
+                  )
+              ),
+    };
+
+    const auto input_label = processing_readout::tr("Input delivery");
+    auto input = present && sample.input_age_ms >= 0
+        ? delivery(
+              input_label, sample.input_age_ms, metrics.input_fps,
+              metrics.input_width, metrics.input_height
+          )
+        : missing(input_label, no_sample);
+    // Unavailable processing and application suspension qualify the result
+    // path; its retained observations stay historical, not current.
+    const auto state = present && !sample.processing_enabled
+        ? processing_readout::tr("Processing unavailable")
+        : !sample.application_active
+        ? processing_readout::tr("Inactive — observations retained")
+        : QString();
+    const auto result_label
+        = processing_readout::tr("Processed-result delivery");
+    auto result = present && sample.result_age_ms >= 0
+        ? delivery(
+              result_label, sample.result_age_ms, metrics.core_fps,
+              metrics.processed_width, metrics.processed_height
+          )
+        : missing(result_label, no_sample);
+    if (!state.isEmpty())
+        result.detail = result.available ? state : state + u'\n' + no_sample;
+    const auto summary_label = processing_readout::tr("Last reported summary");
+    const auto no_summary
+        = processing_readout::tr("No result details reported");
+    // A summary has no age of its own; the newest callback does not date it.
+    auto summary = present && sample.result_age_ms >= 0
+            && !metrics.processing_summary.isEmpty()
+        ? value(summary_label, metrics.processing_summary)
+        : missing(summary_label, no_summary);
+    QList<readout_item> observations { input, result, summary };
+
+    const auto algorithm_label
+        = processing_readout::tr("Configured algorithm / preset");
+    const auto policy_label
+        = processing_readout::tr("Targets, not measured throughput");
+    const auto target = [](int fps) {
+        return fps > 0 ? processing_readout::tr("%1 fps").arg(fps)
+                       : processing_readout::tr("Unavailable");
+    };
+    QList<readout_item> policy {
+        present ? value(
+                      algorithm_label,
+                      processing_readout::tr("%1 / %2").arg(
+                          sample.algorithm_id, sample.preset_id
+                      )
+                  )
+                : missing(algorithm_label, no_stream),
+        present ? value(
+                      policy_label,
+                      processing_readout::tr(
+                          "%1 policy\nRepaint target: %2\nAnalysis target: "
+                          "%3\nProcessing pixel target: %4"
+                      )
+                          .arg(
+                              metrics.manual_policy_active
+                                  ? processing_readout::tr("Manual")
+                                  : processing_readout::tr("Automatic"),
+                              target(metrics.effective_display_fps),
+                              target(metrics.effective_core_fps),
+                              metrics.effective_processing_pixels > 0
+                                  ? processing_readout::tr("%1 px").arg(
+                                        metrics.effective_processing_pixels
+                                    )
+                                  : processing_readout::tr("Unavailable")
+                          )
+                  )
+                : missing(policy_label, no_stream),
+    };
+    return { stream, observations, policy };
+}
 
 processing_readout::processing_readout(QWidget* parent)
     : QWidget(parent) {
@@ -59,48 +176,19 @@ processing_readout::processing_readout(QWidget* parent)
     auto* content = new QWidget(scroll);
     content->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     auto* rows = new QVBoxLayout(content);
-    const auto group = [content, rows](const QString& title) {
-        auto* box = new QGroupBox(title, content);
-        auto* form = new QFormLayout(box);
-        form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-        rows->addWidget(box);
-        return form;
-    };
-    const auto value = [](QFormLayout* form, const QString& title,
-                          const QString& name) {
-        auto* label = new QLabel(form->parentWidget());
-        label->setObjectName(name);
-        label->setTextFormat(Qt::PlainText);
-        label->setWordWrap(true);
-        label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-        label->setTextInteractionFlags(
-            Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard
-        );
-        label->setFocusPolicy(Qt::StrongFocus);
-        label->setAccessibleName(title);
-        form->addRow(title, label);
-        if (auto* caption = qobject_cast<QLabel*>(form->labelForField(label))) {
-            caption->setTextFormat(Qt::PlainText);
-            caption->setWordWrap(true);
-        }
-        return label;
-    };
-    auto* context = group(tr("Active stream"));
-    target_ = value(context, tr("Target"), "processing_target");
-    source_ = value(context, tr("Source state"), "processing_source");
-    auto* arrival = group(tr("GUI observations"));
-    input_ = value(arrival, tr("Input delivery"), "processing_input");
-    result_
-        = value(arrival, tr("Processed-result delivery"), "processing_result");
-    summary_
-        = value(arrival, tr("Last reported summary"), "processing_summary");
-    auto* policy = group(tr("Effective policy"));
-    algorithm_ = value(
-        policy, tr("Configured algorithm / preset"), "processing_algorithm"
-    );
-    policy_ = value(
-        policy, tr("Targets, not measured throughput"), "processing_policy"
-    );
+    for (const auto& [title, name] :
+         { std::pair { tr("Active stream"), "processing_stream" },
+           std::pair { tr("GUI observations"), "processing_observations" },
+           std::pair { tr("Effective policy"), "processing_policy" } }) {
+        auto* section = new shared_ui::qt::readout_group(content);
+        section->setObjectName(QString::fromLatin1(name));
+        section->set_variant(shared_ui::qt::readout_variant::list);
+        section->set_density(shared_ui::qt::readout_density::detailed);
+        section->set_text_selectable(true);
+        section->set_title(title);
+        rows->addWidget(section);
+        sections_.append(section);
+    }
     auto* limits = new QLabel(
         tr("Arrival rates use existing GUI-delivery samples, not "
            "decoded/display "
@@ -110,6 +198,7 @@ processing_readout::processing_readout(QWidget* parent)
            "are available here."),
         content
     );
+    limits->setObjectName(QStringLiteral("processing_limits"));
     limits->setTextFormat(Qt::PlainText);
     limits->setWordWrap(true);
     limits->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
@@ -121,6 +210,14 @@ processing_readout::processing_readout(QWidget* parent)
     timer_->setObjectName(QStringLiteral("processing_refresh_timer"));
     timer_->setInterval(1000);
     connect(timer_, &QTimer::timeout, this, &processing_readout::refresh);
+    set_presentation(
+        shared_ui::qt::material::system,
+#ifdef KC_KDE
+        shared_ui::qt::platform_profile::desktop_kde
+#else
+        shared_ui::qt::platform_profile::desktop_qt
+#endif
+    );
 }
 
 void processing_readout::set_reader(std::function<processing_sample()> reader) {
@@ -131,6 +228,14 @@ void processing_readout::set_reader(std::function<processing_sample()> reader) {
         if (reader_) {
             timer_->start();
         }
+    }
+}
+
+void processing_readout::set_presentation(
+    shared_ui::qt::material value, shared_ui::qt::platform_profile profile
+) {
+    for (auto* section : sections_) {
+        section->set_presentation(value, profile);
     }
 }
 
@@ -151,72 +256,9 @@ void processing_readout::refresh() {
     if (!isVisible()) {
         return;
     }
-    const auto sample = reader_ ? reader_() : processing_sample {};
-    const auto& metrics = sample.metrics;
-    const bool present = !sample.stream_name.isEmpty();
-    set_text(target_, present ? sample.stream_name : tr("No active stream"));
-    set_text(
-        source_,
-        present ? sample.source_status
-                : tr("Activate a visible stream to inspect it.")
-    );
-    const auto input = present && sample.input_age_ms >= 0
-        ? tr("%1\n%2\n%3")
-              .arg(
-                  sample_text(sample.input_age_ms),
-                  rate_text(metrics.input_fps),
-                  size_text(metrics.input_width, metrics.input_height)
-              )
-        : tr("No sample");
-    set_text(input_, input);
-    const auto result = present && sample.result_age_ms >= 0
-        ? tr("%1\n%2\n%3")
-              .arg(
-                  sample_text(sample.result_age_ms),
-                  rate_text(metrics.core_fps),
-                  size_text(metrics.processed_width, metrics.processed_height)
-              )
-        : tr("No sample");
-    const auto inactive = !sample.application_active
-        ? tr("Inactive — observations retained\n")
-        : QString();
-    set_text(
-        result_,
-        (present && !sample.processing_enabled ? tr("Processing unavailable\n")
-                                               : inactive)
-            + result
-    );
-    set_text(
-        summary_,
-        present && sample.result_age_ms >= 0
-            ? (metrics.processing_summary.isEmpty()
-                   ? tr("No result details reported")
-                   : metrics.processing_summary)
-            : tr("No result details reported")
-    );
-    set_text(
-        algorithm_,
-        present ? tr("%1 / %2").arg(sample.algorithm_id, sample.preset_id)
-                : tr("Unavailable")
-    );
-    const auto target = [](int fps) {
-        return fps > 0 ? processing_readout::tr("%1 fps").arg(fps)
-                       : processing_readout::tr("Unavailable");
-    };
-    set_text(
-        policy_,
-        present
-            ? tr("%1 policy\nRepaint target: %2\nAnalysis target: "
-                 "%3\nProcessing pixel target: %4")
-                  .arg(
-                      metrics.manual_policy_active ? tr("Manual")
-                                                   : tr("Automatic"),
-                      target(metrics.effective_display_fps),
-                      target(metrics.effective_core_fps),
-                      metrics.effective_processing_pixels > 0
-                          ? tr("%1 px").arg(metrics.effective_processing_pixels)
-                          : tr("Unavailable")
-                  )
-            : tr("Unavailable")
-    );
+    const auto groups
+        = processing_readout_items(reader_ ? reader_() : processing_sample {});
+    for (qsizetype index = 0; index < sections_.size(); ++index) {
+        sections_[index]->set_items(groups[index]);
+    }
 }

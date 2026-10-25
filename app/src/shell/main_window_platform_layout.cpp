@@ -1,4 +1,5 @@
 #include "shell/main_window.hpp"
+#include <shared_ui/qt/presentation.hpp>
 
 #include "shell/desktop_shell.hpp"
 #include "shell/mobile_session_store.hpp"
@@ -214,7 +215,8 @@ void main_window::setup_platform_layout() {
     // A short window must scroll the source/grid/inventory forms instead of
     // squeezing their group boxes below their minimum height.
     auto* settings_scroll = new QScrollArea(settings_dock);
-    settings_scroll->setObjectName(QStringLiteral("main_window_streams_scroll")
+    settings_scroll->setObjectName(
+        QStringLiteral("main_window_streams_scroll")
     );
     settings_scroll->setWidgetResizable(true);
     settings_scroll->setFrameShape(QFrame::NoFrame);
@@ -479,18 +481,30 @@ void main_window::choose_desktop_chrome(
             this, tr("Window style"),
             tr("Could not save the window style setting.")
         );
-        apply_desktop_chrome(yodau::shell::load_desktop_chrome(app_preferences)
+        apply_desktop_chrome(
+            yodau::shell::load_desktop_chrome(app_preferences)
         );
         return;
     }
     apply_desktop_chrome(chrome);
 }
 
-void main_window::apply_desktop_chrome(const yodau::shell::desktop_chrome chrome
+void main_window::apply_desktop_chrome(
+    const yodau::shell::desktop_chrome chrome
 ) {
     // Presentation only: docks, pool, streams and processing are untouched.
-    setStyleSheet(yodau::shell::desktop_chrome_style_sheet(chrome));
-
+    shared_ui::qt::apply_presentation(
+        *this,
+        { chrome == yodau::shell::desktop_chrome::slate
+              ? shared_ui::qt::material::slate
+              : shared_ui::qt::material::system,
+#ifdef KC_KDE
+          shared_ui::qt::platform_profile::desktop_kde,
+#else
+          shared_ui::qt::platform_profile::desktop_qt,
+#endif
+          {} }
+    );
     if (chrome_actions_ == nullptr) {
         return;
     }

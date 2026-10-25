@@ -3,103 +3,65 @@
 #include "shell/icon_loader.hpp"
 
 #include <QAccessible>
+#include <QAction>
 #include <QHBoxLayout>
-#include <QPushButton>
 #include <QVBoxLayout>
+#include <shared_ui/qt/action_group.hpp>
 
 void stream_cell::build_ui() {
     const auto root = new QVBoxLayout(this);
     root->setContentsMargins(6, 6, 6, 6);
     root->setSpacing(6);
 
-    const auto top_row = new QHBoxLayout();
-    top_row->setContentsMargins(0, 0, 0, 0);
-    top_row->setSpacing(4);
-
-    top_row->addStretch();
-
+    display_actions = new shared_ui::qt::action_group(this);
+    display_actions->setObjectName(QStringLiteral("stream_cell_actions"));
+    display_actions->setAccessibleName(tr("Stream %1 actions").arg(name));
+    display_actions->set_variant(shared_ui::qt::action_variant::compact);
+    display_actions->set_toolbar_style(true);
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
-    constexpr int display_control_size = 48;
-#else
-    constexpr int display_control_size = 32;
+    // Retain the mobile inline strip and touch targets; no desktop overflow.
+    display_actions->set_overflow(shared_ui::qt::action_overflow::host);
+    display_actions->set_presentation(
+        shared_ui::qt::material::system,
+        shared_ui::qt::platform_profile::android
+    );
 #endif
-
-    manual_size_decrease_btn = new QPushButton(QStringLiteral("-"), this);
-    manual_size_decrease_btn->setObjectName(
-        QStringLiteral("stream_cell_size_decrease_button")
+    manual_size_decrease_action
+        = new QAction(tr("Make stream %1 smaller").arg(name), this);
+    manual_size_decrease_action->setObjectName(
+        QStringLiteral("stream_cell_size_decrease")
     );
-    manual_size_decrease_btn->setFixedSize(
-        display_control_size, display_control_size
+    manual_size_decrease_action->setIconText(QStringLiteral("-"));
+    manual_size_decrease_action->setToolTip(tr("Make stream cell smaller"));
+    manual_size_increase_action
+        = new QAction(tr("Make stream %1 larger").arg(name), this);
+    manual_size_increase_action->setObjectName(
+        QStringLiteral("stream_cell_size_increase")
     );
-    manual_size_decrease_btn->setToolTip(tr("Make stream cell smaller"));
-    manual_size_decrease_btn->setAccessibleName(
-        tr("Make stream %1 smaller").arg(name)
+    manual_size_increase_action->setIconText(QStringLiteral("+"));
+    manual_size_increase_action->setToolTip(tr("Make stream cell larger"));
+    rotate_action
+        = new QAction(tr("Rotate stream %1 clockwise").arg(name), this);
+    rotate_action->setObjectName(QStringLiteral("stream_cell_rotate"));
+    rotate_action->setIconText(QStringLiteral("90\u00b0"));
+    rotate_action->setToolTip(tr("Rotate stream clockwise by 90 degrees"));
+    aspect_mode_action = new QAction(tr("Fit"), this);
+    aspect_mode_action->setObjectName(
+        QStringLiteral("stream_cell_aspect_mode")
     );
-    manual_size_decrease_btn->setFlat(true);
-    top_row->addWidget(manual_size_decrease_btn);
-
-    manual_size_increase_btn = new QPushButton(QStringLiteral("+"), this);
-    manual_size_increase_btn->setObjectName(
-        QStringLiteral("stream_cell_size_increase_button")
-    );
-    manual_size_increase_btn->setFixedSize(
-        display_control_size, display_control_size
-    );
-    manual_size_increase_btn->setToolTip(tr("Make stream cell larger"));
-    manual_size_increase_btn->setAccessibleName(
-        tr("Make stream %1 larger").arg(name)
-    );
-    manual_size_increase_btn->setFlat(true);
-    top_row->addWidget(manual_size_increase_btn);
-
-    rotate_btn = new QPushButton(QStringLiteral("90\u00b0"), this);
-    rotate_btn->setObjectName(QStringLiteral("stream_cell_rotate_button"));
-    rotate_btn->setFixedSize(display_control_size, display_control_size);
-    rotate_btn->setToolTip(tr("Rotate stream clockwise by 90 degrees"));
-    rotate_btn->setAccessibleName(tr("Rotate stream %1 clockwise").arg(name));
-    rotate_btn->setFlat(true);
-    top_row->addWidget(rotate_btn);
-
-    aspect_mode_btn = new QPushButton(tr("Fit"), this);
-    aspect_mode_btn->setObjectName(
-        QStringLiteral("stream_cell_aspect_mode_button")
-    );
-    aspect_mode_btn->setFixedHeight(display_control_size);
-    aspect_mode_btn->setMinimumWidth(display_control_size + 12);
-    aspect_mode_btn->setFlat(true);
-    top_row->addWidget(aspect_mode_btn);
-
-    focus_btn = new QPushButton(this);
-    focus_btn->setObjectName(QStringLiteral("stream_cell_focus_button"));
-#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
-    focus_btn->setFixedSize(48, 48);
-#else
-    focus_btn->setFixedSize(32, 32);
-#endif
-    focus_btn->setIconSize(QSize(20, 20));
-    focus_btn->setFlat(true);
-    focus_btn->setFocusPolicy(Qt::StrongFocus);
+    focus_action = new QAction(this);
+    focus_action->setObjectName(QStringLiteral("stream_cell_focus"));
     update_icon();
-    top_row->addWidget(focus_btn);
-
-    close_btn = new QPushButton(this);
-    close_btn->setObjectName(QStringLiteral("stream_cell_close_button"));
-#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
-    close_btn->setFixedSize(48, 48);
-#else
-    close_btn->setFixedSize(32, 32);
-#endif
-    close_btn->setIconSize(QSize(20, 20));
-    close_btn->setToolTip(tr("close"));
-    close_btn->setAccessibleName(tr("Close stream %1").arg(name));
-    close_btn->setAccessibleDescription(
-        tr("Remove this stream from the visible grid")
+    close_action = new QAction(tr("Close stream %1").arg(name), this);
+    close_action->setObjectName(QStringLiteral("stream_cell_close"));
+    close_action->setToolTip(tr("close"));
+    close_action->setWhatsThis(tr("Remove this stream from the visible grid"));
+    close_action->setIcon(icon_loader::title_bar_close_icon());
+    display_actions->set_actions(
+        { manual_size_decrease_action, manual_size_increase_action,
+          rotate_action, aspect_mode_action, focus_action, close_action }
     );
-    close_btn->setFlat(true);
-    close_btn->setFocusPolicy(Qt::StrongFocus);
-    close_btn->setIcon(icon_loader::title_bar_close_icon());
-    top_row->addWidget(close_btn);
-    root->addLayout(top_row);
+    root->addWidget(display_actions, 0, Qt::AlignRight);
     root->addStretch(1);
 
     sink = new QVideoSink(this);
@@ -116,24 +78,25 @@ void stream_cell::build_ui() {
     // player->play();
 
     connect(
-        close_btn, &QPushButton::clicked, this, &stream_cell::on_close_clicked
+        close_action, &QAction::triggered, this, &stream_cell::on_close_clicked
     );
     connect(
-        focus_btn, &QPushButton::clicked, this, &stream_cell::on_focus_clicked
+        focus_action, &QAction::triggered, this, &stream_cell::on_focus_clicked
     );
     connect(
-        rotate_btn, &QPushButton::clicked, this, &stream_cell::on_rotate_clicked
+        rotate_action, &QAction::triggered, this,
+        &stream_cell::on_rotate_clicked
     );
     connect(
-        aspect_mode_btn, &QPushButton::clicked, this,
+        aspect_mode_action, &QAction::triggered, this,
         &stream_cell::on_aspect_mode_clicked
     );
     connect(
-        manual_size_decrease_btn, &QPushButton::clicked, this,
+        manual_size_decrease_action, &QAction::triggered, this,
         &stream_cell::on_manual_size_decrease_clicked
     );
     connect(
-        manual_size_increase_btn, &QPushButton::clicked, this,
+        manual_size_increase_action, &QAction::triggered, this,
         &stream_cell::on_manual_size_increase_clicked
     );
     connect(
@@ -151,57 +114,55 @@ void stream_cell::build_ui() {
 }
 
 void stream_cell::update_icon() {
-    if (!focus_btn) {
+    if (!focus_action) {
         return;
     }
     if (active) {
-        focus_btn->setToolTip(tr("shrink"));
-        focus_btn->setAccessibleName(
-            tr("Return %1 to the stream grid").arg(name)
-        );
-        focus_btn->setAccessibleDescription(tr("Leave the enlarged stream view")
-        );
-        focus_btn->setIcon(icon_loader::title_bar_restore_icon());
+        focus_action->setToolTip(tr("shrink"));
+        focus_action->setText(tr("Return %1 to the stream grid").arg(name));
+        focus_action->setWhatsThis(tr("Leave the enlarged stream view"));
+        focus_action->setIcon(icon_loader::title_bar_restore_icon());
     } else {
-        focus_btn->setToolTip(tr("enlarge"));
-        focus_btn->setAccessibleName(tr("Enlarge stream %1").arg(name));
-        focus_btn->setAccessibleDescription(
+        focus_action->setToolTip(tr("enlarge"));
+        focus_action->setText(tr("Enlarge stream %1").arg(name));
+        focus_action->setWhatsThis(
             tr("Open this stream in the focused editor view")
         );
-        focus_btn->setIcon(icon_loader::title_bar_maximize_icon());
+        focus_action->setIcon(icon_loader::title_bar_maximize_icon());
     }
 }
 
 void stream_cell::update_display_controls() {
-    if (rotate_btn != nullptr) {
-        rotate_btn->setText(QStringLiteral("%1\u00b0").arg(quarter_turns_ * 90)
+    if (rotate_action != nullptr) {
+        rotate_action->setIconText(
+            QStringLiteral("%1\u00b0").arg(quarter_turns_ * 90)
         );
-        rotate_btn->setToolTip(
+        rotate_action->setToolTip(
             tr("Current rotation: %1 degrees. Rotate clockwise by 90 degrees.")
                 .arg(quarter_turns_ * 90)
         );
     }
-    if (aspect_mode_btn != nullptr) {
-        aspect_mode_btn->setVisible(active);
-        aspect_mode_btn->setText(
+    if (aspect_mode_action != nullptr) {
+        aspect_mode_action->setVisible(active);
+        aspect_mode_action->setIconText(
             keep_frame_aspect_ratio_ ? tr("Stretch") : tr("Fit")
         );
-        aspect_mode_btn->setToolTip(
+        aspect_mode_action->setToolTip(
             keep_frame_aspect_ratio_
                 ? tr("Stretch the active frame to fill the cell")
                 : tr("Keep the active frame's aspect ratio")
         );
-        aspect_mode_btn->setAccessibleName(aspect_mode_btn->toolTip());
+        aspect_mode_action->setText(aspect_mode_action->toolTip());
     }
     const bool show_manual = fixed_size_controls_visible_ && !active;
-    if (manual_size_decrease_btn != nullptr) {
-        manual_size_decrease_btn->setVisible(show_manual);
-        manual_size_decrease_btn->setEnabled(
+    if (manual_size_decrease_action != nullptr) {
+        manual_size_decrease_action->setVisible(show_manual);
+        manual_size_decrease_action->setEnabled(
             manual_short_side() > manual_minimum
         );
     }
-    if (manual_size_increase_btn != nullptr) {
-        manual_size_increase_btn->setVisible(show_manual);
+    if (manual_size_increase_action != nullptr) {
+        manual_size_increase_action->setVisible(show_manual);
     }
 }
 
@@ -223,8 +184,9 @@ void stream_cell::update_accessible_description() {
                               .arg(enabled_line_count(persistent_lines)));
     }
     if (!processing_overlays.empty()) {
-        details.push_back(tr("%1 processing overlays")
-                              .arg(static_cast<int>(processing_overlays.size()))
+        details.push_back(
+            tr("%1 processing overlays")
+                .arg(static_cast<int>(processing_overlays.size()))
         );
     }
     if (!events.isEmpty()) {

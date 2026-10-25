@@ -3,6 +3,7 @@
 #include "packing/layout/free_order_layout.hpp"
 #include "packing/layout/ordered_layout.hpp"
 #include "widgets/stream_cell.hpp"
+#include <shared_ui/qt/presentation.hpp>
 
 #include <QEvent>
 #include <QMessageBox>
@@ -44,6 +45,7 @@ grid_view::grid_view(QWidget* parent)
     , scroll(new QScrollArea(this))
     , grid_container(new QWidget(scroll)) {
     scroll->setObjectName(QStringLiteral("stream_grid_scroll_area"));
+    shared_ui::qt::set_presentation_role(*scroll, QStringLiteral("canvas"));
     scroll->setWidgetResizable(false);
     scroll->setWidget(grid_container);
     scroll->viewport()->installEventFilter(this);
@@ -242,10 +244,12 @@ void grid_view::set_sizing_mode(const sizing_mode mode) {
         }
         if (reset_sizes) {
             for (stream_cell* tile : tiles) {
-                tile->initialize_manual_short_side(std::max(
-                    manual_minimum_short_side,
-                    std::min(tile->width(), tile->height())
-                ));
+                tile->initialize_manual_short_side(
+                    std::max(
+                        manual_minimum_short_side,
+                        std::min(tile->width(), tile->height())
+                    )
+                );
             }
         }
     } else if (sizing_mode_ == sizing_mode::fixed) {
@@ -360,13 +364,15 @@ void grid_view::rebuild_layout() {
 
         if (preserve_stream_order_) {
             packing::ordered_layout_result ordered
-                = packing::layout_ordered_slots({
-                    .viewport = viewport,
-                    .items = items,
-                    .policy = packing_policy(scroll_direction_),
-                    .minimum_short_side = adaptive_minimum_short_side,
-                    .spacing = layout_spacing,
-                });
+                = packing::layout_ordered_slots(
+                    {
+                        .viewport = viewport,
+                        .items = items,
+                        .policy = packing_policy(scroll_direction_),
+                        .minimum_short_side = adaptive_minimum_short_side,
+                        .spacing = layout_spacing,
+                    }
+                );
             plan = {
                 .rectangles = std::move(ordered.rectangles),
                 .groups = std::move(ordered.groups),
@@ -375,13 +381,15 @@ void grid_view::rebuild_layout() {
             };
         } else {
             packing::free_order_layout_result free
-                = packing::layout_free_order_slots({
-                    .viewport = viewport,
-                    .items = items,
-                    .policy = packing_policy(scroll_direction_),
-                    .minimum_short_side = adaptive_minimum_short_side,
-                    .spacing = layout_spacing,
-                });
+                = packing::layout_free_order_slots(
+                    {
+                        .viewport = viewport,
+                        .items = items,
+                        .policy = packing_policy(scroll_direction_),
+                        .minimum_short_side = adaptive_minimum_short_side,
+                        .spacing = layout_spacing,
+                    }
+                );
             plan = {
                 .rectangles = std::move(free.rectangles),
                 .groups = std::move(free.groups),
@@ -415,15 +423,18 @@ void grid_view::rebuild_layout() {
             }
         }
         packing::fixed_size_layout_result fixed
-            = packing::layout_fixed_size_rectangles({
-                .viewport = fixed_viewport,
-                .items = items,
-                .policy = packing_policy(scroll_direction_),
-                .spacing = layout_spacing,
-                .algorithm = preserve_stream_order_
-                    ? packing::fixed_size_layout_algorithm::preserve_order_shelf
-                    : packing::fixed_size_layout_algorithm::automatic,
-            });
+            = packing::layout_fixed_size_rectangles(
+                {
+                    .viewport = fixed_viewport,
+                    .items = items,
+                    .policy = packing_policy(scroll_direction_),
+                    .spacing = layout_spacing,
+                    .algorithm = preserve_stream_order_
+                        ? packing::fixed_size_layout_algorithm::
+                              preserve_order_shelf
+                        : packing::fixed_size_layout_algorithm::automatic,
+                }
+            );
         plan = {
             .rectangles = std::move(fixed.rectangles),
             .groups = std::move(fixed.groups),

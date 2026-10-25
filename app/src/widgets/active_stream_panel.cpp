@@ -2,6 +2,7 @@
 
 #include "shell/str_label.hpp"
 #include "widgets/algorithm_panel.hpp"
+#include <shared_ui/qt/settings_section.hpp>
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -31,21 +32,6 @@ void populate_operator_profile_combo(QComboBox* combo) {
     }
 }
 
-void set_form_row_visible(
-    QFormLayout* form, QWidget* field, const bool visible
-) {
-    if (field == nullptr) {
-        return;
-    }
-
-    if (form != nullptr) {
-        if (QWidget* label = form->labelForField(field); label != nullptr) {
-            label->setVisible(visible);
-        }
-    }
-    field->setVisible(visible);
-}
-
 } // namespace active_stream_panel_support
 
 active_stream_panel::active_stream_panel(
@@ -59,7 +45,8 @@ active_stream_panel::active_stream_panel(
     refresh_panel_state();
 }
 
-void active_stream_panel::set_active_candidates(const QStringList& names
+void active_stream_panel::set_active_candidates(
+    const QStringList& names
 ) const {
     if (active_combo == nullptr) {
         return;
@@ -387,8 +374,9 @@ void active_stream_panel::build_ui() {
 
     active_labels_cb
         = new QCheckBox(str_label("line name labels"), active_stream_box);
-    active_labels_cb->setObjectName(object_name(QStringLiteral("labels_checkbox"
-    )));
+    active_labels_cb->setObjectName(
+        object_name(QStringLiteral("labels_checkbox"))
+    );
     active_labels_cb->setChecked(true);
     active_labels_cb->setToolTip(QStringLiteral(
         "Show or hide saved line names on top of the stream preview. "
@@ -442,18 +430,20 @@ void active_stream_panel::build_ui() {
     layout->addWidget(operator_profile_box);
     layout->addWidget(active_algorithm_panel);
 
-    processing_policy_box = new QGroupBox(str_label("processing budget"), this);
+    processing_policy_box = new shared_ui::qt::settings_section(
+        str_label("processing budget"), this
+    );
     processing_policy_box->setObjectName(
         object_name(QStringLiteral("processing_policy_box"))
     );
-    processing_policy_form_ = new QFormLayout(processing_policy_box);
+    processing_policy_box->set_fields_expanding(false);
 
     processing_summary_label = new QLabel(processing_policy_box);
     processing_summary_label->setObjectName(
         object_name(QStringLiteral("processing_summary_label"))
     );
     processing_summary_label->setWordWrap(true);
-    processing_policy_form_->addRow(QString(), processing_summary_label);
+    processing_policy_box->add_row(QString(), processing_summary_label);
 
     processing_advanced_checkbox
         = new QCheckBox(str_label("advanced tuning"), processing_policy_box);
@@ -465,7 +455,7 @@ void active_stream_panel::build_ui() {
         "Leave this off to keep the default auto-calibrated policy "
         "summary only."
     ));
-    processing_policy_form_->addRow(QString(), processing_advanced_checkbox);
+    processing_policy_box->add_row(QString(), processing_advanced_checkbox);
 
     manual_processing_checkbox = new QCheckBox(
         str_label("override auto calibration"), processing_policy_box
@@ -473,7 +463,7 @@ void active_stream_panel::build_ui() {
     manual_processing_checkbox->setObjectName(
         object_name(QStringLiteral("manual_processing_checkbox"))
     );
-    processing_policy_form_->addRow(QString(), manual_processing_checkbox);
+    processing_policy_box->add_row(QString(), manual_processing_checkbox);
 
     manual_display_fps_spin = new QSpinBox(processing_policy_box);
     manual_display_fps_spin->setObjectName(
@@ -482,7 +472,7 @@ void active_stream_panel::build_ui() {
     manual_display_fps_spin->setRange(1, 120);
     manual_display_fps_spin->setValue(default_manual_display_fps());
     manual_display_fps_spin->setSuffix(QStringLiteral(" fps"));
-    processing_policy_form_->addRow(
+    processing_policy_box->add_row(
         str_label("display fps cap"), manual_display_fps_spin
     );
 
@@ -493,7 +483,7 @@ void active_stream_panel::build_ui() {
     manual_core_fps_spin->setRange(1, 120);
     manual_core_fps_spin->setValue(default_manual_core_fps());
     manual_core_fps_spin->setSuffix(QStringLiteral(" fps"));
-    processing_policy_form_->addRow(
+    processing_policy_box->add_row(
         str_label("core fps target"), manual_core_fps_spin
     );
 
@@ -505,7 +495,7 @@ void active_stream_panel::build_ui() {
     manual_processing_pixels_spin->setSingleStep(25 * 1000);
     manual_processing_pixels_spin->setValue(default_manual_processing_pixels());
     manual_processing_pixels_spin->setSuffix(QStringLiteral(" px"));
-    processing_policy_form_->addRow(
+    processing_policy_box->add_row(
         str_label("processing pixels"), manual_processing_pixels_spin
     );
 
@@ -666,19 +656,20 @@ void active_stream_panel::refresh_processing_policy_state() const {
         processing_advanced_checkbox->setEnabled(active);
     }
     if (manual_processing_checkbox != nullptr) {
-        manual_processing_checkbox->setVisible(show_advanced_controls);
+        processing_policy_box->set_field_visible(
+            manual_processing_checkbox, show_advanced_controls
+        );
         manual_processing_checkbox->setEnabled(show_advanced_controls);
     }
 
-    active_stream_panel_support::set_form_row_visible(
-        processing_policy_form_, manual_display_fps_spin, show_advanced_controls
+    processing_policy_box->set_field_visible(
+        manual_display_fps_spin, show_advanced_controls
     );
-    active_stream_panel_support::set_form_row_visible(
-        processing_policy_form_, manual_core_fps_spin, show_advanced_controls
+    processing_policy_box->set_field_visible(
+        manual_core_fps_spin, show_advanced_controls
     );
-    active_stream_panel_support::set_form_row_visible(
-        processing_policy_form_, manual_processing_pixels_spin,
-        show_advanced_controls
+    processing_policy_box->set_field_visible(
+        manual_processing_pixels_spin, show_advanced_controls
     );
 
     if (manual_display_fps_spin != nullptr) {

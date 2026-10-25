@@ -4,16 +4,21 @@
 #include "widgets/stream_cell.hpp"
 #include "widgets/stream_source_panel.hpp"
 
+#include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QSignalSpy>
+#include <QToolButton>
 #include <QtTest/QtTest>
 #include <cmath>
+#include <shared_ui/qt/action_group.hpp>
 
 // QtTest discovers these private slots through the meta-object.
 // NOLINTBEGIN(readability-convert-member-functions-to-static)
@@ -21,17 +26,19 @@
 void main_window_tests::cell_stream_settings() {
     stream_cell cell(QStringLiteral("cam-7"));
 
-    cell.set_stream_settings(stream_settings {
-        .stream_name = QStringLiteral("cam-7"),
-        .labels_enabled = true,
-        .algorithm_id = QStringLiteral("contour_mask"),
-        .algorithm_preset = QStringLiteral("mask_heavy"),
-        .algorithm_overlay_enabled = true,
-        .manual_processing_policy_enabled = true,
-        .manual_display_fps = 17,
-        .manual_core_fps = 9,
-        .manual_processing_pixels = 320 * 240,
-    });
+    cell.set_stream_settings(
+        stream_settings {
+            .stream_name = QStringLiteral("cam-7"),
+            .labels_enabled = true,
+            .algorithm_id = QStringLiteral("contour_mask"),
+            .algorithm_preset = QStringLiteral("mask_heavy"),
+            .algorithm_overlay_enabled = true,
+            .manual_processing_policy_enabled = true,
+            .manual_display_fps = 17,
+            .manual_core_fps = 9,
+            .manual_processing_pixels = 320 * 240,
+        }
+    );
 
     const stream_settings settings_value = cell.current_stream_settings();
     QCOMPARE(settings_value.stream_name, QStringLiteral("cam-7"));
@@ -47,19 +54,21 @@ void main_window_tests::cell_stream_settings() {
     cell.set_log_mode(app_log_mode::debug);
     QCOMPARE(cell.current_log_mode(), app_log_mode::debug);
 
-    cell.set_runtime_metrics(stream_runtime_metrics {
-        .input_fps = 29.7,
-        .core_fps = 9.8,
-        .input_width = 1280,
-        .input_height = 720,
-        .processed_width = 320,
-        .processed_height = 180,
-        .effective_display_fps = 17,
-        .effective_core_fps = 9,
-        .effective_processing_pixels = 320 * 180,
-        .manual_policy_active = true,
-        .processing_summary = {},
-    });
+    cell.set_runtime_metrics(
+        stream_runtime_metrics {
+            .input_fps = 29.7,
+            .core_fps = 9.8,
+            .input_width = 1280,
+            .input_height = 720,
+            .processed_width = 320,
+            .processed_height = 180,
+            .effective_display_fps = 17,
+            .effective_core_fps = 9,
+            .effective_processing_pixels = 320 * 180,
+            .manual_policy_active = true,
+            .processing_summary = {},
+        }
+    );
     const stream_runtime_metrics metrics = cell.current_runtime_metrics();
     QCOMPARE(metrics.processed_width, 320);
     QCOMPARE(metrics.processed_height, 180);
@@ -76,14 +85,18 @@ void main_window_tests::cell_coalesces_frame_conversion() {
     first_frame.fill(Qt::black);
     second_frame.fill(Qt::white);
 
-    QVERIFY(QMetaObject::invokeMethod(
-        &cell, "on_frame_changed", Qt::DirectConnection,
-        Q_ARG(QVideoFrame, QVideoFrame(first_frame))
-    ));
-    QVERIFY(QMetaObject::invokeMethod(
-        &cell, "on_frame_changed", Qt::DirectConnection,
-        Q_ARG(QVideoFrame, QVideoFrame(second_frame))
-    ));
+    QVERIFY(
+        QMetaObject::invokeMethod(
+            &cell, "on_frame_changed", Qt::DirectConnection,
+            Q_ARG(QVideoFrame, QVideoFrame(first_frame))
+        )
+    );
+    QVERIFY(
+        QMetaObject::invokeMethod(
+            &cell, "on_frame_changed", Qt::DirectConnection,
+            Q_ARG(QVideoFrame, QVideoFrame(second_frame))
+        )
+    );
 
     QCOMPARE(frame_spy.count(), 1);
 }
@@ -101,20 +114,24 @@ void main_window_tests::cell_rotated_fitted_coordinates() {
     QSignalSpy layout_spy(&cell, &stream_cell::layout_geometry_changed);
     QImage frame(QSize(200, 100), QImage::Format_ARGB32_Premultiplied);
     frame.fill(Qt::black);
-    QVERIFY(QMetaObject::invokeMethod(
-        &cell, "on_frame_changed", Qt::DirectConnection,
-        Q_ARG(QVideoFrame, QVideoFrame(frame))
-    ));
+    QVERIFY(
+        QMetaObject::invokeMethod(
+            &cell, "on_frame_changed", Qt::DirectConnection,
+            Q_ARG(QVideoFrame, QVideoFrame(frame))
+        )
+    );
     QCOMPARE(cell.source_frame_aspect(), 2.0);
     QCOMPARE(cell.effective_display_aspect(), 0.5);
     QVERIFY(!layout_spy.isEmpty());
 
     layout_spy.clear();
     QTest::qWait(2);
-    QVERIFY(QMetaObject::invokeMethod(
-        &cell, "on_frame_changed", Qt::DirectConnection,
-        Q_ARG(QVideoFrame, QVideoFrame(frame))
-    ));
+    QVERIFY(
+        QMetaObject::invokeMethod(
+            &cell, "on_frame_changed", Qt::DirectConnection,
+            Q_ARG(QVideoFrame, QVideoFrame(frame))
+        )
+    );
     QCOMPARE(layout_spy.count(), 0);
 
     // A 90-degree clockwise turn maps canonical (20, 30) to display
@@ -127,12 +144,16 @@ void main_window_tests::cell_rotated_fitted_coordinates() {
 
     const auto points = cell.draft_points_pct();
     QCOMPARE(points.size(), size_t(2));
-    QVERIFY(main_window_tests_support::point_close(
-        points.at(0), QPointF(20.0, 30.0)
-    ));
-    QVERIFY(main_window_tests_support::point_close(
-        points.at(1), QPointF(20.0, 100.0)
-    ));
+    QVERIFY(
+        main_window_tests_support::point_close(
+            points.at(0), QPointF(20.0, 30.0)
+        )
+    );
+    QVERIFY(
+        main_window_tests_support::point_close(
+            points.at(1), QPointF(20.0, 100.0)
+        )
+    );
 }
 
 void main_window_tests::cell_edit_signals() {
@@ -268,12 +289,12 @@ void main_window_tests::cell_keyboard_and_accessibility() {
     QCOMPARE(points.size(), size_t(2));
     QVERIFY(points.at(1).x() > points.at(0).x());
 
-    auto* focus_button
-        = cell.findChild<QPushButton*>(QStringLiteral("stream_cell_focus_button"
-        ));
-    auto* close_button
-        = cell.findChild<QPushButton*>(QStringLiteral("stream_cell_close_button"
-        ));
+    auto* focus_button = cell.findChild<QAbstractButton*>(
+        QStringLiteral("stream_cell_focus_button")
+    );
+    auto* close_button = cell.findChild<QAbstractButton*>(
+        QStringLiteral("stream_cell_close_button")
+    );
     QVERIFY(focus_button != nullptr);
     QVERIFY(close_button != nullptr);
     QCOMPARE(focus_button->focusPolicy(), Qt::StrongFocus);
@@ -305,3 +326,92 @@ void main_window_tests::cell_keyboard_and_accessibility() {
 }
 
 // NOLINTEND(readability-convert-member-functions-to-static)
+
+void main_window_tests::cell_shared_actions() {
+    stream_cell cell(QStringLiteral("North"));
+    cell.set_fixed_size_controls_visible(true);
+    cell.initialize_manual_short_side(112);
+    cell.resize(500, 240);
+    cell.show();
+    QCoreApplication::processEvents();
+    auto* group = cell.findChild<shared_ui::qt::action_group*>(
+        QStringLiteral("stream_cell_actions")
+    );
+    QVERIFY(group);
+    auto* rotate
+        = cell.findChild<QAction*>(QStringLiteral("stream_cell_rotate"));
+    auto* focus = cell.findChild<QAction*>(QStringLiteral("stream_cell_focus"));
+    auto* close = cell.findChild<QAction*>(QStringLiteral("stream_cell_close"));
+    auto* aspect
+        = cell.findChild<QAction*>(QStringLiteral("stream_cell_aspect_mode"));
+    auto* larger
+        = cell.findChild<QAction*>(QStringLiteral("stream_cell_size_increase"));
+    QVERIFY(rotate && focus && close && aspect && larger);
+    auto* button = group->button_for(rotate);
+    QCOMPARE(button->objectName(), QStringLiteral("stream_cell_rotate_button"));
+    QCOMPARE(
+        button->accessibleName(),
+        tr("Rotate stream %1 clockwise").arg(QStringLiteral("North"))
+    );
+    QCOMPARE(
+        group->button_for(close)->accessibleDescription(),
+        tr("Remove this stream from the visible grid")
+    );
+    button->setFocus();
+    QTest::keyClick(button, Qt::Key_Space);
+    QCOMPARE(cell.quarter_turns(), 1);
+    QCOMPARE(button->text(), QStringLiteral("90\u00b0"));
+    cell.set_quarter_turns(3);
+    QCOMPARE(group->button_for(rotate), button);
+    QCOMPARE(button->text(), QStringLiteral("270\u00b0"));
+    QVERIFY(button->hasFocus());
+    larger->trigger();
+    QCOMPARE(cell.manual_short_side(), 128.0);
+    cell.set_active(true);
+    QVERIFY(!larger->isVisible());
+    QVERIFY(aspect->isVisible());
+    QVERIFY(!cell.keeps_frame_aspect_ratio());
+    aspect->trigger();
+    QVERIFY(cell.keeps_frame_aspect_ratio());
+    QCOMPARE(group->button_for(aspect)->text(), tr("Stretch"));
+    aspect->trigger();
+    QVERIFY(!cell.keeps_frame_aspect_ratio());
+    QCOMPARE(group->button_for(aspect)->text(), tr("Fit"));
+    QSignalSpy focus_spy(&cell, &stream_cell::request_focus);
+    QSignalSpy close_spy(&cell, &stream_cell::request_close);
+    focus->trigger();
+    close->trigger();
+    QCOMPARE(focus_spy.count(), 1);
+    QCOMPARE(close_spy.count(), 1);
+    QCOMPARE(
+        group->button_for(focus)->accessibleName(),
+        tr("Return %1 to the stream grid").arg(QStringLiteral("North"))
+    );
+    // Only actual controls consume canvas input. Transparent gaps retain
+    // the old manually laid-out strip's drawing behavior.
+    cell.set_drawing_enabled(true);
+    cell.clear_draft();
+    const QPoint gap(
+        button->geometry().right() + 1, button->geometry().center().y()
+    );
+    QVERIFY(group->childAt(gap) == nullptr);
+    QTest::mouseClick(group, Qt::LeftButton, Qt::NoModifier, gap);
+    QCOMPARE(cell.draft_points_pct().size(), size_t(1));
+    QTest::mouseClick(button, Qt::LeftButton);
+    QCOMPARE(cell.draft_points_pct().size(), size_t(1));
+    cell.clear_draft();
+#if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
+    QCOMPARE(group->overflow(), shared_ui::qt::action_overflow::host);
+    for (const auto* action : { rotate, focus, close, aspect })
+        QVERIFY(group->button_for(action)->minimumHeight() >= 48);
+    QVERIFY(group->overflow_actions().isEmpty());
+#else
+    QCOMPARE(group->overflow(), shared_ui::qt::action_overflow::menu);
+    cell.resize(100, 240);
+    QCoreApplication::processEvents();
+    QCOMPARE(cell.width(), 100);
+    QVERIFY(!group->overflow_actions().isEmpty());
+    QVERIFY(group->overflow_button()->isVisible());
+    QVERIFY(group->overflow_button()->menu()->actions().contains(close));
+#endif
+}

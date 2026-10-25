@@ -17,6 +17,10 @@ class QPushButton;
 class QRadioButton;
 class QLabel;
 
+namespace shared_ui::qt {
+class settings_section;
+}
+
 class stream_source_panel final : public QWidget {
     Q_OBJECT
 
@@ -72,7 +76,7 @@ private:
     QRadioButton* local_radio { nullptr };
     QRadioButton* url_radio { nullptr };
     QLabel* summary_label { nullptr };
-    QLabel* name_error_label { nullptr };
+    shared_ui::qt::settings_section* name_section_ { nullptr };
 
     QGroupBox* add_file_box { nullptr };
     QLineEdit* file_path_edit { nullptr };

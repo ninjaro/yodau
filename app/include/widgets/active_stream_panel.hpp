@@ -15,6 +15,10 @@ class QRadioButton;
 class QSpinBox;
 class algorithm_panel;
 
+namespace shared_ui::qt {
+class settings_section;
+}
+
 class active_stream_panel final : public QWidget {
     Q_OBJECT
 
@@ -74,8 +78,7 @@ private:
     QComboBox* operator_profile_combo { nullptr };
     QLabel* operator_profile_summary_label { nullptr };
     algorithm_panel* active_algorithm_panel { nullptr };
-    QGroupBox* processing_policy_box { nullptr };
-    QFormLayout* processing_policy_form_ { nullptr };
+    shared_ui::qt::settings_section* processing_policy_box { nullptr };
     QCheckBox* processing_advanced_checkbox { nullptr };
     QCheckBox* manual_processing_checkbox { nullptr };
     QSpinBox* manual_display_fps_spin { nullptr };
