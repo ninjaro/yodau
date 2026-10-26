@@ -28,8 +28,6 @@ void setup_desktop_shell(
     const std::function<void()>& show_settings
 );
 
-// Window-wide style sheet for a chrome choice; empty for the native style.
-
 } // namespace yodau::shell
 
 #endif // YODAU_APP_SHELL_DESKTOP_SHELL_HPP

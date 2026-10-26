@@ -8,9 +8,6 @@
 #include <QComboBox>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QFormLayout>
-#include <QGroupBox>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
@@ -136,8 +133,8 @@ void stream_source_panel::build_ui() {
         &stream_source_panel::on_name_changed
     );
 
-    const auto mode_box = new QGroupBox(str_label("source"), this);
-    const auto mode_layout = new QHBoxLayout(mode_box);
+    const auto mode_box
+        = new shared_ui::qt::settings_section(str_label("source"), this);
     mode_group = new QButtonGroup(this);
     file_radio = new QRadioButton(str_label("file"), mode_box);
     file_radio->setObjectName(QStringLiteral("settings_add_file_radio"));
@@ -150,43 +147,32 @@ void stream_source_panel::build_ui() {
     mode_group->addButton(local_radio, static_cast<int>(input_mode::local));
     mode_group->addButton(url_radio, static_cast<int>(input_mode::url));
 
-    mode_layout->addWidget(file_radio);
-    mode_layout->addWidget(local_radio);
-    mode_layout->addWidget(url_radio);
+    mode_box->add_inline_row({}, { file_radio, local_radio, url_radio });
     layout->addWidget(mode_box);
 
-    summary_label = new QLabel(this);
+    summary_label = mode_box->add_message();
     summary_label->setObjectName(QStringLiteral("settings_add_summary_label"));
-    summary_label->setWordWrap(true);
-    layout->addWidget(summary_label);
 
     connect(
         mode_group, &QButtonGroup::idClicked, this,
         &stream_source_panel::on_mode_group_clicked
     );
 
-    add_file_box = new QGroupBox(str_label("file stream"), this);
-    const auto file_layout = new QVBoxLayout(add_file_box);
-    const auto file_form = new QFormLayout();
-    file_path_edit = new QLineEdit(add_file_box);
-    file_path_edit->setObjectName(
-        QStringLiteral("settings_add_file_path_edit")
+    add_file_box
+        = new shared_ui::qt::settings_section(str_label("file stream"), this);
+    file_path_edit = add_file_box->add_control<QLineEdit>(
+        str_label("path"), QStringLiteral("settings_add_file_path_edit")
     );
     file_path_edit->setReadOnly(true);
-    loop_checkbox = new QCheckBox(str_label("loop"), add_file_box);
-    loop_checkbox->setObjectName(QStringLiteral("settings_add_loop_checkbox"));
+    loop_checkbox = add_file_box->add_control<QCheckBox>(
+        str_label("loop"), QStringLiteral("settings_add_loop_checkbox")
+    );
     loop_checkbox->setChecked(true);
-    file_form->addRow(str_label("path"), file_path_edit);
-    file_form->addRow(QString(), loop_checkbox);
-    file_layout->addLayout(file_form);
 
-    const auto file_btn_row = new QHBoxLayout();
-    choose_file_btn = new QPushButton(str_label("choose file"), add_file_box);
-    choose_file_btn->setObjectName(
+    choose_file_btn = add_file_box->add_control<QPushButton>(
+        str_label("choose file"),
         QStringLiteral("settings_add_choose_file_button")
     );
-    file_btn_row->addWidget(choose_file_btn);
-    file_layout->addLayout(file_btn_row);
     layout->addWidget(add_file_box);
 
     connect(
@@ -194,18 +180,15 @@ void stream_source_panel::build_ui() {
         &stream_source_panel::on_choose_file
     );
 
-    add_local_box = new QGroupBox(str_label("local sources"), this);
-    const auto local_layout = new QVBoxLayout(add_local_box);
-    local_sources_combo = new QComboBox(add_local_box);
-    local_sources_combo->setObjectName(
-        QStringLiteral("settings_add_local_sources_combo")
+    add_local_box
+        = new shared_ui::qt::settings_section(str_label("local sources"), this);
+    local_sources_combo = add_local_box->add_control<QComboBox>(
+        QString(), QStringLiteral("settings_add_local_sources_combo")
     );
-    local_layout->addWidget(local_sources_combo);
-    refresh_local_btn = new QPushButton(str_label("refresh"), add_local_box);
-    refresh_local_btn->setObjectName(
+    refresh_local_btn = add_local_box->add_control<QPushButton>(
+        str_label("refresh"),
         QStringLiteral("settings_add_refresh_local_button")
     );
-    local_layout->addWidget(refresh_local_btn);
     layout->addWidget(add_local_box);
 
     connect(
@@ -217,13 +200,11 @@ void stream_source_panel::build_ui() {
         &stream_source_panel::on_local_source_changed
     );
 
-    add_url_box = new QGroupBox(str_label("url stream"), this);
-    const auto url_layout = new QVBoxLayout(add_url_box);
-    const auto url_form = new QFormLayout();
-    url_edit = new QLineEdit(add_url_box);
-    url_edit->setObjectName(QStringLiteral("settings_add_url_edit"));
-    url_form->addRow(str_label("url"), url_edit);
-    url_layout->addLayout(url_form);
+    add_url_box
+        = new shared_ui::qt::settings_section(str_label("url stream"), this);
+    url_edit = add_url_box->add_control<QLineEdit>(
+        str_label("url"), QStringLiteral("settings_add_url_edit")
+    );
     layout->addWidget(add_url_box);
 
     connect(

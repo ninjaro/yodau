@@ -172,8 +172,9 @@ outside this implemented surface; neither placement nor thumbnail sizing adds a 
 
 ## Window style
 
-**View → Desktop presentation → Window style** offers **Native** and **Slate**
-in both Qt and KDE. Slate is the material of the desktop proposal's `1a`
+**View → Desktop presentation → Appearance…** opens the shared Appearance
+editor in both Qt and KDE. Its single **Window material** family offers
+**Native** and **Slate**. Slate is the material of the desktop proposal's `1a`
 shell: a `#2a2e32` window with `#31363b` docks and `#2f3439` menu and dock
 toggle bars, group boxes outlined in `#4d5359` with their titles centred on
 the border, tabs drawn as raised tabs, `#232629` inputs, log and stream
@@ -190,7 +191,24 @@ never shows, hides, moves or recreates a dock, cell or player, and it does not
 change processing, line data or overlay colours. Only an explicit choice writes
 `desktop/presentation/chrome` as `native` or `slate`. Missing or unknown values
 start Native without write-back, and a save failure is reported while the
-previous style stays live. Android creates no Window style menu.
+previous style stays live. Android creates no desktop Appearance entry.
+
+The editor owns selection, availability, defaults and draft cancellation through
+one Appearance model per main window. The former pair of checkable Window style
+menu actions is removed. The single **Native default** preset is only a material
+default; it has no relationship to the Classic/Canvas workspace presets.
+**Defaults** selects Native in the draft. **Apply** persists then applies without
+closing; **OK** persists then closes. **Cancel**, Escape and window closure discard
+only unsaved changes. A failed save leaves the accepted window unchanged and the
+draft available for retry. Reopening uses the last accepted state.
+
+Preview settings, actions and readouts are real shared controls with sample
+content. They have their own material scope, including a Native preview inside
+a Slate window, and never bind to live streams. No new preference store or generic
+host settings controller is introduced: the model projects the existing scalar
+key into shared material IDs (`native` → `system`, `slate` → `slate`). An unknown
+stored scalar still renders Native and is left untouched until an explicit save.
+The editor never stores Canvas, pool placement, dock layout or processing state.
 
 The Streams dock now scrolls its source, grid and inventory forms when the
 window is short, instead of squeezing their group boxes below their minimum
@@ -378,7 +396,7 @@ The values are grouped as **Active stream**, **GUI observations** and
 **Effective policy**. A missing observation shows a dash with its reason; an
 input or result path older than three seconds gets a dashed edge besides its
 **Stale** text. Values wrap and can be selected and copied with the mouse or
-keyboard. **Window style** also restyles these sections (Native or Slate).
+keyboard. The saved **Appearance** material also restyles these sections (Native or Slate).
 
 It follows the canvas's active stream, not the configured-source selector in
 Streams. Returning to the pool clears the readout. No CPU/RAM percentages,

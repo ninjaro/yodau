@@ -6,7 +6,9 @@
 #include "widgets/processing_readout.hpp"
 #include "widgets/stream_board.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
+#include <QDialog>
 #include <QDockWidget>
 #include <QFileInfo>
 #include <QMenu>
@@ -14,6 +16,7 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QtTest/QtTest>
+#include <shared_ui/qt/appearance_editor.hpp>
 
 #ifdef KC_KDE
 #include <KAboutData>
@@ -117,14 +120,22 @@ void main_window_tests::processing_readout_shell() {
         // material; the dock, its visibility and the bound stream stay.
         auto* readout = qobject_cast<processing_readout*>(dock->widget());
         QVERIFY(readout && readout->sections().size() == 3);
-        for (const auto& [name, material] :
-             { std::pair { "desktop_chrome_slate",
-                           shared_ui::qt::material::slate },
-               std::pair { "desktop_chrome_native",
-                           shared_ui::qt::material::system } }) {
-            auto* chrome = window.findChild<QAction*>(name);
-            QVERIFY(chrome);
-            chrome->trigger();
+        auto* appearance = window.findChild<QAction*>("desktop_appearance");
+        QVERIFY(appearance);
+        appearance->trigger();
+        auto* editor = window.findChild<shared_ui::qt::appearance_editor*>();
+        auto* model = window.findChild<shared_ui::qt::appearance_model*>();
+        QPointer<QDialog> dialog
+            = window.findChild<QDialog*>("desktop_appearance_dialog");
+        QVERIFY(editor && model && dialog);
+        for (const auto& [id, material] :
+             { std::pair { "slate", shared_ui::qt::material::slate },
+               std::pair { "system", shared_ui::qt::material::system } }) {
+            QVERIFY(model->set_override(
+                QStringLiteral("chrome"), QString::fromLatin1(id)
+            ));
+            editor->command(shared_ui::qt::editor_command::apply)->click();
+            QVERIFY(!model->dirty());
             for (auto* section : readout->sections()) {
                 QCOMPARE(section->presentation_material(), material);
                 QCOMPARE(
@@ -134,6 +145,8 @@ void main_window_tests::processing_readout_shell() {
             QVERIFY(dock->isVisible() && timer->isActive());
             QCOMPARE(board->active_cell(), cell);
         }
+        dialog->close();
+        QTRY_VERIFY(!dialog);
         // Diagnostics stay in the dock, never on the stream cells.
         QVERIFY(board->findChildren<shared_ui::qt::readout_group*>().isEmpty());
         dock->close();
@@ -148,7 +161,8 @@ void main_window_tests::processing_readout_shell() {
         = restored.findChild<QDockWidget*>("main_window_processing_dock");
     auto* timer = dock->findChild<QTimer*>("processing_refresh_timer");
     QVERIFY(!dock->isHidden());
-    QVERIFY(!timer->isActive()
+    QVERIFY(
+        !timer->isActive()
     ); // Restored visibility is not yet a shown window.
     restored.show();
     QTRY_VERIFY(dock->isVisible() && timer->isActive());

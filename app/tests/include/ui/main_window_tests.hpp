@@ -7,6 +7,7 @@ class main_window_tests : public QObject {
     Q_OBJECT
 
 private slots:
+    static void shared_forms_preserve_host_state_across_profiles();
     void actions_apply_lines_and_templates();
     void edit_workflow_logs_and_follow_up();
     void stream_workflow_logs_and_follow_up();

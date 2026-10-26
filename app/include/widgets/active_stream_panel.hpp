@@ -8,8 +8,6 @@
 class QButtonGroup;
 class QCheckBox;
 class QComboBox;
-class QFormLayout;
-class QGroupBox;
 class QLabel;
 class QRadioButton;
 class QSpinBox;
@@ -74,7 +72,7 @@ private:
     QComboBox* active_combo { nullptr };
     QCheckBox* active_labels_cb { nullptr };
     QCheckBox* standard_labels_cb { nullptr };
-    QGroupBox* operator_profile_box { nullptr };
+    shared_ui::qt::settings_section* operator_profile_box { nullptr };
     QComboBox* operator_profile_combo { nullptr };
     QLabel* operator_profile_summary_label { nullptr };
     algorithm_panel* active_algorithm_panel { nullptr };
@@ -86,7 +84,7 @@ private:
     QSpinBox* manual_processing_pixels_spin { nullptr };
     QLabel* processing_summary_label { nullptr };
 
-    QGroupBox* active_mode_box { nullptr };
+    shared_ui::qt::settings_section* active_mode_box { nullptr };
     QButtonGroup* active_mode_group { nullptr };
     QRadioButton* active_mode_draw_radio { nullptr };
     QRadioButton* active_mode_template_radio { nullptr };

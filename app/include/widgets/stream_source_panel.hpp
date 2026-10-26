@@ -11,7 +11,6 @@
 class QButtonGroup;
 class QCheckBox;
 class QComboBox;
-class QGroupBox;
 class QLineEdit;
 class QPushButton;
 class QRadioButton;
@@ -78,16 +77,16 @@ private:
     QLabel* summary_label { nullptr };
     shared_ui::qt::settings_section* name_section_ { nullptr };
 
-    QGroupBox* add_file_box { nullptr };
+    shared_ui::qt::settings_section* add_file_box { nullptr };
     QLineEdit* file_path_edit { nullptr };
     QPushButton* choose_file_btn { nullptr };
     QCheckBox* loop_checkbox { nullptr };
 
-    QGroupBox* add_local_box { nullptr };
+    shared_ui::qt::settings_section* add_local_box { nullptr };
     QComboBox* local_sources_combo { nullptr };
     QPushButton* refresh_local_btn { nullptr };
 
-    QGroupBox* add_url_box { nullptr };
+    shared_ui::qt::settings_section* add_url_box { nullptr };
     QLineEdit* url_edit { nullptr };
 
     QPushButton* add_btn { nullptr };

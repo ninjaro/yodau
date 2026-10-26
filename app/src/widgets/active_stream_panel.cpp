@@ -7,9 +7,6 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
-#include <QFormLayout>
-#include <QGroupBox>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QRadioButton>
 #include <QSignalBlocker>
@@ -363,39 +360,31 @@ void active_stream_panel::build_ui() {
     layout->setSpacing(10);
 
     const auto active_stream_box
-        = new QGroupBox(str_label("stream target"), this);
-    const auto active_stream_layout = new QVBoxLayout(active_stream_box);
+        = new shared_ui::qt::settings_section(str_label("stream target"), this);
 
-    active_combo = new QComboBox(active_stream_box);
-    active_combo->setEditable(false);
-    active_combo->setObjectName(object_name(QStringLiteral("stream_combo")));
+    active_combo = active_stream_box->add_control<QComboBox>(
+        QString(), object_name(QStringLiteral("stream_combo"))
+    );
     active_combo->addItem(active_stream_panel_support::none_text(), QVariant());
-    active_stream_layout->addWidget(active_combo);
 
-    active_labels_cb
-        = new QCheckBox(str_label("line name labels"), active_stream_box);
-    active_labels_cb->setObjectName(
-        object_name(QStringLiteral("labels_checkbox"))
+    active_labels_cb = active_stream_box->add_control<QCheckBox>(
+        str_label("line name labels"),
+        object_name(QStringLiteral("labels_checkbox")),
+        QStringLiteral(
+            "Show or hide saved line names on top of the stream preview. This "
+            "does not affect FPS, algorithm, or coordinate overlays."
+        )
     );
     active_labels_cb->setChecked(true);
-    active_labels_cb->setToolTip(QStringLiteral(
-        "Show or hide saved line names on top of the stream preview. "
-        "This does not affect FPS, algorithm, or coordinate overlays."
-    ));
-    active_stream_layout->addWidget(active_labels_cb);
-
-    standard_labels_cb
-        = new QCheckBox(str_label("standard labels"), active_stream_box);
-    standard_labels_cb->setObjectName(
-        object_name(QStringLiteral("standard_labels_checkbox"))
+    standard_labels_cb = active_stream_box->add_control<QCheckBox>(
+        str_label("standard labels"),
+        object_name(QStringLiteral("standard_labels_checkbox")),
+        QStringLiteral(
+            "Show or hide stream overlays such as algorithm badges, log mode, "
+            "hover coordinates, and FPS/runtime metrics."
+        )
     );
     standard_labels_cb->setChecked(true);
-    standard_labels_cb->setToolTip(QStringLiteral(
-        "Show or hide stream overlays such as algorithm badges, log mode, "
-        "hover coordinates, and FPS/runtime metrics."
-    ));
-    active_stream_layout->addWidget(standard_labels_cb);
-
     layout->addWidget(active_stream_box);
 
     active_algorithm_panel = new algorithm_panel(object_prefix_, this);
@@ -403,29 +392,25 @@ void active_stream_panel::build_ui() {
         object_name(QStringLiteral("algorithm_panel"))
     );
 
-    operator_profile_box = new QGroupBox(str_label("operator profile"), this);
+    operator_profile_box = new shared_ui::qt::settings_section(
+        str_label("operator profile"), this
+    );
     operator_profile_box->setObjectName(
         object_name(QStringLiteral("operator_profile_box"))
     );
-    const auto operator_profile_form = new QFormLayout(operator_profile_box);
 
-    operator_profile_combo = new QComboBox(operator_profile_box);
-    operator_profile_combo->setObjectName(
+    operator_profile_combo = operator_profile_box->add_control<QComboBox>(
+        str_label("shared preset"),
         object_name(QStringLiteral("operator_profile_combo"))
     );
     active_stream_panel_support::populate_operator_profile_combo(
         operator_profile_combo
     );
-    operator_profile_form->addRow(
-        str_label("shared preset"), operator_profile_combo
-    );
 
-    operator_profile_summary_label = new QLabel(operator_profile_box);
+    operator_profile_summary_label = operator_profile_box->add_message();
     operator_profile_summary_label->setObjectName(
         object_name(QStringLiteral("operator_profile_summary_label"))
     );
-    operator_profile_summary_label->setWordWrap(true);
-    operator_profile_form->addRow(QString(), operator_profile_summary_label);
 
     layout->addWidget(operator_profile_box);
     layout->addWidget(active_algorithm_panel);
@@ -438,72 +423,57 @@ void active_stream_panel::build_ui() {
     );
     processing_policy_box->set_fields_expanding(false);
 
-    processing_summary_label = new QLabel(processing_policy_box);
+    processing_summary_label = processing_policy_box->add_message();
     processing_summary_label->setObjectName(
         object_name(QStringLiteral("processing_summary_label"))
     );
-    processing_summary_label->setWordWrap(true);
-    processing_policy_box->add_row(QString(), processing_summary_label);
 
     processing_advanced_checkbox
-        = new QCheckBox(str_label("advanced tuning"), processing_policy_box);
-    processing_advanced_checkbox->setObjectName(
-        object_name(QStringLiteral("processing_advanced_checkbox"))
-    );
-    processing_advanced_checkbox->setToolTip(QStringLiteral(
-        "Show manual FPS and processing-size overrides for this stream. "
-        "Leave this off to keep the default auto-calibrated policy "
-        "summary only."
-    ));
-    processing_policy_box->add_row(QString(), processing_advanced_checkbox);
-
-    manual_processing_checkbox = new QCheckBox(
-        str_label("override auto calibration"), processing_policy_box
-    );
-    manual_processing_checkbox->setObjectName(
+        = processing_policy_box->add_control<QCheckBox>(
+            str_label("advanced tuning"),
+            object_name(QStringLiteral("processing_advanced_checkbox")),
+            QStringLiteral(
+                "Show manual FPS and processing-size overrides for this "
+                "stream. Leave this off to keep the default auto-calibrated "
+                "policy summary only."
+            )
+        );
+    manual_processing_checkbox = processing_policy_box->add_control<QCheckBox>(
+        str_label("override auto calibration"),
         object_name(QStringLiteral("manual_processing_checkbox"))
     );
-    processing_policy_box->add_row(QString(), manual_processing_checkbox);
 
-    manual_display_fps_spin = new QSpinBox(processing_policy_box);
-    manual_display_fps_spin->setObjectName(
+    manual_display_fps_spin = processing_policy_box->add_control<QSpinBox>(
+        str_label("display fps cap"),
         object_name(QStringLiteral("display_fps_spin"))
     );
     manual_display_fps_spin->setRange(1, 120);
     manual_display_fps_spin->setValue(default_manual_display_fps());
     manual_display_fps_spin->setSuffix(QStringLiteral(" fps"));
-    processing_policy_box->add_row(
-        str_label("display fps cap"), manual_display_fps_spin
-    );
 
-    manual_core_fps_spin = new QSpinBox(processing_policy_box);
-    manual_core_fps_spin->setObjectName(
+    manual_core_fps_spin = processing_policy_box->add_control<QSpinBox>(
+        str_label("core fps target"),
         object_name(QStringLiteral("core_fps_spin"))
     );
     manual_core_fps_spin->setRange(1, 120);
     manual_core_fps_spin->setValue(default_manual_core_fps());
     manual_core_fps_spin->setSuffix(QStringLiteral(" fps"));
-    processing_policy_box->add_row(
-        str_label("core fps target"), manual_core_fps_spin
-    );
 
-    manual_processing_pixels_spin = new QSpinBox(processing_policy_box);
-    manual_processing_pixels_spin->setObjectName(
-        object_name(QStringLiteral("processing_pixels_spin"))
-    );
+    manual_processing_pixels_spin
+        = processing_policy_box->add_control<QSpinBox>(
+            str_label("processing pixels"),
+            object_name(QStringLiteral("processing_pixels_spin"))
+        );
     manual_processing_pixels_spin->setRange(16 * 16, 7680 * 4320);
     manual_processing_pixels_spin->setSingleStep(25 * 1000);
     manual_processing_pixels_spin->setValue(default_manual_processing_pixels());
     manual_processing_pixels_spin->setSuffix(QStringLiteral(" px"));
-    processing_policy_box->add_row(
-        str_label("processing pixels"), manual_processing_pixels_spin
-    );
 
     layout->addWidget(processing_policy_box);
 
-    active_mode_box = new QGroupBox(str_label("edit mode"), this);
+    active_mode_box
+        = new shared_ui::qt::settings_section(str_label("edit mode"), this);
     active_mode_box->setObjectName(object_name(QStringLiteral("mode_box")));
-    const auto mode_layout = new QHBoxLayout(active_mode_box);
 
     active_mode_group = new QButtonGroup(active_mode_box);
     active_mode_draw_radio
@@ -521,8 +491,9 @@ void active_stream_panel::build_ui() {
     active_mode_group->addButton(active_mode_template_radio, 1);
     active_mode_draw_radio->setChecked(true);
 
-    mode_layout->addWidget(active_mode_draw_radio);
-    mode_layout->addWidget(active_mode_template_radio);
+    active_mode_box->add_inline_row(
+        {}, { active_mode_draw_radio, active_mode_template_radio }
+    );
     layout->addWidget(active_mode_box);
 
     connect(

@@ -1,5 +1,9 @@
 #include "shell/main_window.hpp"
+#include <shared_ui/qt/action_group.hpp>
+#include <shared_ui/qt/appearance_editor.hpp>
 #include <shared_ui/qt/presentation.hpp>
+#include <shared_ui/qt/readout_group.hpp>
+#include <shared_ui/qt/settings_section.hpp>
 
 #include "shell/desktop_shell.hpp"
 #include "shell/mobile_session_store.hpp"
@@ -13,11 +17,13 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDialog>
 #include <QDockWidget>
 #include <QEvent>
 #include <QIcon>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -30,9 +36,15 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-#if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
 namespace {
 
+#ifdef KC_KDE
+constexpr auto desktop_profile = shared_ui::qt::platform_profile::desktop_kde;
+#else
+constexpr auto desktop_profile = shared_ui::qt::platform_profile::desktop_qt;
+#endif
+
+#if !defined(KC_ANDROID) && !defined(Q_OS_ANDROID)
 // Keeps a vertically scrolling dock as wide as its content's current minimum,
 // including after a style sheet changes control metrics.
 class scroll_width_follower final : public QObject {
@@ -58,9 +70,9 @@ public:
 private:
     QScrollArea* scroll_;
 };
+#endif
 
 } // namespace
-#endif
 
 void main_window::setup_platform_layout() {
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
@@ -408,30 +420,11 @@ QMenu* main_window::setup_desktop_presentation_menu() {
     );
     add_side(tr("&Left"), pool_side::left, QStringLiteral("desktop_pool_left"));
     refresh_pool_actions();
-    auto* chrome_menu = menu->addMenu(tr("Window &style"));
-    chrome_menu->setObjectName(QStringLiteral("desktop_chrome_menu"));
-    chrome_actions_ = new QActionGroup(chrome_menu);
-    const auto add_chrome
-        = [this, chrome_menu](
-              const QString& label, yodau::shell::desktop_chrome chrome,
-              const QString& name
-          ) {
-              auto* action = chrome_menu->addAction(label);
-              action->setObjectName(name);
-              action->setCheckable(true);
-              action->setData(static_cast<int>(chrome));
-              chrome_actions_->addAction(action);
-              connect(action, &QAction::triggered, this, [this, chrome] {
-                  choose_desktop_chrome(chrome);
-              });
-          };
-    add_chrome(
-        tr("&Native"), yodau::shell::desktop_chrome::native,
-        QStringLiteral("desktop_chrome_native")
-    );
-    add_chrome(
-        tr("&Slate"), yodau::shell::desktop_chrome::slate,
-        QStringLiteral("desktop_chrome_slate")
+    auto* appearance = menu->addAction(tr("&Appearance…"));
+    appearance->setObjectName(QStringLiteral("desktop_appearance"));
+    connect(
+        appearance, &QAction::triggered, this,
+        &main_window::show_desktop_appearance
     );
     menu->addSeparator();
     for (auto* dock : { settings_dock, line_dock, log_dock }) {
@@ -472,21 +465,140 @@ void main_window::choose_pool_side(const pool_side side) {
     refresh_pool_actions();
 }
 
-void main_window::choose_desktop_chrome(
-    const yodau::shell::desktop_chrome chrome
-) {
-    QSettings app_preferences;
-    if (!yodau::shell::save_desktop_chrome(app_preferences, chrome)) {
-        QMessageBox::warning(
-            this, tr("Window style"),
-            tr("Could not save the window style setting.")
-        );
-        apply_desktop_chrome(
-            yodau::shell::load_desktop_chrome(app_preferences)
-        );
+void main_window::setup_desktop_appearance() {
+    using namespace shared_ui::qt;
+    chrome_model_ = new appearance_model(this);
+    chrome_model_->setObjectName(QStringLiteral("desktop_appearance_model"));
+    chrome_model_->set_presentation(material::system, desktop_profile);
+    component_family chrome;
+    chrome.id = QStringLiteral("chrome");
+    chrome.label = tr("Window material");
+    chrome.role = family_role::material;
+    chrome.options = { { QStringLiteral("system"), tr("Native"),
+                         tr("Use the platform style and palette.") },
+                       { QStringLiteral("slate"), tr("Slate"),
+                         tr("Dark instrument panels and blue accents.") } };
+    chrome_model_->set_families({ chrome });
+    // A single material default, unrelated to Yodau's Classic/Canvas workspace.
+    chrome_model_->set_presets(
+        { { QStringLiteral("native"),
+            tr("Native default"),
+            {},
+            { { QStringLiteral("chrome"), QStringLiteral("system") } } } }
+    );
+    QSettings preferences;
+    const auto saved = yodau::shell::load_desktop_chrome(preferences);
+    chrome_model_->load(
+        { QStringLiteral("native"),
+          { { QStringLiteral("chrome"),
+              saved == yodau::shell::desktop_chrome::slate
+                  ? QStringLiteral("slate")
+                  : QStringLiteral("system") } } }
+    );
+    apply_desktop_chrome(saved);
+}
+
+void main_window::show_desktop_appearance() {
+    using namespace shared_ui::qt;
+    if (appearance_dialog_) {
+        appearance_dialog_->show();
+        appearance_dialog_->raise();
+        appearance_dialog_->activateWindow();
         return;
     }
-    apply_desktop_chrome(chrome);
+    auto* dialog = new QDialog(this);
+    appearance_dialog_ = dialog;
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setObjectName(QStringLiteral("desktop_appearance_dialog"));
+    dialog->setWindowTitle(tr("Appearance"));
+    apply_presentation(*dialog, { material::system, desktop_profile, {} });
+    auto* layout = new QVBoxLayout(dialog);
+    auto* scroll = new QScrollArea(dialog);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    layout->addWidget(scroll);
+    auto* editor = new appearance_editor(chrome_model_);
+    scroll->setWidget(editor);
+    editor->set_commit_style(commit_style::dialog);
+    editor->set_identity(
+        { tr("Yodau"), tr("Appearance"),
+          tr("Window material only. Workspace, streams and processing stay "
+             "unchanged.") }
+    );
+    editor->set_presentation(material::system, desktop_profile);
+    editor->set_preview_caption(tr("Sample controls · no live stream data"));
+    const QPointer<appearance_model> model(chrome_model_);
+    editor->set_preview_factory(
+        [model](const QString&, const QString&) -> QWidget* {
+            if (!model)
+                return nullptr;
+            const auto value = model->presentation_material();
+            auto* preview = new QWidget;
+            auto* column = new QVBoxLayout(preview);
+            auto* section
+                = new settings_section(tr("Sample settings"), preview);
+            section->add_row(tr("Name"), new QLineEdit(tr("Preview")));
+            section->set_presentation(value, desktop_profile);
+            column->addWidget(section);
+            auto* actions = new action_group(preview);
+            auto* open = new QAction(
+                preview->style()->standardIcon(QStyle::SP_DialogOpenButton),
+                tr("Open"), actions
+            );
+            auto* stop = new QAction(
+                preview->style()->standardIcon(QStyle::SP_MediaStop),
+                tr("Stop"), actions
+            );
+            stop->setEnabled(false);
+            actions->set_actions({ open, stop });
+            actions->set_presentation(value, desktop_profile);
+            column->addWidget(actions);
+            auto* readout = new readout_group(preview);
+            readout->set_items(
+                { { tr("Status"), tr("Idle"), {}, tr("Preview only") } }
+            );
+            readout->set_presentation(value, desktop_profile);
+            column->addWidget(readout);
+            apply_presentation(*preview, { value, desktop_profile, {} });
+            return preview;
+        }
+    );
+    connect(
+        editor, &appearance_editor::save_requested, this,
+        [this, editor](quint64 id, const appearance_state& submitted) {
+            const auto choice = submitted.overrides.value(
+                QStringLiteral("chrome"), QStringLiteral("system")
+            );
+            QSettings preferences;
+            const auto chrome = choice == QStringLiteral("slate")
+                ? yodau::shell::desktop_chrome::slate
+                : yodau::shell::desktop_chrome::native;
+            if ((choice != QStringLiteral("system")
+                 && choice != QStringLiteral("slate"))
+                || !yodau::shell::save_desktop_chrome(preferences, chrome)) {
+                editor->report_save_failed(
+                    id, tr("Could not save the window material."), {}
+                );
+                return;
+            }
+            apply_desktop_chrome(chrome);
+            editor->report_saved(id);
+        }
+    );
+    connect(
+        editor, &appearance_editor::finished, dialog, [dialog](bool accepted) {
+            if (accepted)
+                dialog->accept();
+            else
+                dialog->reject();
+        }
+    );
+    // Escape and the window close button are cancellation too; no live trial.
+    connect(
+        dialog, &QDialog::finished, chrome_model_, &appearance_model::revert
+    );
+    dialog->resize(820, 620);
+    dialog->show();
 }
 
 void main_window::apply_desktop_chrome(
@@ -498,19 +610,9 @@ void main_window::apply_desktop_chrome(
         { chrome == yodau::shell::desktop_chrome::slate
               ? shared_ui::qt::material::slate
               : shared_ui::qt::material::system,
-#ifdef KC_KDE
-          shared_ui::qt::platform_profile::desktop_kde,
-#else
-          shared_ui::qt::platform_profile::desktop_qt,
-#endif
+          desktop_profile,
           {} }
     );
-    if (chrome_actions_ == nullptr) {
-        return;
-    }
-    for (auto* action : chrome_actions_->actions()) {
-        action->setChecked(action->data().toInt() == static_cast<int>(chrome));
-    }
 }
 
 void main_window::refresh_desktop_preset_actions() {

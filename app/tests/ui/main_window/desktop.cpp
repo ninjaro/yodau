@@ -4,11 +4,14 @@
 #include "widgets/grid_view.hpp"
 #include "widgets/stream_board.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QDialog>
+#include <QDir>
 #include <QDockWidget>
 #include <QFile>
 #include <QFileInfo>
@@ -23,8 +26,14 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QtTest/QtTest>
+#include <shared_ui/qt/action_group.hpp>
+#include <shared_ui/qt/appearance_editor.hpp>
+#include <shared_ui/qt/presentation.hpp>
+#include <shared_ui/qt/readout_group.hpp>
+#include <shared_ui/qt/settings_section.hpp>
 
 #ifdef KC_KDE
+#include <KAboutData>
 #include <KActionCollection>
 #endif
 
@@ -83,7 +92,8 @@ void main_window_tests::pool_menu_restores_choice() {
         bool reachable = false;
         for (auto* action : window.menuBar()->actions()) {
             if (action->menu()
-                && action->menu()->actions().contains(presentation->menuAction()
+                && action->menu()->actions().contains(
+                    presentation->menuAction()
                 )) {
                 reachable = true;
             }
@@ -91,8 +101,9 @@ void main_window_tests::pool_menu_restores_choice() {
         QVERIFY(reachable);
 #ifdef KC_KDE
         QCOMPARE(
-            window.actionCollection()->action(QStringLiteral("view_presentation"
-            )),
+            window.actionCollection()->action(
+                QStringLiteral("view_presentation")
+            ),
             presentation->menuAction()
         );
 #endif
@@ -111,12 +122,12 @@ void main_window_tests::pool_menu_restores_choice() {
         QSettings saved;
         saved.setFallbacksEnabled(false);
         QVERIFY(!yodau::shell::load_desktop_presentation(saved));
-        auto* canvas
-            = window.findChild<QAction*>(QStringLiteral("desktop_preset_canvas")
-            );
-        auto* reset
-            = window.findChild<QAction*>(QStringLiteral("desktop_preset_reset")
-            );
+        auto* canvas = window.findChild<QAction*>(
+            QStringLiteral("desktop_preset_canvas")
+        );
+        auto* reset = window.findChild<QAction*>(
+            QStringLiteral("desktop_preset_reset")
+        );
         QVERIFY(canvas && reset);
         canvas->trigger();
         reset->trigger();
@@ -148,9 +159,9 @@ void main_window_tests::pool_menu_restores_choice() {
                 }
             }
         });
-        auto* right
-            = restored.findChild<QAction*>(QStringLiteral("desktop_pool_right")
-            );
+        auto* right = restored.findChild<QAction*>(
+            QStringLiteral("desktop_pool_right")
+        );
         right->trigger();
         QCOMPARE(warnings, 1);
         QCOMPARE(board->current_pool_side(), pool_side::left);
@@ -194,35 +205,45 @@ void main_window_tests::window_style_restores_choice() {
         QSettings::IniFormat, QSettings::UserScope, directory.path()
     );
     QCoreApplication::setOrganizationName(QStringLiteral("yodau"));
+#ifdef KC_KDE
+    // KMainWindow uses KDE's cached identity; isolate the path, not its name.
+    QCoreApplication::setApplicationName(
+        KAboutData::applicationData().componentName()
+    );
+#else
     QCoreApplication::setApplicationName(QStringLiteral("chrome-tests"));
+#endif
+    using namespace shared_ui::qt;
+    const auto key = QStringLiteral("desktop/presentation/chrome");
     {
         QSettings unknown;
-        unknown.setValue(
-            QStringLiteral("desktop/presentation/chrome"),
-            QStringLiteral("future")
-        );
+        unknown.setValue(key, QStringLiteral("future"));
         QCOMPARE(
             yodau::shell::load_desktop_chrome(unknown),
             yodau::shell::desktop_chrome::native
         );
-        unknown.remove(QStringLiteral("desktop/presentation/chrome"));
+        unknown.setValue(
+            QStringLiteral("processing/sentinel"), QStringLiteral("keep")
+        );
     }
     {
         main_window window;
-        auto* native
-            = window.findChild<QAction*>(QStringLiteral("desktop_chrome_native")
-            );
-        auto* slate
-            = window.findChild<QAction*>(QStringLiteral("desktop_chrome_slate")
-            );
-        auto* menu
-            = window.findChild<QMenu*>(QStringLiteral("desktop_chrome_menu"));
+        window.resize(1024, 768);
+        window.show();
+        auto* appearance
+            = window.findChild<QAction*>(QStringLiteral("desktop_appearance"));
         auto* presentation = window.findChild<QMenu*>(
             QStringLiteral("desktop_presentation_menu")
         );
-        QVERIFY(native && slate && menu && presentation);
-        QVERIFY(presentation->actions().contains(menu->menuAction()));
-        QVERIFY(native->isChecked() && !slate->isChecked());
+        auto* model = window.findChild<appearance_model*>();
+        QVERIFY(appearance && presentation && model);
+        QVERIFY(presentation->actions().contains(appearance));
+        QVERIFY(
+            !window.findChild<QAction*>(QStringLiteral("desktop_chrome_slate"))
+        );
+        QCOMPARE(model->families().size(), 1);
+        QCOMPARE(model->families().first().role, family_role::material);
+        QCOMPARE(model->presentation_material(), material::system);
         QVERIFY(window.styleSheet().isEmpty());
         auto* lines = window.findChild<QDockWidget*>(
             QStringLiteral("main_window_line_dock")
@@ -231,39 +252,140 @@ void main_window_tests::window_style_restores_choice() {
         QVERIFY(lines && board);
         lines->hide();
         const auto side = board->current_pool_side();
-        slate->trigger();
-        QVERIFY(slate->isChecked() && !native->isChecked());
+
+        appearance->trigger();
+        auto* editor = window.findChild<appearance_editor*>();
+        QPointer<QDialog> dialog = window.findChild<QDialog*>(
+            QStringLiteral("desktop_appearance_dialog")
+        );
+        QVERIFY(editor && dialog);
+        appearance->trigger();
+        QCOMPARE(window.findChildren<appearance_editor*>().size(), 1);
+        QCOMPARE(editor->option_buttons().size(), 3);
+        editor->option_buttons().at(2)->click(); // Slate, via the real editor.
+        QCOMPARE(
+            model->effective(QStringLiteral("chrome")), QStringLiteral("slate")
+        );
+        QVERIFY(model->dirty());
+        // Draft and preview are isolated from the accepted window and store.
+        QVERIFY(window.styleSheet().isEmpty());
+        QCOMPARE(QSettings().value(key).toString(), QStringLiteral("future"));
+        auto* preview = editor->findChild<settings_section*>();
+        QVERIFY(preview);
+        QCOMPARE(preview->presentation_material(), material::slate);
+        QVERIFY(!editor->findChildren<action_group*>().isEmpty());
+        QVERIFY(!editor->findChildren<readout_group*>().isEmpty());
+        editor->command(editor_command::cancel)->click();
+        QTRY_VERIFY(!dialog);
+        QVERIFY(!model->dirty());
+        QCOMPARE(model->presentation_material(), material::system);
+        QCOMPARE(QSettings().value(key).toString(), QStringLiteral("future"));
+
+        appearance->trigger();
+        editor = window.findChild<appearance_editor*>();
+        dialog = window.findChild<QDialog*>(
+            QStringLiteral("desktop_appearance_dialog")
+        );
+        QVERIFY(editor && dialog);
+        editor->option_buttons().at(2)->click();
+        editor->command(editor_command::apply)->click();
+        QVERIFY(!editor->save_pending() && !model->dirty());
+        QCOMPARE(QSettings().value(key).toString(), QStringLiteral("slate"));
         QVERIFY(window.styleSheet().contains(QStringLiteral("#3daee9")));
-        // Material only: no dock visibility, pool side or preset opt-in.
         QVERIFY(lines->isHidden());
         QCOMPARE(board->current_pool_side(), side);
         QSettings saved;
         QCOMPARE(
-            saved.value(QStringLiteral("desktop/presentation/chrome"))
-                .toString(),
-            QStringLiteral("slate")
+            saved.value(QStringLiteral("processing/sentinel")).toString(),
+            QStringLiteral("keep")
         );
         QVERIFY(!yodau::shell::load_desktop_presentation(saved));
+
+        // Escape and title-bar close also discard uncommitted changes.
+        editor->option_buttons().at(1)->click();
+        QTest::keyClick(dialog, Qt::Key_Escape);
+        QTRY_VERIFY(!dialog);
+        QCOMPARE(model->presentation_material(), material::slate);
+        QCOMPARE(QSettings().value(key).toString(), QStringLiteral("slate"));
+        appearance->trigger();
+        editor = window.findChild<appearance_editor*>();
+        dialog = window.findChild<QDialog*>(
+            QStringLiteral("desktop_appearance_dialog")
+        );
+        QVERIFY(editor && dialog);
+        editor->option_buttons().at(1)->click();
+        // Native preview inside an accepted Slate window is genuinely native.
+        preview = editor->findChild<settings_section*>();
+        QCOMPARE(preview->presentation_material(), material::system);
+        QCOMPARE(
+            preview->palette().color(QPalette::Window),
+            QApplication::palette().color(QPalette::Window)
+        );
+        dialog->close();
+        QTRY_VERIFY(!dialog);
+        QVERIFY(!model->dirty());
+        QCOMPARE(model->presentation_material(), material::slate);
     }
     {
         main_window restored;
-        auto* native = restored.findChild<QAction*>(
-            QStringLiteral("desktop_chrome_native")
-        );
-        auto* slate
-            = restored.findChild<QAction*>(QStringLiteral("desktop_chrome_slate"
-            ));
-        QVERIFY(native && slate);
-        QVERIFY(slate->isChecked());
+        auto* model = restored.findChild<appearance_model*>();
+        QVERIFY(model);
+        QCOMPARE(model->presentation_material(), material::slate);
         QVERIFY(!restored.styleSheet().isEmpty());
-        native->trigger();
-        QVERIFY(native->isChecked());
-        QVERIFY(restored.styleSheet().isEmpty());
-        QSettings saved;
-        QCOMPARE(
-            yodau::shell::load_desktop_chrome(saved),
-            yodau::shell::desktop_chrome::native
+        restored.findChild<QAction*>(QStringLiteral("desktop_appearance"))
+            ->trigger();
+        auto* editor = restored.findChild<appearance_editor*>();
+        QPointer<QDialog> dialog = restored.findChild<QDialog*>(
+            QStringLiteral("desktop_appearance_dialog")
         );
+        QVERIFY(editor && dialog);
+        // The shared Defaults command restores Native, not Canvas or a
+        // workspace.
+        editor->command(editor_command::defaults)->click();
+        editor->command(editor_command::ok)->click();
+        QTRY_VERIFY(!dialog);
+        QCOMPARE(model->presentation_material(), material::system);
+        QVERIFY(restored.styleSheet().isEmpty());
+        QCOMPARE(QSettings().value(key).toString(), QStringLiteral("native"));
+    }
+    {
+        main_window window;
+        auto* model = window.findChild<appearance_model*>();
+        window.findChild<QAction*>(QStringLiteral("desktop_appearance"))
+            ->trigger();
+        auto* editor = window.findChild<appearance_editor*>();
+        QPointer<QDialog> dialog = window.findChild<QDialog*>(
+            QStringLiteral("desktop_appearance_dialog")
+        );
+        QVERIFY(model && editor && dialog);
+        editor->option_buttons().at(2)->click();
+        // A regular file in place of the settings directory forces write
+        // failure, independent of UID/permissions. No production test hook is
+        // required.
+        const auto blocked = directory.filePath(QStringLiteral("blocked"));
+        QFile blocker(blocked);
+        QVERIFY(blocker.open(QIODevice::WriteOnly));
+        blocker.close();
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, blocked);
+        editor->command(editor_command::apply)->click();
+        QVERIFY(model->dirty() && !editor->save_pending());
+        QVERIFY(!editor->notices().isEmpty());
+        QVERIFY(window.styleSheet().isEmpty());
+        QCOMPARE(
+            model->saved().overrides.value(QStringLiteral("chrome")),
+            QStringLiteral("system")
+        );
+        QSettings::setPath(
+            QSettings::IniFormat, QSettings::UserScope, directory.path()
+        );
+        QCOMPARE(QSettings().value(key).toString(), QStringLiteral("native"));
+        // Retry persists the original draft only after the host can write
+        // again.
+        editor->command(editor_command::apply)->click();
+        QVERIFY(!model->dirty());
+        QCOMPARE(QSettings().value(key).toString(), QStringLiteral("slate"));
+        editor->option_buttons().at(1)->click();
+        // Main-window teardown safely destroys a still-open, dirty editor.
     }
 #endif
 }
@@ -332,8 +454,9 @@ void main_window_tests::desktop_preserves_layout_overrides() {
     apply_desktop_presentation(value, docks);
     QVERIFY(logs->isHidden());
     QVERIFY(save_desktop_presentation(settings, value));
-    QVERIFY(!settings.contains(QStringLiteral("desktop/presentation/panels/logs"
-    )));
+    QVERIFY(
+        !settings.contains(QStringLiteral("desktop/presentation/panels/logs"))
+    );
     value.preset = desktop_preset::classic;
     apply_desktop_presentation(value, docks);
     for (auto* dock : docks) {
@@ -405,8 +528,9 @@ void main_window_tests::window_shell_and_shared_workflows() {
             != nullptr
         );
         QVERIFY(
-            window.findChild<QDockWidget*>(QStringLiteral("main_window_log_dock"
-            ))
+            window.findChild<QDockWidget*>(
+                QStringLiteral("main_window_log_dock")
+            )
             != nullptr
         );
 #else
@@ -417,7 +541,8 @@ void main_window_tests::window_shell_and_shared_workflows() {
             != nullptr
         );
         QVERIFY(
-            window.findChild<QScrollArea*>(QStringLiteral("mobile_lines_scroll")
+            window.findChild<QScrollArea*>(
+                QStringLiteral("mobile_lines_scroll")
             )
             != nullptr
         );
@@ -453,8 +578,9 @@ void main_window_tests::window_shell_and_shared_workflows() {
             != nullptr
         );
         QVERIFY(
-            window.actionCollection()->action(QStringLiteral("options_configure"
-            ))
+            window.actionCollection()->action(
+                QStringLiteral("options_configure")
+            )
             != nullptr
         );
 #else
@@ -464,7 +590,8 @@ void main_window_tests::window_shell_and_shared_workflows() {
             != nullptr
         );
         QVERIFY(
-            window.findChild<QAction*>(QStringLiteral("main_preferences_action")
+            window.findChild<QAction*>(
+                QStringLiteral("main_preferences_action")
             )
             != nullptr
         );
@@ -476,8 +603,9 @@ void main_window_tests::window_shell_and_shared_workflows() {
 #endif
 #if defined(KC_ANDROID) || defined(Q_OS_ANDROID)
         QVERIFY(
-            window.findChild<QToolBar*>(QStringLiteral("mobile_document_toolbar"
-            ))
+            window.findChild<QToolBar*>(
+                QStringLiteral("mobile_document_toolbar")
+            )
             != nullptr
         );
         QVERIFY(
@@ -522,7 +650,8 @@ void main_window_tests::window_grid_preferences() {
         QSettings::IniFormat, QSettings::UserScope, temporary_directory.path()
     );
     QCoreApplication::setOrganizationName(QStringLiteral("yodau"));
-    QCoreApplication::setApplicationName(QStringLiteral("grid-preference-tests")
+    QCoreApplication::setApplicationName(
+        QStringLiteral("grid-preference-tests")
     );
 
     {
@@ -539,8 +668,9 @@ void main_window_tests::window_grid_preferences() {
         QVERIFY(direction != nullptr);
         QVERIFY(sizing != nullptr);
         QVERIFY(preserve != nullptr);
-        direction->setCurrentIndex(direction->findData(QStringLiteral("vertical"
-        )));
+        direction->setCurrentIndex(
+            direction->findData(QStringLiteral("vertical"))
+        );
         sizing->setCurrentIndex(sizing->findData(QStringLiteral("fixed")));
         preserve->setChecked(true);
         QSettings().sync();

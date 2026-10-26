@@ -11,6 +11,7 @@ using base_main_window = QMainWindow;
 #endif
 
 #include "shell/window_state_store.hpp"
+#include <QPointer>
 #include <QString>
 #include <Qt>
 #include <memory>
@@ -19,11 +20,16 @@ namespace yodau::core {
 class stream_manager;
 }
 
+namespace shared_ui::qt {
+class appearance_model;
+}
+
 class stream_board;
 class stream_controller;
 class settings_panel;
 class QAction;
 class QActionGroup;
+class QDialog;
 class QDockWidget;
 class QKeyEvent;
 class QLabel;
@@ -62,9 +68,11 @@ private:
     void refresh_desktop_preset_actions();
     void choose_pool_side(pool_side side);
     void refresh_pool_actions();
-    void choose_desktop_chrome(yodau::shell::desktop_chrome chrome);
+    void setup_desktop_appearance();
+    void show_desktop_appearance();
     void apply_desktop_chrome(yodau::shell::desktop_chrome chrome);
-    QActionGroup* chrome_actions_ = nullptr;
+    shared_ui::qt::appearance_model* chrome_model_ = nullptr;
+    QPointer<QDialog> appearance_dialog_;
     std::optional<yodau::shell::desktop_presentation> desktop_presentation_;
     QActionGroup* desktop_preset_actions_ = nullptr;
     QActionGroup* pool_side_actions_ = nullptr;
