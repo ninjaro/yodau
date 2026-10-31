@@ -3,6 +3,7 @@
 #include "analysis/default_processing_algorithms.hpp"
 #include "analysis/processing_algorithm_catalog.hpp"
 #include "analysis/processing_algorithm_ids.hpp"
+#include "streams/apple_capture_device.hpp"
 
 #include <functional>
 #include <memory>
@@ -80,6 +81,10 @@ stream_manager::daemon_start_fn default_daemon_start_hook() {
     return [](const stream& stream_value,
               const std::function<void(frame&&)>& on_frame,
               const stop_token& token) {
+        if (uses_apple_capture(stream_value)) {
+            run_apple_capture(stream_value.get_path(), on_frame, token);
+            return;
+        }
         if (auto* algorithm = default_processing_hooks_support::
                 shared_default_algorithm_instance()) {
             algorithm->daemon_start(stream_value, on_frame, token);

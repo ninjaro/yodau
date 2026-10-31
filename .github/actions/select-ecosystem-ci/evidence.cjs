@@ -57,7 +57,7 @@ function runtimeIdentity(root) {
       sdk[directory] = hash(JSON.stringify(walk(directory)));
     const configuration = Object.fromEntries(['.clang-format', '.clang-tidy'].map(name =>
       [name, fs.existsSync(path.join(root, name)) ? hash(fs.readFileSync(path.join(root, name))) : 'absent']));
-    const build_environment = Object.fromEntries(['CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'CPPFLAGS', 'LDFLAGS',
+    const build_environment = Object.fromEntries(['CC', 'CXX', 'LLVM_DIR', 'Clang_DIR', 'CFLAGS', 'CXXFLAGS', 'CPPFLAGS', 'LDFLAGS',
       'CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH', 'SDKROOT', 'COMPILER_PATH', 'GCC_EXEC_PREFIX',
       'LIBRARY_PATH', 'LD_LIBRARY_PATH', 'LD_PRELOAD', 'LANG', 'LC_ALL', 'TZ', 'SOURCE_DATE_EPOCH']
       .map(name => [name, process.env[name] || null]));
@@ -392,7 +392,11 @@ async function verifiedRun({api, run, kind, repository, context, tree, config, t
       ? receipt.tested_commit : config.tooling.revision), 'Receipt provenance differs from the source tree/configuration');
   requireValue(equal(receipt.verification, fullVerification(kind, tree, config.manifest)),
     'Receipt does not attest the required whole-project verification scope');
-  if (runtime) requireValue(validRuntime(runtime) && validRuntime(receipt.environment) && equal(receipt.environment, runtime),
+  // Pages authenticates actual exact-commit execution; its docs runner need not
+  // emulate the producer SDK. Substituting PR execution still requires an exact
+  // current runtime match in reusablePair, never an artifact-supplied identity.
+  requireValue(validRuntime(receipt.environment), 'Verification producer environment is unknown');
+  if (runtime) requireValue(validRuntime(runtime) && equal(receipt.environment, runtime),
     'Tool versions, runner image or installed dependencies differ or are unknown');
   if (pr) {
     const pointer = run.pull_requests.find(item => item.number === pr.number);
@@ -539,7 +543,7 @@ async function publicationPair({github, context, root, temporary, runtime}) {
     pushes, checks: pair.checks.source, codeql: pair.codeql.source};
   return {pair, source};
 }
-async function publication({github, context, core, root = process.cwd(), runtime = runtimeIdentity(root)}) {
+async function publication({github, context, core, root = process.cwd(), runtime}) {
   core.setOutput('ready', 'false');
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'ecosystem-publication-'));
   try {
@@ -574,7 +578,7 @@ async function publication({github, context, core, root = process.cwd(), runtime
     fs.rmSync(temporary, {recursive: true, force: true});
   }
 }
-async function revalidatePublication({github, context, root = process.cwd(), env = process.env, runtime = runtimeIdentity(root)}) {
+async function revalidatePublication({github, context, root = process.cwd(), env = process.env, runtime}) {
   const api = apiFor(github, context);
   await currentDefault(api, context);
   requireValue(git(root, 'rev-parse', 'HEAD') === context.sha, 'Deployment checkout differs');
@@ -589,27 +593,37 @@ async function revalidatePublication({github, context, root = process.cwd(), env
   }
 }
 
-function requiredScope({context, root, baseScope}) {
+// Preliminary event selection does not inspect toolchains, accept artifacts or
+// classify paths. Native relevance is resolved in the execution job after the
+// minimal actor bootstrap; unknown comparisons retain full verification.
+function preliminary({core, env = process.env}) {
+  const scope = ['cheap', 'full', 'security', 'skip'].includes(env.BASE_SCOPE) ? env.BASE_SCOPE : 'full';
+  core.setOutput('scope', scope);
+  core.setOutput('reason', 'event-policy-' + scope);
+  core.setOutput('verified', 'false');
+}
+
+function requiredScope({context, root, baseScope, binary, classification}) {
   if (baseScope !== 'cheap') return {scope: baseScope, reason: 'event-policy-' + baseScope};
-  // Conservative promotion only: this never narrows native verification. A
-  // source/build change cannot disappear behind the ordinary cheap-branch gate.
   try {
-    const delta = JSON.parse(readFile(root, '.ecosystem/github/changes.json', true));
-    requireValue(delta.complete && equal(delta, require('./changes.cjs').resolve({context, root})),
-      'Unverified event delta');
-    const buildInput = name => /\.(?:c|cc|cpp|cxx|h|hh|hpp|hxx|tpp|ipp|cmake)(?:\.(?:in|tpl))?$/i.test(name)
-      || /^CMakeLists\.txt(?:\.(?:in|tpl))?$/.test(path.basename(name)) || name === 'manifest.json'
-      || name === 'ecosystem.github.vars.json' || name.startsWith('.github/')
-      || name.startsWith('assets/templates/');
-    if (delta.paths.some(buildInput)) return {scope: 'full', reason: 'source-or-build-change'};
-    return {scope: 'cheap', reason: 'no-source-or-build-change'};
+    const changes = require('./changes.cjs');
+    const input = JSON.parse(readFile(root, '.ecosystem/github/changes.json', true));
+    requireValue(input.complete && equal(input, changes.resolve({context, root})), 'Unverified event delta');
+    const report = classification || changes.inspect({root, binary});
+    requireValue(report.delta_validated && equal(report.comparison, {
+      event: input.event, checkout: input.checkout, base: input.base, head: input.head,
+      comparison_base: input.comparison_base, manifest_blob: git(root, 'rev-parse', 'HEAD:manifest.json'),
+    }), 'Unverified native classification');
+    const cheap = ['presentation', 'none'].includes(report.classification)
+      && report.checks?.build === 'none' && report.checks?.tests === 'none';
+    return {scope: cheap ? 'cheap' : 'full', reason: 'native-' + report.classification};
   } catch {
     return {scope: 'full', reason: 'unverified-delta-full-fallback'};
   }
 }
 
-async function select({github, context, core, root = process.cwd(), env = process.env, runtime = runtimeIdentity(root)}) {
-  const selectedScope = requiredScope({context, root, baseScope: env.BASE_SCOPE});
+async function select({github, context, core, root = process.cwd(), env = process.env, runtime}) {
+  const selectedScope = requiredScope({context, root, baseScope: env.BASE_SCOPE, binary: env.ENGELS_BINARY});
   core.setOutput('scope', selectedScope.scope);
   core.setOutput('reason', selectedScope.reason);
   core.setOutput('verified', 'false');
@@ -617,7 +631,7 @@ async function select({github, context, core, root = process.cwd(), env = proces
     || context.ref !== 'refs/heads/' + context.payload.repository.default_branch) return;
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'ecosystem-reuse-'));
   try {
-    const {pair, tree, pr} = await reusablePair({github, context, root, temporary, runtime});
+    const {pair, tree, pr} = await reusablePair({github, context, root, temporary, runtime: runtime ?? runtimeIdentity(root)});
     requireValue(kinds[env.EVIDENCE_KIND], 'Unknown evidence consumer');
     const source = {repository_id: context.payload.repository.id, commit: context.sha,
       tree, pr, checks: pair.checks.source, codeql: pair.codeql.source};
@@ -649,6 +663,6 @@ async function select({github, context, core, root = process.cwd(), env = proces
   }
 }
 
-module.exports = {record, select, requiredScope, publication, revalidatePublication, reusablePair, policy, fileNames, artifactName, hash,
+module.exports = {record, select, preliminary, requiredScope, publication, revalidatePublication, reusablePair, policy, fileNames, artifactName, hash,
   runtimeIdentity,
   checkPublicationTip: ({github, context}) => currentDefault(apiFor(github, context), context)};

@@ -1,4 +1,5 @@
 #include "streams/stream.hpp"
+#include "streams/apple_capture_device.hpp"
 
 #include <ostream>
 #include <ranges>
@@ -57,7 +58,8 @@ yodau::core::stream& yodau::core::stream::operator=(stream&& other) noexcept {
 
 yodau::core::stream_type yodau::core::stream::identify(const std::string& path
 ) {
-    if (path.rfind("/dev/video", 0) == 0) {
+    if (path.rfind("/dev/video", 0) == 0
+        || path.rfind(apple_capture_path_prefix, 0) == 0) {
         return stream_type::local;
     }
     if (path.rfind("rtsp://", 0) == 0) {

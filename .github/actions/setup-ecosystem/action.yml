@@ -202,6 +202,17 @@ runs:
         fi
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends "${packages[@]}"
+        # Hosted images can contain older, incomplete Clang CMake exports.
+        # Select both packages from the installed default LLVM development SDK.
+        llvm_cmake_dir="$(llvm-config --cmakedir)"
+        clang_cmake_dir="$(dirname "$llvm_cmake_dir")/clang"
+        for config in "$llvm_cmake_dir/LLVMConfig.cmake" "$clang_cmake_dir/ClangConfig.cmake"; do
+          if [ ! -f "$config" ]; then
+            echo "::error::Installed LLVM/Clang development SDK is incomplete: $config"
+            exit 1
+          fi
+        done
+        printf 'LLVM_DIR=%s\nClang_DIR=%s\n' "$llvm_cmake_dir" "$clang_cmake_dir" >> "$GITHUB_ENV"
 
     - name: Configure compiler cache
       shell: bash

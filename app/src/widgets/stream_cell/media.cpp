@@ -147,7 +147,7 @@ void stream_cell::set_application_active(const bool active_value) {
 }
 
 void stream_cell::start_camera_if_permitted() {
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_DARWIN)
     auto* application = QCoreApplication::instance();
     if (application == nullptr) {
         last_error = tr("camera permission is unavailable");

@@ -99,7 +99,7 @@ async function snapshot({core, kind, scope, selectionResult, steps, root = proce
   const definition = kind === 'checks'
     ? [['changes', 'Change resolution', []], ['ecosystem', 'Tooling setup', ['changes']],
        ['classification', 'Native classification', ['ecosystem']],
-       ['required', 'Build and required checks', scope === 'full' ? ['ecosystem', 'classification'] : ['ecosystem']],
+       ['required', 'Build and required checks', ['ecosystem', 'classification']],
        ['coverage', 'Coverage', ['required']]]
     : [['changes', 'Change resolution', []], ['ecosystem', 'Tooling setup', ['changes']],
        ['classification', 'Native classification', ['ecosystem']], ['repository', 'Repository', ['classification']],
@@ -111,7 +111,7 @@ async function snapshot({core, kind, scope, selectionResult, steps, root = proce
     const row = {id, name, outcome: step.outcome || 'not-recorded', exit_code: output['exit-code'] || null};
     const blocked = dependencies.find(dep => stages.find(s => s.id === dep)?.status !== 'passed');
     const narrowed = kind === 'codeql' && id.startsWith('codeql_') && steps.classification?.outputs?.codeql === 'repository';
-    const optional = (scope === 'cheap' && ['classification', 'coverage'].includes(id)) || narrowed;
+    const optional = (scope === 'cheap' && id === 'coverage') || narrowed;
     if (step.outcome === 'failure' || output.status === 'failed') {
       Object.assign(row, {status: 'failed', category: output.reason?.startsWith('Log capture failed') ? 'missing-report'
         : ['4', '127'].includes(row.exit_code) ? 'unavailable-environment' : 'actual-failure',

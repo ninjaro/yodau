@@ -27,8 +27,6 @@ jobs:
       changes: ${{ steps.selection.outputs.changes }}
       scope: ${{ steps.selection.outputs.scope }}
       reason: ${{ steps.selection.outputs.reason }}
-      verified: ${{ steps.selection.outputs.verified }}
-      source: ${{ steps.selection.outputs.source }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,41 +46,32 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
-      - name: Upload reused verification reports
-        if: ${{ steps.selection.outputs.scope == 'reuse' }}
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-reports-yodau-checks
-          path: ${{ steps.selection.outputs.reports }}
-          include-hidden-files: true
-          if-no-files-found: error
-
   checks:
     permissions:
       contents: read
       actions: read
     needs: select
-    if: ${{ needs.select.outputs.scope == 'cheap' || needs.select.outputs.scope == 'full' || needs.select.outputs.scope == 'reuse' }}
+    if: ${{ needs.select.outputs.scope == 'cheap' || needs.select.outputs.scope == 'full' }}
+    outputs:
+      scope: ${{ steps.classification.outputs.scope }}
+      reason: ${{ steps.classification.outputs.reason }}
     runs-on: ubuntu-24.04
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 2
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: ${{ needs.select.outputs.scope != 'reuse' && '0' || '1' }}
+          fetch-depth: 0
 
       # Resolve against this job's checkout; selection artifacts are diagnostic.
       - name: Resolve checked-out changes
         id: changes
-        if: ${{ needs.select.outputs.scope != 'reuse' }}
         uses: actions/github-script@v7
         with:
           script: |
             require('./.github/actions/select-ecosystem-ci/changes.cjs').collect({context, core});
 
       - name: Setup ecosystem tool
-        if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: ecosystem
         uses: ./.github/actions/setup-ecosystem
         with:
@@ -94,14 +83,31 @@ jobs:
           install-project-deps: ${{ needs.select.outputs.scope == 'full' }}
 
       - name: Classify checked-out changes
-        if: ${{ needs.select.outputs.scope == 'full' }}
         id: classification
         uses: actions/github-script@v7
         env:
           ENGELS_BINARY: ${{ steps.ecosystem.outputs.engels-binary }}
+          BASE_SCOPE: ${{ needs.select.outputs.scope }}
         with:
           script: |
-            require('./.github/actions/select-ecosystem-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
+            const report = require('./.github/actions/select-ecosystem-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
+            const selected = require('./.github/actions/select-ecosystem-ci/evidence.cjs').requiredScope({
+              context, root: process.cwd(), baseScope: process.env.BASE_SCOPE, classification: report});
+            core.setOutput('scope', selected.scope);
+            core.setOutput('reason', selected.reason);
+
+      # Reuse the same incremental tool bootstrap only when native policy needs
+      # project dependencies. Cheap docs-only selection never installs Qt here.
+      - name: Setup project verification dependencies
+        if: ${{ needs.select.outputs.scope == 'cheap' && steps.classification.outputs.scope == 'full' }}
+        id: project_dependencies
+        uses: ./.github/actions/setup-ecosystem
+        with:
+          bootstrap: "repository"
+          source-path: "."
+          ecosystem-repository: "ninjaro/ecosystem"
+          ecosystem-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
+          build-parallelism: 2
 
       - name: Upload change classification
         if: ${{ steps.classification.outcome == 'success' }}
@@ -116,7 +122,7 @@ jobs:
           if-no-files-found: error
 
       - name: Restore verified analysis cache
-        if: ${{ needs.select.outputs.scope == 'full' }}
+        if: ${{ steps.classification.outputs.scope == 'full' }}
         continue-on-error: true
         uses: actions/cache/restore@v4
         with:
@@ -125,10 +131,9 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ runner.arch }}-ecosystem-analysis-v1-
 
       - name: Run required local checks
-        if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: required
         env:
-          CHECK_SCOPE: ${{ needs.select.outputs.scope }}
+          CHECK_SCOPE: ${{ steps.classification.outputs.scope }}
           ECOSYSTEM_CI_PROGRESS: '1'
           ECOSYSTEM_REUSE_VERIFICATION: ${{ steps.classification.outputs.incremental == 'true' && '1' || '0' }}
         uses: ./.github/actions/run-ecosystem-stage
@@ -149,7 +154,7 @@ jobs:
           skipped-exit-codes: ''
 
       - name: Record compiler cache statistics
-        if: ${{ always() && steps.ecosystem.outcome == 'success' && needs.select.outputs.scope != 'reuse' }}
+        if: ${{ always() && steps.ecosystem.outcome == 'success' }}
         shell: bash
         run: |
           mkdir -p .ecosystem/github/reports/compiler-cache
@@ -192,7 +197,7 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-analysis-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Run full verification coverage
-        if: ${{ needs.select.outputs.scope == 'full' && steps.required.outputs.status == 'passed' }}
+        if: ${{ steps.classification.outputs.scope == 'full' && steps.required.outputs.status == 'passed' }}
         id: coverage
         uses: ./.github/actions/run-ecosystem-stage
         with:
@@ -204,11 +209,11 @@ jobs:
 
       - name: Record execution diagnosis
         id: diagnostics
-        if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
+        if: ${{ always() }}
         uses: actions/github-script@v7
         env:
           DIAGNOSTIC_KIND: checks
-          DIAGNOSTIC_SCOPE: ${{ needs.select.outputs.scope }}
+          DIAGNOSTIC_SCOPE: ${{ steps.classification.outputs.scope }}
           DIAGNOSTIC_SELECTION: ${{ needs.select.result }}
           DIAGNOSTIC_STEPS: ${{ toJSON(steps) }}
         with:
@@ -218,7 +223,7 @@ jobs:
               selectionResult: process.env.DIAGNOSTIC_SELECTION, steps: JSON.parse(process.env.DIAGNOSTIC_STEPS)});
 
       - name: Upload check reports
-        if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
+        if: ${{ always() }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -236,9 +241,7 @@ jobs:
         env:
           DIAGNOSTIC_OUTCOME: ${{ steps.diagnostics.outcome }}
           DIAGNOSTIC_STATUS: ${{ steps.diagnostics.outputs.status }}
-          REUSE_VERIFIED: ${{ needs.select.outputs.verified }}
-          REUSE_SOURCE: ${{ needs.select.outputs.source }}
-          CHECK_SCOPE: ${{ needs.select.outputs.scope }}
+          CHECK_SCOPE: ${{ steps.classification.outputs.scope }}
           CHECK_OUTCOME: ${{ steps.required.outcome }}
           CHECK_STATUS: ${{ steps.required.outputs.status }}
           CHECK_EXIT_CODE: ${{ steps.required.outputs.exit-code }}
@@ -247,14 +250,6 @@ jobs:
           COVERAGE_EXIT_CODE: ${{ steps.coverage.outputs.exit-code }}
         shell: bash
         run: |
-          if [ "$CHECK_SCOPE" = reuse ]; then
-            if [ "$REUSE_VERIFIED" != true ] || [ -z "$REUSE_SOURCE" ]; then
-              echo '::error::Verification reuse has no validated source.'
-              exit 1
-            fi
-            printf 'Reused verification:\n\n```json\n%s\n```\n' "$REUSE_SOURCE" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
           if [ "$DIAGNOSTIC_OUTCOME" != success ] || [ "$DIAGNOSTIC_STATUS" != passed ] || [ ! -s .ecosystem/github/reports/00-workflow/result.json ]; then
             echo '::error::Execution diagnosis failed or reports an incomplete required stage.'
             exit 1
@@ -283,12 +278,12 @@ jobs:
           fi
 
       - name: Record reusable verification
-        if: ${{ needs.select.outputs.scope == 'full' }}
+        if: ${{ steps.classification.outputs.scope == 'full' }}
         id: evidence
         uses: actions/github-script@v7
         env:
           EVIDENCE_KIND: checks
-          VERIFICATION_SCOPE: ${{ needs.select.outputs.scope }}
+          VERIFICATION_SCOPE: ${{ steps.classification.outputs.scope }}
           TOOL_SOURCE_ROOT: ${{ steps.ecosystem.outputs.ecosystem-source-root }}
           ENGELS_BINARY: ${{ steps.ecosystem.outputs.engels-binary }}
           CHECK_OUTCOME: ${{ steps.required.outcome }}
@@ -343,8 +338,8 @@ jobs:
           report-directory: .ecosystem/github/reports
           workflow-result: ${{ needs.checks.result }}
           selection-result: ${{ needs.select.result }}
-          scope: ${{ needs.select.outputs.scope }}
-          selection-reason: ${{ needs.select.outputs.reason }}
+          scope: ${{ needs.checks.outputs.scope }}
+          selection-reason: ${{ needs.checks.outputs.reason }}
 
       - name: Upload diagnosed reports
         if: ${{ always() }}

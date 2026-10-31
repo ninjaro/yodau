@@ -5,6 +5,7 @@
 #include "analysis/processing_frame_tools.hpp"
 #include "analysis/processing_motion_region_filter.hpp"
 #include "analysis/processing_preview_router.hpp"
+#include "streams/apple_capture_device.hpp"
 #include "streams/virtual_camera.hpp"
 
 #include "monitor/client.hpp"
@@ -168,6 +169,12 @@ stream_manager::daemon_start_fn processing_runtime::daemon_start_hook() {
                const std::function<void(frame&&)>& on_frame,
                const stop_token& token
            ) {
+        // Apple cameras are captured natively, without an OpenCV client;
+        // frames still reach the algorithm through the frame processor.
+        if (uses_apple_capture(stream_value)) {
+            run_apple_capture(stream_value.get_path(), on_frame, token);
+            return;
+        }
         std::shared_ptr<processing_algorithm> algorithm;
         {
             callback_guard guard(weak_state.lock());

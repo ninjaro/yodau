@@ -979,6 +979,7 @@ set(YODAU_CORE_CORE_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/geometry/coords.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/geometry/geometry.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/analysis_scheduler.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/apple_capture_device.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/event.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/frame.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/include/streams/linux_capture_device.hpp
@@ -1021,6 +1022,7 @@ set(YODAU_CORE_CORE_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/geometry/coords.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/geometry/geometry.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/analysis_scheduler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/apple_capture_device.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/linux_capture_device.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/stream.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/stream_daemon_runner.cpp
@@ -1060,6 +1062,7 @@ set(YODAU_CORE_CORE_RUNTIME_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/geometry/coords.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/geometry/geometry.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/analysis_scheduler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/apple_capture_device.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/linux_capture_device.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/stream.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/core/src/streams/stream_daemon_runner.cpp

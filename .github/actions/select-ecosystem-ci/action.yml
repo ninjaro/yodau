@@ -1,5 +1,5 @@
 name: Select Ecosystem CI
-description: Select local checks and verify immutable PR evidence before post-merge reuse.
+description: Resolve checkout event inputs; native policy selects checks after tooling bootstrap.
 
 inputs:
   kind:
@@ -14,20 +14,14 @@ outputs:
     description: Local JSON report containing the same event delta and resolution reason.
     value: ${{ steps.changes.outputs.changes-file }}
   scope:
-    description: cheap, full, security, reuse, or skip.
+    description: Preliminary cheap, full, security, or skip; never authorizes verification reuse.
     value: ${{ steps.evidence.outputs.scope }}
   reason:
-    description: Event, source-change promotion, or verified-reuse reason for the selected scope.
+    description: Preliminary event-policy reason; final relevance is reported by the native classifier.
     value: ${{ steps.evidence.outputs.reason }}
   verified:
-    description: True only after both Checks and CodeQL evidence pass validation.
+    description: False for preliminary selection; no execution evidence is accepted here.
     value: ${{ steps.evidence.outputs.verified }}
-  source:
-    description: JSON recording the verified source runs and immutable artifact IDs/digests.
-    value: ${{ steps.evidence.outputs.source }}
-  reports:
-    description: Directory containing validated report data for this workflow.
-    value: ${{ steps.evidence.outputs.reports }}
 
 runs:
   using: composite
@@ -86,13 +80,12 @@ runs:
         script: |
           require(process.env.CHANGES_MODULE).collect({context, core});
 
-    - name: Verify reusable PR evidence
+    - name: Select preliminary execution
       id: evidence
       uses: actions/github-script@v7
       env:
         BASE_SCOPE: ${{ steps.select.outputs.scope }}
-        EVIDENCE_KIND: ${{ inputs.kind }}
         EVIDENCE_MODULE: ${{ github.action_path }}/evidence.cjs
       with:
         script: |
-          await require(process.env.EVIDENCE_MODULE).select({github, context, core});
+          require(process.env.EVIDENCE_MODULE).preliminary({core});

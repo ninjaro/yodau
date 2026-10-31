@@ -1,8 +1,8 @@
 name: CodeQL
 
 # Share event selection with Checks; no path filter because manifests can own
-# C++ sources under arbitrary directories. Default pushes reuse only verified
-# matching PR evidence; scheduled scans always establish a fresh baseline.
+# C++ sources under arbitrary directories. Select without environment-dependent
+# reuse; native policy after bootstrap decides analysis. Scheduled scans stay full.
 on:
   pull_request:
   push:
@@ -29,8 +29,6 @@ jobs:
       changes: ${{ steps.selection.outputs.changes }}
       scope: ${{ steps.selection.outputs.scope }}
       reason: ${{ steps.selection.outputs.reason }}
-      verified: ${{ steps.selection.outputs.verified }}
-      source: ${{ steps.selection.outputs.source }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,23 +48,16 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
-      - name: Upload reused verification reports
-        if: ${{ steps.selection.outputs.scope == 'reuse' }}
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-reports-yodau-codeql
-          path: ${{ steps.selection.outputs.reports }}
-          include-hidden-files: true
-          if-no-files-found: error
-
   analyze:
     needs: select
-    if: ${{ needs.select.outputs.scope == 'full' || needs.select.outputs.scope == 'security' || needs.select.outputs.scope == 'reuse' }}
+    if: ${{ needs.select.outputs.scope == 'cheap' || needs.select.outputs.scope == 'full' || needs.select.outputs.scope == 'security' }}
     permissions:
       actions: read
       contents: read
       security-events: write
+    outputs:
+      scope: ${{ steps.classification.outputs.scope }}
+      reason: ${{ steps.classification.outputs.reason }}
     runs-on: ubuntu-24.04
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 2
@@ -78,18 +69,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: ${{ needs.select.outputs.scope != 'reuse' && '0' || '1' }}
+          fetch-depth: 0
 
       - name: Resolve checked-out changes
         id: changes
-        if: ${{ needs.select.outputs.scope != 'reuse' }}
         uses: actions/github-script@v7
         with:
           script: |
             require('./.github/actions/select-ecosystem-ci/changes.cjs').collect({context, core});
 
       - name: Setup ecosystem tool
-        if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: ecosystem
         uses: ./.github/actions/setup-ecosystem
         with:
@@ -98,16 +87,35 @@ jobs:
           ecosystem-repository: "ninjaro/ecosystem"
           ecosystem-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
           build-parallelism: 2
+          install-project-deps: 'false'
 
       - name: Classify checked-out changes
-        if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: classification
         uses: actions/github-script@v7
         env:
           ENGELS_BINARY: ${{ steps.ecosystem.outputs.engels-binary }}
+          BASE_SCOPE: ${{ needs.select.outputs.scope }}
         with:
           script: |
-            require('./.github/actions/select-ecosystem-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
+            const report = require('./.github/actions/select-ecosystem-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
+            const selected = require('./.github/actions/select-ecosystem-ci/evidence.cjs').requiredScope({
+              context, root: process.cwd(), baseScope: process.env.BASE_SCOPE, classification: report});
+            if (selected.scope === 'cheap' && report.execution.codeql === 'full') selected.scope = 'full';
+            core.setOutput('scope', selected.scope);
+            core.setOutput('reason', selected.reason);
+
+      # Reuse the same incremental tool bootstrap only when native policy needs
+      # project dependencies. Docs-only classification never installs Qt here.
+      - name: Setup project verification dependencies
+        if: ${{ steps.classification.outputs.codeql == 'full' }}
+        id: project_dependencies
+        uses: ./.github/actions/setup-ecosystem
+        with:
+          bootstrap: "repository"
+          source-path: "."
+          ecosystem-repository: "ninjaro/ecosystem"
+          ecosystem-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
+          build-parallelism: 2
 
       - name: Upload change classification
         if: ${{ steps.classification.outcome == 'success' }}
@@ -122,7 +130,6 @@ jobs:
           if-no-files-found: error
 
       - name: Verify generated tracked surfaces
-        if: ${{ needs.select.outputs.scope != 'reuse' }}
         id: repository
         uses: ./.github/actions/run-ecosystem-stage
         with:
@@ -158,7 +165,7 @@ jobs:
         uses: github/codeql-action/analyze@v3
 
       - name: Summarize CodeQL analysis
-        if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
+        if: ${{ always() }}
         env:
           TOOLCHAIN_STATUS: ${{ steps.ecosystem.outcome }}
           CLASSIFICATION_STATUS: ${{ steps.classification.outcome }}
@@ -191,7 +198,7 @@ jobs:
           elif [ "$CODEQL_INIT_STATUS" = "skipped" ] || [ "$CODEQL_BUILD_STATUS" = "skipped" ] || [ "$CODEQL_ANALYZE_STATUS" = "skipped" ]; then
             status="blocked"
             reason="Required native CodeQL operation was not executed; see upstream stage outcomes."
-          elif [ "$CODEQL_SCOPE" != full ] || [ "$CODEQL_INIT_STATUS" != success ] || [ "$CODEQL_BUILD_STATUS" != passed ] || [ "$CODEQL_ANALYZE_STATUS" != success ]; then
+          elif { [ "$CHECK_SCOPE" != full ] && [ "$CHECK_SCOPE" != security ]; } || [ "$CODEQL_SCOPE" != full ] || [ "$CODEQL_INIT_STATUS" != success ] || [ "$CODEQL_BUILD_STATUS" != passed ] || [ "$CODEQL_ANALYZE_STATUS" != success ]; then
             status="blocked"
             reason="Incomplete CodeQL outputs cannot establish verification."
           fi
@@ -208,11 +215,11 @@ jobs:
 
       - name: Record execution diagnosis
         id: diagnostics
-        if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
+        if: ${{ always() }}
         uses: actions/github-script@v7
         env:
           DIAGNOSTIC_KIND: codeql
-          DIAGNOSTIC_SCOPE: ${{ needs.select.outputs.scope }}
+          DIAGNOSTIC_SCOPE: ${{ steps.classification.outputs.scope }}
           DIAGNOSTIC_SELECTION: ${{ needs.select.result }}
           DIAGNOSTIC_STEPS: ${{ toJSON(steps) }}
         with:
@@ -222,7 +229,7 @@ jobs:
               selectionResult: process.env.DIAGNOSTIC_SELECTION, steps: JSON.parse(process.env.DIAGNOSTIC_STEPS)});
 
       - name: Upload CodeQL reports
-        if: ${{ always() && needs.select.outputs.scope != 'reuse' }}
+        if: ${{ always() }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -236,9 +243,7 @@ jobs:
         env:
           DIAGNOSTIC_OUTCOME: ${{ steps.diagnostics.outcome }}
           DIAGNOSTIC_STATUS: ${{ steps.diagnostics.outputs.status }}
-          REUSE_VERIFIED: ${{ needs.select.outputs.verified }}
-          REUSE_SOURCE: ${{ needs.select.outputs.source }}
-          CHECK_SCOPE: ${{ needs.select.outputs.scope }}
+          CHECK_SCOPE: ${{ steps.classification.outputs.scope }}
           REPOSITORY_OUTCOME: ${{ steps.repository.outcome }}
           REPOSITORY_EXIT_CODE: ${{ steps.repository.outputs.exit-code }}
           EVENT_NAME: ${{ github.event_name }}
@@ -251,19 +256,11 @@ jobs:
           CODEQL_ANALYZE_STATUS: ${{ steps.codeql_analyze.outcome }}
         shell: bash
         run: |
-          if [ "$CHECK_SCOPE" = reuse ]; then
-            if [ "$REUSE_VERIFIED" != true ] || [ -z "$REUSE_SOURCE" ]; then
-              echo '::error::Verification reuse has no validated source.'
-              exit 1
-            fi
-            printf 'Reused verification:\n\n```json\n%s\n```\n' "$REUSE_SOURCE" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
           if [ "$DIAGNOSTIC_OUTCOME" != success ] || [ "$DIAGNOSTIC_STATUS" != passed ] || [ ! -s .ecosystem/github/reports/00-workflow/result.json ]; then
             echo '::error::Execution diagnosis failed or reports an incomplete required stage.'
             exit 1
           fi
-          if [ "$CHECK_SCOPE" != full ] && [ "$CHECK_SCOPE" != security ]; then
+          if [ "$CHECK_SCOPE" != full ] && [ "$CHECK_SCOPE" != security ] && [ "$CHECK_SCOPE" != cheap ]; then
             echo '::error::Missing or invalid CodeQL verification scope.'
             exit 1
           fi
@@ -272,14 +269,14 @@ jobs:
             exit 1
           fi
           if [ "$CODEQL_SCOPE" = repository ]; then
-            if [ "$CHECK_SCOPE" != full ] || [ "$EVENT_NAME" != pull_request ] || [ "$CODEQL_INIT_STATUS" != skipped ] || [ "$CODEQL_BUILD_OUTCOME" != skipped ] || [ -n "$CODEQL_BUILD_STATUS" ] || [ "$CODEQL_ANALYZE_STATUS" != skipped ]; then
+            if { [ "$CHECK_SCOPE" != full ] && [ "$CHECK_SCOPE" != cheap ]; } || [ "$EVENT_NAME" != pull_request ] || [ "$CODEQL_INIT_STATUS" != skipped ] || [ "$CODEQL_BUILD_OUTCOME" != skipped ] || [ -n "$CODEQL_BUILD_STATUS" ] || [ "$CODEQL_ANALYZE_STATUS" != skipped ]; then
               echo '::error::Repository-only CodeQL requires a selected PR delta and skipped native analysis.'
               exit 1
             fi
             printf 'CodeQL analysis is not required by the validated PR delta; repository checks passed.\n' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          if [ "$CODEQL_SCOPE" != full ] || [ "$CODEQL_INIT_STATUS" != success ] || [ "$CODEQL_BUILD_OUTCOME" != success ] || [ "$CODEQL_BUILD_STATUS" != passed ] || [ "$CODEQL_BUILD_EXIT_CODE" != 0 ] || [ "$CODEQL_ANALYZE_STATUS" != success ]; then
+          if { [ "$CHECK_SCOPE" != full ] && [ "$CHECK_SCOPE" != security ]; } || [ "$CODEQL_SCOPE" != full ] || [ "$CODEQL_INIT_STATUS" != success ] || [ "$CODEQL_BUILD_OUTCOME" != success ] || [ "$CODEQL_BUILD_STATUS" != passed ] || [ "$CODEQL_BUILD_EXIT_CODE" != 0 ] || [ "$CODEQL_ANALYZE_STATUS" != success ]; then
             echo '::error::CodeQL verification failed or did not complete.'
             exit 1
           fi
@@ -297,12 +294,12 @@ jobs:
           done
 
       - name: Record reusable verification
-        if: ${{ needs.select.outputs.scope == 'full' && steps.classification.outputs.codeql == 'full' }}
+        if: ${{ steps.classification.outputs.scope == 'full' && steps.classification.outputs.codeql == 'full' }}
         id: evidence
         uses: actions/github-script@v7
         env:
           EVIDENCE_KIND: codeql
-          VERIFICATION_SCOPE: ${{ needs.select.outputs.scope }}
+          VERIFICATION_SCOPE: ${{ steps.classification.outputs.scope }}
           TOOL_SOURCE_ROOT: ${{ steps.ecosystem.outputs.ecosystem-source-root }}
           ENGELS_BINARY: ${{ steps.ecosystem.outputs.engels-binary }}
           REPOSITORY_OUTCOME: ${{ steps.repository.outcome }}
@@ -318,7 +315,7 @@ jobs:
             await require('./.github/actions/select-ecosystem-ci/evidence.cjs').record({github, context, core});
 
       - name: Record delta verification
-        if: ${{ needs.select.outputs.scope == 'full' && steps.classification.outputs.codeql == 'repository' }}
+        if: ${{ (steps.classification.outputs.scope == 'full' || steps.classification.outputs.scope == 'cheap') && steps.classification.outputs.codeql == 'repository' }}
         id: delta
         uses: actions/github-script@v7
         env:
@@ -390,8 +387,8 @@ jobs:
           report-directory: .ecosystem/github/reports
           workflow-result: ${{ needs.analyze.result }}
           selection-result: ${{ needs.select.result }}
-          scope: ${{ needs.select.outputs.scope }}
-          selection-reason: ${{ needs.select.outputs.reason }}
+          scope: ${{ needs.analyze.outputs.scope }}
+          selection-reason: ${{ needs.analyze.outputs.reason }}
 
       - name: Upload diagnosed reports
         if: ${{ always() }}

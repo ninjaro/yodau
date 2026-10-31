@@ -1,4 +1,5 @@
 #include "streams/stream_manager.hpp"
+#include "streams/apple_capture_device.hpp"
 #include "streams/linux_capture_device.hpp"
 
 #include <algorithm>
@@ -77,6 +78,20 @@ void yodau::core::stream_manager::refresh_local_streams() {
             const std::string filename
                 = std::filesystem::path(path).filename().string();
             detected_streams.emplace_back(path, filename, "local", false);
+        }
+        // The bare unique ID is also the camera ID Qt Multimedia reports, so
+        // the application's camera inventory deduplicates against it.
+        std::vector<std::string> apple_names;
+        for (const auto& device : list_apple_capture_devices()) {
+            if (!device.connected) {
+                continue;
+            }
+            apple_names.push_back(
+                apple_capture_stream_name(device.name, apple_names)
+            );
+            detected_streams.emplace_back(
+                device.unique_id, apple_names.back(), "local", false
+            );
         }
     }
 
