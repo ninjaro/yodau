@@ -9,8 +9,38 @@ if(NOT ECOSYSTEM_FACADE_INNER)
         set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
     endif()
     string(SHA256 _ecosystem_selection [=[[["monitor","https://github.com/ninjaro/peepbooth","master",["monitor::watchdog_client__client","monitor::watchdog_qt__qt"]],["packing","https://github.com/ninjaro/rothko","master",["packing::library__core"]],["shared_ui","https://github.com/ninjaro/shared_ui","HEAD",["shared_ui::qt__qt"]]]]=])
-    set(_ecosystem_state "${CMAKE_CURRENT_BINARY_DIR}/.ecosystem-facade/${_ecosystem_selection}")
+    set(_ecosystem_state "${CMAKE_CURRENT_BINARY_DIR}/.ecosystem-facade")
+    if(EXISTS "${_ecosystem_state}/selection.txt")
+        file(READ "${_ecosystem_state}/selection.txt" previous_selection)
+        if(NOT previous_selection STREQUAL _ecosystem_selection)
+            # Selection changes replace generated state, never accumulate old
+            # SDKs. Refuse to discard edits in an acquired checkout.
+            file(GLOB sources "${_ecosystem_state}/sources/*")
+            foreach(source IN LISTS sources)
+                find_program(_ecosystem_git git REQUIRED)
+                execute_process(COMMAND "${_ecosystem_git}" -C "${source}"
+                    status --porcelain --untracked-files=all --ignored
+                    RESULT_VARIABLE status OUTPUT_VARIABLE changes ERROR_VARIABLE errors)
+                get_filename_component(identity "${source}" NAME)
+                set(record "${_ecosystem_state}/acquire/${identity}/refs.txt")
+                if(NOT EXISTS "${record}")
+                    message(FATAL_ERROR "Unrecognized managed facade source: ${source}; preserve its contents before clearing this cache")
+                endif()
+                file(READ "${record}" recorded_refs)
+                execute_process(COMMAND "${_ecosystem_git}" -C "${source}" show-ref --head
+                    RESULT_VARIABLE refs_status OUTPUT_VARIABLE refs ERROR_VARIABLE refs_errors)
+                if(NOT status STREQUAL "0" OR NOT changes STREQUAL ""
+                        OR NOT refs_status STREQUAL "0" OR NOT "${refs}" STREQUAL "${recorded_refs}")
+                    message(FATAL_ERROR "Managed facade source changed: ${source}; preserve local work before changing selection. ${errors}${refs_errors}")
+                endif()
+            endforeach()
+            file(REMOVE_RECURSE "${_ecosystem_state}")
+        endif()
+    elseif(EXISTS "${_ecosystem_state}")
+        message(FATAL_ERROR "Unrecognized facade state: ${_ecosystem_state}; preserve its contents before reconfiguring")
+    endif()
     file(MAKE_DIRECTORY "${_ecosystem_state}")
+    file(WRITE "${_ecosystem_state}/selection.txt" "${_ecosystem_selection}")
     foreach(name mvp mvp.exe)
         if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ecosystem-${name}.owned")
             file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/${name}"
@@ -65,6 +95,14 @@ else()
 endif()
 ]==])
     set(_ecosystem_installed_cache "")
+    file(WRITE "${_ecosystem_state}/record-source.cmake" [==[
+execute_process(COMMAND "${GIT}" -C "${SOURCE}" show-ref --head
+    RESULT_VARIABLE status OUTPUT_VARIABLE refs ERROR_VARIABLE errors)
+if(NOT status STREQUAL "0")
+    message(FATAL_ERROR "Cannot record managed source refs: ${errors}")
+endif()
+file(WRITE "${OUTPUT}" "${refs}")
+]==])
     function(_ecosystem_source package repository revision)
         string(SHA256 identity "${package}\n${repository}\n${revision}")
         _ecosystem_bracket(package_value "${package}")
@@ -104,13 +142,18 @@ endif()
         endif()
         set(source "${_ecosystem_state}/sources/${identity}")
         set(acquire "_ecosystem_source_${package}_${identity}")
+        find_package(Git REQUIRED)
         ExternalProject_Add(${acquire}
             PREFIX "${_ecosystem_state}/acquire/${identity}"
             SOURCE_DIR "${source}"
             GIT_REPOSITORY "${repository}"
             GIT_TAG "${revision}"
-            # A new authored selection gets a new tree. Rebuilds do not fetch.
+            # Selection changes retire the current tree; rebuilds do not fetch.
             UPDATE_COMMAND ""
+            PATCH_COMMAND "${CMAKE_COMMAND}" "-DGIT:FILEPATH=${GIT_EXECUTABLE}"
+                "-DSOURCE:PATH=${source}"
+                "-DOUTPUT:FILEPATH=${_ecosystem_state}/acquire/${identity}/refs.txt"
+                -P "${_ecosystem_state}/record-source.cmake"
             CONFIGURE_COMMAND ""
             BUILD_COMMAND ""
             INSTALL_COMMAND ""

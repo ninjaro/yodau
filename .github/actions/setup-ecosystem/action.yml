@@ -1,3 +1,4 @@
+# Generated from ecosystem-bot/actions/setup-ecosystem/action.yml.tpl; do not edit.
 name: Setup Ecosystem
 description: Build Marx and Engels from the reviewed checkout or an explicitly selected tooling repository.
 
@@ -96,7 +97,7 @@ runs:
         echo "ecosystem-source-root=$checkout_root/$SOURCE_PATH" >> "$GITHUB_OUTPUT"
         echo "ecosystem-build-root=$build_root" >> "$GITHUB_OUTPUT"
         echo "marx-binary=$build_root/marx" >> "$GITHUB_OUTPUT"
-        echo "engels-binary=$build_root/engels" >> "$GITHUB_OUTPUT"
+        echo "engels-binary=$checkout_root/$SOURCE_PATH/.ecosystem/build/project/desktop/debug/default/engels" >> "$GITHUB_OUTPUT"
         # aqt commands (including version/cache lookup) otherwise create a log
         # in the checkout, invalidating strict change/evidence provenance.
         python3 - "$report_root" <<'PY'
@@ -164,30 +165,54 @@ runs:
 
     - name: Install shared native dependencies
       shell: bash
+      env:
+        ECOSYSTEM_SOURCE_ROOT: ${{ steps.paths.outputs.ecosystem-source-root }}
       run: |
         report_root="${GITHUB_WORKSPACE:-$PWD}/.ecosystem/github/reports/00-toolchain"
         mkdir -p "$report_root"
         cp "${BASH_SOURCE[0]}" "$report_root/native-dependencies-command.sh"
         exec > >(tee "$report_root/native-dependencies.log") 2>&1
         trap 'result=$?; printf "native-dependencies\t%s\n" "$result" >> "$report_root/steps.tsv"' EXIT
+        # The native policy requires LLVM 23. Use one signed upstream suite,
+        # never the runner's unversioned defaults or an installation script.
+        . /etc/os-release
+        case "$ID:$VERSION_CODENAME" in
+          ubuntu:jammy|ubuntu:noble|ubuntu:resolute) ;;
+          *) echo "::error::Unsupported native toolchain platform: $ID:$VERSION_CODENAME"; exit 1 ;;
+        esac
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends curl ca-certificates gnupg
+        key="$report_root/llvm.asc"
+        curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key -o "$key"
+        fingerprint="$(gpg --batch --show-keys --with-colons "$key" | awk -F: '$1 == "fpr" { print $10; exit }')"
+        if [ "$fingerprint" != 6084F3CF814B57C1CF12EFD515CF4D18AF4F7421 ]; then
+          echo '::error::LLVM archive signing key fingerprint mismatch'; exit 1
+        fi
+        sudo install -m 0644 "$key" /usr/share/keyrings/ecosystem-llvm.asc
+        printf 'deb [signed-by=/usr/share/keyrings/ecosystem-llvm.asc] https://apt.llvm.org/%s/ llvm-toolchain-%s-23 main\n' "$VERSION_CODENAME" "$VERSION_CODENAME" \
+          | sudo tee /etc/apt/sources.list.d/ecosystem-llvm.list
         packages=(
-          clang
+          clang-23
+          clang-format-23
+          clang-tidy-23
+          llvm-23
+          llvm-23-dev
+          libclang-23-dev
+          libclang-rt-23-dev
           ccache
-          clang-format
           cmake
           ninja-build
           pkg-config
-          libclang-dev
-          llvm-dev
           libcxxopts-dev
         )
         if [ "${{ inputs.install-project-deps }}" = "true" ]; then
           packages+=(
-            clang-tidy
             default-jdk
             libopencv-dev
             libgtest-dev
             libbenchmark-dev
+            # Native package fixtures need distribution-owned Qt runtimes.
+            qt6-base-dev
           )
         fi
         if [ "${{ inputs.install-project-deps }}" = "true" ] || [ "${{ inputs.install-docs }}" = "true" ]; then
@@ -202,9 +227,26 @@ runs:
         fi
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends "${packages[@]}"
-        # Hosted images can contain older, incomplete Clang CMake exports.
-        # Select both packages from the installed default LLVM development SDK.
-        llvm_cmake_dir="$(llvm-config --cmakedir)"
+        # Resolve the compiler, diagnostics and SDK from the same installation.
+        llvm_version="$(llvm-config-23 --version)"
+        if [[ ! "$llvm_version" =~ ^23\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::Expected LLVM 23, found: $llvm_version"; exit 1
+        fi
+        llvm_bin="$(llvm-config-23 --bindir)"
+        for tool in clang clang++ clang-format clang-tidy llvm-config; do
+          if [ ! -x "$llvm_bin/$tool" ]; then
+            echo "::error::Required native tool is missing: $llvm_bin/$tool"; exit 1
+          fi
+          version="$("$llvm_bin/$tool" --version)"
+          printf '%s\n' "$version"
+          actual="$(printf '%s\n' "$version" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
+          if [ "$actual" != "$llvm_version" ]; then
+            echo "::error::Inconsistent native toolchain: $tool ($actual), LLVM ($llvm_version)"; exit 1
+          fi
+        done
+        "$llvm_bin/clang-tidy" --verify-config --config-file="$ECOSYSTEM_SOURCE_ROOT/assets/templates/tooling/clang-tidy.tpl"
+        "$llvm_bin/clang-format" --style="file:$ECOSYSTEM_SOURCE_ROOT/assets/templates/tooling/clang-format.tpl" --dump-config > "$report_root/clang-format.yml"
+        llvm_cmake_dir="$(llvm-config-23 --cmakedir)"
         clang_cmake_dir="$(dirname "$llvm_cmake_dir")/clang"
         for config in "$llvm_cmake_dir/LLVMConfig.cmake" "$clang_cmake_dir/ClangConfig.cmake"; do
           if [ ! -f "$config" ]; then
@@ -213,6 +255,7 @@ runs:
           fi
         done
         printf 'LLVM_DIR=%s\nClang_DIR=%s\n' "$llvm_cmake_dir" "$clang_cmake_dir" >> "$GITHUB_ENV"
+        printf '%s\n' "$llvm_bin" >> "$GITHUB_PATH"
 
     - name: Configure compiler cache
       shell: bash
@@ -279,6 +322,7 @@ runs:
         CHECKOUT_ROOT: ${{ steps.paths.outputs.ecosystem-checkout-root }}
         SOURCE_ROOT: ${{ steps.paths.outputs.ecosystem-source-root }}
         BUILD_ROOT: ${{ steps.paths.outputs.ecosystem-build-root }}
+        ENGELS_BINARY: ${{ steps.paths.outputs.engels-binary }}
         BUILD_PARALLELISM: ${{ inputs.build-parallelism }}
       run: |
         report_root="${GITHUB_WORKSPACE:-$PWD}/.ecosystem/github/reports/00-toolchain"
@@ -305,18 +349,17 @@ runs:
           echo '::error::Selected tooling revision must build both marx and engels: visitor Marx is missing.'
           exit 1
         fi
-        actor_build="$source_root/.ecosystem/build/project/desktop/debug/default"
-        cmake -E rm -f "$actor_build/engels"
+        cmake -E rm -f "$ENGELS_BINARY"
         (
           cd "$source_root"
           CMAKE_BUILD_PARALLEL_LEVEL="$BUILD_PARALLELISM" "$BUILD_ROOT/marx" build debug engels:engels
         )
-        # This is the actor's documented desktop Debug/default build layout.
-        if [ ! -f "$source_root/.ecosystem/source/CMakeLists.txt" ] || [ ! -x "$actor_build/engels" ]; then
+        # Keep the actor in its build tree, where it locates the matching source
+        # templates. Copying just the executable loses that runtime-data binding.
+        if [ ! -f "$source_root/.ecosystem/source/CMakeLists.txt" ] || [ ! -x "$ENGELS_BINARY" ]; then
           echo '::error::Selected tooling revision must build both marx and engels through the actor-owned developer graph.'
           exit 1
         fi
-        cmake -E copy_if_different "$actor_build/engels" "$BUILD_ROOT/engels"
 
     - name: Save bootstrap compiler cache
       if: ${{ steps.bootstrap_build.outcome == 'success' && github.event_name != 'pull_request' }}

@@ -21,7 +21,8 @@ private:
     void dispatch_command(
         const std::string& cmd, const std::vector<std::string>& args
     );
-    static cxxopts::ParseResult parse_with_cxxopts(
+    /// Parse one command with its name retained as argv[0].
+    static cxxopts::ParseResult parse_args(
         const std::string& cmd, const std::vector<std::string>& args,
         cxxopts::Options& options
     );
@@ -46,9 +47,10 @@ private:
         const std::string& message, const std::string& stream_name = {},
         const std::string& detail = {}
     );
-    cli_log_entry make_event_log_entry(const event& event_value) const;
-    std::vector<cli_log_entry> snapshot_log_history() const;
-    cli_log_mode current_log_mode() const;
+    cli_log_entry event_entry(const event& event_value) const;
+    /// Copy the bounded history under the log mutex.
+    std::vector<cli_log_entry> log_snapshot() const;
+    cli_log_mode log_mode() const;
 
     processing_runtime core_runtime;
     yodau::core::stream_manager& stream_mgr;

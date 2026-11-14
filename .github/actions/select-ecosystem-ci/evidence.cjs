@@ -1,3 +1,4 @@
+// Generated from ecosystem-bot/actions/select-ecosystem-ci/evidence.cjs; do not edit.
 'use strict';
 
 // GitHub transport/provenance only. Build and check policy stays in Marx/Engels.
@@ -106,19 +107,18 @@ function policy(root) {
 }
 function fileNames(kind, coverage, scope = 'full') {
   requireValue(kinds[kind], 'Unknown evidence kind');
-  requireValue(scope === 'full' || (scope === 'delta' && kind === 'codeql'), 'Unknown evidence scope');
-  const stages = scope === 'delta' ? ['01-tracked-surface'] : kinds[kind].stages;
+  requireValue(scope === 'full' || scope === 'delta', 'Unknown evidence scope');
+  const stages = scope === 'delta' ? [kind === 'checks' ? '01-repository-checks' : '01-tracked-surface'] : kinds[kind].stages;
   const names = stages.flatMap(stage =>
     ['summary.md', 'output.log'].map(file => `github/reports/${stage}/${file}`));
   if (kind === 'codeql') names.push('github/reports/03-codeql-analysis/summary.md');
-  if (kind === 'checks' && coverage === 'passed') names.push('reports/coverage.json', 'reports/coverage.zip');
+  if (scope === 'full' && kind === 'checks' && coverage === 'passed') names.push('reports/coverage.json', 'reports/coverage.zip');
   names.push(changeFile(kind));
   return names.sort();
 }
 function changeFile(kind) { return `github/selection/${kind}.json`; }
 
-// Classification explains the selection inputs; only verification attests what
-// ran. Even a presentation-only delta still needs every full stage in this schema.
+// Classification explains selection; only explicitly scoped execution attests what ran.
 function validateChange(selection, receipt) {
   const {input, report} = selection || {};
   requireValue(selection && input && report && [selection, input, report].every(value => !Object.hasOwn(value, 'schema'))
@@ -148,6 +148,25 @@ function validateChange(selection, receipt) {
     requireValue(report.classification === 'full' && report.format?.scope === 'full',
       'Unvalidated classification must retain full scope');
   }
+  if (receipt.kind === 'checks-delta') {
+    requireValue(receipt.event === 'pull_request' && input.complete && repositoryChecks(report)
+      && receipt.coverage === null && equal(receipt.verification, checksDeltaVerification(receipt, input, {outcome: 'success', status: 'passed', exit_code: 0})),
+    'Invalid repository-only Checks evidence');
+  }
+}
+
+// Consume native facts, never infer ownership or relevance from path extensions.
+function repositoryChecks(report) {
+  return report.delta_validated && ['presentation', 'none'].includes(report.classification)
+    && report.checks?.repository === 'full' && report.checks?.build === 'none' && report.checks?.tests === 'none'
+    && report.format?.scope === 'none' && Array.isArray(report.format.files) && !report.format.files.length
+    && Array.isArray(report.affected_artifacts) && !report.affected_artifacts.length;
+}
+function checksDeltaVerification(receipt, input, result) {
+  return {scope: 'delta', selection: {kind: 'event-delta', tree: receipt.tested_tree, manifest: receipt.policy.manifest,
+    comparison_base: input.comparison_base, head: input.head},
+  stages: {repository: 'full', build: 'none', tests: 'none', java: 'none', tidy: 'none', format: 'none', coverage: 'none'},
+  result};
 }
 
 function readChange(root, context, binary, receipt) {
@@ -177,8 +196,7 @@ function requireCleanCheckout(root) {
     + JSON.stringify(modified.split('\0').filter(Boolean)));
   git(root, 'diff', '--quiet', '--ignore-submodules=none', 'HEAD');
 }
-// This version only attests whole-project verification. A changed-file or
-// presentation-only result needs its own contract before it can authorize reuse.
+// Full consumers require this exact whole-project contract; delta cannot authorize reuse.
 function fullVerification(kind, tree, manifest) {
   const stages = kind === 'checks'
     ? ['repository', 'build', 'tests', 'java', 'tidy', 'format', 'coverage']
@@ -222,11 +240,12 @@ function writeBundle(root, receipt, destination, names) {
 async function record({github, context, core, root = process.cwd(), env = process.env, runtime = runtimeIdentity(root)}) {
   const kind = env.EVIDENCE_KIND;
   requireValue(kinds[kind], 'Unknown evidence kind');
-  const delta = kind === 'codeql' && env.VERIFICATION_SCOPE === 'delta';
+  const delta = env.VERIFICATION_SCOPE === 'delta';
   requireValue(env.VERIFICATION_SCOPE === 'full' || delta, 'Reusable evidence requires explicit full verification scope');
+  if (delta && kind === 'checks') requireValue(context.eventName === 'pull_request', 'Checks delta requires a PR event');
   let config;
   try { config = policy(root); }
-  catch (error) { core.notice('No reusable receipt: ' + error.message); return; }
+  catch (error) { if (delta && kind === 'checks') throw error; core.notice('No reusable receipt: ' + error.message); return; }
   const tested = git(root, 'rev-parse', 'HEAD');
   requireValue(tested === context.sha, 'Checkout is not the event revision');
   requireCleanCheckout(root);
@@ -234,7 +253,13 @@ async function record({github, context, core, root = process.cwd(), env = proces
   requireValue(tooling === (config.tooling.bootstrap === 'checkout' ? tested : config.tooling.revision),
     'Tooling checkout differs from the selected immutable revision');
   let coverage = null;
-  if (kind === 'checks') { successful(env, 'CHECK'); coverage = successful(env, 'COVERAGE', true); }
+  if (kind === 'checks') {
+    successful(env, 'CHECK');
+    if (delta) {
+      requireValue(env.CHECK_SCOPE === 'repository' && env.COVERAGE_OUTCOME === 'skipped'
+        && !env.COVERAGE_STATUS && !env.COVERAGE_EXIT_CODE, 'Delta Checks requires unexecuted coverage');
+    } else coverage = successful(env, 'COVERAGE', true);
+  }
   else {
     successful(env, 'REPOSITORY');
     if (delta) {
@@ -255,7 +280,7 @@ async function record({github, context, core, root = process.cwd(), env = proces
   requireValue(run.head_sha === tested || run.head_sha === pr?.head.sha, 'Run does not identify the tested commit');
   const tree = git(root, 'rev-parse', 'HEAD^{tree}');
   const receipt = {
-    kind: delta ? 'codeql-delta' : kind,
+    kind,
     environment: runtime,
     repository: {id: context.payload.repository.id, name: `${context.repo.owner}/${context.repo.repo}`},
     run_id: run.id, run_attempt: attempt, workflow_id: run.workflow_id, workflow: run.path, event: run.event,
@@ -266,7 +291,15 @@ async function record({github, context, core, root = process.cwd(), env = proces
     verification: fullVerification(kind, tree, config.manifest), files: {},
   };
   const selection = readChange(root, context, env.ENGELS_BINARY, receipt);
-  if (delta) {
+  if (delta && kind === 'checks') {
+    requireValue(requiredScope({context, root, kind, baseScope: 'full', binary: env.ENGELS_BINARY,
+      classification: selection.report}).scope === 'repository', 'Native policy requires full Checks');
+    receipt.kind = 'checks-delta';
+    receipt.verification = checksDeltaVerification(receipt, selection.input,
+      {outcome: env.CHECK_OUTCOME, status: env.CHECK_STATUS, exit_code: Number(env.CHECK_EXIT_CODE)});
+    validateChange(selection, receipt);
+  } else if (delta) {
+    receipt.kind = 'codeql-delta';
     requireValue(context.eventName === 'pull_request' && selection.report.delta_validated
       && selection.report.execution?.codeql === 'repository', 'Native policy requires full CodeQL analysis');
     receipt.verification = {scope: 'delta', selection: {kind: 'event-delta', tree, manifest: config.manifest,
@@ -603,17 +636,25 @@ function preliminary({core, env = process.env}) {
   core.setOutput('verified', 'false');
 }
 
-function requiredScope({context, root, baseScope, binary, classification}) {
-  if (baseScope !== 'cheap') return {scope: baseScope, reason: 'event-policy-' + baseScope};
+function requiredScope({context, root, baseScope, binary, classification, kind}) {
+  const checksPR = kind === 'checks' && context.eventName === 'pull_request';
+  if (baseScope !== 'cheap' && !(checksPR && baseScope === 'full'))
+    return {scope: baseScope, reason: 'event-policy-' + baseScope};
   try {
     const changes = require('./changes.cjs');
     const input = JSON.parse(readFile(root, '.ecosystem/github/changes.json', true));
     requireValue(input.complete && equal(input, changes.resolve({context, root})), 'Unverified event delta');
-    const report = classification || changes.inspect({root, binary});
+    const report = changes.inspect({root, binary});
+    requireValue(!classification || equal(classification, report), 'Native classification changed');
     requireValue(report.delta_validated && equal(report.comparison, {
       event: input.event, checkout: input.checkout, base: input.base, head: input.head,
       comparison_base: input.comparison_base, manifest_blob: git(root, 'rev-parse', 'HEAD:manifest.json'),
     }), 'Unverified native classification');
+    if (checksPR) {
+      if (!repositoryChecks(report)) return {scope: 'full', reason: 'native-' + report.classification};
+      policy(root); // A partial run must be able to produce its exact-source receipt.
+      return {scope: 'repository', reason: 'native-' + report.classification};
+    }
     const cheap = ['presentation', 'none'].includes(report.classification)
       && report.checks?.build === 'none' && report.checks?.tests === 'none';
     return {scope: cheap ? 'cheap' : 'full', reason: 'native-' + report.classification};
@@ -623,7 +664,7 @@ function requiredScope({context, root, baseScope, binary, classification}) {
 }
 
 async function select({github, context, core, root = process.cwd(), env = process.env, runtime}) {
-  const selectedScope = requiredScope({context, root, baseScope: env.BASE_SCOPE, binary: env.ENGELS_BINARY});
+  const selectedScope = requiredScope({context, root, baseScope: env.BASE_SCOPE, binary: env.ENGELS_BINARY, kind: env.EVIDENCE_KIND});
   core.setOutput('scope', selectedScope.scope);
   core.setOutput('reason', selectedScope.reason);
   core.setOutput('verified', 'false');
@@ -664,5 +705,5 @@ async function select({github, context, core, root = process.cwd(), env = proces
 }
 
 module.exports = {record, select, preliminary, requiredScope, publication, revalidatePublication, reusablePair, policy, fileNames, artifactName, hash,
-  runtimeIdentity,
+  runtimeIdentity, validateChange,
   checkPublicationTip: ({github, context}) => currentDefault(apiFor(github, context), context)};

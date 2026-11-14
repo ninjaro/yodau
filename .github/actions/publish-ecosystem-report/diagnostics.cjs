@@ -1,3 +1,4 @@
+// Generated from ecosystem-bot/actions/publish-ecosystem-report/diagnostics.cjs; do not edit.
 'use strict';
 // Diagnostics only: required-result and provenance gates remain in the workflows.
 const fs = require('node:fs');
@@ -106,12 +107,13 @@ async function snapshot({core, kind, scope, selectionResult, steps, root = proce
        ['codeql_init', 'CodeQL init', ['repository']], ['codeql_build', 'CodeQL build', ['codeql_init']],
        ['codeql_analyze', 'CodeQL analyze', ['codeql_build']]];
   const stages = [];
-  for (const [id, name, dependencies] of definition) {
+  for (let [id, name, dependencies] of definition) {
+    if (kind === 'checks' && scope === 'repository' && id === 'required') name = 'Repository verification';
     const step = steps[id] || {}; const output = step.outputs || {};
     const row = {id, name, outcome: step.outcome || 'not-recorded', exit_code: output['exit-code'] || null};
     const blocked = dependencies.find(dep => stages.find(s => s.id === dep)?.status !== 'passed');
     const narrowed = kind === 'codeql' && id.startsWith('codeql_') && steps.classification?.outputs?.codeql === 'repository';
-    const optional = (scope === 'cheap' && id === 'coverage') || narrowed;
+    const optional = (['cheap', 'repository'].includes(scope) && id === 'coverage') || narrowed;
     if (step.outcome === 'failure' || output.status === 'failed') {
       Object.assign(row, {status: 'failed', category: output.reason?.startsWith('Log capture failed') ? 'missing-report'
         : ['4', '127'].includes(row.exit_code) ? 'unavailable-environment' : 'actual-failure',
@@ -133,7 +135,7 @@ async function snapshot({core, kind, scope, selectionResult, steps, root = proce
       }
     } else if (optional) {
       Object.assign(row, {status: 'not-applicable', category: 'not-applicable', reason: narrowed
-        ? 'Validated PR delta requires repository checks only; native analysis is not required.' : 'Non-build change uses the cheap verification profile.'});
+        ? 'Validated PR delta requires repository checks only; native analysis is not required.' : scope === 'repository' ? 'Repository-only PR verification; coverage did not execute.' : 'Non-build change uses the cheap verification profile.'});
     } else if (blocked) {
       Object.assign(row, {status: 'blocked', category: 'unmet-prerequisite', reason: `Requires ${blocked}, which did not pass.`});
     } else {
@@ -212,6 +214,10 @@ async function collect({github, context, core, kind, scope, workflowResult, sele
     const result = localRecord = JSON.parse(fs.readFileSync(snapshotFile, 'utf8'));
     if (result.status !== 'passed' && !excluded) { status = 'failed'; reason = result.reason; }
   }
+  const dependencySetupNotRequired = ['ecosystem', 'classification']
+    .every(id => localRecord?.stages?.find(row => row.id === id)?.status === 'passed')
+    && ((kind === 'checks' && (scope === 'cheap' || (scope === 'full' && selectionReason === 'event-policy-full')))
+      || (kind === 'codeql' && localRecord?.stages?.find(row => row.id === 'codeql_init')?.category === 'not-applicable'));
   const logs = []; const stages = [];
   try {
     const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {...context.repo, run_id: context.runId, per_page: 100});
@@ -238,6 +244,10 @@ async function collect({github, context, core, kind, scope, workflowResult, sele
         const native = localRecord?.stages?.find(row => row.id === nativeId);
         const excludedReason = step.name === 'Upload reused verification reports' && scope !== 'reuse'
           ? 'Fresh verification selected; no validated PR report is being reused.'
+          : step.name === 'Setup project verification dependencies' && dependencySetupNotRequired
+          ? kind === 'checks' && scope === 'full'
+            ? 'The initial full setup already installed project dependencies.'
+            : 'Native policy does not require project dependencies.'
           : step.name === 'Restore verified analysis cache'
           ? 'Only native full selection uses analysis records; unknown inputs still execute.'
           : step.name === 'Record compiler cache statistics' && scope === 'reuse'
@@ -256,7 +266,9 @@ async function collect({github, context, core, kind, scope, workflowResult, sele
           : excluded ? `Excluded by scope ${scope}: ${selectionReason || 'event policy'}.` : null;
         const unexplained = step.conclusion === 'skipped' && !blocked && !native && !excludedReason;
         if (unexplained && !step.name.startsWith('Post ')) {
-          status = 'failed'; reason = `Unexplained skipped stage ${job.name}: ${step.name}; it cannot establish verification.`;
+          status = 'failed';
+          if (localRecord?.status !== 'failed' && !firstFailure)
+            reason = `Unexplained skipped stage ${job.name}: ${step.name}; it cannot establish verification.`;
         }
         stages.push({name: `${job.name}: ${step.name}`, status: blocked || unexplained ? 'blocked' : step.conclusion === 'skipped' && native ? native.status : step.conclusion,
           category: blocked ? 'unmet-prerequisite' : native?.category || (step.conclusion === 'failure' ? 'actual-failure'

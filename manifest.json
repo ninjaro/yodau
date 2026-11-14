@@ -56,7 +56,6 @@
     {
       "id": "watchdog_client:client",
       "kind": "static_lib",
-      "owns": [],
       "packages": {
         "external_project": {
           "repository": "https://github.com/ninjaro/peepbooth",
@@ -64,13 +63,11 @@
           "package": "monitor",
           "artifact": "watchdog_client:client"
         }
-      },
-      "name": "monitor_watchdog_client"
+      }
     },
     {
       "id": "watchdog_qt:qt",
       "kind": "static_lib",
-      "owns": [],
       "packages": {
         "external_project": {
           "repository": "https://github.com/ninjaro/peepbooth",
@@ -78,13 +75,11 @@
           "package": "monitor",
           "artifact": "watchdog_qt:qt"
         }
-      },
-      "name": "monitor_watchdog_qt"
+      }
     },
     {
       "id": "packing_library:core",
       "kind": "static_lib",
-      "owns": [],
       "packages": {
         "external_project": {
           "repository": "https://github.com/ninjaro/rothko",
@@ -92,13 +87,11 @@
           "package": "packing",
           "artifact": "library:core"
         }
-      },
-      "name": "packing_core"
+      }
     },
     {
       "id": "shared_ui:qt",
       "kind": "static_lib",
-      "owns": [],
       "packages": {
         "external_project": {
           "repository": "https://github.com/ninjaro/shared_ui",
@@ -106,8 +99,7 @@
           "package": "shared_ui",
           "artifact": "qt:qt"
         }
-      },
-      "name": "shared_ui_qt"
+      }
     },
     {
       "id": "core:core",
@@ -183,8 +175,7 @@
       "root": "core",
       "owns": [
         "cli/cli_client",
-        "cli/cli_log",
-        "src/cli/main.cpp"
+        "cli/cli_log"
       ],
       "entry": "src/cli/main.cpp",
       "dependencies": [
@@ -201,9 +192,6 @@
       "kind": "exe",
       "name": "yodau-daemon",
       "root": "core",
-      "owns": [
-        "src/daemon/main.cpp"
-      ],
       "entry": "src/daemon/main.cpp",
       "dependencies": [
         "headless_runtime:runtime"
@@ -251,10 +239,6 @@
       "kind": "qt_app",
       "name": "yodau",
       "root": "app",
-      "owns": [
-        "src/main.cpp"
-      ],
-      "entry": "src/main.cpp",
       "dependencies": [
         "app:ui"
       ],

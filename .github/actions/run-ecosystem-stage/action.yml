@@ -1,3 +1,4 @@
+# Generated from ecosystem-bot/actions/run-ecosystem-stage/action.yml.tpl; do not edit.
 name: Run Ecosystem Stage
 description: Run one ecosystem-owned CI stage, keep the workflow alive, and emit a Markdown report.
 

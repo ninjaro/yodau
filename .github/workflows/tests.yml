@@ -80,7 +80,7 @@ jobs:
           ecosystem-repository: "ninjaro/ecosystem"
           ecosystem-ref: "b646833b17ff1e5036a6fd8a6d7e75bdb1eb9914"
           build-parallelism: 2
-          install-project-deps: ${{ needs.select.outputs.scope == 'full' }}
+          install-project-deps: ${{ needs.select.outputs.scope == 'full' && github.event_name != 'pull_request' }}
 
       - name: Classify checked-out changes
         id: classification
@@ -92,14 +92,14 @@ jobs:
           script: |
             const report = require('./.github/actions/select-ecosystem-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
             const selected = require('./.github/actions/select-ecosystem-ci/evidence.cjs').requiredScope({
-              context, root: process.cwd(), baseScope: process.env.BASE_SCOPE, classification: report});
+              context, root: process.cwd(), baseScope: process.env.BASE_SCOPE, classification: report, kind: 'checks', binary: process.env.ENGELS_BINARY});
             core.setOutput('scope', selected.scope);
             core.setOutput('reason', selected.reason);
 
       # Reuse the same incremental tool bootstrap only when native policy needs
       # project dependencies. Cheap docs-only selection never installs Qt here.
       - name: Setup project verification dependencies
-        if: ${{ needs.select.outputs.scope == 'cheap' && steps.classification.outputs.scope == 'full' }}
+        if: ${{ steps.classification.outputs.scope == 'full' && (needs.select.outputs.scope == 'cheap' || github.event_name == 'pull_request') }}
         id: project_dependencies
         uses: ./.github/actions/setup-ecosystem
         with:
@@ -138,10 +138,13 @@ jobs:
           ECOSYSTEM_REUSE_VERIFICATION: ${{ steps.classification.outputs.incremental == 'true' && '1' || '0' }}
         uses: ./.github/actions/run-ecosystem-stage
         with:
-          stage-id: 01-required-checks
+          stage-id: ${{ steps.classification.outputs.scope == 'repository' && '01-repository-checks' || '01-required-checks' }}
           stage-label: Required local checks
           shell-command: |
             case "$CHECK_SCOPE" in
+              repository)
+                "${{ steps.ecosystem.outputs.engels-binary }}" check repo
+                ;;
               cheap)
                 "${{ steps.ecosystem.outputs.engels-binary }}" check repo
                 "${{ steps.ecosystem.outputs.engels-binary }}" check format --changes
@@ -254,12 +257,18 @@ jobs:
             echo '::error::Execution diagnosis failed or reports an incomplete required stage.'
             exit 1
           fi
-          if [ "$CHECK_SCOPE" != cheap ] && [ "$CHECK_SCOPE" != full ]; then
+          if [ "$CHECK_SCOPE" != cheap ] && [ "$CHECK_SCOPE" != full ] && [ "$CHECK_SCOPE" != repository ]; then
             echo '::error::Missing or invalid verification scope.'
             exit 1
           fi
-          if [ "$CHECK_OUTCOME" != success ] || [ "$CHECK_STATUS" != passed ] || [ "$CHECK_EXIT_CODE" != 0 ] || [ ! -s .ecosystem/github/reports/01-required-checks/summary.md ] || [ ! -f .ecosystem/github/reports/01-required-checks/output.log ]; then
+          required_root=.ecosystem/github/reports/01-required-checks
+          if [ "$CHECK_SCOPE" = repository ]; then required_root=.ecosystem/github/reports/01-repository-checks; fi
+          if [ "$CHECK_OUTCOME" != success ] || [ "$CHECK_STATUS" != passed ] || [ "$CHECK_EXIT_CODE" != 0 ] || [ ! -s "$required_root/summary.md" ] || [ ! -f "$required_root/output.log" ]; then
             echo '::error::Required local checks failed or did not produce a complete result. See the stage report and setup logs.'
+            exit 1
+          fi
+          if [ "$CHECK_SCOPE" = repository ] && { [ "$COVERAGE_OUTCOME" != skipped ] || [ -n "$COVERAGE_STATUS" ] || [ -n "$COVERAGE_EXIT_CODE" ]; }; then
+            echo '::error::Repository-only Checks must not claim coverage execution.'
             exit 1
           fi
           if [ "$CHECK_SCOPE" = full ]; then
@@ -296,12 +305,42 @@ jobs:
           script: |
             await require('./.github/actions/select-ecosystem-ci/evidence.cjs').record({github, context, core});
 
+      - name: Record delta verification
+        if: ${{ steps.classification.outputs.scope == 'repository' }}
+        id: delta
+        uses: actions/github-script@v7
+        env:
+          EVIDENCE_KIND: checks
+          VERIFICATION_SCOPE: delta
+          CHECK_SCOPE: repository
+          TOOL_SOURCE_ROOT: ${{ steps.ecosystem.outputs.ecosystem-source-root }}
+          ENGELS_BINARY: ${{ steps.ecosystem.outputs.engels-binary }}
+          CHECK_OUTCOME: ${{ steps.required.outcome }}
+          CHECK_STATUS: ${{ steps.required.outputs.status }}
+          CHECK_EXIT_CODE: ${{ steps.required.outputs.exit-code }}
+          COVERAGE_OUTCOME: ${{ steps.coverage.outcome }}
+          COVERAGE_STATUS: ${{ steps.coverage.outputs.status }}
+          COVERAGE_EXIT_CODE: ${{ steps.coverage.outputs.exit-code }}
+        with:
+          script: |
+            await require('./.github/actions/select-ecosystem-ci/evidence.cjs').record({github, context, core});
+
       - name: Upload verification evidence
         if: ${{ steps.evidence.outputs.name != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.evidence.outputs.name }}
           path: ${{ steps.evidence.outputs.directory }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload delta evidence
+        if: ${{ steps.delta.outputs.name != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.delta.outputs.name }}
+          path: ${{ steps.delta.outputs.directory }}
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 30

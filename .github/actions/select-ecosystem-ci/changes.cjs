@@ -1,3 +1,4 @@
+// Generated from ecosystem-bot/actions/select-ecosystem-ci/changes.cjs; do not edit.
 'use strict';
 
 // Event/Git transport only. A complete delta is not a classification or a

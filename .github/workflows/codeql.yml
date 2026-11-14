@@ -99,7 +99,7 @@ jobs:
           script: |
             const report = require('./.github/actions/select-ecosystem-ci/changes.cjs').classify({core, binary: process.env.ENGELS_BINARY});
             const selected = require('./.github/actions/select-ecosystem-ci/evidence.cjs').requiredScope({
-              context, root: process.cwd(), baseScope: process.env.BASE_SCOPE, classification: report});
+              context, root: process.cwd(), baseScope: process.env.BASE_SCOPE, classification: report, binary: process.env.ENGELS_BINARY});
             if (selected.scope === 'cheap' && report.execution.codeql === 'full') selected.scope = 'full';
             core.setOutput('scope', selected.scope);
             core.setOutput('reason', selected.reason);
