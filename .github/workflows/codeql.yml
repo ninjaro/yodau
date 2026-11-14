@@ -30,7 +30,7 @@ jobs:
       scope: ${{ steps.selection.outputs.scope }}
       reason: ${{ steps.selection.outputs.reason }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       - id: selection
@@ -67,7 +67,7 @@ jobs:
         language: ['cpp']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -365,7 +365,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Download CodeQL report artifacts
         continue-on-error: true
