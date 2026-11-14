@@ -124,7 +124,7 @@ jobs:
       - name: Restore verified analysis cache
         if: ${{ steps.classification.outputs.scope == 'full' }}
         continue-on-error: true
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .ecosystem/cache/verification
           key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-analysis-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -166,7 +166,7 @@ jobs:
       - name: Save verified compiler cache
         continue-on-error: true
         if: ${{ always() && steps.required.outcome == 'success' && github.event_name != 'pull_request' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .ecosystem/cache/ccache
           key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-ccache-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -194,7 +194,7 @@ jobs:
       - name: Save verified analysis cache
         if: ${{ always() && steps.required.outcome == 'success' && github.event_name != 'pull_request' && steps.analysis_cache.outputs.available == 'true' }}
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .ecosystem/cache/verification
           key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-analysis-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
