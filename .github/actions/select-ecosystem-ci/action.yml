@@ -74,7 +74,7 @@ runs:
 
     - name: Resolve event changes
       id: changes
-      uses: actions/github-script@v7
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
       env:
         CHANGES_MODULE: ${{ github.action_path }}/changes.cjs
       with:
@@ -83,7 +83,7 @@ runs:
 
     - name: Select preliminary execution
       id: evidence
-      uses: actions/github-script@v7
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
       env:
         BASE_SCOPE: ${{ steps.select.outputs.scope }}
         EVIDENCE_MODULE: ${{ github.action_path }}/evidence.cjs

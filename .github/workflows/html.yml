@@ -41,7 +41,7 @@ jobs:
       # This does not substitute the documentation runner for a compiled check.
       - name: Select verified publication evidence
         id: automatic
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             await require('./.github/actions/select-ecosystem-ci/evidence.cjs').publication({github, context, core});
@@ -86,7 +86,7 @@ jobs:
       - name: Revalidate publication evidence
         if: ${{ steps.docs.outputs.status == 'passed' }}
         id: revalidation
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           PUBLICATION_SOURCE: ${{ steps.automatic.outputs.source }}
         with:
@@ -157,7 +157,7 @@ jobs:
       - name: Confirm current publication revision
         if: ${{ success() && steps.publication.outcome == 'success' }}
         id: current
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             await require('./.github/actions/select-ecosystem-ci/evidence.cjs').checkPublicationTip({github, context});
@@ -203,7 +203,7 @@ jobs:
           persist-credentials: false
 
       - name: Revalidate deployment source
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           PUBLICATION_SOURCE: ${{ needs.build.outputs.source }}
         with:
