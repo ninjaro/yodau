@@ -11,7 +11,9 @@
   "schedule": [
     "every weekend"
   ],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "matchManagers": [
