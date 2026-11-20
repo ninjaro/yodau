@@ -137,7 +137,7 @@ runs:
 
     - name: Checkout ecosystem tool
       if: ${{ inputs.bootstrap == 'repository' }}
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         repository: ${{ inputs.ecosystem-repository }}
         ref: ${{ inputs.ecosystem-ref }}
@@ -145,7 +145,7 @@ runs:
         persist-credentials: false
 
     - name: Restore compiler cache
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: .ecosystem/cache/ccache
         key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-ccache-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -279,7 +279,7 @@ runs:
 
     # Ubuntu 24.04 supplies JSON 3.11; the tooling requires 3.12.
     - name: Checkout declared JSON prerequisite
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         repository: nlohmann/json
         ref: v3.12.0
@@ -364,7 +364,7 @@ runs:
     - name: Save bootstrap compiler cache
       if: ${{ steps.bootstrap_build.outcome == 'success' && github.event_name != 'pull_request' }}
       continue-on-error: true
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: .ecosystem/cache/ccache
         key: ${{ runner.os }}-${{ runner.arch }}-ecosystem-ccache-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-bootstrap
