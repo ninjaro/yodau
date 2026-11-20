@@ -30,7 +30,7 @@ jobs:
       scope: ${{ steps.selection.outputs.scope }}
       reason: ${{ steps.selection.outputs.reason }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - id: selection
@@ -41,7 +41,7 @@ jobs:
       - name: Upload change resolution
         if: ${{ always() }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-changes-yodau-codeql
           path: ${{ steps.selection.outputs.changes-file }}
@@ -67,13 +67,13 @@ jobs:
         language: ['cpp']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Resolve checked-out changes
         id: changes
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             require('./.github/actions/select-ecosystem-ci/changes.cjs').collect({context, core});
@@ -91,7 +91,7 @@ jobs:
 
       - name: Classify checked-out changes
         id: classification
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           ENGELS_BINARY: ${{ steps.ecosystem.outputs.engels-binary }}
           BASE_SCOPE: ${{ needs.select.outputs.scope }}
@@ -120,7 +120,7 @@ jobs:
       - name: Upload change classification
         if: ${{ steps.classification.outcome == 'success' }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-classification-yodau-codeql
           path: |
@@ -138,7 +138,7 @@ jobs:
           shell-command: |
             "${{ steps.ecosystem.outputs.engels-binary }}" check repo
 
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3
         id: codeql_init
         if: ${{ steps.repository.outputs.status == 'passed' && steps.classification.outputs.codeql == 'full' }}
         continue-on-error: true
@@ -162,7 +162,7 @@ jobs:
         id: codeql_analyze
         if: ${{ steps.codeql_init.outcome == 'success' && steps.codeql_build.outputs.status == 'passed' }}
         continue-on-error: true
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3
 
       - name: Summarize CodeQL analysis
         if: ${{ always() }}
@@ -216,7 +216,7 @@ jobs:
       - name: Record execution diagnosis
         id: diagnostics
         if: ${{ always() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           DIAGNOSTIC_KIND: codeql
           DIAGNOSTIC_SCOPE: ${{ steps.classification.outputs.scope }}
@@ -231,7 +231,7 @@ jobs:
       - name: Upload CodeQL reports
         if: ${{ always() }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-reports-yodau-codeql
           path: .ecosystem/github/reports
@@ -296,7 +296,7 @@ jobs:
       - name: Record reusable verification
         if: ${{ steps.classification.outputs.scope == 'full' && steps.classification.outputs.codeql == 'full' }}
         id: evidence
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           EVIDENCE_KIND: codeql
           VERIFICATION_SCOPE: ${{ steps.classification.outputs.scope }}
@@ -317,7 +317,7 @@ jobs:
       - name: Record delta verification
         if: ${{ (steps.classification.outputs.scope == 'full' || steps.classification.outputs.scope == 'cheap') && steps.classification.outputs.codeql == 'repository' }}
         id: delta
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           EVIDENCE_KIND: codeql
           VERIFICATION_SCOPE: delta
@@ -337,7 +337,7 @@ jobs:
 
       - name: Upload verification evidence
         if: ${{ steps.evidence.outputs.name != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.evidence.outputs.name }}
           path: ${{ steps.evidence.outputs.directory }}
@@ -347,7 +347,7 @@ jobs:
 
       - name: Upload delta evidence
         if: ${{ steps.delta.outputs.name != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.delta.outputs.name }}
           path: ${{ steps.delta.outputs.directory }}
@@ -365,11 +365,11 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download CodeQL report artifacts
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: ci-reports-yodau-codeql
           path: .ecosystem/github/reports
@@ -393,7 +393,7 @@ jobs:
       - name: Upload diagnosed reports
         if: ${{ always() }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-diagnosis-yodau-codeql
           path: .ecosystem/github/reports
